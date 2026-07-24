@@ -417,91 +417,6 @@ Branches:
             Docs: |-
               This analysis, for each function, identifies the size of the stack
               frame and the amount of stack used to pass arguments.
-      - Name: legacy-segregate-stack-accesses
-        Pipes:
-          - Type: llvm-pipe
-            UsedContainers: [functions.bc.zstd]
-            Passes:
-              - split-struct-phis
-              - legacy-segregate-stack-accesses
-              - cleanup-stack-size-markers
-              - dce
-              - dse
-              - sroa
-              - instcombine
-              - remove-extractvalues
-              - sroa
-              - simplify-cfg-with-hoist-and-sink
-              # loop-rotate rearranges loops in a way that should make it
-              # easier to match do-while loops
-              - loop-rotate
-              - loop-rewrite-with-canonical-induction-variable
-              - simplify-cfg-with-hoist-and-sink
-              # don't run simplify-cfg{,-with-hoist-and-sink} after
-              # loop-simplify because it kills the loop-simplify form causing
-              # DLA not to identify arrays properly
-              - loop-simplify
-              - instcombine
-              - remove-extractvalues
-              - early-cse
-              - dce
-              - strip-dead-prototypes
-              - split-overflow-intrinsics
-              - dce
-              - remove-llvmassume-calls
-      - Name: make-segment-ref
-        Pipes: []
-        Artifacts:
-          Container: functions.bc.zstd
-          Kind: stack-accesses-segregated
-          SingleTargetFilename: legacy_stack_accesses_segregated.ll
-          Docs: |-
-            This artifact contains an LLVM function for each function in the
-            input program.
-            The functions have an argument for each argument in the input
-            prototype.
-
-            Unlike upstream artifacts, the arguments are not tied to the
-            *register* containing them. So, if a function using the x86-64
-            SystemV ABI has two `uint8_t` arguments, they will appear as two
-            distinct arguments, as opposed to being merged in a single argument
-            representing `rdi`.
-
-            Additionally, this artifact correctly represent each stack argument
-            in the function prototype.
-        Analyses:
-          - Name: analyze-data-layout
-            Type: analyze-data-layout
-            UsedContainers: [functions.bc.zstd]
-            Docs: |-
-              This analysis inspects the memory accesses performed by the input
-              program and detects the layout of data structures.
-              The produced data structures are the result of merging the
-              information obtained from each function interprocedurally.
-  - From: make-segment-ref
-    Steps:
-      - Name: cleanup-ir
-        Pipes:
-          - Type: llvm-pipe
-            UsedContainers: [functions.bc.zstd]
-            Passes:
-              - instcombine
-              - cleanup-ir
-              - dce
-        Artifacts:
-          Container: functions.bc.zstd
-          Kind: stack-accesses-segregated
-          SingleTargetFilename: clean-ir.ll
-          Docs: |-
-            This artifact contains one LLVM function for each function defined
-            in this binary.
-
-            The output is similar to the output of `make-segment-ref` but it's
-            cleaned up from rev.ng-specific artifacts in order to be more easily
-            consumed as standard LLVM IR.
-
-            This is an appropriate artifact on top of which write analyses, such
-            as a taint analysis.
     # Clift-based decompilation pipeline
     # TODO: this is still under construction and can't generate C code yet
   - From: detect-stack-size
@@ -532,23 +447,30 @@ Branches:
               - instcombine-noarrays
               - remove-extractvalues
               - early-cse
+              - split-overflow-intrinsics
+              - remove-llvmassume-calls
+              - peephole-opt-for-decompilation
               - dce
               - strip-dead-prototypes
-              - split-overflow-intrinsics
-              - dce
         Artifacts:
           Container: functions.bc.zstd
           Kind: stack-accesses-segregated
           SingleTargetFilename: clean-ir.ll
           Docs: ""
+        Analyses:
+          - Name: analyze-data-layout
+            Type: analyze-data-layout
+            UsedContainers: [functions.bc.zstd]
+            Docs: |-
+              This analysis inspects the memory accesses performed by the input
+              program and detects the layout of data structures.
+              The produced data structures are the result of merging the
+              information obtained from each function interprocedurally.
       - Name: emit-c
         Pipes:
           - Type: llvm-pipe
             UsedContainers: [functions.bc.zstd]
             Passes:
-              - remove-llvmassume-calls
-              - dce
-              - peephole-opt-for-decompilation
               - exit-ssa
               - arithmetic-to-gep
               - extractvalue-to-gep

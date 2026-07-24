@@ -25,6 +25,7 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/DataLayoutAnalysis/DLATypeSystem.h"
+#include "revng/LocalVariables/LocalVariableHelpers.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
@@ -97,7 +98,7 @@ static bool updateArgumentTypes(model::Binary &Model,
 
       revng_log(Log,
                 "Updating stack arg " << LLVMStackArg->getNameOrAsOperand());
-      LayoutTypePtr Key{ LLVMStackArg, LayoutTypePtr::fieldNumNone };
+      LayoutTypePtr Key{ LLVMStackArg, LayoutTypePtr::FieldNumNone };
 
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
         using namespace model;
@@ -152,7 +153,7 @@ static bool updateArgumentTypes(model::Binary &Model,
     // middle-end, therefore there is no Type associated to them at this
     // stage.
     if (canBeUpgraded(*ModelArg.Type())) {
-      LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::fieldNumNone };
+      LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::FieldNumNone };
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
         auto OldSize = *ModelArg.Type()->size();
         // The type is associated to a `LayoutTypeSystemPtr`, hence we have to
@@ -197,7 +198,7 @@ static bool updateReturnType(model::Binary &Model,
   const bool IsScalar = ModelRetVals.size() == 1;
   for (auto &ModelRet : llvm::enumerate(ModelRetVals)) {
 
-    unsigned int Index = IsScalar ? LayoutTypePtr::fieldNumNone :
+    unsigned int Index = IsScalar ? LayoutTypePtr::FieldNumNone :
                                     ModelRet.index();
     revng_log(Log,
               "Updating elem " << Index << " of "
@@ -260,7 +261,7 @@ static bool updateArgumentTypes(model::Binary &Model,
     // middle-end, therefore there is no Type associated to them at this
     // stage.
     if (canBeUpgraded(*ModelArg.Type())) {
-      LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::fieldNumNone };
+      LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::FieldNumNone };
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
         auto OldSize = *ModelArg.Type()->size();
         // The type is associated to a `LayoutTypeSystemPtr`, hence we have to
@@ -320,7 +321,7 @@ static bool updateReturnType(model::Binary &Model,
     // middle-end, therefore there is no Type associated to them at this
     // stage.
     if (canBeUpgraded(*ModelReturnType)) {
-      LayoutTypePtr Key{ LLVMRetVal, LayoutTypePtr::fieldNumNone };
+      LayoutTypePtr Key{ LLVMRetVal, LayoutTypePtr::FieldNumNone };
       if (auto NewTypeIt = TypeMap.find(Key); NewTypeIt != TypeMap.end()) {
         auto OldSize = *ModelReturnType->size();
         // The type is associated to a `LayoutTypeSystemPtr`, hence we have to
@@ -652,22 +653,18 @@ static bool updateStackFrameType(model::Function &ModelFunc,
   bool Found = false;
   for (const auto &I : llvm::instructions(LLVMFunc)) {
 
-    auto *Call = llvm::dyn_cast<llvm::CallInst>(&I);
-    if (not Call)
+    auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(&I);
+    if (not Alloca or not hasStackFrameMetadata(Alloca))
       continue;
 
-    auto *Callee = getCalledFunction(Call);
-    if (not Callee or Callee->getName() != "revng_stack_frame")
-      continue;
-
-    revng_assert(not Found, "Multiple calls to revng_stack_frame");
+    revng_assert(not Found, "Multiple stack frame allocas");
     Found = true;
 
     revng_log(Log, "Updating stack for " << LLVMFunc.getName());
     LoggerIndent Indent{ Log };
     revng_log(Log, "Was " << OldStackFrame.ID());
 
-    LayoutTypePtr Key{ Call, LayoutTypePtr::fieldNumNone };
+    LayoutTypePtr Key{ Alloca, LayoutTypePtr::FieldNumNone };
 
     if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
       const auto &NewStack = *NewTypeIt->second->skipConstAndTypedefs();
@@ -736,12 +733,13 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
 
 bool dla::updateSegmentsTypes(const llvm::Module &M,
                               TupleTree<model::Binary> &Model,
-                              const TypeMapT &TypeMap) {
+                              const TypeMapT &TypeMap,
+                              std::set<MetaAddress> &UpdatedSegments) {
   bool Updated = false;
 
   for (const auto &F : FunctionTags::SegmentGlobalGetter.functions(&M)) {
-    const auto &[StartAddress, VirtualSize] = extractSegmentKeyFromMetadata(F);
-    auto Segment = Model->Segments().at({ StartAddress, VirtualSize });
+    MetaAddress SegmentKey = extractSegmentKeyFromMetadata(F);
+    auto Segment = Model->Segments().at(SegmentKey);
 
     // If the Segment type is missing, we have nothing to update.
     if (Segment.Type().isEmpty())
@@ -751,8 +749,13 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
     // It's empty, we'll fill it up.
     model::StructDefinition &SegmentStruct = *Segment.type();
 
-    LayoutTypePtr Key{ &F, LayoutTypePtr::fieldNumNone };
+    LayoutTypePtr Key{ &F, LayoutTypePtr::FieldNumNone };
     if (auto TypeIt = TypeMap.find(Key); TypeIt != TypeMap.end()) {
+      // A segment's getter is duplicated in every module that accesses it, so
+      // fill each segment's type only once.
+      if (not UpdatedSegments.insert(SegmentKey).second)
+        continue;
+
       // Let's examine the recovered type by DLA.
       fillStructWithRecoveredDLATypeAtOffset(*Model,
                                              SegmentStruct,

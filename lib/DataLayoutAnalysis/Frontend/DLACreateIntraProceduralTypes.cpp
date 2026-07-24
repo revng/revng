@@ -18,8 +18,10 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Passes/PassBuilder.h"
 
 #include "revng/DataLayoutAnalysis/DLATypeSystem.h"
+#include "revng/LocalVariables/LocalVariableHelpers.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
@@ -237,8 +239,8 @@ protected:
   }
 
 public:
-  void setupForProcessingFunction(ModulePass *MP, Function *TheF) {
-    SE = &MP->getAnalysis<llvm::ScalarEvolutionWrapperPass>(*TheF).getSE();
+  void setupForProcessingFunction(ScalarEvolution &SE, Function *TheF) {
+    this->SE = &SE;
     F = TheF;
     DT.recalculate(*F);
     PDT.recalculate(*F);
@@ -265,6 +267,19 @@ public:
         // Add entry in SCEVToLayoutType map for values returned by F
         if (auto *RetI = dyn_cast<ReturnInst>(&I)) {
           if (Value *RetVal = RetI->getReturnValue()) {
+            // TODO: An array-of-bytes return value for a CABI function
+            // returning an aggregate. In order to handle it properly we should
+            // visit it recursively and have first-class support for model types
+            // in DLA, which we currently don't have.
+            // So, for now we just bail out, accepting to degrade the quality of
+            // the results. We don't expect this to affect users much in
+            // practice, because either the input has no debug symbols (and in
+            // that case DLA sees mostly Raw functions, and this case doesn't
+            // trigger) or the model (via debug symbols, or user input) has lots
+            // of good information on CABI function types, in which case the
+            // role of DLA is not that important interprocedurally.
+            if (isArrayOfBytes(RetVal->getType()))
+              continue;
             revng_assert(isa<StructType>(RetVal->getType())
                          or isa<IntegerType>(RetVal->getType())
                          or isa<PointerType>(RetVal->getType()));
@@ -418,49 +433,6 @@ public:
 
         } else if (auto *C = dyn_cast<CallInst>(&I)) {
 
-          if (isCallToTagged(C, FunctionTags::ReturnsPolymorphic)) {
-
-            const auto &[StackLayout, New] = Builder.getOrCreateLayoutType(C);
-            if (Function *Called = C->getCalledFunction();
-                Called and Called->getName().startswith("revng_stack_frame")) {
-              auto *StackSize = cast<ConstantInt>(C->getArgOperand(0));
-              StackLayout->Size = StackSize->getZExtValue();
-              StackLayout->NonScalar = true;
-            }
-            Changed |= New;
-            const SCEV *CallSCEV = SE->getSCEV(C);
-            SCEVToLayoutType.insert(std::make_pair(CallSCEV, StackLayout));
-
-            auto *Placeholder = TS.createArtificialLayoutType();
-            Placeholder->Size = getPointerSize(Model.Architecture());
-            TS.addPointerLink(Placeholder, StackLayout);
-            Changed = true;
-            continue;
-          }
-
-          if (isCallToTagged(C, FunctionTags::AddressOf)) {
-            // AddressOf always generates a Layout node
-            const auto &[AddrLayout, New] = Builder.getOrCreateLayoutType(C);
-            Changed |= New;
-            const SCEV *CallSCEV = SE->getSCEV(C);
-            SCEVToLayoutType.insert(std::make_pair(CallSCEV, AddrLayout));
-
-            // Add an equality edge between the `AddressOf` node and it's
-            // pointee node
-            auto *Arg = C->getArgOperand(1);
-
-            // Avoid creating layouts for pointers to functions.
-            if (isPointerToFunctionExpression(Arg))
-              continue;
-
-            auto &&[PointedLayout,
-                    ArgIsNew] = Builder.getOrCreateLayoutType(Arg);
-            Changed |= ArgIsNew;
-            auto &&[_, NewLink] = TS.addEqualityLink(PointedLayout, AddrLayout);
-            Changed |= NewLink;
-            continue;
-          }
-
           if (isCallToTagged(C, FunctionTags::StructInitializer)) {
 
             const Function *Callee = getCallee(C);
@@ -507,57 +479,9 @@ public:
           const auto *Prototype = getCallSitePrototype(Model, C);
           revng_assert(Prototype);
 
+          // FIXME TODO WIP: what are we gonna do for indirect calls
           const Function *Callee = getCallee(C);
           revng_assert(not Callee or not Callee->isVarArg());
-
-          // Add entry in SCEVToLayoutType map for return values of CallInst
-          if (not C->getType()->isVoidTy()) {
-            // Return values
-            revng_assert(isa<StructType>(C->getType())
-                         or isa<IntegerType>(C->getType())
-                         or isa<PointerType>(C->getType()));
-
-            if (isa<StructType>(C->getType())) {
-              // Types representing the return type
-              auto ExtractedVals = getExtractedValuesFromInstruction(C);
-              auto Size = ExtractedVals.size();
-              auto FormalRetTys = Callee ? Builder.getLayoutTypes(*Callee) :
-                                           TS.createArtificialLayoutTypes(Size);
-              revng_assert(Size == FormalRetTys.size());
-              for (const auto &[Ext, RetTy] :
-                   llvm::zip(ExtractedVals, FormalRetTys)) {
-
-                if (Ext.empty())
-                  continue;
-
-                for (llvm::CallInst *E : Ext) {
-                  using FunctionTags::OpaqueExtractValue;
-                  revng_assert(isCallToTagged(E, OpaqueExtractValue));
-                  llvm::Type *ExtTy = E->getType();
-                  revng_assert(isa<IntegerType>(ExtTy)
-                               or isa<PointerType>(ExtTy));
-
-                  const auto &[ExtLayout,
-                               New] = Builder.getOrCreateLayoutType(E);
-                  Changed |= New;
-                  Changed |= TS.addEqualityLink(RetTy, ExtLayout).second;
-                  const SCEV *S = SE->getSCEV(E);
-                  SCEVToLayoutType.insert(std::make_pair(S, ExtLayout));
-                }
-              }
-            } else {
-              // Type representing the return type
-              revng_assert(not C->getType()->isIntegerTy(1));
-              LayoutTypeSystemNode *RetTy = Callee ?
-                                              Builder.getLayoutType(Callee) :
-                                              TS.createArtificialLayoutType();
-              const auto &[CType, NewC] = Builder.getOrCreateLayoutType(C);
-              Changed |= NewC;
-              Changed |= Builder.TS.addEqualityLink(RetTy, CType).second;
-              const SCEV *RetS = SE->getSCEV(C);
-              SCEVToLayoutType.insert(std::make_pair(RetS, CType));
-            }
-          }
 
           // Add entry in SCEVToLayoutType map for actual arguments of CallInst.
           for (Use &ArgU : C->args()) {
@@ -573,6 +497,68 @@ public:
             const SCEV *ArgS = SE->getSCEV(ArgU);
             SCEVToLayoutType.insert(std::make_pair(ArgS, ArgTy));
           }
+
+          if (C->getType()->isVoidTy())
+            continue;
+
+          // Add entry in SCEVToLayoutType map for return values of CallInst
+          revng_assert(isa<StructType>(C->getType())
+                       or isa<IntegerType>(C->getType())
+                       or isa<PointerType>(C->getType())
+                       or isArrayOfBytes(C->getType()));
+
+          if (isa<StructType>(C->getType())) {
+            // Types representing the return type
+            auto ExtractedVals = getExtractedValuesFromInstruction(C);
+            auto Size = ExtractedVals.size();
+            auto FormalRetTys = Callee ? Builder.getLayoutTypes(*Callee) :
+                                         TS.createArtificialLayoutTypes(Size);
+            revng_assert(Size == FormalRetTys.size());
+            for (const auto &[Ext, RetTy] :
+                 llvm::zip(ExtractedVals, FormalRetTys)) {
+
+              if (Ext.empty())
+                continue;
+
+              for (llvm::CallInst *E : Ext) {
+                using FunctionTags::OpaqueExtractValue;
+                revng_assert(isCallToTagged(E, OpaqueExtractValue));
+                llvm::Type *ExtTy = E->getType();
+                revng_assert(isa<IntegerType>(ExtTy)
+                             or isa<PointerType>(ExtTy));
+
+                const auto &[ExtLayout, New] = Builder.getOrCreateLayoutType(E);
+                Changed |= New;
+                Changed |= TS.addEqualityLink(RetTy, ExtLayout).second;
+                const SCEV *S = SE->getSCEV(E);
+                SCEVToLayoutType.insert(std::make_pair(S, ExtLayout));
+              }
+            }
+          } else if (isArrayOfBytes(C->getType())) {
+            // TODO: An array-of-bytes call to a CABI function returning an
+            // aggregate. In order to handle it properly we should visit it
+            // recursively and have first-class support for model types in DLA,
+            // which we currently don't have.
+            // So, for now we just bail out, accepting to degrade the quality of
+            // the results. We don't expect this to affect users much in
+            // practice, because either the input has no debug symbols (and in
+            // that case DLA sees mostly Raw functions, and this case doesn't
+            // trigger) or the model (via debug symbols, or user input) has lots
+            // of good information on CABI function types, in which case the
+            // role of DLA is not that important interprocedurally.
+          } else {
+            // Type representing the return type
+            revng_assert(not C->getType()->isIntegerTy(1));
+            LayoutTypeSystemNode *RetTy = Callee ?
+                                            Builder.getLayoutType(Callee) :
+                                            TS.createArtificialLayoutType();
+            const auto &[CType, NewC] = Builder.getOrCreateLayoutType(C);
+            Changed |= NewC;
+            Changed |= Builder.TS.addEqualityLink(RetTy, CType).second;
+            const SCEV *RetS = SE->getSCEV(C);
+            SCEVToLayoutType.insert(std::make_pair(RetS, CType));
+          }
+
         } else if (isa<LoadInst>(I) or isa<StoreInst>(I)) {
           Value *PointerOp(nullptr);
           if (auto *Load = dyn_cast<LoadInst>(&I))
@@ -618,22 +604,77 @@ public:
           }
 
           if (auto *L = dyn_cast<LoadInst>(&I)) {
-            revng_assert(isa<IntegerType>(L->getType())
-                         or isa<PointerType>(L->getType()));
-
-            revng_assert(not L->getType()->isIntegerTy(1));
+            // An array-of-bytes load is typically used in a ret, to return a
+            // value from within a CABI function returning an aggregate. We
+            // still create a layout node for it, so the memory-access loop
+            // below finds it as a cache hit and can use it as a pointee. It is
+            // not SCEVable (and could never be a base address), so it is not
+            // registered in SCEVToLayoutType.
+            // TODO: In order to handle it properly we should visit it
+            // recursively and have first-class support for model types in DLA,
+            // which we currently don't have.
+            // So, for now we just bail out, accepting to degrade the quality of
+            // the results. We don't expect this to affect users much in
+            // practice, because either the input has no debug symbols (and in
+            // that case DLA sees mostly Raw functions, and this case doesn't
+            // trigger) or the model (via debug symbols, or user input) has lots
+            // of good information on CABI function types, in which case the
+            // role of DLA is not that important interprocedurally.
+            if (not isArrayOfBytes(L->getType())) {
+              revng_assert(isa<IntegerType>(L->getType())
+                           or isa<PointerType>(L->getType()));
+              revng_assert(not L->getType()->isIntegerTy(1));
+            }
             const auto &[LoadedTy, Created] = Builder.getOrCreateLayoutType(L);
             Changed |= Created;
-            const SCEV *LoadSCEV = SE->getSCEV(L);
-            SCEVToLayoutType.insert(std::make_pair(LoadSCEV, LoadedTy));
+            if (not isArrayOfBytes(L->getType())) {
+              const SCEV *LoadSCEV = SE->getSCEV(L);
+              SCEVToLayoutType.insert(std::make_pair(LoadSCEV, LoadedTy));
+            }
           }
         } else if (auto *A = dyn_cast<AllocaInst>(&I)) {
-          revng_assert(isa<IntegerType>(A->getAllocatedType())
-                       or isa<PointerType>(A->getAllocatedType()));
-          const auto &[LoadedTy, Created] = Builder.getOrCreateLayoutType(A);
+          revng_assert(not A->isArrayAllocation());
+
+          Type *AllocatedType = A->getAllocatedType();
+
+          const DataLayout &DL = A->getModule()->getDataLayout();
+          revng_assert(DL.typeSizeEqualsStoreSize(AllocatedType));
+          revng_assert(DL.getTypeAllocSizeInBits(AllocatedType) % 8 == 0);
+
+          const auto &[Allocated, Created] = Builder.getOrCreateLayoutType(A);
           Changed |= Created;
           const SCEV *LoadSCEV = SE->getSCEV(A);
-          SCEVToLayoutType.insert(std::make_pair(LoadSCEV, LoadedTy));
+          SCEVToLayoutType.insert(std::make_pair(LoadSCEV, Allocated));
+
+          uint64_t AllocSize = DL.getTypeAllocSize(AllocatedType);
+          if (Created) {
+            Allocated->Size = AllocSize;
+          } else {
+            // The node was already created. For an alloca this can only
+            // legitimately happen in the interprocedural pass, which visits it
+            // as a phi incoming value, a call argument, or a returned value.
+            // Assert that at least one such user exists; anything else creating
+            // an alloca's node would be unexpected and worth investigating.
+            revng_assert(llvm::any_of(A->users(), [](const User *U) {
+              return isa<PHINode>(U) or isa<CallInst>(U) or isa<ReturnInst>(U);
+            }));
+            // The node still has no size; the alloca is the authoritative
+            // source of the size, so set it here.
+            revng_assert(Allocated->Size == 0 or Allocated->Size == AllocSize);
+            Allocated->Size = AllocSize;
+          }
+
+          if (hasStackFrameMetadata(A)) {
+            // The stack frame is a struct, not a scalar of the full frame
+            // size. Treat the alloca like the `revng_stack_frame` call used to
+            // be treated before stack frames became allocas: mark the node
+            // non-scalar and give it an artificial pointer, so the DLA recovers
+            // the frame's fields.
+            Allocated->NonScalar = true;
+            auto *Placeholder = TS.createArtificialLayoutType();
+            Placeholder->Size = getPointerSize(Model.Architecture());
+            TS.addPointerLink(Placeholder, Allocated);
+          }
         } else if (isa<IntToPtrInst>(&I) or isa<PtrToIntInst>(&I)
                    or isa<BitCastInst>(&I) or isa<ZExtInst>(&I)) {
           Value *Op = I.getOperand(0);
@@ -685,8 +726,7 @@ public:
 
 using Builder = DLATypeSystemLLVMBuilder;
 
-bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
-                                              const model::Binary &Model) {
+bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call) {
   revng_assert(Call);
   // This procedure for regular functions (i.e. those that are used in direct
   // calls) is done separately by `CreateInterProceduralTypes`
@@ -742,19 +782,30 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
   return Changed;
 }
 
-bool Builder::createIntraproceduralTypes(llvm::Module &M,
-                                         llvm::ModulePass *MP,
-                                         const model::Binary &Model) {
+bool Builder::createIntraproceduralTypes(llvm::Module &M) {
   bool Changed = false;
   InstanceLinkAdder ILA(Model);
+
+  // Own the new-pass-manager infrastructure for the whole module. A single FAM
+  // serves every function here because it caches per llvm::Function; it lives
+  // until this call returns, so peak memory is bounded by one module.
+  FunctionAnalysisManager FAM;
+  PassBuilder PB;
+  PB.registerFunctionAnalyses(FAM);
 
   for (Function &F : M.functions()) {
     auto FTags = FunctionTags::TagsSet::from(&F);
     if (F.isIntrinsic() or not FTags.contains(FunctionTags::Isolated))
       continue;
+    // A caller module holds body-less declarations of the isolated functions it
+    // calls. They have no body to explore here (the loop below needs an entry
+    // block); the callee's definition is processed in its own module.
+    if (F.isDeclaration())
+      continue;
     revng_assert(not F.isVarArg());
 
-    ILA.setupForProcessingFunction(MP, &F);
+    ScalarEvolution &SE = FAM.getResult<ScalarEvolutionAnalysis>(F);
+    ILA.setupForProcessingFunction(SE, &F);
     Changed |= ILA.getOrCreateSCEVTypes(*this);
 
     llvm::ReversePostOrderTraversal RPOT(&F.getEntryBlock());
@@ -811,8 +862,16 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           // Create Base node
           Changed |= ILA.createBaseAddrWithInstanceLink(*this, PointerVal, *B);
 
-          // Create Access node
-          auto AccessSize = Val->getType()->getScalarSizeInBits() / 8;
+          // Create Access node.
+          uint64_t AccessSize;
+          if (isArrayOfBytes(Val->getType())) {
+            // For an array of bytes use the type's allocation size to record
+            // the real number of accessed bytes.
+            const DataLayout &DL = I.getModule()->getDataLayout();
+            AccessSize = DL.getTypeAllocSize(Val->getType());
+          } else {
+            AccessSize = Val->getType()->getScalarSizeInBits() / 8;
+          }
           auto *AccessNode = TS.createArtificialLayoutType();
           AccessNode->Size = AccessSize;
           AccessNode->InterferingInfo = AllChildrenAreNonInterfering;
@@ -909,7 +968,18 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
 
               Pointers.append(Call->arg_begin(), Call->arg_end());
             }
-          } else {
+          } else if (not isArrayOfBytes(RetVal->getType())) {
+            // TODO: An array-of-bytes return value for a CABI function
+            // returning an aggregate. In order to handle it properly we should
+            // visit it recursively and have first-class support for model types
+            // in DLA, which we currently don't have.
+            // So, for now we just bail out, accepting to degrade the quality of
+            // the results. We don't expect this to affect users much in
+            // practice, because either the input has no debug symbols (and in
+            // that case DLA sees mostly Raw functions, and this case doesn't
+            // trigger) or the model (via debug symbols, or user input) has lots
+            // of good information on CABI function types, in which case the
+            // role of DLA is not that important interprocedurally.
             revng_assert(isa<IntegerType>(RetVal->getType())
                          or isa<PointerType>(RetVal->getType()));
             Pointers.push_back(RetVal);
@@ -966,7 +1036,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
         // adding equality links between these nodes.
         if (auto *Call = dyn_cast<CallInst>(&I))
           if (Call->isIndirectCall())
-            Changed |= connectToFuncsWithSamePrototype(Call, Model);
+            Changed |= connectToFuncsWithSamePrototype(Call);
       }
     }
   }

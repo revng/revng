@@ -29,5 +29,6 @@ commands:
         revng merge llvm |
         revng opt -remove-llvmassume-calls -instcombine-noarrays -sroa-noarrays -drop-redundant-ptrint-casts -dce -type-shrinking -dce -drop-redundant-ptrint-casts -early-cse -instsimplify -dce -S |
         FileCheck --check-prefix=CHECK-$QEMU_NAME ${SOURCE}.filecheck.ll;
+      revng2 project analyze analyze-data-layout -o /dev/null;
 
       revng2 project artifact emit-c -o /dev/null;

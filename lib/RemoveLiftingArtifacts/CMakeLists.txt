@@ -3,7 +3,7 @@
 #
 
 revng_add_analyses_library_internal(
-  revngRemoveLiftingArtifacts CleanupIRPass.cpp PromoteInitCSVToUndef.cpp
+  revngRemoveLiftingArtifacts PromoteInitCSVToUndef.cpp
   RemoveLiftingArtifacts.cpp)
 
 target_link_libraries(revngRemoveLiftingArtifacts revngSupport revngModel

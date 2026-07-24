@@ -14,7 +14,7 @@
 
 module attributes {clift.module} {
   clift.global @seg_0x40002001 : !int32_t attributes {
-    handle = "/segment/0x40002001:Generic64-4"
+    handle = "/segment/0x40002001:Generic64"
   }
 
   // CHECK: void fun_0x40001001(void) {

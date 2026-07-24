@@ -11,25 +11,6 @@
 
 namespace revng::pypeline::piperuns {
 
-class LegacySegregateStackAccesses
-  : public LLVMFunctionMixin<LegacySegregateStackAccesses> {
-private:
-  const model::Binary &Binary;
-
-public:
-  static constexpr llvm::StringRef Name = "legacy-segregate-stack-accesses";
-  using Arguments = SingleLLVMFunctionsArgument;
-
-  LegacySegregateStackAccesses(const class Model &Model,
-                               llvm::StringRef Config,
-                               llvm::StringRef DynamicConfig,
-                               LLVMFunctionContainer &ModuleContainer) :
-    LLVMFunctionMixin(ModuleContainer), Binary(*Model.get().get()) {}
-
-  void runOnLLVMFunction(const model::Function &Function,
-                         llvm::Function &LLVMFunction);
-};
-
 class SegregateStackAccesses
   : public LLVMFunctionMixin<SegregateStackAccesses> {
 private:

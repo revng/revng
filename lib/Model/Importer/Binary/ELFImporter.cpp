@@ -835,7 +835,8 @@ void ELFImporter<T, HasAddend>::parseSegments(ELFFile<T> &TheELF) {
         continue;
       }
 
-      model::Segment NewSegment({ Start, ProgramHeader.p_memsz });
+      model::Segment NewSegment(Start);
+      NewSegment.VirtualSize() = ProgramHeader.p_memsz;
 
       // TODO: do the following unconditionally once the old pipeline has been
       //       dropped.

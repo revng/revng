@@ -8,16 +8,8 @@
 #include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
-std::tuple<MetaAddress, uint64_t, uint64_t, uint64_t, llvm::Type *>
-extractStringLiteralFromMetadata(const llvm::Function &StringLiteralFunction);
-
 /// Extract the key of a model::Segment stored as a metadata.
-namespace FunctionTags {
-using SegmentRefPoolKey = std::pair<MetaAddress, uint64_t>;
-}
-
-FunctionTags::SegmentRefPoolKey
-extractSegmentKeyFromMetadata(const llvm::Function &F);
+MetaAddress extractSegmentKeyFromMetadata(const llvm::Function &F);
 
 namespace FunctionTags {
 
@@ -40,9 +32,6 @@ extern Tag ReaderFunction;
 extern Tag OpaqueReturnAddressFunction;
 extern Tag CSV;
 inline const char *UniqueIDMDName = "revng.unique_id";
-extern Tag AllocatesLocalVariable;
-extern Tag ReturnsPolymorphic;
-extern Tag IsRef;
 extern Tag ScopeCloserMarker;
 extern Tag GotoBlockMarker;
 
@@ -59,40 +48,22 @@ struct TypePair {
   }
 };
 
-extern FunctionPoolTag<TypePair> AddressOf;
-
-struct StringLiteralPoolKey {
-  MetaAddress Address;
-  uint64_t VirtualSize;
-  uint64_t OffsetInSegment;
-  llvm::Type *Type;
-
-  std::strong_ordering
-  operator<=>(const StringLiteralPoolKey &) const = default;
-};
-
-extern FunctionPoolTag<StringLiteralPoolKey> StringLiteral;
-extern FunctionPoolTag<TypePair> ModelCast;
-extern Tag ModelGEP;
-extern Tag ModelGEPRef;
 extern FunctionPoolTag<TypePair> OpaqueExtractValue;
 extern FunctionPoolTag<llvm::Type *> Parentheses;
-extern Tag LiteralPrintDecorator;
-extern FunctionPoolTag<llvm::Type *> HexInteger;
-extern FunctionPoolTag<llvm::Type *> CharInteger;
-extern FunctionPoolTag<llvm::Type *> BoolInteger;
-extern FunctionPoolTag<llvm::Type *> NullPtr;
-extern FunctionPoolTag<llvm::Type *> LocalVariable;
-extern FunctionPoolTag<llvm::Type *> Assign;
-extern FunctionPoolTag<llvm::Type *> Copy;
 extern Tag SegmentGlobal;
 /// Functions that must survive function isolation: MinimalModuleCloner
 /// preserves them (and the ones they call) instead of purging them.
 extern Tag KeepPostIsolation;
+
+/// Key of the segment-global-getter pool: a segment's start address plus its
+/// virtual size. The virtual size is *not* part of the segment's model key, but
+/// it is part of the *pool* key so that the factory can size the segment's
+/// global variable (`[VirtualSize x i8]`) when a new getter is instantiated. A
+/// request for an already-instantiated start address but a different virtual
+/// size therefore misses and aborts in `getOrCreateGlobal` on the type
+/// mismatch, rather than silently reusing a differently-sized getter.
+using SegmentRefPoolKey = std::pair<MetaAddress, uint64_t>;
 extern FunctionPoolTag<SegmentRefPoolKey> SegmentGlobalGetter;
-extern FunctionPoolTag<llvm::Type *> UnaryMinus;
-extern FunctionPoolTag<llvm::Type *> BinaryNot;
-extern FunctionPoolTag<llvm::Type *> BooleanNot;
 extern Tag LiftingArtifactsRemoved;
 extern Tag StackPointerPromoted;
 extern Tag StackAccessesSegregated;
@@ -249,20 +220,10 @@ llvm::SmallVector<llvm::SmallPtrSet<const llvm::CallInst *, 2>, 2>
 getExtractedValuesFromInstruction(const llvm::Instruction *);
 
 /// Set the key of a model::Segment stored as a metadata.
-void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction,
-                           FunctionTags::SegmentRefPoolKey Key);
+void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction, MetaAddress Key);
 
 /// Returns true if \F has an attached metadata representing a segment key.
 bool hasSegmentKeyMetadata(const llvm::Function &F);
-
-void setStringLiteralMetadata(llvm::Function &StringLiteralFunction,
-                              MetaAddress StartAddress,
-                              uint64_t VirtualSize,
-                              uint64_t Offset,
-                              uint64_t StringLength,
-                              llvm::Type *ReturnType);
-
-bool hasStringLiteralMetadata(const llvm::Function &StringLiteralFunction);
 
 inline constexpr llvm::StringRef AbortFunctionName = "revng_abort";
 
@@ -311,48 +272,11 @@ inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
   return getMetaAddressMetadata(&F, FunctionEntryMDName);
 }
 
-/// AddressOf functions are used to transform a reference into a pointer.
-///
-/// \param RetType The LLVM type returned by the Addressof call
-/// \param BaseType The LLVM type of the second argument (the reference that
-/// we want to transform into a pointer).
-llvm::FunctionType *getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType);
-
-/// ModelGEP functions are used to replace pointer arithmetic with a navigation
-/// of the Model.
-///
-/// \param RetType ModelGEP should return an integer of the size of the gepped
-/// element
-/// \param BaseType The LLVM type of the second argument (the base pointer)
-llvm::Function *
-getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
-
-/// ModelGEP Ref is a ModelGEP where the base value is considered to be a
-/// reference.
-llvm::Function *
-getModelGEPRef(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
-
-using ModelCastPoolKey = std::pair<llvm::Type *, llvm::Type *>;
-
 /// Derive the function type of the corresponding OpaqueExtractValue() function
 /// from an ExtractValue instruction. OpaqueExtractValues wrap an
 /// ExtractValue to prevent it from being optimized out, so the return type and
 /// arguments are the same as the instruction being wrapped.
 llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract);
-
-/// LocalVariable is used to indicate the allocation of a local variable. It
-/// returns a reference to the allocated variable.
-llvm::FunctionType *getLocalVarType(llvm::Type *ReturnedType);
-
-/// Assign() are meant to replace `store` instructions in which the pointer
-/// operand is a reference.
-llvm::FunctionType *getAssignFunctionType(llvm::Type *ValueType,
-                                          llvm::Type *PtrType);
-
-/// Copy() are meant to replace `load` instructions in which the pointer
-/// operand is a reference.
-llvm::FunctionType *getCopyType(llvm::Type *ReturnedType,
-                                llvm::Type *VariableReferenceType);
 
 //
 // {is,get}CallToIsolatedFunction

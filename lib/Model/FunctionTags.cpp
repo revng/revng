@@ -34,73 +34,8 @@ Tag OpaqueReturnAddressFunction("opaque-return-address");
 
 Tag CSV("csv");
 
-Tag AllocatesLocalVariable("allocates-local-variable");
-Tag ReturnsPolymorphic("returns-polymorphic");
-Tag IsRef("is-ref");
-
 Tag ScopeCloserMarker("scope-closer");
 Tag GotoBlockMarker("goto-block");
-
-FunctionPoolTag<TypePair>
-  AddressOf("address-of",
-            { llvm::Attribute::NoUnwind,
-              llvm::Attribute::WillReturn,
-              llvm::Attribute::NoMerge },
-            llvm::MemoryEffects::none(),
-            { &FunctionTags::UniquedByPrototype },
-            [](OpaqueFunctionsPool<TypePair> &Pool,
-               llvm::Module &M,
-               const FunctionPoolTag<TypePair> &Tag) {
-              for (llvm::Function &F : Tag.functions(&M)) {
-                revng_assert(AddressOf.isTagOf(&F));
-                revng_assert(Tag.isTagOf(&F));
-                auto *ArgType = F.getFunctionType()->getParamType(1);
-                auto *RetType = F.getFunctionType()->getReturnType();
-                Pool.record({ RetType, ArgType }, &F);
-              }
-            });
-
-FunctionPoolTag<StringLiteralPoolKey>
-  StringLiteral("string-literal",
-                { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-                llvm::MemoryEffects::none(),
-                { &FunctionTags::UniquedByMetadata },
-                [](OpaqueFunctionsPool<StringLiteralPoolKey> &Pool,
-                   llvm::Module &M,
-                   const FunctionPoolTag<StringLiteralPoolKey> &Tag) {
-                  for (llvm::Function &F : Tag.functions(&M)) {
-                    const auto &[StartAddress,
-                                 VirtualSize,
-                                 Offset,
-                                 StrLen,
-                                 Type] = extractStringLiteralFromMetadata(F);
-                    StringLiteralPoolKey Key = {
-                      StartAddress, VirtualSize, Offset, Type
-                    };
-                    Pool.record(Key, &F);
-                  }
-                });
-
-FunctionPoolTag<TypePair>
-  ModelCast("model-cast",
-            { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-            llvm::MemoryEffects::none(),
-            { &FunctionTags::UniquedByPrototype },
-            [](OpaqueFunctionsPool<TypePair> &Pool,
-               llvm::Module &M,
-               const FunctionPoolTag<TypePair> &Tag) {
-              for (llvm::Function &F : Tag.functions(&M)) {
-                auto *FunctionType = F.getFunctionType();
-                revng_assert(FunctionType->getNumParams() == 3);
-                revng_assert(not FunctionType->isVarArg());
-                auto *ReturnType = F.getFunctionType()->getReturnType();
-                auto *OperandToCastType = F.getFunctionType()->getParamType(1);
-                Pool.record({ ReturnType, OperandToCastType }, &F);
-              }
-            });
-
-Tag ModelGEP("model-gep");
-Tag ModelGEPRef("model-gep-ref");
 
 FunctionPoolTag<TypePair>
   OpaqueExtractValue("opaque-extract-value",
@@ -127,66 +62,6 @@ FunctionPoolTag<llvm::Type *>
               { &FunctionTags::UniquedByPrototype },
               InitializationMode::InitializeFromReturnType);
 
-Tag LiteralPrintDecorator("literal-print-decorator");
-
-FunctionPoolTag<llvm::Type *>
-  HexInteger("hex-integer",
-             { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-             llvm::MemoryEffects::none(),
-             { &FunctionTags::LiteralPrintDecorator,
-               &FunctionTags::UniquedByPrototype },
-             InitializationMode::InitializeFromReturnType);
-
-FunctionPoolTag<llvm::Type *>
-  CharInteger("char-integer",
-              { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-              llvm::MemoryEffects::none(),
-              { &FunctionTags::LiteralPrintDecorator,
-                &FunctionTags::UniquedByPrototype },
-              InitializationMode::InitializeFromReturnType);
-
-FunctionPoolTag<llvm::Type *>
-  BoolInteger("bool-integer",
-              { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-              llvm::MemoryEffects::none(),
-              { &FunctionTags::LiteralPrintDecorator,
-                &FunctionTags::UniquedByPrototype },
-              InitializationMode::InitializeFromReturnType);
-
-FunctionPoolTag<llvm::Type *>
-  NullPtr("nullptr",
-          { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-          llvm::MemoryEffects::none(),
-          { &FunctionTags::LiteralPrintDecorator,
-            &FunctionTags::UniquedByPrototype },
-          InitializationMode::InitializeFromReturnType);
-
-FunctionPoolTag<llvm::Type *>
-  LocalVariable("local-variable",
-                { llvm::Attribute::NoUnwind,
-                  llvm::Attribute::WillReturn,
-                  llvm::Attribute::NoMerge },
-                llvm::MemoryEffects::none(),
-                { &FunctionTags::IsRef,
-                  &FunctionTags::AllocatesLocalVariable,
-                  &FunctionTags::ReturnsPolymorphic,
-                  &FunctionTags::UniquedByPrototype },
-                InitializationMode::InitializeFromReturnType);
-
-FunctionPoolTag<llvm::Type *>
-  Assign("assign",
-         { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-         llvm::MemoryEffects::writeOnly(),
-         { &FunctionTags::UniquedByPrototype },
-         InitializationMode::InitializeFromArgument0);
-
-FunctionPoolTag<llvm::Type *>
-  Copy("copy",
-       { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-       llvm::MemoryEffects::readOnly(),
-       { &FunctionTags::UniquedByPrototype },
-       InitializationMode::InitializeFromReturnType);
-
 /// Tag for global variables representing segments
 Tag SegmentGlobal("segment-global");
 
@@ -197,29 +72,36 @@ inline void
 segmentGlobalGetterInitializer(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
                                llvm::Module &M,
                                const FunctionPoolTag<SegmentRefPoolKey> &Tag) {
-  for (llvm::Function &F : Tag.functions(&M))
-    Pool.record(extractSegmentKeyFromMetadata(F), &F);
+  for (llvm::Function &F : Tag.functions(&M)) {
+    MetaAddress StartAddress = extractSegmentKeyFromMetadata(F);
+    // The virtual size is part of the pool key but not of the segment metadata:
+    // recover it from the size of the segment's global variable.
+    auto *Global = M.getGlobalVariable(SegmentGlobal::getNameFor(StartAddress),
+                                       /* AllowInternal */ true);
+    revng_assert(Global != nullptr);
+    auto *GlobalTy = llvm::cast<llvm::ArrayType>(Global->getValueType());
+    uint64_t VirtualSize = GlobalTy->getNumElements();
+    Pool.record({ StartAddress, VirtualSize }, &F);
+  }
 }
 
 inline llvm::Function &segmentGlobalGetterFactory(llvm::Module &M,
                                                   SegmentRefPoolKey Key) {
   using namespace llvm;
+  auto [StartAddress, VirtualSize] = Key;
   auto *ReturnType = M.getDataLayout().getIntPtrType(M.getContext());
   auto *FT = FunctionType::get(ReturnType, {}, false);
-  auto [StartAddress, VirtualSize] = Key;
   std::string Name = "get_" + SegmentGlobal::getNameFor(StartAddress);
   Function &Result = *Function::Create(FT,
                                        GlobalValue::ExternalLinkage,
                                        Name,
                                        M);
-  setSegmentKeyMetadata(Result, Key);
+  setSegmentKeyMetadata(Result, StartAddress);
 
   // Fill in body
   auto *Entry = llvm::BasicBlock::Create(Result.getContext(), "", &Result);
   revng::IRBuilder B(Entry);
-  auto &Global = SegmentGlobal::get(*Result.getParent(),
-                                    StartAddress,
-                                    VirtualSize);
+  auto &Global = SegmentGlobal::get(M, StartAddress, VirtualSize);
   B.CreateRet(B.CreatePtrToInt(&Global, Result.getReturnType()));
 
   return Result;
@@ -236,32 +118,10 @@ FunctionPoolTag<SegmentRefPoolKey>
                         llvm::Attribute::WillReturn,
                         llvm::Attribute::NoInline },
                       llvm::MemoryEffects::none(),
-                      { &FunctionTags::IsRef,
-                        &FunctionTags::UniquedByMetadata,
+                      { &FunctionTags::UniquedByMetadata,
                         &FunctionTags::KeepPostIsolation },
                       segmentGlobalGetterInitializer,
                       segmentGlobalGetterFactory);
-
-FunctionPoolTag<llvm::Type *>
-  UnaryMinus("unary-minus",
-             { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-             llvm::MemoryEffects::none(),
-             { &FunctionTags::UniquedByPrototype },
-             InitializationMode::InitializeFromReturnType);
-
-FunctionPoolTag<llvm::Type *>
-  BinaryNot("binary-not",
-            { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-            llvm::MemoryEffects::none(),
-            { &FunctionTags::UniquedByPrototype },
-            InitializationMode::InitializeFromReturnType);
-
-FunctionPoolTag<llvm::Type *>
-  BooleanNot("boolean-not",
-             { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-             llvm::MemoryEffects::none(),
-             { &FunctionTags::UniquedByPrototype },
-             InitializationMode::InitializeFromArgument0);
 
 Tag LiftingArtifactsRemoved("lifting-artifacts-removed", CSVsPromoted);
 
@@ -371,21 +231,17 @@ getExtractedValuesFromInstruction(const llvm::Instruction *I) {
 }
 
 void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction,
-                           FunctionTags::SegmentRefPoolKey Key) {
+                           MetaAddress StartAddress) {
   using namespace llvm;
 
   auto &Context = SegmentRefFunction.getContext();
 
   QuickMetadata QMD(Context);
 
-  auto *SAMD = QMD.get(Key.first.toString());
+  auto *SAMD = QMD.get(StartAddress.toString());
   revng_assert(SAMD != nullptr);
-
-  auto *VSConstant = ConstantInt::get(Type::getInt64Ty(Context), Key.second);
-  auto *VSMD = ConstantAsMetadata::get(VSConstant);
-
   SegmentRefFunction.setMetadata(FunctionTags::UniqueIDMDName,
-                                 QMD.tuple({ SAMD, VSMD }));
+                                 QMD.tuple({ SAMD }));
 }
 
 bool hasSegmentKeyMetadata(const llvm::Function &F) {
@@ -394,8 +250,7 @@ bool hasSegmentKeyMetadata(const llvm::Function &F) {
   return nullptr != F.getMetadata(SegmentRefMDKind);
 }
 
-FunctionTags::SegmentRefPoolKey
-extractSegmentKeyFromMetadata(const llvm::Function &F) {
+MetaAddress extractSegmentKeyFromMetadata(const llvm::Function &F) {
   using namespace llvm;
   revng_assert(hasSegmentKeyMetadata(F));
 
@@ -407,82 +262,7 @@ extractSegmentKeyFromMetadata(const llvm::Function &F) {
   auto *SAMD = cast<MDString>(Node->getOperand(0));
   MetaAddress StartAddress = MetaAddress::fromString(SAMD->getString());
   revng_assert(StartAddress.isValid());
-  auto *VSMD = cast<ConstantAsMetadata>(Node->getOperand(1))->getValue();
-  uint64_t VirtualSize = cast<ConstantInt>(VSMD)->getZExtValue();
-
-  return { StartAddress, VirtualSize };
-}
-
-void setStringLiteralMetadata(llvm::Function &StringLiteralFunction,
-                              MetaAddress StartAddress,
-                              uint64_t VirtualSize,
-                              uint64_t Offset,
-                              uint64_t StringLength,
-                              llvm::Type *ReturnType) {
-  using namespace llvm;
-
-  auto *M = StringLiteralFunction.getParent();
-  auto &Context = StringLiteralFunction.getContext();
-
-  QuickMetadata QMD(M->getContext());
-  auto StringLiteralMDKind = Context.getMDKindID(FunctionTags::UniqueIDMDName);
-
-  auto *SAMD = QMD.get(StartAddress.toString());
-
-  auto *VSConstant = ConstantInt::get(Type::getInt64Ty(Context), VirtualSize);
-  auto *VSMD = ConstantAsMetadata::get(VSConstant);
-
-  auto *OffsetConstant = ConstantInt::get(Type::getInt64Ty(Context), Offset);
-  auto *OffsetMD = ConstantAsMetadata::get(OffsetConstant);
-
-  auto *StrLenConstant = ConstantInt::get(Type::getInt64Ty(Context),
-                                          StringLength);
-  auto *StrLenMD = ConstantAsMetadata::get(StrLenConstant);
-
-  unsigned Value = ReturnType->isPointerTy() ? 0 :
-                                               ReturnType->getIntegerBitWidth();
-  auto *ReturnTypeConstant = ConstantInt::get(Type::getInt64Ty(Context), Value);
-  auto *ReturnTypeMD = ConstantAsMetadata::get(ReturnTypeConstant);
-
-  auto QMDTuple = QMD.tuple({ SAMD, VSMD, OffsetMD, StrLenMD, ReturnTypeMD });
-  StringLiteralFunction.setMetadata(StringLiteralMDKind, QMDTuple);
-}
-
-bool hasStringLiteralMetadata(const llvm::Function &F) {
-  auto &Context = F.getContext();
-  auto StringLiteralMDKind = Context.getMDKindID(FunctionTags::UniqueIDMDName);
-  return nullptr != F.getMetadata(StringLiteralMDKind);
-}
-
-std::tuple<MetaAddress, uint64_t, uint64_t, uint64_t, llvm::Type *>
-extractStringLiteralFromMetadata(const llvm::Function &F) {
-  using namespace llvm;
-  revng_assert(hasStringLiteralMetadata(F));
-
-  auto &Context = F.getContext();
-
-  auto StringLiteralMDKind = Context.getMDKindID(FunctionTags::UniqueIDMDName);
-  auto *Node = F.getMetadata(StringLiteralMDKind);
-
-  StringRef SAMD = cast<MDString>(Node->getOperand(0))->getString();
-  MetaAddress StartAddress = MetaAddress::fromString(SAMD);
-  revng_assert(StartAddress.isValid());
-
-  auto ExtractInteger = [](const MDOperand &Operand) {
-    auto *MD = cast<ConstantAsMetadata>(Operand)->getValue();
-    return cast<ConstantInt>(MD)->getZExtValue();
-  };
-
-  uint64_t VirtualSize = ExtractInteger(Node->getOperand(1));
-  uint64_t Offset = ExtractInteger(Node->getOperand(2));
-  uint64_t StrLen = ExtractInteger(Node->getOperand(3));
-  uint64_t ReturnTypeLength = ExtractInteger(Node->getOperand(4));
-  llvm::Type *PointerType = llvm::PointerType::get(Context, 0);
-  llvm::Type *ReturnType = ReturnTypeLength == 0 ?
-                             PointerType :
-                             llvm::IntegerType::get(Context, ReturnTypeLength);
-
-  return { StartAddress, VirtualSize, Offset, StrLen, ReturnType };
+  return StartAddress;
 }
 
 // This name corresponds to a function in `early-linked`.
@@ -557,162 +337,6 @@ llvm::CallInst &emitMessage(revng::IRBuilder &Builder,
   return emitMessageImpl<false>(Builder, Message, DbgLocation, PCH);
 }
 
-static constexpr const char *const ModelGEPName = "ModelGEP";
-static constexpr const char *const ModelGEPRefName = "ModelGEPRef";
-
-// This is very simple for now.
-// In the future we might consider making it more robust using something like
-// Punycode https://tools.ietf.org/html/rfc3492 , which also has the nice
-// property of being deterministically reversible.
-static std::string makeCIdentifier(std::string S) {
-  llvm::for_each(S, [](char &C) {
-    if (not std::isalnum(C))
-      C = '_';
-  });
-  return S;
-}
-
-static std::string makeTypeName(const llvm::Type *Ty) {
-  std::string Name;
-  if (auto *PtrTy = llvm::dyn_cast<llvm::PointerType>(Ty)) {
-    Name = "ptr";
-  } else if (auto *IntTy = llvm::dyn_cast<llvm::IntegerType>(Ty)) {
-    Name = "i" + std::to_string(IntTy->getBitWidth());
-  } else if (auto *StrucTy = llvm::dyn_cast<llvm::StructType>(Ty)) {
-    Name = "struct_";
-    Name += std::to_string(reinterpret_cast<uint64_t>(Ty));
-    if (StrucTy->isLiteral() or not StrucTy->hasName()) {
-      for (const auto *FieldTy : StrucTy->elements())
-        Name += "_" + makeTypeName(FieldTy);
-    } else {
-      Name += "_" + makeCIdentifier(StrucTy->getStructName().str());
-    }
-  } else if (auto *FunTy = llvm::dyn_cast<llvm::FunctionType>(Ty)) {
-    Name = "func_" + makeTypeName(FunTy->getReturnType());
-    if (not FunTy->params().empty()) {
-      Name += "_args";
-      for (const auto &ArgT : FunTy->params())
-        Name += "_" + makeTypeName(ArgT);
-    }
-  } else if (Ty->isVoidTy()) {
-    Name += "void";
-  } else {
-    revng_unreachable("cannot build Type name");
-  }
-  return Name;
-}
-
-static std::string makeTypeBasedSuffix(const llvm::Type *RetTy,
-                                       const llvm::Type *BaseAddressTy,
-                                       llvm::StringRef Prefix) {
-  using llvm::Twine;
-  return (Prefix + Twine("_ret_") + Twine(makeTypeName(RetTy))
-          + Twine("_baseptr_") + Twine(makeTypeName(BaseAddressTy)))
-    .str();
-}
-
-llvm::FunctionType *getAddressOfType(llvm::Type *RetType,
-                                     llvm::Type *BaseType) {
-  // There are 2 fixed arguments:
-  // - the first is a pointer to a constant string that contains a serialization
-  //   of the key of the base type;
-  // - the second is BaseType, i.e. the type of the base pointer.
-  auto &C = RetType->getContext();
-  llvm::SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(C),
-                                                   BaseType };
-  return llvm::FunctionType::get(RetType, FixedArgs, false /* IsVarArg */);
-}
-
-llvm::Function *
-getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType) {
-
-  using namespace llvm;
-
-  // There are 3 fixed arguments:
-  // - the first is a pointer to a constant string that contains a serialization
-  //   of the key of the base type;
-  // - the second is the type of the base pointer.
-  // - the third argument represents the member of the array access based on the
-  //   second. if it's 0 it's a regular pointer access, otherwise an array
-  //   access.
-  auto *Int64Type = llvm::IntegerType::getIntNTy(M.getContext(), 64);
-  SmallVector<llvm::Type *, 3> FixedArgs = { getStringPtrType(M.getContext()),
-                                             BaseType,
-                                             Int64Type };
-  // The function is vararg, because we might need to access a number of fields
-  // that is variable.
-  FunctionType *ModelGEPType = FunctionType::get(RetType,
-                                                 FixedArgs,
-
-                                                 true /* IsVarArg */);
-
-  FunctionCallee
-    MGEPCallee = M.getOrInsertFunction(makeTypeBasedSuffix(RetType,
-                                                           BaseType,
-                                                           ModelGEPName),
-                                       ModelGEPType);
-
-  auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
-  ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
-  ModelGEPFunction->setMemoryEffects(llvm::MemoryEffects::none());
-  FunctionTags::ModelGEP.addTo(ModelGEPFunction);
-  FunctionTags::IsRef.addTo(ModelGEPFunction);
-
-  return ModelGEPFunction;
-}
-
-llvm::Function *
-getModelGEPRef(llvm::Module &M, llvm::Type *ReturnType, llvm::Type *BaseType) {
-
-  using namespace llvm;
-  // There are 2 fixed arguments:
-  // - the first is a pointer to a constant string that contains a serialization
-  //   of the key of the base type;
-  // - the second is the type of the base pointer.
-  //
-  // Notice that, unlike ModelGEP, ModelGEPRef doesn't have a mandatory third
-  // argument to represent the array access, because in case of reference
-  // there's no way to do an array-like access
-  SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(M.getContext()),
-                                             BaseType };
-  // The function is vararg, because we might need to access a number of fields
-  // that is variable.
-  FunctionType *ModelGEPType = FunctionType::get(ReturnType,
-                                                 FixedArgs,
-                                                 true /* IsVarArg */);
-
-  FunctionCallee
-    MGEPCallee = M.getOrInsertFunction(makeTypeBasedSuffix(ReturnType,
-                                                           BaseType,
-                                                           ModelGEPRefName),
-                                       ModelGEPType);
-
-  auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
-  ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
-
-  // This is NoMerge, because merging two of them would cause a PHINode among
-  // IsRef opcodes.
-  ModelGEPFunction->addFnAttr(llvm::Attribute::NoMerge);
-
-  ModelGEPFunction->setMemoryEffects(llvm::MemoryEffects::none());
-  FunctionTags::ModelGEPRef.addTo(ModelGEPFunction);
-  FunctionTags::IsRef.addTo(ModelGEPFunction);
-
-  return ModelGEPFunction;
-}
-
-llvm::FunctionType *getLocalVarType(llvm::Type *ReturnedType) {
-  using namespace llvm;
-
-  // There only argument is a pointer to a constant string that contains a
-  // serialization of the allocated variable's type
-  auto &C = ReturnedType->getContext();
-  SmallVector<llvm::Type *, 1> FixedArgs = { getStringPtrType(C) };
-  return FunctionType::get(ReturnedType, FixedArgs, false /* IsVarArg */);
-}
-
 llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract) {
   using namespace llvm;
 
@@ -729,27 +353,6 @@ llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract) {
   Type *ReturnType = Extract->getType();
 
   return FunctionType::get(ReturnType, ArgTypes, false);
-}
-
-llvm::FunctionType *getAssignFunctionType(llvm::Type *ValueType,
-                                          llvm::Type *PtrType) {
-  llvm::SmallVector<llvm::Type *, 2> FixedArgs = { ValueType, PtrType };
-  auto &C = ValueType->getContext();
-  return llvm::FunctionType::get(llvm::Type::getVoidTy(C),
-                                 FixedArgs,
-                                 false /* IsVarArg */);
-}
-
-llvm::FunctionType *getCopyType(llvm::Type *ReturnedType,
-                                llvm::Type *VariableReferenceType) {
-  using namespace llvm;
-  // The argument is an llvm::Value representing a reference
-  // It's not part of the key in the Copy pool, because all references should
-  // have the same underlying LLVM type, which is a pointer-sized integer.
-  // This is a hack, but Copy will go away in the clift-base decompilation
-  // pipeline, so it's temporary.
-  SmallVector<llvm::Type *, 1> FixedArgs = { VariableReferenceType };
-  return FunctionType::get(ReturnedType, FixedArgs, false /* IsVarArg */);
 }
 
 static std::vector<llvm::GlobalVariable *> extractCSVs(llvm::Function *F,

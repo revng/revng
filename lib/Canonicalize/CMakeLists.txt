@@ -17,13 +17,11 @@ revng_add_analyses_library_internal(
   SimplifySwitchPass.cpp
   SplitExponentialDataflow.cpp
   SplitOverflowIntrinsicsPass.cpp
-  SwitchToStatements.cpp
-  TernaryReductionPass.cpp)
+  SwitchToStatements.cpp)
 
 target_link_libraries(
   revngCanonicalize
   revngFunctionIsolation
-  revngInitModelTypes
   revngSupport
   revngABI
   revngLocalVariables

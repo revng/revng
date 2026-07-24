@@ -52,23 +52,6 @@ getPointerSizedInteger(llvm::LLVMContext &C,
   return llvm::Type::getIntNTy(C, PtrSize * 8);
 }
 
-/// If possible, deduce the model type returned by \a Inst by looking only at
-/// the instruction (e.g. ModelGEPs). Note that calls to RawFunctionTypes and
-/// calls to StructInitializer can return more than one type.
-/// \return nothing if no information could be deduced locally on Inst
-/// \return one or more types associated to the instruction
-extern RecursiveCoroutine<llvm::SmallVector<model::UpcastableType, 8>>
-getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model);
-
-/// If possible, deduce the expected model type of an operand (e.g. the base
-/// operand of a ModelGEP) by looking only at the User. Note that, in the case
-/// of `ret` instructions inside RawFunctionTypes, the use might have more than
-/// one type associated to it.
-/// \return nothing if no information could be deduced locally on U
-/// \return one or more types associated to the use
-extern llvm::SmallVector<model::UpcastableType>
-getExpectedModelType(const llvm::Use *U, const model::Binary &Model);
-
 /// \note This is the final prototype, after segregate-stack-access
 template<bool LegacyLocalVariables>
 inline llvm::FunctionType &

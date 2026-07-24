@@ -26,8 +26,22 @@ using namespace llvm;
 
 using TSBuilder = DLATypeSystemLLVMBuilder;
 
+void TSBuilder::initializeSegments(SegmentNodeMapT &Segments) {
+  for (const model::Segment &S : Model.Segments()) {
+    // Initialize a node for every segment
+    LayoutTypeSystemNode
+      *SegmentNode = Segments[&S] = TS.createArtificialLayoutType();
+    // Set the Size, which is known for segments.
+    SegmentNode->Size = S.VirtualSize();
+    // Set NonScalar to true, so that it cannot be removed from
+    // the optimization steps of DLA's middle-end
+    SegmentNode->NonScalar = true;
+  }
+}
+
 bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
-                                           const model::Binary &Model) {
+                                           const SegmentNodeMapT
+                                             &SegmentNodeMap) {
   for (const Function &F : M.functions()) {
 
     auto FTags = FunctionTags::TagsSet::from(&F);
@@ -78,7 +92,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     // types as equal, connecting them with equality links.
     FuncOrCallInst FuncWithSameProto;
     if (not NewPrototype) {
-      FuncOrCallInst FuncWithSameProto = It->second;
+      FuncWithSameProto = It->second;
       revng_assert(not FuncWithSameProto.isNull());
       revng_assert(F.arg_size() == FuncWithSameProto.arg_size());
 
@@ -219,6 +233,19 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
           }
         } else if (auto *RetI = dyn_cast<ReturnInst>(&I)) {
           if (Value *RetVal = RetI->getReturnValue()) {
+            // TODO: An array-of-bytes return value for a CABI function
+            // returning an aggregate. In order to handle it properly we should
+            // visit it recursively and have first-class support for model types
+            // in DLA, which we currently don't have.
+            // So, for now we just bail out, accepting to degrade the quality of
+            // the results. We don't expect this to affect users much in
+            // practice, because either the input has no debug symbols (and in
+            // that case DLA sees mostly Raw functions, and this case doesn't
+            // trigger) or the model (via debug symbols, or user input) has lots
+            // of good information on CABI function types, in which case the
+            // role of DLA is not that important interprocedurally.
+            if (isArrayOfBytes(RetVal->getType()))
+              continue;
             revng_assert(isa<StructType>(RetVal->getType())
                          or isa<IntegerType>(RetVal->getType())
                          or isa<PointerType>(RetVal->getType()));
@@ -248,26 +275,15 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     }
   }
 
-  // Create types for segments
+  // Connect segment getters to the shared per-segment nodes. The nodes
+  // themselves are created once by initializeSegments, so that getters coming
+  // from different modules all converge on the same node for a given segment.
 
   const auto &Segments = Model.Segments();
 
-  std::map<const model::Segment *, LayoutTypeSystemNode *> SegmentNodeMap;
-
-  for (const model::Segment &S : Segments) {
-    // Initialize a node for every segment
-    LayoutTypeSystemNode
-      *SegmentNode = SegmentNodeMap[&S] = TS.createArtificialLayoutType();
-    // Set the Size, which is known for segments.
-    SegmentNode->Size = S.VirtualSize();
-    // Set NonScalar to true, so that it cannot be removed from
-    // the optimization steps of DLA's middle-end
-    SegmentNode->NonScalar = true;
-  }
-
   for (Function &F : FunctionTags::SegmentGlobalGetter.functions(&M)) {
-    const auto &[StartAddress, VirtualSize] = extractSegmentKeyFromMetadata(F);
-    const model::Segment *Segment = &Segments.at({ StartAddress, VirtualSize });
+    const model::Segment *Segment = &Segments
+                                       .at(extractSegmentKeyFromMetadata(F));
     LayoutTypeSystemNode *SegmentNode = SegmentNodeMap.at(Segment);
 
     LayoutTypeSystemNode *SegmentRefNode = getOrCreateLayoutType(&F).first;
@@ -281,43 +297,6 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
       // The type of the segment is also the same as the type of all the calls
       // to the SegmentRef function.
       TS.addEqualityLink(SegmentNode, SegmentRefCallNode);
-    }
-  }
-
-  for (Function &F : FunctionTags::StringLiteral.functions(&M)) {
-    const auto &[StartAddress,
-                 VirtualSize,
-                 Offset,
-                 StrLen,
-                 _] = extractStringLiteralFromMetadata(F);
-
-    const model::Segment *Segment = &Segments.at({ StartAddress, VirtualSize });
-    LayoutTypeSystemNode *SegmentNode = SegmentNodeMap.at(Segment);
-
-    LayoutTypeSystemNode *LiteralNode = getOrCreateLayoutType(&F).first;
-
-    // We have an instance of the literal at Offset inside the type of the
-    // segment itself.
-    TS.addInstanceLink(SegmentNode, LiteralNode, dla::OffsetExpression(Offset));
-
-    LayoutTypeSystemNode *ByteType = TS.createArtificialLayoutType();
-    ByteType->Size = 1;
-    dla::OffsetExpression OE{};
-    OE.Offset = 0;
-    OE.Strides.push_back(ByteType->Size);
-    OE.TripCounts.push_back(1 + StrLen);
-    // The type of the literal contains, as offset zero a stride of Strlen+1
-    // instances of ByteType.
-    TS.addInstanceLink(LiteralNode, ByteType, std::move(OE));
-
-    for (const llvm::CallBase *Call : callers(&F)) {
-      LayoutTypeSystemNode *StringLiteralCall = getOrCreateLayoutType(Call)
-                                                  .first;
-      // The type of each call to the StringLiteral function has an instance of
-      // a ByteType at the beginning.
-      // This roughly translates the idea that the call to StringLiteral returns
-      // a char * in C.
-      TS.addInstanceLink(StringLiteralCall, ByteType, OffsetExpression{ 0 });
     }
   }
 

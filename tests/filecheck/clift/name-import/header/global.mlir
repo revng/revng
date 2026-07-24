@@ -16,9 +16,9 @@
 
 module attributes { clift.module } {
   // CHECK: clift.global @seg_0x40002001 : !segment attributes {
-  // CHECK:   handle = "/segment/0x40002001:Generic64-4"
+  // CHECK:   handle = "/segment/0x40002001:Generic64"
   // CHECK: }
   clift.global @g : !segment attributes {
-    handle = "/segment/0x40002001:Generic64-4"
+    handle = "/segment/0x40002001:Generic64"
   }
 }

@@ -52,7 +52,6 @@
 #include "revng/ADT/SmallMap.h"
 #include "revng/Canonicalize/AllocaKillPoint.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
-#include "revng/InitModelTypes/InitModelTypes.h"
 #include "revng/LocalVariables/LocalVariableBuilder.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
@@ -62,7 +61,6 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/DecompilationHelpers.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/Tag.h"
@@ -122,18 +120,10 @@ static bool storedValueCanBeMadeAvailable(StoreInst *Store) {
 //
 
 static bool doesNotAccessMemory(const Instruction *I) {
-  // We have to hardcode revng_call_stack_arguments and revng_stack_frame
-  // because SegregateStackAccesses has to mark them as functions that read
-  // inaccessible memory, in order to prevent some LLVM optimizations.
-  // Same for OpaqueExtractValue.
-  if (auto *Call = dyn_cast<CallInst>(I)) {
-    if (Function *Callee = getCalledFunction(Call)) {
-      StringRef Name = Callee->getName();
-      if (Name.startswith("revng_call_stack_arguments")
-          or Name.startswith("revng_stack_frame")) {
-        return true;
-      }
-    }
+  // We have to hardcode OpaqueExtractValue and StructInitializer because
+  // SegregateStackAccesses marks them as functions that read inaccessible
+  // memory, in order to prevent some LLVM optimizations.
+  if (isa<CallInst>(I)) {
     if (getCallToTagged(I, FunctionTags::OpaqueExtractValue))
       return true;
     if (getCallToTagged(I, FunctionTags::StructInitializer))
@@ -287,9 +277,6 @@ void AEMFP::applyTransferFunctionImpl(Instruction *I, LatticeElement &E) const {
   revng_log(Log,
             "applyTransferFunction on Instruction I: " << dumpToString(I, MST));
   LoggerIndent Indent{ Log };
-
-  revng_assert(not isCallToTagged(I, FunctionTags::Copy)
-               and not isCallToTagged(I, FunctionTags::Assign));
 
   if (mayHaveSideEffects(I)) {
     revng_log(Log, "mayHaveSideEffects");
@@ -449,27 +436,9 @@ static bool isProgramPoint(const Instruction *I) {
   // the clift-based pipeline they will be only materialized in Clift as regular
   // operators, so we don't need them in LLVM anymore and we want to make sure
   // they disappear over time until we can actually drop them.
-  if (isCallToTagged(I, FunctionTags::AllocatesLocalVariable)
-      or isCallToTagged(I, FunctionTags::LocalVariable)
-      or isCallToTagged(I, FunctionTags::Copy)
-      or isCallToTagged(I, FunctionTags::Assign)
-      or isCallToTagged(I, FunctionTags::AddressOf)
-      or isCallToTagged(I, FunctionTags::Marker)
-      or isCallToTagged(I, FunctionTags::IsRef)
-      or isCallToTagged(I, FunctionTags::StringLiteral)
-      or isCallToTagged(I, FunctionTags::ModelCast)
-      or isCallToTagged(I, FunctionTags::ModelGEP)
-      or isCallToTagged(I, FunctionTags::ModelGEPRef)
+  if (isCallToTagged(I, FunctionTags::Marker)
       or isCallToTagged(I, FunctionTags::Parentheses)
-      or isCallToTagged(I, FunctionTags::LiteralPrintDecorator)
-      or isCallToTagged(I, FunctionTags::HexInteger)
-      or isCallToTagged(I, FunctionTags::CharInteger)
-      or isCallToTagged(I, FunctionTags::BoolInteger)
-      or isCallToTagged(I, FunctionTags::NullPtr)
-      or isCallToTagged(I, FunctionTags::SegmentGlobalGetter)
-      or isCallToTagged(I, FunctionTags::UnaryMinus)
-      or isCallToTagged(I, FunctionTags::BinaryNot)
-      or isCallToTagged(I, FunctionTags::BooleanNot)) {
+      or isCallToTagged(I, FunctionTags::SegmentGlobalGetter)) {
     UnexpectedInstruction = I;
   }
 
@@ -1130,10 +1099,10 @@ private:
 
 AnalysisKey InstructionToSerializePicker::Key = {};
 
-using LVB = LocalVariableBuilder<false>;
+using LVB = LocalVariableBuilder;
 
-static LocalVariableBuilder<false>
-makeVariableBuilder(Function &F, unsigned InputPointerByteSize) {
+static LocalVariableBuilder makeVariableBuilder(Function &F,
+                                                unsigned InputPointerByteSize) {
   VariableBuilderTypes Types = VariableBuilderTypes{ *F.getParent(),
                                                      InputPointerByteSize };
 
@@ -1147,7 +1116,7 @@ public:
 private:
   Function &F;
 
-  LocalVariableBuilder<false> VariableBuilder;
+  LocalVariableBuilder VariableBuilder;
 
 public:
   VariableInserter(Function &TheF, unsigned InputPointerByteSize) :
@@ -1209,10 +1178,6 @@ private:
 using VI = VariableInserter;
 
 bool VI::serializeToLocalVariable(Instruction *I) {
-  // We can't serialize instructions with reference semantics into local
-  // variables because C doesn't have references.
-  revng_assert(not isCallToTagged(I, FunctionTags::IsRef));
-
   // First, we have to declare the LocalVariable, always at the entry block.
   // Create instruction that allocates a LocalVariable
   LocalVarType *LocalVariable = createLocalVariableFor(I);

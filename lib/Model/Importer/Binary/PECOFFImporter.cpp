@@ -114,7 +114,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
     const object::coff_section *CoffRef = *MaybeSection;
 
     MetaAddress Start = ImageBase + u64(CoffRef->VirtualAddress);
-    Segment Segment({ Start, u64(CoffRef->VirtualSize) });
+    Segment Segment(Start);
+    Segment.VirtualSize() = u64(CoffRef->VirtualSize);
 
     // TODO: do the following unconditionally once the old pipeline has been
     //       dropped.

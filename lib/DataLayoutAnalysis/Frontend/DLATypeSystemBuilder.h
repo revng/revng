@@ -4,7 +4,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <ranges>
+
+#include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Casting.h"
 
 #include "revng/DataLayoutAnalysis/DLALayouts.h"
 #include "revng/DataLayoutAnalysis/DLATypeSystem.h"
@@ -47,6 +51,11 @@ inline bool isPointerToFunctionExpression(const llvm::Value *V) {
   return isa<llvm::Function>(V);
 }
 
+inline bool isArrayOfBytes(const llvm::Type *T) {
+  auto *Array = llvm::dyn_cast<llvm::ArrayType>(T);
+  return Array and Array->getElementType()->isIntegerTy(8);
+}
+
 /// This class is used to print LLVM information when debugging the TS
 ///
 /// Since nodes in the TypeSystem graph only have IDs, which are grouped into
@@ -82,6 +91,8 @@ public:
   using VisitedMapT = std::map<LayoutTypePtr, LayoutTypeSystemNode *>;
   using PrototypesMapT = std::map<const model::TypeDefinition *,
                                   FuncOrCallInst>;
+  using SegmentNodeMapT = std::map<const model::Segment *,
+                                   LayoutTypeSystemNode *>;
 
 private:
   /// Separate class that add `Instance` edges
@@ -90,12 +101,16 @@ private:
   /// The TypeSystem to build
   LayoutTypeSystem &TS;
 
+  /// The Model used by this builder to get type information.
+  const model::Binary &Model;
+
   /// Ordered vector, each element is indexed with the ID of the
   /// corresponding Node
   LayoutTypePtrVect Values;
 
   /// Reverse map between `llvm::Value`s and Nodes
   VisitedMapT VisitedValues;
+
   /// Associate each indirect call's prototype in the model with the
   /// first `llvm::CallInst` found with that prototype,
   PrototypesMapT VisitedPrototypes;
@@ -112,7 +127,7 @@ private:
 
   std::pair<LayoutTypeSystemNode *, bool>
   getOrCreateLayoutType(const llvm::Value *V) {
-    return getOrCreateLayoutType(V, std::numeric_limits<unsigned>::max());
+    return getOrCreateLayoutType(V, dla::LayoutTypePtr::FieldNumNone);
   }
 
   llvm::SmallVector<LayoutTypeSystemNode *, 2>
@@ -122,10 +137,11 @@ private:
   getOrCreateLayoutTypes(const llvm::Value &V);
 
 private:
-  bool createInterproceduralTypes(llvm::Module &M, const model::Binary &Model);
-  bool createIntraproceduralTypes(llvm::Module &M,
-                                  llvm::ModulePass *MP,
-                                  const model::Binary &Model);
+  /// Create one shared artificial node per model segment.
+  void initializeSegments(SegmentNodeMapT &Segments);
+  bool createInterproceduralTypes(llvm::Module &M,
+                                  const SegmentNodeMapT &Segments);
+  bool createIntraproceduralTypes(llvm::Module &M);
 
   /// Collect LayoutTypePtrs and place them in the right position
   void createValuesList();
@@ -140,9 +156,10 @@ public:
   void debug_function dumpValuesMapping(const llvm::StringRef Name) const;
 
 public:
-  DLATypeSystemLLVMBuilder(LayoutTypeSystem &TS) : TS(TS){};
+  DLATypeSystemLLVMBuilder(LayoutTypeSystem &TS, const model::Binary &M) :
+    TS(TS), Model(M){};
 
-  /// Create a DLATypeSystem graph for a given LLVM module
+  /// Create a DLATypeSystem graph from a range of LLVM modules
   ///
   /// LayoutTypePtrs represent elements of the LLVM IR that are thought to be
   /// possible pointers. The builder's job is to:
@@ -150,17 +167,42 @@ public:
   /// 2. Create a Node for each of them in the DLATypeSystem graph (TS)
   /// 3. Keep an ordered vector of LayoutTypePtrs, where each element's index
   /// corresponds to the ID of the corresponding LayoutTypeSystemNode generated
-  void buildFromLLVMModule(llvm::Module &M,
-                           llvm::ModulePass *MP,
-                           const model::Binary &Model);
+  ///
+  /// \p Modules is a multipass range of `llvm::Module *`. VisitedValues and
+  /// VisitedPrototypes are kept alive across all the modules, so that values
+  /// and prototypes shared between modules converge on the same nodes.
+  template<typename ModuleRange>
+  void buildFromLLVMModules(ModuleRange &&Modules) {
+    // The debug printer only needs a module handle for debugging convenience,
+    // so install it with the first module of the range. For an empty request
+    // the default base printer installed by LayoutTypeSystem stands.
+    auto It = std::ranges::begin(Modules);
+    if (It != std::ranges::end(Modules))
+      TS.setDebugPrinter(std::make_unique<LLVMTSDebugPrinter>(**It,
+                                                              this->Values));
+
+    // Create the shared per-segment nodes once, before any module is visited,
+    // so getters from different modules connect to the same node.
+    SegmentNodeMapT SegmentNodes;
+    initializeSegments(SegmentNodes);
+
+    for (llvm::Module *M : Modules)
+      createInterproceduralTypes(*M, SegmentNodes);
+
+    for (llvm::Module *M : Modules)
+      createIntraproceduralTypes(*M);
+
+    createValuesList();
+    VisitedValues.clear();
+    VisitedPrototypes.clear();
+  }
 
   /// Given an indirect Call instruction, check if it shares the model
   /// prototype with another function. If it does, connect the nodes
   /// corresponding to the types of the return values and arguments of this Call
   /// with the types of the return values and arguments of the function sharing
   /// the same prototype, using equality links.
-  bool connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
-                                       const model::Binary &Model);
+  bool connectToFuncsWithSamePrototype(const llvm::CallInst *Call);
 };
 
 } // namespace dla

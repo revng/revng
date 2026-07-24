@@ -61,9 +61,9 @@ void findMissingTypes(LDDTree &Dependencies,
     BinaryReference = DependencyModel->getBinaryIdentifierReference(0);
 
     bool Is64 = Architecture::getPointerSize(Binary->Architecture()) == 8;
-    Segment Universe(MetaAddress::fromGeneric(Binary->Architecture(), 0),
-                     Is64 ? std::numeric_limits<uint64_t>::max() :
-                            std::numeric_limits<uint32_t>::max());
+    Segment Universe(MetaAddress::fromGeneric(Binary->Architecture(), 0));
+    Universe.VirtualSize() = Is64 ? std::numeric_limits<uint64_t>::max() :
+                                    std::numeric_limits<uint32_t>::max();
     Universe.FileSize() = Universe.VirtualSize();
     Universe.IsExecutable() = true;
     Universe.IsReadable() = true;

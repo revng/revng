@@ -2,10 +2,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <ranges>
+#include <set>
+
 #include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/DataLayoutAnalysis/DLALayouts.h"
-#include "revng/DataLayoutAnalysis/DLAPass.h"
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
@@ -16,39 +17,19 @@
 #include "Frontend/DLATypeSystemBuilder.h"
 #include "Middleend/DLAStep.h"
 
-char DLAPass::ID = 0;
-
 static Logger BuilderLog("dla-builder-log");
 
-using Register = llvm::RegisterPass<DLAPass>;
-static ::Register X("dla", "Data Layout Analysis Pass", false, false);
-
-void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  if (ConstructorModel == nullptr)
-    AU.addRequired<LoadModelWrapperPass>();
-  AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
-
-  AU.setPreservesAll();
-}
-
-bool DLAPass::runOnModule(llvm::Module &M) {
-  TupleTree<model::Binary> *WritableModel = nullptr;
-  if (ConstructorModel != nullptr) {
-    WritableModel = ConstructorModel;
-  } else {
-    WritableModel = &getAnalysis<LoadModelWrapperPass>()
-                       .get()
-                       .getWriteableModel();
-  }
-
-  llvm::Task T(3, "DLAPass::runOnModule");
+template<typename ModuleRange>
+static bool runDataLayoutAnalysis(ModuleRange &&Modules,
+                                  TupleTree<model::Binary> &WritableModel) {
+  llvm::Task T(3, "runDataLayoutAnalysis");
   T.advance("DLA Frontend");
 
-  // Front-end: Create the LayoutTypeSystem graph from an LLVM module
+  // Front-end: Create the LayoutTypeSystem graph from the LLVM modules
   dla::LayoutTypeSystem TS;
-  dla::DLATypeSystemLLVMBuilder Builder{ TS };
-  const model::Binary &Model = *WritableModel->get();
-  Builder.buildFromLLVMModule(M, this, Model);
+  const model::Binary &Model = *WritableModel.get();
+  dla::DLATypeSystemLLVMBuilder Builder{ TS, Model };
+  Builder.buildFromLLVMModules(Modules);
 
   if (BuilderLog.isEnabled())
     Builder.dumpValuesMapping("DLA-values-initial.csv");
@@ -119,12 +100,18 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   T.advance("DLA Backend");
 
   // Generate model types
-  auto ValueToTypeMap = dla::makeModelTypes(TS, Values, *WritableModel);
+  auto ValueToTypeMap = dla::makeModelTypes(TS, Values, WritableModel);
   bool Changed = false;
 
-  Changed |= dla::updateFuncSignatures(M, *WritableModel, ValueToTypeMap);
-  Changed |= dla::updateSegmentsTypes(M, *WritableModel, ValueToTypeMap);
-  revng_assert((*WritableModel)->verify(true));
+  std::set<MetaAddress> UpdatedSegments;
+  for (llvm::Module *M : Modules) {
+    Changed |= dla::updateFuncSignatures(*M, WritableModel, ValueToTypeMap);
+    Changed |= dla::updateSegmentsTypes(*M,
+                                        WritableModel,
+                                        ValueToTypeMap,
+                                        UpdatedSegments);
+  }
+  revng_assert(WritableModel->verify(true));
 
   return Changed;
 }
@@ -138,13 +125,10 @@ public:
   };
 
   void run(pipeline::ExecutionContext &EC, pipeline::LLVMContainer &Module) {
-    using namespace revng;
-
-    llvm::legacy::PassManager Manager;
-    auto &Global = getWritableModelFromContext(EC);
-    Manager.add(new LoadModelWrapperPass(ModelWrapper(Global)));
-    Manager.add(new DLAPass());
-    Manager.run(Module.getModule());
+    TupleTree<model::Binary>
+      &WritableModel = revng::getWritableModelFromContext(EC);
+    runDataLayoutAnalysis(std::views::single(&Module.getModule()),
+                          WritableModel);
   }
 };
 
@@ -156,15 +140,16 @@ llvm::Error AnalyzeDataLayout::run(Model &Model,
                                    const Request &Incoming,
                                    llvm::StringRef Configuration,
                                    LLVMFunctionContainer &ModuleContainer) {
-  auto RootModule = std::make_unique<llvm::Module>("root",
-                                                   ModuleContainer
-                                                     .getContext());
-  for (const ObjectID *Object : Incoming[0])
-    linkFunctionModules(ModuleContainer.takeModule(*Object), RootModule);
+  // Run DLA directly over the requested per-function modules, without linking
+  // them into a temporary root module. The modules are visited lazily through
+  // a transform view and stay valid in the container afterwards.
+  auto Modules = Incoming[0]
+                 | std::views::transform([&](const ObjectID *Object)
+                                           -> llvm::Module * {
+                     return &ModuleContainer.getModule(*Object);
+                   });
 
-  llvm::legacy::PassManager Manager;
-  Manager.add(new DLAPass(Model.get()));
-  Manager.run(*RootModule);
+  runDataLayoutAnalysis(Modules, Model.get());
 
   return llvm::Error::success();
 }

@@ -10,13 +10,13 @@
 // CHECK:   clift.global @my_named_segment : !clift.array<64 x !uint8_t>
 // CHECK:   attributes {
 // CHECK:     clift.comment = "Unlike functions, segments only support simple comments.\0A\0ATo attach extra information to internals, use the corresponding struct\0Atype!",
-// CHECK:     handle = "/segment/0x4:Generic64-64"
+// CHECK:     handle = "/segment/0x4:Generic64"
 // CHECK:   }
 // CHECK: }
 
 module attributes {clift.module} {
-  clift.global @"0x4:Generic64-64" : !clift.array<64 x !uint8_t>
+  clift.global @"0x4:Generic64" : !clift.array<64 x !uint8_t>
   attributes {
-    handle = "/segment/0x4:Generic64-64"
+    handle = "/segment/0x4:Generic64"
   }
 }

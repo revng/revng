@@ -33,9 +33,9 @@ class LayoutTypePtr {
   unsigned FieldIdx;
 
 public:
-  static constexpr unsigned fieldNumNone = std::numeric_limits<unsigned>::max();
+  static constexpr unsigned FieldNumNone = std::numeric_limits<unsigned>::max();
 
-  explicit LayoutTypePtr(const llvm::Value *Val, unsigned Idx = fieldNumNone) :
+  explicit LayoutTypePtr(const llvm::Value *Val, unsigned Idx = FieldNumNone) :
     V(Val), FieldIdx(Idx) {}
 
   LayoutTypePtr() = default;
