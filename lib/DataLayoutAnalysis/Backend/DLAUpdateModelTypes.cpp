@@ -733,11 +733,13 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
 
 bool dla::updateSegmentsTypes(const llvm::Module &M,
                               TupleTree<model::Binary> &Model,
-                              const TypeMapT &TypeMap) {
+                              const TypeMapT &TypeMap,
+                              std::set<MetaAddress> &UpdatedSegments) {
   bool Updated = false;
 
   for (const auto &F : FunctionTags::SegmentGlobalGetter.functions(&M)) {
-    auto Segment = Model->Segments().at(extractSegmentKeyFromMetadata(F));
+    MetaAddress SegmentKey = extractSegmentKeyFromMetadata(F);
+    auto Segment = Model->Segments().at(SegmentKey);
 
     // If the Segment type is missing, we have nothing to update.
     if (Segment.Type().isEmpty())
@@ -749,6 +751,11 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
 
     LayoutTypePtr Key{ &F, LayoutTypePtr::FieldNumNone };
     if (auto TypeIt = TypeMap.find(Key); TypeIt != TypeMap.end()) {
+      // A segment's getter is duplicated in every module that accesses it, so
+      // fill each segment's type only once.
+      if (not UpdatedSegments.insert(SegmentKey).second)
+        continue;
+
       // Let's examine the recovered type by DLA.
       fillStructWithRecoveredDLATypeAtOffset(*Model,
                                              SegmentStruct,

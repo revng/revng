@@ -3,6 +3,7 @@
 //
 
 #include <ranges>
+#include <set>
 
 #include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/DataLayoutAnalysis/DLALayouts.h"
@@ -116,9 +117,13 @@ static bool runDataLayoutAnalysis(ModuleRange &&Modules,
   auto ValueToTypeMap = dla::makeModelTypes(TS, Values, WritableModel);
   bool Changed = false;
 
+  std::set<MetaAddress> UpdatedSegments;
   for (llvm::Module *M : Modules) {
     Changed |= dla::updateFuncSignatures(*M, WritableModel, ValueToTypeMap);
-    Changed |= dla::updateSegmentsTypes(*M, WritableModel, ValueToTypeMap);
+    Changed |= dla::updateSegmentsTypes(*M,
+                                        WritableModel,
+                                        ValueToTypeMap,
+                                        UpdatedSegments);
   }
   revng_assert(WritableModel->verify(true));
 
@@ -165,15 +170,16 @@ llvm::Error AnalyzeDataLayout::run(Model &Model,
                                    const Request &Incoming,
                                    llvm::StringRef Configuration,
                                    LLVMFunctionContainer &ModuleContainer) {
-  auto RootModule = std::make_unique<llvm::Module>("root",
-                                                   ModuleContainer
-                                                     .getContext());
-  for (const ObjectID *Object : Incoming[0])
-    linkFunctionModules(ModuleContainer.takeModule(*Object), RootModule);
+  // Run DLA directly over the requested per-function modules, without linking
+  // them into a temporary root module. The modules are visited lazily through
+  // a transform view and stay valid in the container afterwards.
+  auto Modules = Incoming[0]
+                 | std::views::transform([&](const ObjectID *Object)
+                                           -> llvm::Module * {
+                     return &ModuleContainer.getModule(*Object);
+                   });
 
-  llvm::legacy::PassManager Manager;
-  Manager.add(new DLAPass(Model.get()));
-  Manager.run(*RootModule);
+  runDataLayoutAnalysis(Modules, Model.get());
 
   return llvm::Error::success();
 }

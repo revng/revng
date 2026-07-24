@@ -4,10 +4,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <set>
+
 #include "revng/DataLayoutAnalysis/DLALayouts.h"
 #include "revng/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/TypeDefinition.h"
+#include "revng/Support/MetaAddress.h"
 
 using TypeMapT = std::map<dla::LayoutTypePtr, model::UpcastableType>;
 
@@ -27,8 +30,12 @@ bool updateFuncSignatures(const llvm::Module &M,
                           const TypeMapT &TypeMap);
 
 /// Attach model types to segments and update the model.
+///
+/// \p UpdatedSegments records the segments already filled by this DLA run, so a
+/// segment whose getter is duplicated across modules is filled only once.
 bool updateSegmentsTypes(const llvm::Module &M,
                          TupleTree<model::Binary> &Model,
-                         const TypeMapT &TypeMap);
+                         const TypeMapT &TypeMap,
+                         std::set<MetaAddress> &UpdatedSegments);
 
 } // end namespace dla

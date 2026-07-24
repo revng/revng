@@ -797,6 +797,11 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M) {
     auto FTags = FunctionTags::TagsSet::from(&F);
     if (F.isIntrinsic() or not FTags.contains(FunctionTags::Isolated))
       continue;
+    // A caller module holds body-less declarations of the isolated functions it
+    // calls. They have no body to explore here (the loop below needs an entry
+    // block); the callee's definition is processed in its own module.
+    if (F.isDeclaration())
+      continue;
     revng_assert(not F.isVarArg());
 
     ScalarEvolution &SE = FAM.getResult<ScalarEvolutionAnalysis>(F);
