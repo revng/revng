@@ -207,23 +207,17 @@ DLATypeSystemLLVMBuilder::getLayoutTypes(const Value &V) {
           const auto FieldId = Group.index();
           // Inside here we're working on a single field of the struct.
           // ExtractedSet contains all the ExtractValueInst that extract the
-          // same field of the struct.
-          // We get or create a layout type for each of them, but they should
-          // all be the same.
-          std::optional<LayoutTypeSystemNode *> FieldNode;
+          // same field of the struct. getOrCreateLayoutTypes keeps them as
+          // distinct nodes connected by equality links (later merged by
+          // CollapseEqualitySCC), so any of them is an equally-good
+          // representative for the field: we just take the first one.
+          LayoutTypeSystemNode *FieldNode = nullptr;
           for (const CallInst *Ext : ExtractedSet) {
             revng_assert(isCallToTagged(Ext, FunctionTags::OpaqueExtractValue));
-            LayoutTypeSystemNode *ExtNode = getLayoutType(Ext);
-            if (FieldNode.has_value()) {
-              LayoutTypeSystemNode *Node = FieldNode.value();
-              revng_assert(not Node or not ExtNode or (Node == ExtNode));
-              if (not Node)
-                Node = ExtNode;
-            } else {
-              FieldNode = ExtNode;
-            }
+            if (FieldNode == nullptr)
+              FieldNode = getLayoutType(Ext);
           }
-          Results[FieldId] = FieldNode.value_or(nullptr);
+          Results[FieldId] = FieldNode;
         }
       }
 
