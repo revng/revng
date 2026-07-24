@@ -92,7 +92,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     // types as equal, connecting them with equality links.
     FuncOrCallInst FuncWithSameProto;
     if (not NewPrototype) {
-      FuncOrCallInst FuncWithSameProto = It->second;
+      FuncWithSameProto = It->second;
       revng_assert(not FuncWithSameProto.isNull());
       revng_assert(F.arg_size() == FuncWithSameProto.arg_size());
 
