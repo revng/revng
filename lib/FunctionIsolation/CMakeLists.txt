@@ -21,5 +21,4 @@ target_link_libraries(
   revngEarlyFunctionAnalysis
   revngInlineHelpers
   revngSupport
-  revngPipes
   ${LLVM_LIBRARIES})

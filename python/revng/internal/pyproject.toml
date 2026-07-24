@@ -8,18 +8,8 @@ dynamic = ["version"]
 dependencies = [
   # Requirements for revng_merge_dynamic
   "pyelftools",
-  # revng.api
-  "cffi",
-  # revng.daemon
-  "ariadne",
-  "uvicorn",
-  "python-multipart",
-  "starlette",
+  # Used in `revng.internal.support`
   "xdg",
-  # CLI: revng graphql
-  "aiohttp",
-  "gql",
-  "psutil",
   # CLI: revng model fetch-debuginfo
   "requests",
   "requests-toolbelt",

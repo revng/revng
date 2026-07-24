@@ -4,6 +4,5 @@
 
 add_subdirectory(abi)
 add_subdirectory(filecheck)
-add_subdirectory(pipeline)
 add_subdirectory(pypeline)
 add_subdirectory(unit)

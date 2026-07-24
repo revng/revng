@@ -21,5 +21,4 @@ target_link_libraries(
   revngEarlyFunctionAnalysis
   revngLocalVariables
   revngModel
-  revngPipes
   ${LLVM_LIBRARIES})

@@ -7,4 +7,4 @@ revng_add_analyses_library_internal(
   EmitSegmentReferences.cpp EmitStringConstants.cpp SegmentUsesEnumerator.cpp)
 
 target_link_libraries(revngSegmentReferences revngSupport revngModel revngABI
-                      revngPipes ${LLVM_LIBRARIES})
+                      ${LLVM_LIBRARIES})

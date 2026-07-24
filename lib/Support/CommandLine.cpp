@@ -10,4 +10,3 @@
 namespace cl = llvm::cl;
 
 cl::OptionCategory MainCategory("Options", "");
-std::string InputPath;

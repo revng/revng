@@ -14,7 +14,6 @@ revng_add_library_internal(
   Lift.cpp
   LiftPipe.cpp
   LinkSupportPipe.cpp
-  LoadBinaryPass.cpp
   JumpTargetManager.cpp
   PostLiftVerifyPass.cpp
   RootAnalyzer.cpp
@@ -31,7 +30,6 @@ target_link_libraries(
          revngModelImporterDebugInfo
          revngFunctionCallIdentification
          revngModel
-         revngPipes
          revngSupport
          revngTypeShrinking
          revngEarlyFunctionAnalysis

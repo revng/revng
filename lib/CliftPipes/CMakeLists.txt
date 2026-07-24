@@ -21,6 +21,4 @@ target_link_libraries(
   revngClifter
   revngCliftImportModel
   revngCliftTransforms
-  revngPipeline
-  revngPipes
   MLIRTransforms)

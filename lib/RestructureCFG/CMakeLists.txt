@@ -19,4 +19,4 @@ revng_add_analyses_library_internal(
   SelectScopePass.cpp)
 
 target_link_libraries(revngRestructureCFG revngScopeGraphUtils revngSupport
-                      revngModel revngPipeline ${LLVM_LIBRARIES})
+                      revngModel ${LLVM_LIBRARIES})
