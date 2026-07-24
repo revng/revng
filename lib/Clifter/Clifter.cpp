@@ -1766,6 +1766,9 @@ private:
         }
 
         Op.setHandle(*Handle);
+        if (hasStackFrameMetadata(A))
+          Op->setAttr("clift.stack_frame",
+                      mlir::Builder(Op.getContext()).getBoolAttr(true));
 
         auto [Iterator, Inserted] = AllocaMapping.try_emplace(A, Op);
         revng_assert(Inserted);
