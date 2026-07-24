@@ -300,19 +300,22 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
     auto &FunctionType = llvm::cast<CABIFunctionDefinition>(*NewType);
     FunctionType.ABI() = TheModelABI;
 
+    // A void return is left as an empty ReturnType.
     auto TheRetClangType = FD->getReturnType();
-    model::UpcastableType RetType = revng::qualTypeToModel(TheRetClangType,
-                                                           *Model,
-                                                           Context,
-                                                           Errors,
-                                                           "edit-c-type:");
-    if (not RetType) {
-      Errors.emplace_back("edit-c-type failed: Unable to parse the type of "
-                          "the return value.\n");
-      return false;
-    }
+    if (not TheRetClangType->isVoidType()) {
+      model::UpcastableType RetType = revng::qualTypeToModel(TheRetClangType,
+                                                             *Model,
+                                                             Context,
+                                                             Errors,
+                                                             "edit-c-type:");
+      if (not RetType) {
+        Errors.emplace_back("edit-c-type failed: Unable to parse the type of "
+                            "the return value.\n");
+        return false;
+      }
 
-    FunctionType.ReturnType() = std::move(RetType);
+      FunctionType.ReturnType() = std::move(RetType);
+    }
 
     // Handle params.
     uint32_t Index = 0;
@@ -507,10 +510,8 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
   // Update the name in case it changed.
   auto &ModelFunction = Model->Functions()[FunctionEntry];
 
-  if (FD->hasAttr<clang::NoReturnAttr>()
-      || FD->hasAttr<clang::C11NoReturnAttr>()) {
+  if (FD->isNoReturn())
     ModelFunction.Attributes().emplace(model::FunctionAttribute::NoReturn);
-  }
 
   if (FD->hasAttr<clang::AlwaysInlineAttr>())
     ModelFunction.Attributes().emplace(model::FunctionAttribute::AlwaysInline);
@@ -530,7 +531,13 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
   if (not comesFromInternalFile(D))
     return true;
 
-  revng_assert(AnalysisOption != EditCTypeOption::EditFunctionPrototype);
+  // A function's prototype is edited from a function declaration (see
+  // VisitFunctionDecl); a typedef cannot carry the function attributes.
+  if (AnalysisOption == EditCTypeOption::EditFunctionPrototype) {
+    Errors.emplace_back("edit-c-type failed: editing a function prototype "
+                        "requires a function declaration, not a typedef.\n");
+    return false;
+  }
 
   QualType TheType = D->getUnderlyingType();
   if (auto Fn = llvm::dyn_cast<FunctionProtoType>(TheType)) {
@@ -622,19 +629,22 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
 
     FunctionType.ABI() = TheModelABI;
 
+    // A void return is left as an empty ReturnType.
     auto TheRetClangType = FP->getReturnType();
-    model::UpcastableType RetType = revng::qualTypeToModel(TheRetClangType,
-                                                           *Model,
-                                                           Context,
-                                                           Errors,
-                                                           "edit-c-type:");
-    if (not RetType) {
-      Errors.emplace_back("edit-c-type failed: Unable to parse the return "
-                          "value type.\n");
-      return false;
-    }
+    if (not TheRetClangType->isVoidType()) {
+      model::UpcastableType RetType = revng::qualTypeToModel(TheRetClangType,
+                                                             *Model,
+                                                             Context,
+                                                             Errors,
+                                                             "edit-c-type:");
+      if (not RetType) {
+        Errors.emplace_back("edit-c-type failed: Unable to parse the return "
+                            "value type.\n");
+        return false;
+      }
 
-    FunctionType.ReturnType() = std::move(RetType);
+      FunctionType.ReturnType() = std::move(RetType);
+    }
 
     // Handle params.
     uint32_t Index = 0;
