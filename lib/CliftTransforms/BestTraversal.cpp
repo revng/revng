@@ -196,6 +196,42 @@ static uint64_t commonPrefixStrides(const llvm::ArrayRef<ArrayShape> &LHS,
   return Count;
 }
 
+/// Checks whether the arrays traversed by `T` can represent every runtime
+/// (variable-index) strided term of `Arithmetic`. `Replacement::make` lowers a
+/// variable strided term into an array subscript when a traversed array's
+/// stride divides the term's stride (the exact-stride match is the divisor
+/// being the stride itself; a proper multiple yields a scaled index such as
+/// `[2*i]` into a byte array), so a term is representable exactly when some
+/// traversed array's stride divides it. A variable term whose stride is a
+/// multiple of no traversed array's stride cannot be an integer array index
+/// and, carrying a runtime index, would be silently dropped by the leftover
+/// emission in `replaceFieldAccess`. A traversal that fails this check is not a
+/// faithful lowering of the access, so `getBestTraversal` never selects it as
+/// the best; a representable, lower-scored traversal is preferred, and only
+/// when none exists is the raw pointer arithmetic kept (as for accesses that
+/// fail `PointerArithmetic::verify`). Constant-only leftover terms are fine:
+/// they are emitted as explicit integer arithmetic.
+static bool canLowerArithmeticOntoTraversal(const PointerArithmetic &Arithmetic,
+                                            const Traversal &T) {
+  for (const auto &Term : Arithmetic.Offset.LinearCombination) {
+    if (not Term.Idx.Variable)
+      continue;
+
+    bool Divisible = false;
+    for (const ArrayShape &Array : T.TraversedArrays) {
+      if (Term.Stride.urem(Array.Stride) == 0) {
+        Divisible = true;
+        break;
+      }
+    }
+
+    if (not Divisible)
+      return false;
+  }
+
+  return true;
+}
+
 /// The `typeDistance` function computes the distance between two `Type`s.
 /// Returns 0 if the types are exactly equal (after stripping `typedef`s), 1 if
 /// they only differ in CV-qualifiers, or infinity otherwise. The return type is
@@ -698,6 +734,7 @@ private:
   std::optional<Traversal>
   getBestTraversal(mlir::Type BaseType,
                    mlir::Type PointeeType,
+                   const PointerArithmetic &Arithmetic,
                    const std::vector<PointerArithmetic> &ExplicitArithmetics);
 };
 
@@ -737,15 +774,19 @@ BestTraversalChooser::computeBestTraversal(ExpressionOpInterface
                     .getPointeeType();
 
   // Obtain the `BestTraversal` for connecting `BaseType` to `PointeeType`,
-  // following one of the possible `ExplicitArithmetic`s
+  // following one of the possible `ExplicitArithmetic`s. Traversals that cannot
+  // represent the arithmetic's runtime indices are excluded during selection
+  // (see `getBestTraversal`), so if none remains we leave the raw pointer
+  // arithmetic in place.
   auto BestTraversal = getBestTraversal(BaseType,
                                         PointeeType,
+                                        Arithmetic,
                                         ExplicitArithmetics);
 
   // In case we end up with a `BestTraversal` which does not actually traverse
   // any `struct` field or `array` element, we avoid the rewriting altogether,
   // and we leave the explicit pointer arithmetic access in `clift`
-  if (BestTraversal->depth() == 0) {
+  if (not BestTraversal or BestTraversal->depth() == 0) {
     return std::nullopt;
   }
 
@@ -773,6 +814,16 @@ BestTraversalChooser::getExplicitArithmetic(const PointerArithmetic &Arithmetic,
   // We do not modify the input `Arithmetic`, but we work on a local copy
   PointerArithmetic WorkingArithmetic = Arithmetic;
 
+  // The variable strided terms are runtime indices that making the array
+  // indexing explicit does not change: a term's stride is a multiple of the
+  // element stride of the array that indexes it, which already encodes its
+  // coefficient. We therefore keep them in the `Result` unchanged and only
+  // split the constant part of the offset into an explicit constant index per
+  // array level. `WorkingArithmetic` is consumed purely to check that every
+  // variable term is representable (divisible by some array in the path).
+  auto &LC = Result.Offset.LinearCombination;
+  LC = Arithmetic.Offset.LinearCombination;
+
   for (const NestedArrayShape &NAI : AP) {
     const auto &[OffsetFromParentArrayElement, NumElements, Stride] = NAI;
 
@@ -781,72 +832,74 @@ BestTraversalChooser::getExplicitArithmetic(const PointerArithmetic &Arithmetic,
 
     revng_assert(WorkingArithmetic.Offset.BaseOffset
                    .uge(OffsetFromParentArrayElement));
-    llvm::APInt OffsetInsideArray = WorkingArithmetic.Offset.BaseOffset
-                                    - OffsetFromParentArrayElement;
-    WorkingArithmetic.Offset.BaseOffset = OffsetInsideArray;
+    WorkingArithmetic.Offset.BaseOffset -= OffsetFromParentArrayElement;
 
-    // If, after adjusting `StartOffset`, the `StartOffset` of `Arithmetic` is
-    // still larger than the `Stride` coming from `NAI`, we have to take that
-    // into account and add to the `Result` a constant `StridedTerm`
-    auto &LC = Result.Offset.LinearCombination;
-
-    // `Stride`s must be in non-ascending order (equal strides are allowed for
-    // nested arrays with the same element size, e.g., int array[1][1])
-    revng_assert(LC.empty() or LC.back().Stride.uge(Stride));
-
-    llvm::APInt IndexConstantComponent = llvm::APInt(PointerBitWidth, 0);
+    // Split the constant offset that reaches into this array into an explicit
+    // constant array index. We fold it into the term that already indexes this
+    // array, if any (i.e. a variable term of the same stride), or add a new
+    // constant-index term.
     if (WorkingArithmetic.Offset.BaseOffset.uge(Stride)) {
-      IndexConstantComponent = WorkingArithmetic.Offset.BaseOffset.udiv(Stride);
-      revng_assert(IndexConstantComponent.ult(NumElements));
+      llvm::APInt FixedIndex = WorkingArithmetic.Offset.BaseOffset.udiv(Stride);
+      revng_assert(FixedIndex.ult(NumElements));
       WorkingArithmetic.Offset.BaseOffset = WorkingArithmetic.Offset.BaseOffset
                                               .urem(Stride);
+
+      auto SameStride = std::find_if(LC.begin(),
+                                     LC.end(),
+                                     [&](const PointerArithmetic::StridedTerm
+                                           &Term) {
+                                       return Term.Stride == Stride;
+                                     });
+      if (SameStride != LC.end())
+        SameStride->Idx.Constant += FixedIndex;
+      else
+        LC.emplace_back(llvm::APInt(PointerBitWidth, Stride),
+                        PointerArithmetic::Index{ mlir::Value(), FixedIndex });
     }
 
-    mlir::Value IndexVariableComponent = {};
-
-    // If the `PointerArithmetic` is doing a variable-index array traversal with
-    // a stride that differs from NAI, then we have to bail out. Either a
-    // subsequent `ArrayPath` will hit the sweet spot, or none will, but that's
-    // not something we have to handle here.
-    if (not WorkingArithmetic.Offset.LinearCombination.empty()) {
-      if (WorkingArithmetic.Offset.LinearCombination.front()
-            .Stride.ugt(Stride)) {
-        return std::nullopt;
-      }
-      if (Stride == WorkingArithmetic.Offset.LinearCombination.front().Stride) {
-        auto &FrontTerm = WorkingArithmetic.Offset.LinearCombination.front();
-        IndexVariableComponent = FrontTerm.Idx.Variable;
-
-        // If the index also has a constant component, sum it into the
-        // `IndexConstantComponent` we are building
-        if (FrontTerm.Idx.Constant.getBoolValue()) {
-          IndexConstantComponent += FrontTerm.Idx.Constant;
-        }
-
-        WorkingArithmetic.Offset.LinearCombination
-          .erase(WorkingArithmetic.Offset.LinearCombination.begin());
-      }
+    // Verify this path can represent every runtime index: remove from the
+    // working copy every term this array's stride divides (an exact match, or a
+    // proper multiple such as a two-byte-stride index into a byte array). A
+    // term this array does not divide is left for a later, smaller-stride
+    // array; if no array consumes it, the check after the loop discards this
+    // path.
+    auto &WorkingLC = WorkingArithmetic.Offset.LinearCombination;
+    for (auto It = WorkingLC.begin(); It != WorkingLC.end();) {
+      if (It->Stride.urem(Stride) == 0)
+        It = WorkingLC.erase(It);
+      else
+        ++It;
     }
-
-    // We add a new term to the constructed `LinearCombination`, using the
-    // `Index` components identified
-    LC.push_back(PointerArithmetic::StridedTerm(llvm::APInt(PointerBitWidth,
-                                                            Stride),
-                                                { IndexVariableComponent,
-                                                  IndexConstantComponent }));
   }
 
-  // If we were not able to consume all the `LinerCombination`s of the input
-  // `Arithmetic`, we bail out
+  // If some runtime index is a multiple of no array's stride, this path cannot
+  // represent it, so we bail out
   if (not WorkingArithmetic.Offset.LinearCombination.empty()) {
     return std::nullopt;
   }
 
-  // If we still have some non-consumed portion of the input `BaseOffset`, we
-  // propagate it in the `Result`
+  // If we still have some non-consumed portion of the input `BaseOffset`, it
+  // lands inside the target element, so we propagate it in the `Result`
   if (WorkingArithmetic.Offset.BaseOffset.getBoolValue()) {
     Result.Offset.BaseOffset += WorkingArithmetic.Offset.BaseOffset;
   }
+
+  // Restore descending-stride order, which the construction above does not
+  // guarantee: the constant array-index terms are appended after the copied
+  // (already-ordered) runtime terms, so a large-stride outer array index can
+  // land after a smaller-stride runtime term (e.g. `arr[c][i]`, offset
+  // `8*c + 4*i`, produces `[{4, i}, {8, c}]`). No current consumer depends on
+  // the order (the only reader, the `canLowerArithmeticOntoTraversal` assertion
+  // in `getBestTraversal`, is order-independent), but we keep the result a
+  // well-formed `PointerArithmetic`, matching the descending, unique-stride
+  // invariant that `computePointerArithmetic` and `verify` maintain, so the
+  // object stays consistent and safe for any future consumer.
+  std::sort(LC.begin(),
+            LC.end(),
+            [](const PointerArithmetic::StridedTerm &A,
+               const PointerArithmetic::StridedTerm &B) {
+              return A.Stride.ugt(B.Stride);
+            });
 
   return Result;
 }
@@ -911,6 +964,7 @@ Traversal BestTraversalChooser::toTraversal(const PointerArithmetic &PA,
 std::optional<Traversal>
 BestTraversalChooser::getBestTraversal(mlir::Type BaseType,
                                        mlir::Type PointeeType,
+                                       const PointerArithmetic &Arithmetic,
                                        const std::vector<PointerArithmetic>
                                          &ExplicitArithmetics) {
 
@@ -954,6 +1008,23 @@ BestTraversalChooser::getBestTraversal(mlir::Type BaseType,
 
       if (!CurrentScore.Valid)
         continue;
+
+      // A traversal whose array strides cannot represent the arithmetic's
+      // runtime indices is not a valid lowering (see
+      // `canLowerArithmeticOntoTraversal`), so it must never be considered
+      // best: skip it here and let a representable, lower-scored traversal win.
+      if (not canLowerArithmeticOntoTraversal(Arithmetic, ExplicitTraversal))
+        continue;
+
+      // The explicit arithmetic must be lowerable onto the very same arrays the
+      // original arithmetic just was: `getExplicitArithmetic` re-expresses the
+      // access along an `ArrayPath`, and its `LinearCombination` must keep
+      // every runtime term at a stride the traversed arrays can represent. This
+      // is the one live consumer of that `LinearCombination`, and it guards
+      // `getExplicitArithmetic` against re-expressing a runtime index at a
+      // stride no array divides.
+      revng_assert(canLowerArithmeticOntoTraversal(Explicit,
+                                                   ExplicitTraversal));
 
       // We select the `Score` which best suits the criteria defining in the
       // _scoring_ mechanism
