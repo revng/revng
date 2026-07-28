@@ -473,6 +473,20 @@ private:
       }
     }
 
+    // A function may declare at most one local as the inline stack frame.
+    // The `stack_frame` attribute on `clift.local` is a discardable boolean;
+    // we walk the whole body (including nested regions) so locals hidden
+    // inside compound statements are still counted.
+    std::size_t StackFrameCount = 0;
+    Op.walk([&](clift::LocalVariableOp Local) {
+      auto Flag = Local->getAttrOfType<mlir::BoolAttr>("clift.stack_frame");
+      if (Flag and Flag.getValue())
+        ++StackFrameCount;
+    });
+    if (StackFrameCount > 1)
+      return error() << "More than one `stack_frame` local declared in '"
+                     << Op.getHandle() << "' (" << StackFrameCount << ")";
+
     return mlir::success();
   }
 
