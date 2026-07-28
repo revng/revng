@@ -47,6 +47,7 @@ public:
 class Model {
 private:
   TupleTree<model::Binary> TheModel;
+  std::optional<std::string> Path;
 
 public:
   ModelDiff diff(const Model &Other) const {
@@ -177,7 +178,8 @@ public:
     return Out;
   }
 
-  static llvm::Expected<Model> deserialize(llvm::ArrayRef<uint8_t> Input) {
+  static llvm::Expected<Model> deserialize(llvm::ArrayRef<uint8_t> Input,
+                                           std::optional<std::string> Path) {
     llvm::StringRef String{ reinterpret_cast<const char *>(Input.data()),
                             Input.size() };
     auto MaybeModel = TupleTree<model::Binary>::fromString(String);
@@ -189,6 +191,7 @@ public:
 
     Model Result;
     Result.TheModel = std::move(*MaybeModel);
+    Result.Path = Path;
     return Result;
   }
 
@@ -200,6 +203,8 @@ public:
 
   void enableCaching() { TheModel.enableReferenceCaching(); }
   void disableCaching() { TheModel.disableReferenceCaching(); }
+
+  std::optional<std::string> path() { return Path; }
 
 public:
   TupleTree<model::Binary> &get() { return TheModel; }

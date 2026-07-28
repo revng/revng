@@ -56,10 +56,11 @@ static Logger ModelMigrationLogger("pypeline-model-migration");
 /// time around the parsing fails. Returns the model object and a bool
 /// indicating if a migration has happened.
 static llvm::Expected<std::pair<Model, bool>>
-deserializeModel(llvm::ArrayRef<uint8_t> Input) {
+deserializeModel(llvm::ArrayRef<uint8_t> Input,
+                 std::optional<std::string> Path) {
   using namespace revng::pypeline::helpers::python;
 
-  auto MaybeModel = Model::deserialize(Input);
+  auto MaybeModel = Model::deserialize(Input, Path);
   if (MaybeModel)
     return std::pair{ *MaybeModel, false };
 
@@ -85,7 +86,8 @@ deserializeModel(llvm::ArrayRef<uint8_t> Input) {
             "model");
   auto OutputBytes = nanobind::cast<nanobind::bytes>(Output);
   auto *BytesPointer = static_cast<const uint8_t *>(OutputBytes.data());
-  auto MaybeModel2 = Model::deserialize({ BytesPointer, OutputBytes.size() });
+  auto MaybeModel2 = Model::deserialize({ BytesPointer, OutputBytes.size() },
+                                        Path);
   if (MaybeModel2) {
     // Here consumeError is valid because the error came from the fact that the
     // model was of a previous version and it got updated
@@ -101,6 +103,7 @@ deserializeModel(llvm::ArrayRef<uint8_t> Input) {
 }
 
 NB_MODULE(_pipebox, m) {
+  using namespace nanobind::literals;
   using namespace revng::pypeline::helpers::python;
 
   auto Initialize = [m](std::set<int> Signals,
@@ -256,7 +259,10 @@ NB_MODULE(_pipebox, m) {
            //       copy anyways.
            return nanobind::bytes(Buffer.data(), Buffer.size());
          })
-    .def_static("deserialize", &deserializeModel)
+    .def_static("deserialize",
+                &deserializeModel,
+                "data"_a,
+                "path"_a = nanobind::none())
     .def("__eq__",
          [](Model &Handle, nanobind::object Other) {
            Model *OtherHandle;
@@ -265,7 +271,8 @@ NB_MODULE(_pipebox, m) {
            return Handle == *OtherHandle;
          })
     .def("enable_caching", &Model::enableCaching)
-    .def("disable_caching", &Model::disableCaching);
+    .def("disable_caching", &Model::disableCaching)
+    .def("path", &Model::path);
 
   // Register all Pipes, Analyses and Containers
   BaseClasses BC{

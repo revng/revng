@@ -253,9 +253,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         model_path.write_text("")
         return True
 
-    def _create_provider(
-        self, project_id: str | None, base_directory: Path, cache_dir: str, pipeline_hash: str
-    ):
+    def _find_model(self, project_id: str | None, base_directory: Path) -> Path | None:
         # Figure out how the model should be name
         model_type = get_singleton(Model)  # type: ignore [type-abstract]
         model_name = model_type.model_name()
@@ -268,18 +266,26 @@ class LocalStorageProviderFactory(StorageProviderFactory):
                 model_name = f"{model_name}-{project_id}"
 
         # Find the model in the current directory or any of its parents
-
         directory = base_directory
         while True:
             pypeline_logger.debug_log(f'Searching for model at "{directory / model_name}"')
             if (directory / model_name).exists():
                 break
             if directory == directory.parent:
-                raise FileNotFoundError(f'Model "{str(directory / model_name)}" not found')
+                return None
             directory = directory.parent
 
         model_path = directory / model_name
         pypeline_logger.debug_log(f'Model "{model_name}" found at "{model_path}"')
+        return model_path
+
+    def _create_provider(
+        self, project_id: str | None, base_directory: Path, cache_dir: str, pipeline_hash: str
+    ):
+        model_path = self._find_model(project_id, base_directory)
+        if model_path is None:
+            model_type = get_singleton(Model)  # type: ignore [type-abstract]
+            raise FileNotFoundError(f"Model file {model_type.model_name()} not found")
         # Compute the hash of the model path as a tentative unique identifier for the project
         # TODO: we are relying on the *absolute* model path, which means that if the
         # user moves the project around, it will be treated as a different project
@@ -287,7 +293,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         # the project and creates a new one at the same path, it will reuse the
         # old cache.
         if self.inline:
-            cache_path = (directory / ".cache").resolve()
+            cache_path = (model_path.parent / ".cache").resolve()
             cache_path.mkdir(parents=True, exist_ok=True)
             if self.multiproject and project_id is not None:
                 # TODO: we could make the database projectID-aware, at that
@@ -357,6 +363,9 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         # projects can proceed in parallel
         async with project_provider() as provider:
             yield provider[0]
+
+    def model_path(self, base_directory: Path) -> Path | None:
+        return self._find_model(None, base_directory)
 
 
 class _MetadataUpdate(enum.Enum):
@@ -597,7 +606,9 @@ class LocalStorageProvider(StorageProvider):
         return self.epoch
 
     def get_model(self) -> tuple[Model, int]:
-        model, changed = self._model_type.deserialize(self._model_path.read_bytes())
+        model, changed = self._model_type.deserialize(
+            self._model_path.read_bytes(), str(self._model_path)
+        )
         if changed:
             self.prune_objects()
             self._write_model(model)

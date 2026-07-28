@@ -183,7 +183,7 @@ class Model(ABC):
 
     @classmethod
     @abstractmethod
-    def deserialize(cls, data: bytes) -> tuple[Model, bool]:
+    def deserialize(cls, data: bytes, path: str | None = None) -> tuple[Model, bool]:
         """
         Deserialize the model from bytes. The underlying implementation can
         change the content (e.g. migrate from a previous version), in that case
@@ -224,6 +224,13 @@ class Model(ABC):
         Disable caching on the instance, all cached data needs to be dropped
         """
         pass
+
+    def path(self) -> str | None:
+        """
+        Path to the current model file on the local filesystem. If the model
+        was loaded from anywhere that was not a local path (e.g. memory, over
+        the network) then this will return None.
+        """
 
 
 class ReadOnlyModel[M: Model]:
@@ -272,3 +279,6 @@ class ReadOnlyModel[M: Model]:
 
     def disable_caching(self):
         self._context.disable_caching()
+
+    def path(self) -> str | None:
+        return self._context.path()
