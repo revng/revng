@@ -39,12 +39,21 @@ public:
   void emitFunctionTypedef(clift::FunctionType Function);
   void emitTypeDeclaration(clift::DefinedType Type);
 
-private:
-  /// Emit the full definition of a class type.
+public:
+  /// Emit the full definition of a class type, optionally binding it to
+  /// a single variable declarator (`struct foo { ... } var_1`).
   ///
   /// The trailing `;` is NOT emitted here; it is the caller's responsibility.
-  void emitClassDefinition(clift::ClassType StructOrUnion);
+  ///
+  /// Note that this method is only public for a specific user (and we cannot
+  /// easily expose it only to a "child" emitter because `CTokenEmitter` uses
+  /// composition). Treat it as if it was protected and use `emitTypeDefinition`
+  /// in the general case.
+  void
+  emitClassDefinition(clift::ClassType StructOrUnion,
+                      std::optional<DeclaratorInfo> Declarator = std::nullopt);
 
+private:
   /// Emit the full definition of an enum type.
   ///
   /// The trailing `;` is NOT emitted here; it is the caller's responsibility.

@@ -4,7 +4,6 @@
 
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/ADT/SmallVector.h"
 
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftTypeInterfaces.h"
@@ -149,7 +148,9 @@ void TypeDefinitionEmitter::emitPaddingField(clift::ClassType Class,
   Tokens.emitNewline();
 }
 
-void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class) {
+void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class,
+                                                std::optional<DeclaratorInfo>
+                                                  Declarator) {
   {
     auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                 Class.getHandle());
@@ -249,8 +250,18 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class) {
       emitPaddingField(Class, PreviousOffset, Class.getObjectSize());
   }
 
-  Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
-  Tokens.emitNewline();
+  if (Declarator) {
+    Tokens.emitSpace();
+    Tokens.emitIdentifier(Declarator->Identifier,
+                          Declarator->Location,
+                          Declarator->Kind,
+                          ptml::CTokenEmitter::IdentifierKind::Definition);
+    if (Declarator->CAttributes) {
+      emitCAttributes(Declarator->CAttributes,
+                      /* SpaceBefore = */ true,
+                      /* SpaceAfter = */ false);
+    }
+  }
 }
 
 void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
