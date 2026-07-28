@@ -1,0 +1,34 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+TypeDefinitions:
+  - ID: 0
+    Kind: StructDefinition
+    Name: "frame"
+    Size: 8
+    Fields: []
+
+  - ID: 1
+    Kind: CABIFunctionDefinition
+    Name: "f"
+    ABI: SystemV_x86_64
+    Arguments: []
+
+Functions:
+  - Entry: "0x1000:Code_x86_64"
+    Name: ""
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1-CABIFunctionDefinition"
+
+Architecture: x86_64
+
+Segments:
+  - StartAddress: "0x1000:Generic64"
+    VirtualSize: 0x1000
+    StartOffset: 0
+    FileSize: 0x1000
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
