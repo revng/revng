@@ -332,7 +332,7 @@ class DictModel(Model):
         return yaml.safe_dump(self._data).encode()
 
     @classmethod
-    def deserialize(cls, data: bytes):
+    def deserialize(cls, data: bytes, path: str | None = None):
         result = DictModel()
         result._data = yaml.safe_load(data)
         if result._data is None:
