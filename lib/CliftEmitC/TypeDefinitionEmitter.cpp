@@ -4,6 +4,7 @@
 
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SmallVector.h"
 
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftTypeInterfaces.h"
@@ -340,28 +341,27 @@ void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
       }
     }
   }
-
-  Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
-  Tokens.emitNewline();
 }
 
 void TypeDefinitionEmitter::emitTypeDefinition(clift::DefinedType Type) {
   if (auto Class = mlir::dyn_cast<clift::ClassType>(Type)) {
     emitClassDefinition(Class);
-    return;
 
   } else if (auto Enum = mlir::dyn_cast<clift::EnumType>(Type)) {
     emitEnumDefinition(Enum);
-    return;
 
   } else if (not isSeparateDeclarationAllowed(Type)) {
     emitTypeDeclaration(Type);
     Tokens.emitNewline();
     return;
+
+  } else {
+    Type.dump();
+    revng_abort("Unknown defined type.");
   }
 
-  Type.dump();
-  revng_abort("Unknown defined type.");
+  Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+  Tokens.emitNewline();
 }
 
 void TypeDefinitionEmitter::emitTypeTree(const TypeDependencyNode &Root,

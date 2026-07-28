@@ -39,9 +39,21 @@ public:
   void emitFunctionTypedef(clift::FunctionType Function);
   void emitTypeDeclaration(clift::DefinedType Type);
 
-public:
+private:
+  /// Emit the full definition of a class type.
+  ///
+  /// The trailing `;` is NOT emitted here; it is the caller's responsibility.
   void emitClassDefinition(clift::ClassType StructOrUnion);
+
+  /// Emit the full definition of an enum type.
+  ///
+  /// The trailing `;` is NOT emitted here; it is the caller's responsibility.
   void emitEnumDefinition(clift::EnumType Enum);
+
+public:
+  /// Emit a type definition, dispatching to the specialized helpers.
+  ///
+  /// It emits the trailing `;\n`.
   void emitTypeDefinition(clift::DefinedType Type);
 
 private:

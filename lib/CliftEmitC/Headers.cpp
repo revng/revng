@@ -180,7 +180,7 @@ public:
       }
 
       auto Struct = clift::makeOpaqueStruct(Context, Size);
-      emitClassDefinition(Struct);
+      emitTypeDefinition(Struct);
       emitTypeDeclaration(Struct);
     }
 
