@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 import yaml
 from click.testing import CliRunner
+from daemon.starlette_daemon import StarletteTestServer
 
 from revng.pypeline.cli.context import ContextObject
 from revng.pypeline.main import pype
@@ -28,6 +29,22 @@ def runner() -> CliRunner:
 @pytest.fixture(params=["yaml", "tar"])
 def container_format(request):
     return request.param
+
+
+@pytest.fixture(params=["local", "daemon"])
+def project_storage(request):
+    """`--storage-provider` arguments for the `project` group, exercising both
+    the on-disk local backend and a running daemon the CLI connects to."""
+    if request.param == "local":
+        # The default local:// backend, reading model.yml from the cwd.
+        yield []
+        return
+
+    server = StarletteTestServer(storage_provider_url="local://")
+    try:
+        yield ["--storage-provider", f"daemon://127.0.0.1:{server.port}"]
+    finally:
+        server.stop()
 
 
 def setup_env(test_func):
@@ -144,15 +161,19 @@ def test_pipeline(runner: CliRunner, container_format: str):
 
 
 @setup_env
-def test_project(runner: CliRunner, container_format: str):
+def test_project(runner: CliRunner, container_format: str, project_storage: list[str]):
     run = run_partial(
         runner,
         obj=ContextObject.make(pipebox_args=["first pipebox arg", "second pipebox arg"]),
     )
 
+    def run_project(*args: str):
+        # `project_storage` selects the backend (local:// or daemon://); it is
+        # empty for the default local backend.
+        return run("project", *project_storage, *args)
+
     # Compute artifacts
-    run(
-        "project",
+    run_project(
         "artifact",
         "ChildArtifact",
         f"--format={container_format}",
@@ -161,8 +182,7 @@ def test_project(runner: CliRunner, container_format: str):
     )
     check_file_format(Path("child_artifact"), container_format)
 
-    run(
-        "project",
+    run_project(
         "artifact",
         "RootArtifact",
         f"--format={container_format}",
@@ -172,9 +192,9 @@ def test_project(runner: CliRunner, container_format: str):
     check_file_format(Path("root_artifact"), container_format)
 
     # Run analysis
-    run("project", "analyze", "NullAnalysis")
-    run("project", "analyze", "PurgeAllAnalysis")
-    run("project", "analyze", "AddStuffAnalysis")
+    run_project("analyze", "NullAnalysis")
+    run_project("analyze", "PurgeAllAnalysis")
+    run_project("analyze", "AddStuffAnalysis")
 
     # Run an analysis list
-    run("project", "analyze", "all_analyses")
+    run_project("analyze", "all_analyses")

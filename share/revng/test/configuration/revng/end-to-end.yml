@@ -11,7 +11,7 @@ commands:
       - type: revng-qa.compiled
         filter: one-per-architecture
     suffix: /
-    command: revng2 -C "$OUTPUT" project init "$INPUT"
+    command: revng2 -C "$OUTPUT" project init --overwrite "$INPUT"
 
   #
   # Perform lifting
@@ -104,7 +104,7 @@ commands:
       cp -Tar "$INPUT" "$OUTPUT";
       revng2 -C "$OUTPUT" project artifact emit-c > "$OUTPUT/decompiled.tar.gz";
 
-      diff -u <(yq -r '.Functions[].Entry | "/function/" + .' "$OUTPUT/model.yml" | sort)
+      diff -u <(yq -r '.Functions[].Entry | "/function/" + .' "$OUTPUT/revng.yml" | sort)
               <(yq -r '. | keys | .[]' "$OUTPUT/decompiled.tar.gz" | sort);
 
   #
@@ -116,8 +116,7 @@ commands:
     suffix: /
     command: |-
       cp -Tar "$INPUT" "$OUTPUT";
-      revng2 -C "$OUTPUT" project artifact emit-recompilable-archive |
-        yq -r '.["/binary"]' | base64 -d > "$OUTPUT/recompilable-archive.tar.gz";
+      revng2 -C "$OUTPUT" project artifact emit-recompilable-archive > "$OUTPUT/recompilable-archive.tar.gz";
 
       mkdir -p "$OUTPUT";
       tar -xzf "$OUTPUT/recompilable-archive.tar.gz" -C "$OUTPUT";

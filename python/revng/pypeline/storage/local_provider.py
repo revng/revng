@@ -21,7 +21,7 @@ from uuid import uuid4
 import yaml
 
 from revng.pypeline import __version__ as version
-from revng.pypeline.model import Model, ModelPathSet
+from revng.pypeline.model import Model, ModelDiff, ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.task.pipe import PipeCustomInvalidation
@@ -221,15 +221,15 @@ class _LocalStorageProviderCommon:
     def get_notification_websocket(self) -> str | None:
         return None
 
-    def init(self, directory: Path):
+    def init(self, directory: Path, overwrite: bool):
         model_type = get_singleton(Model)  # type: ignore [type-abstract]
         model_name = model_type.model_name()
         model_path = directory / model_name
-        if not model_path.exists():
-            model_path.touch()
-            return True
-        else:
+        if model_path.exists() and not overwrite:
             return False
+        # Create the model file, clobbering any existing one when overwrite is set
+        model_path.write_text("")
+        return True
 
 
 class LocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFactory):
@@ -381,7 +381,6 @@ class LocalStorageProvider(StorageProvider):
         self.epoch = self._get_epoch()
 
         self._check_version_and_pipeline_hash(pipeline_hash)
-        self._check_model()
 
     def _cursor(self) -> CursorWrapper:
         return CursorWrapper(self._connection)
@@ -409,51 +408,6 @@ class LocalStorageProvider(StorageProvider):
                 cursor.execute(
                     "UPDATE project SET version = ?, pipeline_hash = ? WHERE id is 0",
                     (version, pipeline_hash),
-                )
-
-    def _check_model(self):
-        with self._cursor() as cursor:
-            cursor.execute("SELECT model_hash, model_mtime FROM project WHERE id is 0")
-            model_metadata = cursor.fetchone()
-
-        model_mtime = self._model_path.stat().st_mtime
-        # We did not previously write the model metadata, write it
-        if model_metadata[0] is None:
-            model_hash = compute_hash(self._model_path)
-            with self._cursor() as cursor:
-                cursor.execute(
-                    "UPDATE project SET model_hash = ?, model_mtime = ? WHERE id is 0",
-                    (model_hash, model_mtime),
-                )
-            return
-
-        # Check if we actually got a non-null result, if so check that the
-        # mtime and hash of the model match (in this order for speed), if
-        # not prune
-        # WARNING: in some cases we might miss a model change if the model
-        #   contents have changed but the mtime hasn't. In the future we might
-        #   introduce extra checks (e.g. size) to alleviate this.
-        if model_metadata[1] == model_mtime:
-            return
-
-        # The mtime changed, check if the hash matches or not
-        model_hash = compute_hash(self._model_path)
-        if model_hash != model_metadata[0]:
-            self.prune_objects()
-            with self._cursor() as cursor:
-                cursor.execute(
-                    "UPDATE project SET model_hash = ?, model_mtime = ? WHERE id is 0",
-                    (model_hash, model_mtime),
-                )
-                self.epoch += 1
-                self._write_metadata(cursor, _MetadataUpdate.MODEL_SAVE)
-        else:
-            # mtime has changed but the content hasn't, update the mtime to
-            # the new one
-            with self._cursor() as cursor:
-                cursor.execute(
-                    "UPDATE project SET model_mtime = ? WHERE id is 0",
-                    (model_mtime,),
                 )
 
     def _write_metadata(self, cursor: sqlite3.Cursor, type_: _MetadataUpdate):
@@ -650,28 +604,83 @@ class LocalStorageProvider(StorageProvider):
             self._write_model(model)
         return (model, self.epoch)
 
+    def unprocessed_model_changes(self) -> tuple[ModelDiff, bytes | None]:
+        model_diff_type = get_singleton(ModelDiff)  # type: ignore[type-abstract]
+        # Cheap gate: only run a full diff when the model file actually changed.
+        with self._cursor() as cursor:
+            cursor.execute(
+                "SELECT model_hash, model_mtime, last_seen_model FROM project WHERE id is 0"
+            )
+            stored_hash, stored_mtime, last_seen_blob = cursor.fetchone()
+
+        # No baseline yet (fresh project or freshly migrated DB): adopt the
+        # current on-disk model as the baseline. This is the first time the
+        # model is loaded, so the caches are still empty and there is nothing
+        # to reconcile.
+        if last_seen_blob is None:
+            model_bytes = self._model_path.read_bytes()
+            with self._cursor() as cursor:
+                cursor.execute(
+                    "UPDATE project SET model_hash = ?, model_mtime = ?, last_seen_model = ?"
+                    " WHERE id is 0",
+                    (compute_hash(model_bytes), self._model_path.stat().st_mtime, model_bytes),
+                )
+            return model_diff_type(), None
+
+        model_mtime = self._model_path.stat().st_mtime
+        # WARNING: a content change that leaves the mtime untouched would be
+        #   missed here.
+        if stored_mtime == model_mtime:
+            return model_diff_type(), None
+
+        current_bytes = self._model_path.read_bytes()
+        if compute_hash(current_bytes) == stored_hash:
+            # Only the mtime moved, the content is unchanged: refresh the mtime
+            # so we can skip hashing next time.
+            with self._cursor() as cursor:
+                cursor.execute("UPDATE project SET model_mtime = ? WHERE id is 0", (model_mtime,))
+            return model_diff_type(), None
+
+        # The content changed: diff the baseline against the current model and
+        # return the raw bytes alongside it.
+        last_seen, _ = self._model_type.deserialize(bytes(last_seen_blob))
+        current_model, _ = self._model_type.deserialize(current_bytes)
+        return last_seen.diff(current_model), current_bytes
+
     def set_model(
         self,
         new_model: Model,
         changed_paths: ModelPathSet,
         custom_invalidations: list[ObjectsToInvalidate],
+        model_bytes: bytes | None = None,
     ) -> SetModelResult:
         invalidated = self._invalidate(changed_paths, custom_invalidations)
-        # Check if the model was modified
-        current_model, _ = self._model_type.deserialize(self._model_path.read_bytes())
-        if current_model != new_model:
-            # if so, write the new model and update the epoch
-            self._write_model(new_model)
+        # `model_bytes` is set when the change already happened on disk (a
+        # hand-edited file): adopt those exact bytes so the edit is not rewritten
+        # in canonical form. Otherwise serialize the model we were given.
+        if model_bytes is None:
+            model_bytes = new_model.serialize()
+        self._write_model_bytes(model_bytes)
         self._send_local_invalidation(invalidated, self.epoch)
         return SetModelResult(self.epoch, invalidated)
 
     def _write_model(self, new_model: Model) -> int:
-        model_bytes = new_model.serialize()
-        self._model_path.write_bytes(model_bytes)
+        return self._write_model_bytes(new_model.serialize())
+
+    def _write_model_bytes(self, model_bytes: bytes) -> int:
+        # Rewrite the file only when its content differs, so adopting bytes that
+        # already match what is on disk leaves the file (and its formatting)
+        # untouched.
+        if self._model_path.read_bytes() != model_bytes:
+            self._model_path.write_bytes(model_bytes)
+
+        # Refresh the baseline (hash, mtime, last_seen) so that
+        # unprocessed_model_changes() does not re-detect this same content.
         with self._cursor() as cursor:
             cursor.execute(
-                "UPDATE project SET model_hash = ?, model_mtime = ? WHERE id is 0",
-                (compute_hash(model_bytes), self._model_path.stat().st_mtime),
+                "UPDATE project SET model_hash = ?, model_mtime = ?, last_seen_model = ?"
+                " WHERE id is 0",
+                (compute_hash(model_bytes), self._model_path.stat().st_mtime, model_bytes),
             )
             self.epoch += 1
             self._write_metadata(cursor, _MetadataUpdate.MODEL_SAVE)

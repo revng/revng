@@ -216,6 +216,8 @@ NB_MODULE(_pipebox, m) {
   nanobind::object ModelDiffBaseClass = importObject("revng.pypeline.model."
                                                      "ModelDiff");
   nanobind::class_<ModelDiff>(m, "ModelDiff", ModelDiffBaseClass)
+    .def(nanobind::init<>())
+    .def("__len__", &ModelDiff::size)
     .def("paths", &ModelDiff::paths)
     .def("serialize", [](ModelDiff &Handle) {
       llvm::SmallVector<char, 0> Buffer = Handle.serialize();
@@ -227,7 +229,7 @@ NB_MODULE(_pipebox, m) {
   nanobind::class_<Model>(m, "Model", ModelBaseClass)
     .def(nanobind::init<>())
     .def_ro_static("identifier", &"revng")
-    .def_static("model_name", []() { return nanobind::str("model.yml"); })
+    .def_static("model_name", []() { return nanobind::str("revng.yml"); })
     .def_static("mime_type",
                 []() { return nanobind::str("application/x-yaml"); })
     .def("diff",
@@ -235,6 +237,8 @@ NB_MODULE(_pipebox, m) {
            return Handle.diff(*nanobind::cast<Model *>(Other));
          })
     .def("children", &Model::children)
+    .def("aliases", &Model::aliases)
+    .def("resolve_alias", &Model::resolveAlias)
     .def("clone", &Model::clone)
     .def("serialize",
          [](Model &Handle) {

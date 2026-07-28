@@ -29,16 +29,16 @@ commands:
         filter: for-model-migration
     command: |-
       cd $$(temp -d);
-      cp "${INPUT}/model.yml" .;
+      cp "${INPUT}/model.yml" revng.yml;
       revng2 project analyze apply-diff -o /dev/null;
 
       while IFS=',' read -r MODEL_FIELD EXPECTED_VALUE; do
         if ! $$(grep -v '^#|^\s*$$' > /dev/null); then
-          FOUND_VALUE=$$(yq "$${MODEL_FIELD}" "model.yml");
+          FOUND_VALUE=$$(yq "$${MODEL_FIELD}" "revng.yml");
           if [[ "$${FOUND_VALUE}" != "$${EXPECTED_VALUE}" ]]; then
             echo "Value of '$${MODEL_FIELD}' is '$${FOUND_VALUE}' instead of the expected '$${EXPECTED_VALUE}'";
             echo "Here's the post-migration model:";
-            cat model.yml;
+            cat revng.yml;
             exit 1;
           fi;
         fi;

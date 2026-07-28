@@ -13,6 +13,7 @@
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftTypes.h"
 #include "revng/Clift/Helpers.h"
+#include "revng/Clift/LocationAddresses.h"
 #include "revng/Clift/ModuleVisitor.h"
 #include "revng/CliftImportModel/CAttributeListBuilder.h"
 #include "revng/CliftImportModel/ImportModel.h"
@@ -29,33 +30,17 @@ struct CliftStatementTraits {
   using StatementType = mlir::Operation *;
 
   static auto getStatements(mlir::Block *Block) {
-    using Iterator = mlir::Block::OpListType::iterator;
-    using IteratorRange = llvm::iterator_range<Iterator>;
-    return llvm::map_range(IteratorRange(Block->getOperations()),
-                           [](mlir::Operation &Op) { return &Op; });
+    llvm::SmallVector<mlir::Operation *> Statements;
+    Block->walk([&Statements](clift::StatementOpInterface Op) {
+      Statements.push_back(Op);
+    });
+    return Statements;
   }
 
   static auto getAddresses(mlir::Operation *Op) {
-    std::set<MetaAddress> AddressSet;
-
-    auto GatherRegionAddresses = [&AddressSet](mlir::Region &Region) {
-      Region.walk([&AddressSet](mlir::Operation *Op) {
-        revng_assert(mlir::isa<clift::ExpressionOpInterface>(Op));
-        if (auto Loc = mlir::dyn_cast_or_null<mlir::NameLoc>(Op->getLoc())) {
-          if (auto L = pipeline::locationFromString(rr::Instruction,
-                                                    Loc.getName().str())) {
-            revng_assert(L->back().isValid());
-            AddressSet.insert(L->back());
-          }
-        }
-      });
-    };
-
-    if (auto ERI = mlir::dyn_cast<clift::ExpressionRegionOpInterface>(Op)) {
-      for (mlir::Region &Region : ERI.getExpressionRegions())
-        GatherRegionAddresses(Region);
-    }
-    return AddressSet;
+    SortedVector<MetaAddress>
+      Addresses = clift::getStatementExpressionAddresses(Op);
+    return std::set<MetaAddress>(Addresses.begin(), Addresses.end());
   }
 };
 
@@ -247,8 +232,14 @@ public:
     if (auto S = mlir::dyn_cast<clift::MakeLabelOp>(Op))
       return visitMakeLabelOp(S);
 
-    if (auto S = mlir::dyn_cast<clift::LocalVariableOp>(Op))
-      return visitLocalVariableOp(S);
+    if (auto S = mlir::dyn_cast<clift::LocalVariableOp>(Op)) {
+      if (visitLocalVariableOp(S).failed())
+        return mlir::failure();
+
+      // A declaration is a statement too, and the C backend emits comments
+      // before it, so let it collect the ones placed on it.
+      return visitStatementOp(S);
+    }
 
     if (auto S = mlir::dyn_cast<clift::StatementOpInterface>(Op))
       return visitStatementOp(S);
@@ -477,35 +468,10 @@ private:
     Op->setAttr(Name, mlir::StringAttr::get(Op->getContext(), Value));
   }
 
-  SortedVector<MetaAddress> getUserAddressSet(mlir::Value Value) {
-    auto GetMetaAddress = [](mlir::Operation *Op) {
-      if (auto Loc = mlir::dyn_cast_or_null<mlir::NameLoc>(Op->getLoc())) {
-        if (auto L = pipeline::locationFromString(rr::Instruction,
-                                                  Loc.getName().str())) {
-          revng_assert(L->back().isValid());
-          return L->back();
-        }
-      }
-      return MetaAddress::invalid();
-    };
-
-    SortedVector<MetaAddress> AddressSet;
-    for (const auto &User : Value.getUsers()) {
-      MetaAddress Address = GetMetaAddress(User);
-
-      if (not Address.isValid()) {
-        AddressSet.clear();
-        break;
-      }
-
-      AddressSet.emplace(Address);
-    }
-    return AddressSet;
-  }
-
   mlir::LogicalResult visitMakeLabelOp(clift::MakeLabelOp Op) {
     if (auto L = pipeline::locationFromString(rr::GotoLabel, Op.getHandle())) {
-      Op.setName(CurrentFunction->GotoLabels.name(getUserAddressSet(Op)).Name);
+      auto Addresses = clift::getUserAddressSet(Op);
+      Op.setName(CurrentFunction->GotoLabels.name(Addresses).Name);
     } else {
       Op.setName(CurrentFunction->GotoLabels.automaticName().Name);
     }
@@ -521,7 +487,8 @@ private:
       Op.setName(NameBuilder.name(CurrentFunction->Model.StackFrame()));
     } else if (auto L = pipeline::locationFromString(rr::LocalVariable,
                                                      Op.getHandle())) {
-      Op.setName(CurrentFunction->Variables.name(getUserAddressSet(Op)).Name);
+      auto Addresses = clift::getUserAddressSet(Op);
+      Op.setName(CurrentFunction->Variables.name(Addresses).Name);
     } else {
       Op.setName(CurrentFunction->Variables.automaticName().Name);
     }

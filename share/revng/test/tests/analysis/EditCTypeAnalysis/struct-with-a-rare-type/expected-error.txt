@@ -1,0 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+edit-c-type: The type cannot be represented in the model.
+edit-c-type failed: Unable to parse the type of struct field #0.
+

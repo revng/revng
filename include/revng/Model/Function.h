@@ -4,11 +4,16 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <algorithm>
+#include <ranges>
+
 #include "revng/ADT/MutableSet.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/CallSitePrototype.h"
 #include "revng/Model/CommonFunctionMethods.h"
 #include "revng/Model/FunctionAttribute.h"
+#include "revng/Model/GotoLabel.h"
+#include "revng/Model/LocalVariable.h"
 #include "revng/Model/StackFrame.h"
 #include "revng/Model/StatementComment.h"
 #include "revng/Model/TypeDefinition.h"
@@ -46,6 +51,52 @@ public:
       return nullptr;
     else
       return StackFrame().Type()->getStruct();
+  }
+
+public:
+  /// Find the entry in \p Identifiers whose `Location()` matches
+  /// \p UserLocationSet exactly, or `nullptr` if there is none.
+  ///
+  /// This is the only sanctioned way of mapping local variables, goto labels
+  /// and statement comments emitted in an artifact back to their model
+  /// counterparts: both name assignment (see \ref model::NameBuilder) and type
+  /// assignment (see the Clifter) rely on it.
+  template<std::ranges::input_range RangeType>
+  static const std::ranges::range_value_t<RangeType> *
+  findByLocation(const RangeType &Identifiers,
+                 const SortedVector<MetaAddress> &UserLocationSet) {
+    if (UserLocationSet.empty())
+      return nullptr;
+
+    auto HasMatchingLocation = [&](const auto &Identifier) {
+      return Identifier.Location() == UserLocationSet;
+    };
+    auto Iterator = std::ranges::find_if(Identifiers, HasMatchingLocation);
+    if (Iterator == std::ranges::end(Identifiers))
+      return nullptr;
+
+    return &*Iterator;
+  }
+
+  /// Find the local variable in `LocalVariables()` located at
+  /// \p UserLocationSet (see \ref findByLocation).
+  const model::LocalVariable *
+  findLocalVariable(const SortedVector<MetaAddress> &UserLocationSet) const {
+    return findByLocation(LocalVariables(), UserLocationSet);
+  }
+
+  /// Find the goto label in `GotoLabels()` located at \p UserLocationSet
+  /// (see \ref findByLocation).
+  const model::GotoLabel *
+  findGotoLabel(const SortedVector<MetaAddress> &UserLocationSet) const {
+    return findByLocation(GotoLabels(), UserLocationSet);
+  }
+
+  /// Find the statement comment in `Comments()` located at \p UserLocationSet
+  /// (see \ref findByLocation).
+  const model::StatementComment *
+  findComment(const SortedVector<MetaAddress> &UserLocationSet) const {
+    return findByLocation(Comments(), UserLocationSet);
   }
 
 public:

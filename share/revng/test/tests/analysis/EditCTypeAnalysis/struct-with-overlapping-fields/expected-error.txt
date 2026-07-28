@@ -1,0 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+edit-c-type: While parsing field #1:
+edit-c-type failed: `_STARTS_AT` must not be used to make fields overlap.
+

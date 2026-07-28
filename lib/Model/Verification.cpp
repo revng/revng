@@ -181,15 +181,42 @@ bool StatementComment::verify(VerifyHelper &VH) const {
   return verifyAddressSet(VH, Location(), *this);
 }
 
-bool LocalIdentifier::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  if (Name().size() == 0)
-    return VH.fail("Every local identifier must have a name.", *this);
+static bool verifyLocalIdentifierName(VerifyHelper &VH,
+                                      const std::string &Name,
+                                      const auto &ToLog) {
+  if (Name.size() == 0)
+    return VH.fail("Every local identifier must have a name.", ToLog);
 
   // TODO: drop this once we escape / from locations
-  if (StringRef(Name()).contains("/"))
-    return VH.fail("\"/\" is not allowed", Name());
+  if (StringRef(Name).contains("/"))
+    return VH.fail("\"/\" is not allowed", Name);
+
+  return true;
+}
+
+bool LocalVariable::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  if (not verifyLocalIdentifierName(VH, Name(), *this))
+    return false;
+
+  if (not Type().isEmpty()) {
+    if (not Type()->verify(VH))
+      return VH.fail("Local variable type does not verify.", *this);
+
+    std::optional<uint64_t> Size = Type()->size(VH);
+    if (not Size)
+      return VH.fail("Local variable types must be sized.", *this);
+  }
+
+  return verifyAddressSet(VH, Location(), *this);
+}
+
+bool GotoLabel::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  if (not verifyLocalIdentifierName(VH, Name(), *this))
+    return false;
 
   return verifyAddressSet(VH, Location(), *this);
 }
@@ -1048,11 +1075,19 @@ bool StatementComment::verify() const {
   return verify(false);
 }
 
-bool LocalIdentifier::verify(bool Assert) const {
+bool LocalVariable::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
-bool LocalIdentifier::verify() const {
+bool LocalVariable::verify() const {
+  return verify(false);
+}
+
+bool GotoLabel::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool GotoLabel::verify() const {
   return verify(false);
 }
 

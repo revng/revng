@@ -13,6 +13,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/Error.h"
+#include "revng/Support/YAMLTraits.h"
 
 namespace detail {
 
@@ -247,8 +248,7 @@ Trace::fromBuffer(const llvm::MemoryBuffer &Buffer) {
 
 inline void Command::dump(llvm::raw_ostream &Stream) const {
   Stream << "\n";
-  llvm::yaml::Output YAMLOutput(Stream);
-  YAMLOutput << *const_cast<Command *>(this);
+  ::serialize(Stream, *this);
   Stream << "\n";
   Stream.flush();
 }

@@ -19,7 +19,7 @@ using OptString = opt<std::string>;
 static OptionCategory RunAnalysisCategory("run-analysis options");
 
 static OptString Configuration("configuration",
-                               desc("dynamic configuration"),
+                               desc("path to the dynamic configuration file"),
                                cat(RunAnalysisCategory));
 
 static list<std::string> Objects("objects",
@@ -49,6 +49,7 @@ static list<std::string> Arguments(Positional,
 int main(int Argc, char *Argv[]) {
   using namespace revng::pypeline;
   using namespace revng::pypeline::helpers::native;
+  using cli::configurationFromPath;
 
   revng::InitRevng X(Argc, Argv, "", { &Options::RunAnalysisCategory });
 
@@ -83,10 +84,11 @@ int main(int Argc, char *Argv[]) {
   TheModel.disableCaching();
 
   // Run the actual analysis
+  auto Configuration = configurationFromPath(Options::Configuration);
   AbortOnError(TheAnalysis->run(TheModel,
                                 ContainersPointers,
                                 Outgoing,
-                                Options::Configuration));
+                                Configuration));
 
   // Save modified model
   {

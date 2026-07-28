@@ -201,18 +201,28 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class) {
                       });
 
       if (IsStruct) {
-        // WARNING: this ignores `UnnamedStructFieldPrefix` configuration field,
-        //          user might have set!
-        //
-        // TODO: fix this once the configuration is obtained from the pipe
-        //       (new pipeline only).
-        model::Binary EmptyBinary{};
-        model::CNameBuilder UnconfiguredNB(EmptyBinary);
-        model::StructDefinition FakeStruct; // No model fields are read here.
-        model::StructField FakeField(Field.getOffset()); // Only `Offset` read.
-        if (not UnconfiguredNB.isAutomaticName(FakeStruct,
-                                               FakeField,
-                                               Field.getName())) {
+        // When the padding is not spelled out as fields, pin every field's
+        // offset with `_STARTS_AT` unconditionally: the generated field names
+        // encode their offset, so renaming one without the marker would
+        // silently move it. In the recompilable form the padding fields
+        // already fix the offsets, so only renamed fields carry the marker.
+        bool Pin = not Configuration.ExplicitPadding;
+        if (not Pin) {
+          // WARNING: this ignores `UnnamedStructFieldPrefix` configuration
+          //          field, user might have set!
+          //
+          // TODO: fix this once the configuration is obtained from the pipe
+          //       (new pipeline only).
+          model::Binary EmptyBinary{};
+          model::CNameBuilder UnconfiguredNB(EmptyBinary);
+          model::StructDefinition FakeStruct; // No model fields are read here.
+          model::StructField FakeField(Field.getOffset()); // Only `Offset`
+                                                           // read.
+          Pin = not UnconfiguredNB.isAutomaticName(FakeStruct,
+                                                   FakeField,
+                                                   Field.getName());
+        }
+        if (Pin) {
           emitCAttributes(clift::CAttributeListBuilder(Class.getContext())
                             .setOrUpdate<"_STARTS_AT">(Field.getOffset())
                             .getRaw(),

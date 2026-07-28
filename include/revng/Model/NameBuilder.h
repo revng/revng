@@ -15,8 +15,9 @@
 #include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/EnumDefinition.h"
 #include "revng/Model/Function.h"
+#include "revng/Model/GotoLabel.h"
 #include "revng/Model/Helpers.h"
-#include "revng/Model/LocalIdentifier.h"
+#include "revng/Model/LocalVariable.h"
 #include "revng/Model/NamingConfiguration.h"
 #include "revng/Model/PrimitiveType.h"
 #include "revng/Model/RawFunctionDefinition.h"
@@ -28,6 +29,12 @@
 #include "revng/Support/StringOperations.h"
 
 namespace model {
+
+/// A range of the model types attaching metadata to function-local
+/// identifiers (see \ref model::LocalVariable and \ref model::GotoLabel).
+template<typename RangeType>
+concept LocalIdentifierRange = RangeOf<RangeType, const model::LocalVariable &>
+                               or RangeOf<RangeType, const model::GotoLabel &>;
 
 template<typename Inheritor>
 class NameBuilder {
@@ -62,7 +69,7 @@ public:
     }
   }
 
-private:
+public:
   [[nodiscard]] std::string automaticName(const model::Binary &Binary,
                                           const model::Segment &Segment) const {
     auto Iterator = Binary.Segments().find(Segment.StartAddress());
@@ -286,7 +293,7 @@ public:
   protected:
     [[nodiscard]] NamingResult
     nameImpl(SortedVector<MetaAddress> const &UserLocationSet,
-             RangeOf<const model::LocalIdentifier &> auto const &KnownNames,
+             LocalIdentifierRange auto const &KnownNames,
              llvm::StringRef AutomaticPrefix) {
       if (UserLocationSet.empty()) {
         // No location is provided, emit an *untagged* automatic name.
@@ -300,32 +307,30 @@ public:
         return automaticName(AutomaticPrefix, false);
       }
 
-      auto Comparator = [&](const model::LocalIdentifier &Identifier) {
-        return Identifier.Location() == UserLocationSet;
-      };
-      auto Iterator = std::ranges::find_if(KnownNames, Comparator);
-      if (Iterator == KnownNames.end()) {
+      const auto *Identifier = model::Function::findByLocation(KnownNames,
+                                                               UserLocationSet);
+      if (Identifier == nullptr) {
         // There's nothing in the model for the current location,
         // emit a *tagged* automatic name.
         return automaticName(AutomaticPrefix, true);
       }
 
-      bool IsNameUnique = EmittedNames.insert(Iterator->Name()).second;
+      bool IsNameUnique = EmittedNames.insert(Identifier->Name()).second;
       if (not IsNameUnique) {
         // This name was already emitted, fall back on the automatic name.
         auto Result = automaticName(AutomaticPrefix, true);
-        Result.Warning = "Name `" + Iterator->Name()
+        Result.Warning = "Name `" + Identifier->Name()
                          + "` cannot be used more than once, so it was "
                            "replaced by an automatic one (`"
                          + Result.Name + "`).";
         return Result;
       }
 
-      if (llvm::Error Reason = parent().isNameReserved(*Iterator,
-                                                       Iterator->Name())) {
+      if (llvm::Error Reason = parent().isNameReserved(*Identifier,
+                                                       Identifier->Name())) {
         // Current name cannot be used as its reserved for something else.
         auto Result = automaticName(AutomaticPrefix, true);
-        Result.Warning = "Name `" + Iterator->Name()
+        Result.Warning = "Name `" + Identifier->Name()
                          + "` is not valid, so it was replaced by an automatic "
                            "one (`"
                          + Result.Name + "`) because "
@@ -338,12 +343,12 @@ public:
         // name is produced for it.
         uint64_t CurrentIndex = NextIndex++;
 
-        return { Iterator->Name(), CurrentIndex, true };
+        return { Identifier->Name(), CurrentIndex, true };
       }
     }
 
     [[nodiscard]] std::set<std::string>
-    homelessNamesImpl(RangeOf<const model::LocalIdentifier &> auto R) const {
+    homelessNamesImpl(LocalIdentifierRange auto const &R) const {
       return R | std::views::filter([this](const auto &V) {
                return not EmittedNames.contains(V.Name());
              })
@@ -442,7 +447,7 @@ private:
     if (Name == OriginalName) {
       // Suppress warnings on appropriately placed automatic names in the model.
       //
-      // TODO: get rid of this once `import-from-c` is fixed and we no longer
+      // TODO: get rid of this once `edit-c-type` is fixed and we no longer
       //       put such names in.
       llvm::consumeError(std::move(Reason));
       return std::nullopt;

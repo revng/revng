@@ -3,12 +3,11 @@
 #
 
 import os
-import re
 import sys
 from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, cast
+from typing import Any, Callable, Optional, TypeVar, cast
 from urllib.parse import urlparse
 
 import click
@@ -16,13 +15,17 @@ from click_option_group import GroupedOption, OptionGroup
 from click_option_group._core import _GroupTitleFakeOption
 from click_option_group._helpers import get_fake_option_name, resolve_wrappers
 
+from revng.pypeline.cli.backend import BackendFactory
 from revng.pypeline.cli.context import ClickContext
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import ReadOnlyModel
-from revng.pypeline.object import Kind, ObjectID, ObjectSet
-from revng.pypeline.storage.storage_provider import StorageProviderFactory
+from revng.pypeline.object import Kind, ObjectSet
 from revng.pypeline.task.task import TaskArgument
-from revng.pypeline.utils.registry import get_registry, get_singleton
+from revng.pypeline.utils.naming import normalize_flag, normalize_pos_arg_name
+from revng.pypeline.utils.naming import normalize_whitespace
+from revng.pypeline.utils.registry import get_registry
+
+T = TypeVar("T")
 
 
 class PypeCommand(click.Command):
@@ -147,9 +150,12 @@ class StorageProviderUrl(click.ParamType):
             # urlparse can raise ValueError on rare malformed inputs
             self.fail(f'"{value}" could not be parsed as a URL.', param, ctx)
 
-        # Get all the registered providers
+        # Every backend handles a set of URL schemes (the local backend covers
+        # all the storage providers, the daemon backend covers `daemon://`); the
+        # union of them is what this option accepts.
+        registry = get_registry(BackendFactory)  # type: ignore[type-abstract]
         allowed_schemes = {
-            factory.scheme() for factory in get_registry(StorageProviderFactory).values()
+            scheme for backend_factory in registry.values() for scheme in backend_factory.schemes()
         }
         # Check that the scheme is supported
         if parsed_url.scheme not in allowed_schemes:
@@ -162,40 +168,6 @@ class StorageProviderUrl(click.ParamType):
             )
         # If all checks pass, return the original, validated string
         return value
-
-
-def normalize_whitespace(text: str) -> str:
-    """
-    Normalize whitespace in a string by removing leading and trailing
-    whitespace and replacing multiple spaces with a single space.
-    """
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-
-def normalize_flag(name: str) -> str:
-    """
-    Normalize a flag name by replacing spaces and underscores with
-    hyphens and converting it to lowercase.
-    """
-    return normalize_whitespace(name).replace(" ", "-").replace("_", "-").lower()
-
-
-def normalize_pos_arg_name(name: str) -> str:
-    """
-    Normalize a positional argument name by replacing spaces and underscores
-    with hyphens and converting it to lowercase.
-    This is used for positional arguments that are not flags.
-    """
-    return normalize_whitespace(name).replace(" ", "_").replace("-", "_").upper()
-
-
-def normalize_kwarg_name(name: str) -> str:
-    """
-    Normalize the provided name to the convention used by click on naming
-    command handler variable arguments.
-    """
-    return name.replace("-", "_").lower()
 
 
 def build_arg_objects(
@@ -264,7 +236,18 @@ def list_objects_for_container(
     """
     print(f'Available objects for "{arg_name}" kind: "{kind.serialize()}"')
     for obj in model.all_objects(kind):
-        print(f" - {obj}")
+        aliases = model.aliases(obj)
+        if aliases:
+            print(f" - {obj} ({', '.join(aliases)})")
+        else:
+            print(f" - {obj}")
+
+
+def not_none(value: Optional[T], exception: Exception) -> T:
+    """Return `value` unchanged, or raise `exception` if it is None."""
+    if value is None:
+        raise exception
+    return value
 
 
 def compute_objects(
@@ -276,17 +259,26 @@ def compute_objects(
     """
     Check if the user provided a list of objects for the given
     argument name, and if so, return an ObjectSet with those objects
-    deserialized.
+    resolved.
     Otherwise, return all objects of the given kind from the model.
     """
     arg_name = normalize_flag(arg_name)
-    obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
     if f"{arg_name}_objects" in kwargs:
         objects = kwargs.get(f"{arg_name}_objects", "")
         if objects:
             return ObjectSet(
                 kind=kind,
-                objects={obj_id_type.deserialize(obj) for obj in objects.split(",") if obj.strip()},
+                objects={
+                    not_none(
+                        model.resolve_alias(kind, specification),
+                        ValueError(
+                            f'Unknown object or alias "{specification}" '
+                            f'for kind "{kind.serialize()}"'
+                        ),
+                    )
+                    for specification in objects.split(",")
+                    if specification.strip()
+                },
             )
     return model.all_objects(kind)
 

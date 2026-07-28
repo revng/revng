@@ -11,9 +11,9 @@ import click
 import yaml
 
 from revng.pypeline.cli.common_options import container_format_options, list_objects_option
+from revng.pypeline.cli.common_options import read_configuration_file
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
-from revng.pypeline.cli.utils import normalize_kwarg_name, normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
@@ -22,6 +22,7 @@ from revng.pypeline.storage.file_provider import FileProvider, FileRequest
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.task import TaskArgumentAccess
 from revng.pypeline.utils.logger import pypeline_logger
+from revng.pypeline.utils.naming import normalize_kwarg_name, normalize_whitespace
 from revng.pypeline.utils.registry import get_registry, get_singleton
 
 
@@ -81,7 +82,7 @@ class RunPipeGroup(click.Group):
         # pipe doesn't disable them by defining them as None
         static_config = (
             pipe_type.static_configuration_help()
-            or f'Static configuration for the pipe "{pipe_name}".'
+            or f'Path to a YAML file with the static configuration for the pipe "{pipe_name}".'
         )
 
         # Build the actual function that will be the command
@@ -97,19 +98,23 @@ class RunPipeGroup(click.Group):
             run_pipe_command = click.option(
                 "-s",
                 "--static-configuration",
-                type=str,
-                default="",
+                type=click.Path(exists=True, dir_okay=False, readable=True),
+                default=None,
+                callback=read_configuration_file,
                 help=normalize_whitespace(static_config),
             )(run_pipe_command)
         config = getattr(
-            pipe_type, "configuration_help", f'Configuration for the pipe "{pipe_name}".'
+            pipe_type,
+            "configuration_help",
+            f'Path to a file with the configuration for the pipe "{pipe_name}".',
         )
         if config is not None:
             run_pipe_command = click.option(
                 "-c",
                 "--configuration",
-                type=str,
-                default="",
+                type=click.Path(exists=True, dir_okay=False, readable=True),
+                default=None,
+                callback=read_configuration_file,
                 help=normalize_whitespace(config),
             )(run_pipe_command)
 
@@ -161,7 +166,7 @@ def build_pipe_command(
             " advanced invalidation entry."
         ),
     )
-    @container_format_options
+    @container_format_options(ContainerFormat.AUTO)
     @list_objects_option
     @exec_wrapper_if_needed
     @pass_context

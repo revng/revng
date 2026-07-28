@@ -24,6 +24,14 @@ from .utils.registry import get_registry, get_singleton
 
 
 class ContainerFormat(StrEnum):
+    """
+    The serialization format of a container.
+
+    AUTO is output-only: it emits a lone object raw (no YAML/base64 wrapping)
+    and otherwise behaves like YAML. It is not a valid input format.
+    """
+
+    AUTO = "auto"
     TAR = "tar"
     YAML = "yaml"
 
@@ -310,6 +318,14 @@ class Container(ABC):
                             info.size = len(data_bytes)
                             tar.addfile(tarinfo=info, fileobj=io.BytesIO(data_bytes))
                     return byte_stream.getvalue()
+            case ContainerFormat.AUTO:
+                # A lone object is emitted raw, without any YAML/base64 wrapping;
+                # zero or multiple objects fall back to YAML.
+                target = self.objects() if objects is None else objects
+                if len(target) == 1:
+                    (buffer,) = self.serialize(target).values()
+                    return bytes(buffer)
+                return self.to_bytes(objects, ContainerFormat.YAML)
         raise ValueError(f"Unknown container format: {container_format}")
 
     @final
@@ -321,12 +337,17 @@ class Container(ABC):
         """
         Dump a container into a serialized format.
         """
-        data = self.to_bytes(objects, container_format)
         match container_format:
             case ContainerFormat.YAML:
-                return data.decode("utf-8")
+                return self.to_bytes(objects, ContainerFormat.YAML).decode("utf-8")
             case ContainerFormat.TAR:
-                return base64.b64encode(data).decode("utf-8")
+                return base64.b64encode(self.to_bytes(objects, ContainerFormat.TAR)).decode("utf-8")
+            case ContainerFormat.AUTO:
+                # A lone textual object is returned raw; anything else is YAML.
+                target = self.objects() if objects is None else objects
+                if len(target) == 1 and self.is_text():
+                    return self.to_bytes(objects, ContainerFormat.AUTO).decode("utf-8")
+                return self.to_string(objects, ContainerFormat.YAML)
         raise ValueError(f"Unknown container format: {container_format}")
 
     @final

@@ -11,8 +11,8 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Generator, Optional, TypeVar, Union
 
 import pytest
-from pipebox import ChildDictContainer, DictModel, GeneratorPipe, GeneratorPipeWithInvalidation
-from pipebox import InPlacePipe, MyKind, MyObjectID, NullAnalysis, NullRootAnalysis
+from pipebox import AddRootStuffAnalysis, ChildDictContainer, DictModel, GeneratorPipe
+from pipebox import GeneratorPipeWithInvalidation, InPlacePipe, MyKind, MyObjectID, NullAnalysis
 from pipebox import PurgeAllAnalysis, PurgeOneAnalysis, RootDictContainer, SameKindPipe
 from pipebox import ToHigherKindPipe, ToLowerKindPipe
 
@@ -699,6 +699,137 @@ def test_storage_invalidation(storage_provider: StorageProvider):
     }
 
 
+def test_disk_model_change_targeted_invalidation():
+    container_id = "a"
+    configuration_id = ""
+    obj_one = MyObjectID(MyKind.CHILD, "one")
+    obj_two = MyObjectID(MyKind.CHILD, "two")
+
+    with NamedTemporaryFile() as f, TemporaryDirectory() as d:
+        model_path = Path(f.name)
+
+        # Write the baseline model on disk and record it in the provider
+        baseline = DictModel()
+        baseline["/one"] = 1
+        baseline["/two"] = 2
+        model_path.write_bytes(baseline.serialize())
+
+        provider = LocalStorageProvider(":memory:", model_path, Path(d), "")
+        provider.set_model(baseline, set(), [])
+
+        # Nothing changed on disk yet
+        assert not provider.unprocessed_model_changes()[0]
+
+        def add_object(object_id, path):
+            provider.add_objects(
+                [
+                    PipeDependencies(
+                        0,
+                        SavePointsRange(0, 0),
+                        configuration_id,
+                        [(container_id, object_id, path)],
+                        [],
+                    )
+                ],
+                {ContainerLocation(0, container_id, configuration_id): {object_id: b""}},
+            )
+
+        add_object(obj_one, "/one")
+        add_object(obj_two, "/two")
+
+        # Edit the model on disk, changing only "/one"
+        changed = DictModel()
+        changed["/one"] = 42
+        changed["/two"] = 2
+        model_path.write_bytes(changed.serialize())
+        # Force a distinct mtime so the cheap gate detects the change
+        stat = model_path.stat()
+        os.utime(model_path, (stat.st_atime, stat.st_mtime + 100))
+
+        # The diff points exactly at the changed path
+        diff, _ = provider.unprocessed_model_changes()
+        assert diff
+        assert diff.paths() == {"/one"}
+
+        # Applying the change purges only the object that depended on "/one"
+        result = provider.set_model(changed, diff.paths(), [])
+        assert result.invalidated_objects == {
+            ContainerLocation(0, container_id, configuration_id): {obj_one}
+        }
+        assert set(
+            provider.has(ContainerLocation(0, container_id, configuration_id), [obj_two])
+        ) == {obj_two}
+
+        # The baseline is now up to date, no further changes are reported
+        assert not provider.unprocessed_model_changes()[0]
+
+
+def test_external_model_change_preserves_on_disk_bytes():
+    container_id = "a"
+    configuration_id = ""
+    obj_one = MyObjectID(MyKind.CHILD, "one")
+    obj_two = MyObjectID(MyKind.CHILD, "two")
+
+    with NamedTemporaryFile() as f, TemporaryDirectory() as d:
+        model_path = Path(f.name)
+
+        baseline = DictModel()
+        baseline["/one"] = 1
+        baseline["/two"] = 2
+        model_path.write_bytes(baseline.serialize())
+
+        provider = LocalStorageProvider(":memory:", model_path, Path(d), "")
+        provider.set_model(baseline, set(), [])
+        # Record the baseline before editing so the change is detected below.
+        assert not provider.unprocessed_model_changes()[0]
+
+        def add_object(object_id, path):
+            provider.add_objects(
+                [
+                    PipeDependencies(
+                        0,
+                        SavePointsRange(0, 0),
+                        configuration_id,
+                        [(container_id, object_id, path)],
+                        [],
+                    )
+                ],
+                {ContainerLocation(0, container_id, configuration_id): {object_id: b""}},
+            )
+
+        add_object(obj_one, "/one")
+        add_object(obj_two, "/two")
+
+        # Hand-edit the model on disk in a non-canonical form (a comment and a
+        # different key order) that still parses to a change of only "/one".
+        changed = DictModel()
+        changed["/one"] = 42
+        changed["/two"] = 2
+        non_canonical = b"# hand-written\n/two: 2\n/one: 42\n"
+        assert non_canonical != changed.serialize()
+        model_path.write_bytes(non_canonical)
+        stat = model_path.stat()
+        os.utime(model_path, (stat.st_atime, stat.st_mtime + 100))
+
+        diff, model_bytes = provider.unprocessed_model_changes()
+        assert diff.paths() == {"/one"}
+
+        # Reconciling an external change purges only the object that depended on
+        # "/one", exactly like a normal set_model...
+        result = provider.set_model(changed, diff.paths(), [], model_bytes)
+        assert result.invalidated_objects == {
+            ContainerLocation(0, container_id, configuration_id): {obj_one}
+        }
+        assert set(
+            provider.has(ContainerLocation(0, container_id, configuration_id), [obj_two])
+        ) == {obj_two}
+
+        # ...but the on-disk file is kept verbatim, not canonicalized.
+        assert model_path.read_bytes() == non_canonical
+        # And the baseline is up to date, so no further changes are reported.
+        assert not provider.unprocessed_model_changes()[0]
+
+
 def test_custom_invalidation(model, storage_provider: StorageProvider):
     # Create a simple pipeline with one pipe, one savepoint and an analysis
     # attached to the savepoint
@@ -711,7 +842,7 @@ def test_custom_invalidation(model, storage_provider: StorageProvider):
     savepoint_node = PipelineNode(SavePoint("end", declarations))
     begin_node.add_successor(savepoint_node)
 
-    analyses = {AnalysisBinding(NullRootAnalysis(), (root_decl,), savepoint_node)}
+    analyses = {AnalysisBinding(AddRootStuffAnalysis(), (root_decl,), savepoint_node)}
 
     pipeline: Pipeline = Pipeline(set(declarations), begin_node, None, analyses)
     root_obj = ObjectSet(MyKind.ROOT, {MyObjectID.root()})
@@ -728,12 +859,13 @@ def test_custom_invalidation(model, storage_provider: StorageProvider):
     )
     schedule.run()
 
-    # Run the analysis and retrieve the invalidated objects. Due to the way
-    # `GeneratorPipeWithInvalidation` works, it reads no model fields but will
-    # invalidate `ROOT` if custom invalidation is triggered.
+    # Run an analysis that changes the model (so a real model diff is persisted)
+    # and retrieve the invalidated objects. `GeneratorPipeWithInvalidation`
+    # reads no model fields, so `ROOT` can only be invalidated through custom
+    # invalidation, which is exactly what we want to observe.
     _, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
-        analysis_name=NullRootAnalysis.name,
+        analysis_name=AddRootStuffAnalysis.name,
         requests=Requests({root_decl: root_obj}),
         configuration=configuration,
         storage_provider=storage_provider,

@@ -20,11 +20,12 @@
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
+#include "revng/EditCBody/EditCBodyAnalysis.h"
+#include "revng/EditCType/EditCTypeAnalysis.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
-#include "revng/ImportFromC/ImportFromCAnalysis.h"
 #include "revng/LLMRename/LLMRenameAnalysis.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Lift/LinkSupportPipe.h"
@@ -81,9 +82,9 @@ REGISTER(Container, HexDumpContainer);
 REGISTER(Container, LLVMFunctionContainer);
 REGISTER(Container, LLVMRootContainer);
 REGISTER(Container, ObjectFileContainer);
-REGISTER(Container, PTMLCBytesContainer);
-REGISTER(Container, PTMLCFunctionBytesContainer);
-REGISTER(Container, PTMLCTypeBytesContainer);
+REGISTER(Container, PTMLCContainer);
+REGISTER(Container, PTMLCFunctionContainer);
+REGISTER(Container, CTypeContainer);
 REGISTER(Container, RecompilableArchiveContainer);
 REGISTER(Container, TranslatedContainer);
 
@@ -159,7 +160,8 @@ REGISTER(Analysis, ConvertFunctionsToRaw);
 REGISTER(Analysis, DetectABI);
 REGISTER(Analysis, revng::pypeline::analyses::DetectCStrings);
 REGISTER(Analysis, DetectStackSize);
-REGISTER(Analysis, ImportFromC);
+REGISTER(Analysis, EditCBody);
+REGISTER(Analysis, EditCType);
 REGISTER(Analysis, ImportPrototypesFromDatabase);
 REGISTER(Analysis, LLMRename);
 REGISTER(Analysis, ParseBinaryAnalysis);

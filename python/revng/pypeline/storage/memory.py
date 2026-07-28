@@ -212,6 +212,7 @@ class InMemoryStorageProvider(StorageProvider):
         new_model: Model,
         changed_paths: ModelPathSet,
         custom_invalidations: list[ObjectsToInvalidate],
+        model_bytes: bytes | None = None,
     ) -> SetModelResult:
         invalidated = self._invalidate(changed_paths, custom_invalidations)
         if self.model != new_model:

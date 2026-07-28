@@ -81,7 +81,7 @@ EmitC::EmitC(const Model &Model,
              llvm::StringRef Configuration,
              llvm::StringRef DynamicConfig,
              CliftFunctionContainer &Input,
-             PTMLCFunctionBytesContainer &Output) :
+             PTMLCFunctionContainer &Output) :
   Input(Input),
   Output(Output),
   Configuration(parseCEmissionPipeConfiguration(Configuration)) {

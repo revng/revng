@@ -12,6 +12,7 @@ bool init_unit_test();
 #include "revng/ADT/SortedVector.h"
 #include "revng/ADT/TrackingContainer.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/YAMLTraits.h"
 
 #include "TestKeyedObject.h"
 
@@ -163,8 +164,7 @@ bool isSerializationStable(T &&Original) {
 
   {
     llvm::raw_string_ostream Stream(Buffer);
-    llvm::yaml::Output YAMLOutput(Stream);
-    YAMLOutput << Original;
+    ::serialize(Stream, Original);
   }
 
   T Deserialized;

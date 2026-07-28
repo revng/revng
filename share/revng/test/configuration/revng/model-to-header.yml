@@ -23,9 +23,8 @@ commands:
     suffix: .h
     command: |-
       PROJECT_DIR=$$(temp -d);
-      cp "$INPUT" "$$PROJECT_DIR/model.yml";
+      cp "$INPUT" "$$PROJECT_DIR/revng.yml";
       revng2 -C "$$PROJECT_DIR" project artifact emit-type-and-global-header |
-        yq -r '.["/binary"]' |
         revng ptml > "$OUTPUT";
       revng check-decompiled-c "$OUTPUT";
       FileCheck --input-file="$OUTPUT" "${SOURCE}.filecheck";

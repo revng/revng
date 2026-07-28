@@ -73,4 +73,14 @@ inline llvm::Expected<Model> modelFromPath(llvm::StringRef Path) {
   return Model::deserialize(BufferRef);
 }
 
+// The `--configuration` and `--static-configuration` options carry the path to
+// a file; an empty path means no configuration.
+inline std::string configurationFromPath(llvm::StringRef Path) {
+  using llvm::MemoryBuffer;
+  if (Path.empty())
+    return "";
+  auto Buffer = revng::cantFail(MemoryBuffer::getFile(Path));
+  return Buffer->getBuffer().str();
+}
+
 } // namespace revng::pypeline::helpers::native::cli

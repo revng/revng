@@ -12,14 +12,14 @@ commands:
       cd "$OUTPUT";
       export REVNG_OPTIONS="$${REVNG_OPTIONS:-} --debug-names";
 
-      revng2 project init --no-initial-auto-analysis "$INPUT";
+      revng2 project init --overwrite --no-initial-auto-analysis "$INPUT";
       revng2 project analyze parse-binary -o /dev/null;
 
       revng model override-by-name
-        model.yml
+        revng.yml
         ${SOURCE}.override.$QEMU_NAME.yml
         > model-tmp.yml;
-      mv model-tmp.yml model.yml;
+      mv model-tmp.yml revng.yml;
       rm -r .cache;
 
       revng2 project analyze detect-abi -o /dev/null;

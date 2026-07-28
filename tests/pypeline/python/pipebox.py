@@ -242,8 +242,8 @@ class ChildDictContainer(DictContainer):
 
 
 class DictModelDiff(ModelDiff):
-    def __init__(self, paths: set[str]):
-        self._paths = paths
+    def __init__(self, paths: set[str] | None = None):
+        self._paths = paths if paths is not None else set()
 
     def paths(self) -> ModelPathSet:
         return self._paths
@@ -617,6 +617,31 @@ class NullRootAnalysis(Analysis):
         # analysis want to check for side-effects of running an analysis
         # (e.g. triggering custom invalidation)
         pass
+
+
+class AddRootStuffAnalysis(Analysis):
+    """An analysis that writes a single model path, producing a non-empty diff.
+
+    Paired with GeneratorPipeWithInvalidation (which declares no model-path
+    dependencies) it lets a test exercise custom invalidation triggered by a
+    real model change.
+    """
+
+    name = "AddRootStuffAnalysis"
+
+    @classmethod
+    def signature(cls) -> tuple[type[Container], ...]:
+        return (RootDictContainer,)
+
+    def run(
+        self,
+        model: Model,
+        containers: list[Container],
+        incoming: list[ObjectSet],
+        configuration: str,
+    ):
+        assert isinstance(model, DictModel)
+        model["/one"] = 1
 
 
 class NullAnalysis(Analysis):

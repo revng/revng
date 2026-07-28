@@ -17,7 +17,7 @@ class EmitTypeAndGlobalHeader {
 private:
   const model::Binary &Binary;
   const CliftModuleContainer &Input;
-  PTMLCBytesContainer &Output;
+  PTMLCContainer &Output;
 
   CEmissionPipeConfiguration Configuration;
 
@@ -30,7 +30,7 @@ public:
                                              "function and segment "
                                              "declarations",
                                              Access::Read>,
-                             PipeRunArgument<PTMLCBytesContainer,
+                             PipeRunArgument<PTMLCContainer,
                                              "Output",
                                              "The model header",
                                              Access::Write>>;
@@ -39,7 +39,7 @@ public:
                           llvm::StringRef Configuration,
                           llvm::StringRef DynamicConfig,
                           const CliftModuleContainer &Input,
-                          PTMLCBytesContainer &Output) :
+                          PTMLCContainer &Output) :
     Binary(*Model.get().get()),
     Input(Input),
     Output(Output),
@@ -52,7 +52,7 @@ class EmitHelperHeader {
 private:
   const model::Binary &Binary;
   const CliftFunctionContainer &Input;
-  PTMLCBytesContainer &Output;
+  PTMLCContainer &Output;
 
   CEmissionPipeConfiguration Configuration;
 
@@ -62,7 +62,7 @@ public:
                                              "Input",
                                              "MLIR container",
                                              Access::Read>,
-                             PipeRunArgument<PTMLCBytesContainer,
+                             PipeRunArgument<PTMLCContainer,
                                              "Output",
                                              "The helper header",
                                              Access::Write>>;
@@ -71,7 +71,7 @@ public:
                    llvm::StringRef Configuration,
                    llvm::StringRef DynamicConfig,
                    const CliftFunctionContainer &Input,
-                   PTMLCBytesContainer &Output) :
+                   PTMLCContainer &Output) :
     Binary(*Model.get().get()),
     Input(Input),
     Output(Output),
@@ -84,7 +84,7 @@ class EmitSingleTypeDefinition {
 private:
   const model::Binary &Binary;
   const CliftModuleContainer &Input;
-  PTMLCTypeBytesContainer &Output;
+  CTypeContainer &Output;
 
   CEmissionPipeConfiguration Configuration;
 
@@ -95,7 +95,7 @@ public:
                                              "MLIR container containing "
                                              "the type system",
                                              Access::Read>,
-                             PipeRunArgument<PTMLCTypeBytesContainer,
+                             PipeRunArgument<CTypeContainer,
                                              "Output",
                                              "A single C Type",
                                              Access::Write>>;
@@ -104,7 +104,7 @@ public:
                            llvm::StringRef Configuration,
                            llvm::StringRef DynamicConfig,
                            const CliftModuleContainer &Input,
-                           PTMLCTypeBytesContainer &Output) :
+                           CTypeContainer &Output) :
     Binary(*Model.get().get()),
     Input(Input),
     Output(Output),

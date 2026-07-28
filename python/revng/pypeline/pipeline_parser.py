@@ -90,7 +90,12 @@ class PipelineParser:
             root = DummyPipelineNode()
             for node in roots:
                 root.add_successor(node)
-            root_analyses_dict = [{"analysis": x, "containers": []} for x in root_analyses_raw]
+            # A root analysis is a `{analysis, description}` mapping; the
+            # description is only consumed by the docs generator.
+            root_analyses_dict: list[dict[str, Any]] = [
+                {"analysis": analysis["analysis"], "containers": []}
+                for analysis in root_analyses_raw
+            ]
             self._parse_analyses(root_analyses_dict, root)
 
         # Check artifact consistency

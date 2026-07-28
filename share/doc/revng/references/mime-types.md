@@ -1,11 +1,6 @@
-Running [`revng artifact`](cli/revng-artifact.md) you will get a list of artifacts that can be produced along with their [MIME types](https://en.wikipedia.org/wiki/Media_type):
+Each artifact that [`revng2 project artifact`](cli/revng2-project-artifact.md) can produce has an associated [MIME type](https://en.wikipedia.org/wiki/Media_type):
 
-```bash
-$ revng artifact
-USAGE: revng-artifact [options] <artifact> <binary>
-
-<artifact> can be one of:
-
+```text
   lift                        - application/x.llvm.bc+zstd
   isolate                     - application/x.llvm.bc+zstd
   enforce-abi                 - application/x.llvm.bc+zstd
@@ -29,7 +24,7 @@ USAGE: revng-artifact [options] <artifact> <binary>
 
 ## MIME types
 
-When choosing MIME types for artifacts, we trying to conform as close as possible to [RFC2045](https://datatracker.ietf.org/doc/html/rfc2045) and [RFC6838](https://www.rfc-editor.org/rfc/rfc6838).
+When choosing MIME types for artifacts, we try to conform as close as possible to [RFC2045](https://datatracker.ietf.org/doc/html/rfc2045) and [RFC6838](https://www.rfc-editor.org/rfc/rfc6838).
 
 There are two fundamental distinctions in MIME types:
 
@@ -58,7 +53,8 @@ To make this explicit, we add suffixes, specifically:
 
 * `$PREFIX+ptml`: `$PREFIX` is wrapped in [PTML](ptml.md).
 * `$PREFIX+tar`: `$PREFIX` is wrapped in a `tar` file containing one file for each function.
-* `$PREFIX+gzip`: `$PREFIX` is compressed using `gzip`.
+* `$PREFIX+gz`: `$PREFIX` is compressed using `gzip`.
+* `$PREFIX+zstd`: `$PREFIX` is compressed using `zstd`.
 
 For instance: `text/x.c+tar+gz` means that the artifact is GZip-compressed `tar` archive, containing C code for each function in the binary.
 While, `text/x.asm+ptml+tar+gz` represents a GZip-compressed `tar` archive containing one file per function, which is in turn assembly code wrapped in PTML.

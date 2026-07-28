@@ -12,7 +12,6 @@ from typing import Callable
 import yaml
 
 from revng.pypeline.analysis import Analysis
-from revng.pypeline.cli.utils import normalize_flag
 from revng.pypeline.container import Configuration, Container, ContainerFormat
 from revng.pypeline.model import Model, ModelPath, ReadOnlyModel
 from revng.pypeline.object import ObjectID, ObjectSet
@@ -21,6 +20,7 @@ from revng.pypeline.task.pipe import Pipe, PipeDependencies
 from revng.pypeline.task.task import TaskArgumentAccess
 from revng.pypeline.utils import PypelineException
 from revng.pypeline.utils.logger import pypeline_logger
+from revng.pypeline.utils.naming import normalize_flag
 from revng.pypeline.utils.registry import get_singleton
 
 # Function defined by the pipebox that transforms the command-line before
@@ -141,13 +141,21 @@ exec \\
                 containers[index].to_file(output_path, container_format=ContainerFormat.TAR)
 
     def _pipe_construct_cmd(
-        self, pipe: Pipe, outgoing: list[ObjectSet], configuration: Configuration
+        self,
+        directory: Path,
+        pipe: Pipe,
+        outgoing: list[ObjectSet],
+        configuration: Configuration,
     ) -> list[str]:
         cmd = ["pype", "pipeline", "run-pipe", pipe.name, "--tar"]
+        # `run-pipe` reads its configuration from files: write them next to the
+        # other inputs and pass their paths, relative to the working directory.
         if pipe.static_configuration != "":
-            cmd += ["--static-configuration", pipe.static_configuration]
+            (directory / "static-configuration.yml").write_text(pipe.static_configuration)
+            cmd += ["--static-configuration", "static-configuration.yml"]
         if configuration != "":
-            cmd += ["--configuration", configuration]
+            (directory / "configuration.yml").write_text(configuration)
+            cmd += ["--configuration", "configuration.yml"]
         cmd += ["--dependencies", "dependencies.tar"]
         cmd += ["--file-storage", "files"]
 
@@ -221,7 +229,7 @@ exec \\
             self._pipe_prepare_debug_directory(
                 temp_dir_path, pipe, model, file_provider, containers
             )
-            cmd = self._pipe_construct_cmd(pipe, outgoing, configuration)
+            cmd = self._pipe_construct_cmd(temp_dir_path, pipe, outgoing, configuration)
 
             self._run_command(temp_dir_path, cmd)
 
@@ -252,7 +260,9 @@ exec \\
 
             cmd = ["pype", "pipeline", "run-analysis", analysis.name]
             if configuration != "":
-                cmd += ["--configuration", configuration]
+                configuration_path = temp_dir_path / "configuration.yml"
+                configuration_path.write_text(configuration)
+                cmd += ["--configuration", str(configuration_path)]
             output_model_path = temp_dir_path / ("output_" + model_name)
             cmd += ["-o", str(output_model_path)]
 

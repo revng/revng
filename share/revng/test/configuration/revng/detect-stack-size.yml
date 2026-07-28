@@ -13,7 +13,7 @@ commands:
     suffix: /
     command: |-
       cd "$OUTPUT";
-      revng2 project init --no-initial-auto-analysis "$INPUT";
+      revng2 project init --overwrite --no-initial-auto-analysis "$INPUT";
       revng2 project analyze parse-binary -o /dev/null;
       revng2 project analyze detect-abi -o /dev/null;
       revng2 project analyze detect-stack-size | revng model compare "${SOURCE}.model.yml" -;

@@ -23,7 +23,8 @@ config.test_source_root = os.path.dirname(__file__)
 # resolves both the binary and any libraries we need to point at.
 build_dir = os.environ.get("REVNG_BUILD_DIR", os.getcwd())
 # Each ctest runs lit on one file, so we get parallel lit invocations all
-# writing to the same exec root — and the shared .lit_test_times.txt then
-# corrupts. Give every invocation its own scratch dir.
-config.test_exec_root = tempfile.mkdtemp(prefix="revng-filecheck-")
+# writing to the same exec root, and the shared .lit_test_times.txt then
+# corrupts.
+config.test_exec_root_handle = tempfile.TemporaryDirectory(prefix="revng-filecheck-")
+config.test_exec_root = config.test_exec_root_handle.name
 config.substitutions.append(("%root", build_dir))

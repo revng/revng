@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+set -euo pipefail
+
+# Exercise the edit-c-body analysis end to end. The test function decompiles to a
+# fixed, well-known shape, so each directive is placed by anchoring on a literal
+# name the decompiler is guaranteed to produce:
+#
+#   - `var_0`       the first local variable declaration -> RENAME + RETYPE;
+#   - `label_0`     the goto label                       -> RENAME;
+#   - `var_2 = 0UL` a plain assignment statement          -> a statement comment.
+#
+# Each directive is then checked to reach the model and, where the decompiler
+# renders it, the re-emitted code.
+
+BINARY="$1"
+PROJECT="$2"
+FUNCTION="irreducible"
+
+fail() {
+  echo "edit-c-body: $1" >&2
+  exit 1
+}
+
+# Read a value out of the edited function's model with yq.
+function_model() {
+  yq ".Functions[] | select(.Name == \"$FUNCTION\") | $1" "$PROJECT/revng.yml"
+}
+
+# Assert a model query returns an expected value.
+assert_model() {
+  [ "$(function_model "$1")" = "$2" ] || fail "$3"
+}
+
+# Assert the re-emitted C contains a string.
+assert_reemitted() {
+  grep -qF "$1" <<< "$REEMIT" || fail "re-emitted code is missing: $1"
+}
+
+mkdir -p "$PROJECT"
+revng2 -C "$PROJECT" project init --overwrite "$BINARY"
+
+# The decompiled C, produced live.
+revng2 -C "$PROJECT" project artifact emit-c "$FUNCTION" | revng ptml > "$PROJECT/live.c"
+
+# Insert one directive of each kind before its anchor line.
+python3 - "$PROJECT/live.c" "$PROJECT/edited.c" <<'PYEOF'
+import sys
+
+lines = open(sys.argv[1]).read().split("\n")
+
+def insert_before(anchor, *directives):
+    for index, line in enumerate(lines):
+        if anchor in line:
+            indent = line[:len(line) - len(line.lstrip())]
+            lines[index:index] = [indent + directive for directive in directives]
+            return
+    sys.exit("anchor not found in the decompiled code: " + anchor)
+
+insert_before("var_0", "// RENAME: renamed_local", "// RETYPE: uint32_t")
+insert_before("label_0:", "// RENAME: renamed_goto_label")
+insert_before("var_2 = 0UL", "// A plain comment on a statement.")
+
+open(sys.argv[2], "w").write("\n".join(lines) + "\n")
+PYEOF
+
+# The configuration needs the function's entry address; read it from the model.
+ADDRESS="$(function_model '.Entry' | tr -d '"')"
+if [ -z "$ADDRESS" ] || [ "$ADDRESS" = "null" ]; then
+  fail "could not find the entry address of $FUNCTION"
+fi
+
+{
+  echo "Function: $ADDRESS"
+  echo "CCode: |"
+  sed 's/^/  /' "$PROJECT/edited.c"
+} > "$PROJECT/edit.yml"
+
+revng2 -C "$PROJECT" project analyze edit-c-body -o /dev/null -c "$PROJECT/edit.yml"
+
+# The comment, both renames and the retype must reach the model. A rename-only
+# variable has no `Type`, so `renamed_local` carrying a 4-byte type (uint32_t)
+# proves the retype landed.
+assert_model \
+  '[.Comments[] | select(.Body == "A plain comment on a statement.")] | length' 1 \
+  "the statement comment did not reach the model"
+assert_model \
+  '[.LocalVariables[] | select(.Name == "renamed_local")] | length' 1 \
+  "the local variable rename did not reach the model"
+assert_model \
+  '.LocalVariables[] | select(.Name == "renamed_local") | .Type.Size' 4 \
+  "the local variable retype did not reach the model"
+assert_model \
+  '[.GotoLabels[] | select(.Name == "renamed_goto_label")] | length' 1 \
+  "the goto label rename did not reach the model"
+
+# The renames and the comment round-trip back into the re-emitted code (a type
+# change is model-only and does not reach emit-c, so it is not checked here).
+REEMIT="$(revng2 -C "$PROJECT" project artifact emit-c "$FUNCTION" | revng ptml)"
+assert_reemitted "A plain comment on a statement."
+assert_reemitted "renamed_local"
+assert_reemitted "renamed_goto_label:"

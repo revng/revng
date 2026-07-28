@@ -1,0 +1,27 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+Segments:
+  - StartAddress: "0x400000:Generic64"
+    VirtualSize: 4096
+    FileSize: 4096
+    IsReadable: true
+    IsExecutable: true
+Functions:
+  - Entry: "0x400000:Code_x86_64"
+    Name: does_this_function_return
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1-CABIFunctionDefinition"
+    Attributes:
+      - NoReturn
+TypeDefinitions:
+  - ID: 0
+    Kind: CABIFunctionDefinition
+    ABI: SystemV_x86_64
+  - ID: 1
+    Kind: CABIFunctionDefinition
+    ABI: SystemV_x86_64

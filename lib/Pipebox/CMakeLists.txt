@@ -14,8 +14,9 @@ target_link_libraries(
   revngClift
   revngCliftPipes
   revngDataLayoutAnalysis
+  revngEditCBodyAnalysis
   revngFunctionIsolation
-  revngImportFromCAnalysis
+  revngEditCTypeAnalysis
   revngLLMRenameAnalysis
   revngLift
   revngModelImporter

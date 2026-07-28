@@ -206,8 +206,7 @@ public:
 
     auto MaybeWritableIndexFile = IndexPath->getWritableFile();
     if (MaybeWritableIndexFile) {
-      llvm::yaml::Output IndexOutput(MaybeWritableIndexFile.get()->os());
-      IndexOutput << Offsets;
+      ::serialize(MaybeWritableIndexFile.get()->os(), Offsets);
 
       if (auto Error = MaybeWritableIndexFile.get()->commit())
         return Error;

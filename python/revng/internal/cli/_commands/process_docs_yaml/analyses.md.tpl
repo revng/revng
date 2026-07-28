@@ -8,21 +8,27 @@ The notice below applies to the generated files.
 {% import 'common.md.tpl' as common -%}
 
 This page reports the list of all the analyses currently featured in rev.ng.
-
-{%- for branch in data.Branches -%}
-{% for step in branch.Steps -%}
-{% if step.Analyses -%}
-{% for analysis in step.Analyses %}
-## <a id="/analyses/{{analysis.Name}}"></a>`{{analysis.Name}}` analysis
+{% for branch_name, branch in data.branches.items() -%}
+{%- for task in branch.tasks -%}
+{%- for analysis in task.analyses or [] %}
+## <a id="/analyses/{{analysis.analysis}}"></a>`{{analysis.analysis}}` analysis
 
 ```{bash notest}
-revng analyze {{analysis.Name}}
+revng2 project analyze {{analysis.analysis}}
 ```
 
-{{- common.maybe('Runs after', "/pipeline/steps/" + step.Name) -}}
-
-{{analysis.Docs}}
+{{ common.maybe('Runs after', "/pipeline/branches/" + branch_name) -}}
+{% if analysis.description %}{{ analysis.description }}{% endif %}
 {% endfor -%}
-{%- endif -%}
 {%- endfor -%}
 {%- endfor -%}
+{%- for analysis in data.analyses %}
+{%- set name = analysis if analysis is string else analysis.analysis %}
+## <a id="/analyses/{{name}}"></a>`{{name}}` analysis
+
+```{bash notest}
+revng2 project analyze {{name}}
+```
+
+{% if analysis is not string and analysis.description %}{{ analysis.description }}{% endif %}
+{% endfor -%}

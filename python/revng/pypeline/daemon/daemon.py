@@ -81,7 +81,7 @@ class Daemon:
     async def get_model(self, request):
         storage_provider_context = self._get_storage_provider_context(request, LockType.ARTIFACT)
         async with storage_provider_context as storage_provider:
-            model, epoch = storage_provider.get_model()
+            model, epoch = self.pipeline.get_model({}, storage_provider)
 
         return Response(
             code=200,
@@ -134,7 +134,7 @@ class Daemon:
         storage_provider_context = self._get_storage_provider_context(request, LockType.ARTIFACT)
         async with storage_provider_context as storage_provider:
             # Load the model
-            model, real_epoch = storage_provider.get_model()
+            model, real_epoch = self.pipeline.get_model(configuration, storage_provider)
 
             if real_epoch != epoch:
                 raise EpochError(real_epoch, epoch)
@@ -196,7 +196,7 @@ class Daemon:
         storage_provider_context = self._get_storage_provider_context(request, LockType.ANALYSIS)
         async with storage_provider_context as storage_provider:
             # Load the model
-            model, real_epoch = storage_provider.get_model()
+            model, real_epoch = self.pipeline.get_model(configuration, storage_provider)
 
             if real_epoch != epoch:
                 raise EpochError(real_epoch, epoch)

@@ -15,11 +15,11 @@ from typing import TYPE_CHECKING, Annotated, AsyncContextManager, Collection, It
 from urllib.parse import urlparse
 
 from revng.pypeline.container import ConfigurationId, ContainerID
-from revng.pypeline.model import Model, ModelPathSet
+from revng.pypeline.model import Model, ModelDiff, ModelPathSet
 from revng.pypeline.object import ObjectID, ObjectSet
 from revng.pypeline.storage.notification_queue import LOCAL_QUEUE
 from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
-from revng.pypeline.utils.registry import get_registry
+from revng.pypeline.utils.registry import get_registry, get_singleton
 
 from .file_provider import FileProvider, FileRequest
 
@@ -202,11 +202,12 @@ class StorageProviderFactory(ABC):
         then the internal websocket will be used.
         """
 
-    def init(self, directory: Path) -> bool:
+    def init(self, directory: Path, overwrite: bool) -> bool:
         """
         Initialize the specified directory to become a storage directory, can
         be overridden by local storage providers. Returns true if the directory
-        was initted or false if it was previously initted.
+        was initted or false if it was previously initted. When overwrite is
+        set, an already-initialized directory is clobbered and re-initialized.
         """
         return True
 
@@ -283,19 +284,36 @@ class StorageProvider(ABC):
         new_model: Model,
         changed_paths: ModelPathSet,
         custom_invalidations: list[ObjectsToInvalidate],
+        model_bytes: bytes | None = None,
     ) -> SetModelResult:
         """
         Inform the storage that the model has changed, with the list of changed
         model paths and object to explicitly invalidate (from custom
-        invalidation). This function will compute the overall list of objects
-        to invalidate and set the model. It will return the new epoch (which
-        will be current epoch + 1 if the model changed, or current epoch if it
-        didn't) and the exhaustive list of objects that have been deleted due
-        to the changes in the model.
+        invalidation). This function computes the overall list of objects to
+        invalidate, sets the model and advances the epoch (the model version
+        number), returning the new epoch together with the exhaustive list of
+        objects that have been deleted due to the changes in the model. The
+        model handed in is a new version, so the epoch always advances.
         This requires the new model and the list of changed paths separately so
         that the storage provider does not need to run operations (diff/apply)
         on the model.
+        When `model_bytes` is given, the backing model already holds exactly
+        those bytes (e.g. an on-disk file that was hand-edited): the provider
+        adopts them verbatim instead of re-serializing `new_model`, so the
+        stored file is not rewritten in canonical form.
         """
+
+    def unprocessed_model_changes(self) -> tuple[ModelDiff, bytes | None]:
+        """
+        Return a diff describing changes made to the backing model that this
+        provider has not processed yet (for instance, the on-disk model file
+        was edited behind our back), together with the raw serialized bytes of
+        the changed model. Those bytes can be passed back to `set_model`
+        unchanged to avoid re-serializing (and thus canonicalizing) the edit.
+        Providers that are the sole authority on the model can never observe
+        such changes and return an empty diff and no bytes.
+        """
+        return get_singleton(ModelDiff)(), None  # type: ignore[type-abstract]
 
     @abstractmethod
     def metadata(self) -> ProjectMetadata:

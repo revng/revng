@@ -19,6 +19,15 @@ from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.utils.registry import get_registry
 
+
+def read_configuration_file(ctx, param, value):
+    """click callback for the `-c`/`--configuration` option: the option takes
+    the path to a file, and its value is the content of that file."""
+    if not value:
+        return ""
+    return Path(value).read_text()
+
+
 # Options that are common to multiple commands
 project_id_option = click.option(
     "--project-id",
@@ -47,66 +56,79 @@ token_option = click.option(
 _FORMAT_VARIABLE = "container_format"
 
 
-def handle_format_option(ctx, param, value):
+def make_format_callback(default: ContainerFormat):
     """
-    Handles mutual exclusivity, converts strings to Enums,
-    and manages precedence between flags and defaults.
+    Build the callback that handles mutual exclusivity, converts strings to
+    Enums, and falls back to the given default when nothing is specified.
     """
-    # Handle shortcuts the value is boolean here
-    if param.name in [f.value for f in ContainerFormat]:
-        if not value:
+
+    def handle_format_option(ctx, param, value):
+        # Handle shortcuts the value is boolean here
+        if param.name in [f.value for f in ContainerFormat]:
+            if not value:
+                return None
+
+            if ctx.params.get(_FORMAT_VARIABLE) is not None:
+                raise click.BadOptionUsage(
+                    param.name,
+                    f"Mutually exclusive: --{param.name} cannot be used with other formats.",
+                )
+
+            ctx.params[_FORMAT_VARIABLE] = ContainerFormat(param.name)
             return None
 
-        if ctx.params.get(_FORMAT_VARIABLE) is not None:
-            raise click.BadOptionUsage(
-                param.name, f"Mutually exclusive: --{param.name} cannot be used with other formats."
-            )
+        # Handle --format, value is a string passed from click.Choice or default
 
-        ctx.params[_FORMAT_VARIABLE] = ContainerFormat(param.name)
-        return None
+        # Check if a shortcut already populated the format
+        existing_format = ctx.params.get(_FORMAT_VARIABLE)
+        if existing_format is not None:
+            # If the user EXPLICITLY typed --format AND used a flag -> Error
+            if value is not None:
+                raise click.BadOptionUsage(
+                    param.name,
+                    "Mutually exclusive: Cannot specify "
+                    f"--format when --{existing_format.value} is used.",
+                )
+            # If --format is just running its default, let the Flag win
+            return existing_format
 
-    # Handle --format, value is a string passed from click.Choice or default
-
-    # Check if a shortcut already populated the format
-    existing_format = ctx.params.get(_FORMAT_VARIABLE)
-    if existing_format is not None:
-        # If the user EXPLICITLY typed --format AND used a flag -> Error
         if value is not None:
-            raise click.BadOptionUsage(
-                param.name,
-                "Mutually exclusive: Cannot specify "
-                f"--format when --{existing_format.value} is used.",
-            )
-        # If --format is just running its default 'yaml', let the Flag win
-        return existing_format
+            # If no flag was used, convert the string value to Enum and return
+            return ContainerFormat(value)
+        else:
+            return default
 
-    if value is not None:
-        # If no flag was used, convert the string value to Enum and return
-        return ContainerFormat(value)
-    else:
-        return ContainerFormat.YAML
+    return handle_format_option
 
 
-def container_format_options(func):
-    func = click.option(
-        "--format",
-        _FORMAT_VARIABLE,
-        type=click.Choice([x.value for x in ContainerFormat]),
-        callback=handle_format_option,
-        help=(
-            "Format to use for the output container, either on stdout or in "
-            "the result path.  [default: yaml]"
-        ),
-    )(func)
-    for member in ContainerFormat:
+def container_format_options(default: ContainerFormat):
+    callback = make_format_callback(default)
+
+    def decorator(func):
         func = click.option(
-            f"--{member.value}",
-            is_flag=True,
-            expose_value=False,
-            help=f"Shortcut for --format={member.value}.",
-            callback=handle_format_option,
+            "--format",
+            _FORMAT_VARIABLE,
+            type=click.Choice([x.value for x in ContainerFormat]),
+            callback=callback,
+            help=(
+                "Format to use for the output container, either on stdout or in "
+                f"the result path.  [default: {default.value}]"
+            ),
         )(func)
-    return func
+        for member in ContainerFormat:
+            # No shortcut for AUTO: it is the default and "--auto" is too generic.
+            if member is ContainerFormat.AUTO:
+                continue
+            func = click.option(
+                f"--{member.value}",
+                is_flag=True,
+                expose_value=False,
+                help=f"Shortcut for --format={member.value}.",
+                callback=callback,
+            )(func)
+        return func
+
+    return decorator
 
 
 def _parse_debug_option(path: str, ctx: ClickContext):

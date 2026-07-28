@@ -14,6 +14,7 @@ theme:
   logo: assets/logo.svg
   features:
     - navigation.footer
+    - navigation.indexes
     - content.code.copy
 nav:
   - "What's rev.ng?": "what-is-revng.md"
@@ -26,20 +27,38 @@ nav:
           - "Artifacts and analyses": "user-manual/key-concepts/artifacts-and-analyses.md"
       - Tutorial:
           - "A model from scratch": "user-manual/tutorial/model-from-scratch.md"
-          - "Running analyses": "user-manual/tutorial/running-analyses.md"
+          - "Running the initial auto-analysis": "user-manual/tutorial/running-initial-auto-analysis.md"
+          - "Editing types in C": "user-manual/tutorial/editing-types-in-c.md"
+          - "Comments and local variables": "user-manual/tutorial/comments-and-local-variables.md"
       - "Python scripting": "user-manual/python-scripting.md"
   - "Developer's manual":
+      - developer-manual/index.md
       - "QEMU helpers": "developer-manual/qemu-helpers.md"
+      - "ABI definition": "references/abi-definition.md"
   - "References":
       - "Model": references/model.md
       - Artifacts: references/artifacts.md
       - Analyses: references/analyses.md
       - CLI:
-          - revng-common: references/cli/revng-common.md
-          - revng-artifact: references/cli/revng-artifact.md
-          - revng-analyze: references/cli/revng-analyze.md
-          - revng2-project-artifact: references/cli/revng2-project-artifact.md
-          - revng2-project-analyze: references/cli/revng2-project-analyze.md
+          - revng2:
+              - references/cli/revng2.md
+              - revng2-common: references/cli/revng2-common.md
+              - revng2-project:
+                  - references/cli/revng2-project.md
+                  - revng2-project-init: references/cli/revng2-project-init.md
+                  - revng2-project-analyze: references/cli/revng2-project-analyze.md
+                  - revng2-project-artifact: references/cli/revng2-project-artifact.md
+                  - revng2-project-daemon: references/cli/revng2-project-daemon.md
+              - revng2-quick:
+                  - references/cli/revng2-quick.md
+                  - revng2-quick-analyze: references/cli/revng2-quick-analyze.md
+                  - revng2-quick-artifact: references/cli/revng2-quick-artifact.md
+              - revng2-pipeline:
+                  - references/cli/revng2-pipeline.md
+                  - revng2-pipeline-run-pipe: references/cli/revng2-pipeline-run-pipe.md
+                  - revng2-pipeline-run-analysis: references/cli/revng2-pipeline-run-analysis.md
+          - revng-merge-llvm: references/cli/revng-merge-llvm.md
+          - revng-ptml: references/cli/revng-ptml.md
       - "MIME types": references/mime-types.md
       - PTML: references/ptml.md
       - Pipeline: references/pipeline.md
@@ -53,6 +72,7 @@ markdown_extensions:
       permalink: "#"
   - admonition
   - pymdownx.details
+  - footnotes
 extra_css:
   - stylesheets/main.css
   - stylesheets/theme.css

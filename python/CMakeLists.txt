@@ -489,6 +489,10 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/cli/project/artifact.py
     revng/pypeline/cli/project/daemon.py
     revng/pypeline/cli/project/dump_pipeline.py
+    revng/pypeline/cli/backend/__init__.py
+    revng/pypeline/cli/backend/backend.py
+    revng/pypeline/cli/backend/local_backend.py
+    revng/pypeline/cli/backend/daemon_backend.py
     revng/pypeline/cli/__init__.py
     revng/pypeline/cli/common_options.py
     revng/pypeline/cli/context.py
@@ -534,6 +538,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/storage/__init__.py
     revng/pypeline/storage/local_provider_migrations/v1.sql
     revng/pypeline/storage/local_provider_migrations/v2.sql
+    revng/pypeline/storage/local_provider_migrations/v3.sql
     revng/pypeline/task/__init__.py
     revng/pypeline/task/pipe.py
     revng/pypeline/task/requests.py
@@ -547,6 +552,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/utils/starlette.py
     revng/pypeline/utils/logger.py
     revng/pypeline/utils/cabc.py
+    revng/pypeline/utils/naming.py
     revng/pypeline/utils/__init__.py)
 
 # Copy buffered_reader.py from revng.support to revng.pypeline.utils, since

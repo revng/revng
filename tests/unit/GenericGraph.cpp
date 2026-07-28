@@ -17,6 +17,7 @@ bool init_unit_test();
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/SerializableGraph.h"
+#include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/Introspection.h"
 
 using namespace llvm;
@@ -424,8 +425,7 @@ BOOST_AUTO_TEST_CASE(TestSerializeGraph) {
   std::string Buffer;
   {
     llvm::raw_string_ostream Stream(Buffer);
-    yaml::Output YAMLOutput(Stream);
-    YAMLOutput << Serializable;
+    ::serialize(Stream, Serializable);
   }
 
   decltype(Serializable) Deserialized;

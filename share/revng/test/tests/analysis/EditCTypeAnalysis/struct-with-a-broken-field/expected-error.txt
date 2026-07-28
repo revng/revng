@@ -1,0 +1,24 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+New model does not verify: Field at offset 1024 is out of struct boundaries (field size: 8, field offset + size: 1032, struct size: 24)
+---
+ID: 0
+Kind: StructDefinition
+Name: my_struct
+Size: 24
+Fields:
+  - Offset: 16
+    Name: normal_field
+    Type:
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 8
+  - Offset: 1024
+    Name: broken_field
+    Type:
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 8
+...

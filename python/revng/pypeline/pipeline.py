@@ -23,7 +23,7 @@ from .pipeline_node import PipelineConfiguration, PipelineNode
 from .schedule.schedule import Schedule
 from .schedule.scheduled_task import PipeScheduledTask, SavepointScheduledTask, ScheduledTask
 from .storage.storage_provider import InvalidatedObjects, ObjectsToInvalidate, SavePointsRange
-from .storage.storage_provider import StorageProvider
+from .storage.storage_provider import SetModelResult, StorageProvider
 from .task.pipe import Pipe
 from .task.requests import Requests
 from .task.savepoint import SavePoint
@@ -615,13 +615,56 @@ class Pipeline:
         )
 
         diff = model.diff(ReadOnlyModel(new_model))
+        if not diff:
+            # A no-op analysis leaves the model untouched: there is nothing to
+            # persist or invalidate and the epoch must not advance.
+            return new_model, InvalidatedObjects()
+        set_model_result = self._set_model(configuration, storage_provider, diff, new_model)
+        return new_model, set_model_result.invalidated_objects
+
+    def get_model(
+        self,
+        configuration: PipelineConfiguration,
+        storage_provider: StorageProvider,
+    ) -> tuple[Model, int]:
+        """
+        Load the model from the storage provider, reconciling any change that
+        happened to the backing model behind the provider's back (e.g. the
+        on-disk model file was edited). When such a change is detected, the
+        diff is used to purge only the affected objects from the caches
+        (including custom invalidation) instead of discarding everything.
+        """
+        diff, model_bytes = storage_provider.unprocessed_model_changes()
+        if diff:
+            model, _ = storage_provider.get_model()
+            set_model_result = self._set_model(
+                configuration, storage_provider, diff, model, model_bytes
+            )
+            return model, set_model_result.epoch
+        return storage_provider.get_model()
+
+    def _set_model(
+        self,
+        configuration: PipelineConfiguration,
+        storage_provider: StorageProvider,
+        diff: ModelDiff,
+        new_model: Model,
+        model_bytes: bytes | None = None,
+    ) -> SetModelResult:
+        """
+        Persist a non-empty model change: compute the custom invalidation from
+        the diff and hand everything to the storage provider, which purges the
+        affected objects and advances the epoch. When `model_bytes` is given the
+        change already happened to the backing model (e.g. an on-disk edit): the
+        provider adopts those exact bytes instead of re-serializing, so a
+        hand-edited file is not rewritten in canonical form.
+        """
         custom_invalidated_objects = self._compute_custom_invalidation(
             configuration, storage_provider, diff
         )
-        set_model_result = storage_provider.set_model(
-            new_model, diff.paths(), custom_invalidated_objects
+        return storage_provider.set_model(
+            new_model, diff.paths(), custom_invalidated_objects, model_bytes
         )
-        return new_model, set_model_result.invalidated_objects
 
     def _compute_custom_invalidation(
         self,

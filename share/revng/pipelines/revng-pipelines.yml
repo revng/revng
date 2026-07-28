@@ -580,7 +580,7 @@ Branches:
             Each file contains the declaration of a type defined for this
             binary.
             This artifact is designed to be used as the initial input of the
-            `import-from-c` analysis. In fact, this artifact is designed to be
+            `edit-c-type` analysis. In fact, this artifact is designed to be
             easily editable by the end-user; it's not designed to represent
             valid C code, unlike the `emit-type-and-global-header` artifact.
 AnalysesLists:

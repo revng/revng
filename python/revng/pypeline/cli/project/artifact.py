@@ -4,26 +4,25 @@
 import asyncio
 import sys
 from pathlib import Path
-from typing import AsyncContextManager
 
 import click
 
+from revng.pypeline.cli.backend import BackendFactory, BackendFeature, backend_factory_for
 from revng.pypeline.cli.common_options import add_pipeline_config_options
 from revng.pypeline.cli.common_options import container_format_options, debug_option, full_help
 from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.utils import build_help_text, detect_autocomplete, normalize_whitespace
+from revng.pypeline.cli.utils import not_none
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import ReadOnlyModel
-from revng.pypeline.object import ObjectID, ObjectSet
+from revng.pypeline.object import ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.runner_context import RunnerContext
-from revng.pypeline.storage.storage_provider import LockType, StorageProvider
-from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
+from revng.pypeline.storage.storage_provider import LockType
 from revng.pypeline.utils.logger import pypeline_logger
-from revng.pypeline.utils.registry import get_singleton
 
 
 class ArtifactGroup(click.Group):
@@ -93,7 +92,9 @@ def build_artifact_command(
     artifact_name: str = artifact.name
 
     async def async_part_of_command(
-        storage_provider_context: AsyncContextManager[StorageProvider],
+        backend_factory: BackendFactory,
+        project_id: str,
+        token: str,
         objects: str | None,
         configuration: PipelineConfiguration,
         result_path: Path | None,
@@ -101,20 +102,29 @@ def build_artifact_command(
         runner_context: RunnerContext,
         kwargs,
     ):
-        """Since the storage provider factory returns an async context manager,
-        we need the code that uses the storage_provider to be an async function.
+        """Since the backend session is an async context manager, the code that
+        uses it has to be an async function.
         """
-        async with storage_provider_context as storage_provider:
-            loaded_model = storage_provider.get_model()[0]
+        async with backend_factory.session(
+            lock_type=LockType.ARTIFACT,
+            project_id=project_id,
+            token=token,
+            runner_context=runner_context,
+        ) as session:
+            loaded_model = ReadOnlyModel(session.get_model(configuration)[0])
             pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
 
             artifact_kind = artifact.container.container_type.kind
             if kwargs["list"]:
                 # If the user requested to list the available objects, we print them
                 # and exit
-                print(f'Available objects for kind: "{artifact_kind.__name__}"')
-                for obj in loaded_model.all_objects(artifact_kind):
-                    print(f" - {obj}")
+                print(f'Available objects for kind: "{artifact_kind.serialize()}"')
+                for object_id in loaded_model.all_objects(artifact_kind):
+                    aliases = loaded_model.aliases(object_id)
+                    if aliases:
+                        print(f" - {object_id} ({', '.join(aliases)})")
+                    else:
+                        print(f" - {object_id}")
                 return
 
             # Compute the requests for the incoming containers of the
@@ -124,25 +134,23 @@ def build_artifact_command(
             if objects is None:
                 incoming = loaded_model.all_objects(artifact_kind)
             else:
-                obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
                 incoming = ObjectSet(
                     kind=artifact_kind,
                     objects={
-                        obj_id_type.deserialize(obj)
-                        for obj in objects.split(",")
-                        if obj.strip() != ""
+                        not_none(
+                            loaded_model.resolve_alias(artifact_kind, specification),
+                            ValueError(
+                                f'Unknown object or alias "{specification}" '
+                                f'for kind "{artifact_kind.serialize()}"'
+                            ),
+                        )
+                        for specification in objects.split(",")
+                        if specification.strip() != ""
                     },
                 )
 
-            # Finally, run the analysis
-            res_container = pipeline.get_artifact(
-                model=ReadOnlyModel(loaded_model),
-                artifact=artifact,
-                requests=incoming,
-                configuration=configuration,
-                storage_provider=storage_provider,
-                runner_context=runner_context,
-            )
+            # Finally, produce the artifact
+            res_container = session.get_artifact(loaded_model, artifact, incoming, configuration)
             pypeline_logger.debug_log("Artifact computed")
 
             if result_path is not None:
@@ -171,11 +179,11 @@ def build_artifact_command(
         help=(
             "Path to write the computed artifacts to, if not specified, the "
             "result will be printed to stdout. "
-            "The default container_format when printing to stdout is json."
+            "The default output format is 'auto' (see --format)."
         ),
     )
     @debug_option
-    @container_format_options
+    @container_format_options(ContainerFormat.AUTO)
     @add_pipeline_config_options(pipeline, artifact.node)
     @exec_wrapper_if_needed
     @pass_context
@@ -193,20 +201,25 @@ def build_artifact_command(
         pypeline_logger.debug_log(f'container_format: "{container_format}"')
         pypeline_logger.debug_log(f'kwargs: "{kwargs}"')
 
-        # Setup the storage provider
-        storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
-        storage_provider_context = storage_provider_factory.get(
-            base_directory=ctx.obj.base_directory,
+        # Setup the backend factory (local compute or a remote daemon, per the
+        # backend URL)
+        backend_factory = backend_factory_for(
+            ctx.obj.storage_provider_url,
             pipeline=ctx.obj.pipeline,
-            lock_type=LockType.ARTIFACT,
-            project_id=project_id,
-            token=token,
+            base_directory=ctx.obj.base_directory,
             cache_dir=ctx.obj.cache_dir,
         )
+        if runner_context.use_system and BackendFeature.DEBUG not in backend_factory.features:
+            raise click.UsageError(
+                "--debug is not supported by the selected backend: pipes and "
+                "analyses do not run locally, so there is nothing to inspect."
+            )
         # Switch to the async portion
         asyncio.run(
             async_part_of_command(
-                storage_provider_context=storage_provider_context,
+                backend_factory=backend_factory,
+                project_id=project_id,
+                token=token,
                 objects=objects,
                 configuration=ctx.obj.configuration,
                 result_path=result_path,

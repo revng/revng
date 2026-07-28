@@ -21,6 +21,7 @@ import yaml
 
 from revng.internal.support import cache_directory
 from revng.pypeline.analysis import Analysis
+from revng.pypeline.cli.backend import BackendFeature, backend_factory_for
 from revng.pypeline.cli.common_options import AllAnalysesOption, add_pipeline_config_options
 from revng.pypeline.cli.common_options import container_format_options, debug_option, full_help
 from revng.pypeline.cli.common_options import project_id_option, token_option
@@ -163,12 +164,12 @@ def _build_artifact_command(pipeline: Pipeline, artifact_name: str):
         help=(
             "Path to write the computed artifacts to, if not specified, the "
             "result will be printed to stdout. "
-            "The default container_format when printing to stdout is json."
+            "The default output format is 'auto' (see --format)."
         ),
     )
     @debug_option
     @analyses_option
-    @container_format_options
+    @container_format_options(ContainerFormat.AUTO)
     @add_pipeline_config_options(
         pipeline, pipeline.artifacts[artifact_name].node, AllAnalysesOption.ALL_ANALYSES
     )
@@ -325,6 +326,11 @@ def analyze(
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
 )
 @click.option("--no-initial-auto-analysis", is_flag=True)
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Overwrite an existing project model instead of failing.",
+)
 @project_id_option
 @token_option
 @exec_wrapper_if_needed
@@ -333,18 +339,31 @@ def init(
     ctx: ClickContext,
     binary: Path | None,
     no_initial_auto_analysis: bool,
+    overwrite: bool,
     project_id: str,
     token: str,
 ):
     """Initialize a new project."""
+    backend_factory = backend_factory_for(
+        ctx.obj.storage_provider_url,
+        pipeline=ctx.obj.pipeline,
+        base_directory=ctx.obj.base_directory,
+        cache_dir=ctx.obj.cache_dir,
+    )
+    if BackendFeature.INIT not in backend_factory.features:
+        raise click.UsageError(
+            "`init` cannot be used against a `daemon://` URL: a daemon manages "
+            "its own project. Import the binary with an analysis instead."
+        )
+
     model_type = get_singleton(Model)  # type: ignore[type-abstract]
 
     storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
-    if not storage_provider_factory.init(ctx.obj.base_directory):
+    if not storage_provider_factory.init(ctx.obj.base_directory, overwrite):
         model_name = model_type.model_name()
         raise click.UsageError(
             f"File {model_name} is already present in the current directory. "
-            "Refusing to overwrite it."
+            "Refusing to overwrite it (pass --overwrite to replace it)."
         )
 
     async def async_part_of_command(
@@ -568,6 +587,8 @@ def patch_pype():
             param.default = Path(__file__).parent.parent / "pipeline.yml"
         elif param.name == "cache_dir":
             param.default = str(cache_directory())
+        elif param.name == "storage_provider":
+            param.envvar = ["REVNG_STORAGE_PROVIDER", param.envvar]
 
     # Add native counterparts to the pipeline subcommand
     pipeline.add_command(run_pipe_native)
