@@ -108,6 +108,7 @@ set(FILECHECK_TESTS
     clift/emit-field-accesses/array-ptradd-linear-combination.mlir
     clift/emit-field-accesses/array-struct-stride-mul.mlir
     clift/emit-field-accesses/array-struct-stride-shl.mlir
+    clift/emit-field-accesses/common-strides-selection.mlir
     clift/emit-field-accesses/negative-stride-and-offset-no-rewrite.mlir
     clift/emit-field-accesses/struct-array-field-no-traverse.mlir
     clift/emit-field-accesses/struct-array-field-target.mlir

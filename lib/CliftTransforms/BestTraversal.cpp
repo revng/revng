@@ -333,12 +333,22 @@ std::strong_ordering Score::operator<=>(const Score &Other) {
 /// The `score` function is used in order to obtain a _similarity_ `Score`
 /// between the `Explicit` and `Ideal` `Traversal`s. We want to select the
 /// `Traversal` with the minimal score as the one that will constitute the
-/// pointer access rewrite
-static Score score(const Traversal &Explicit, const Traversal &Ideal) {
+/// pointer access rewrite.
+///
+/// `AccessArrays` are the array shapes the access actually walks (the shapes of
+/// the `ArrayPath` the `Explicit` was built from). They are compared against
+/// `Ideal.TraversedArrays` to compute the `CommonStrides` criterion. They are
+/// passed separately, rather than read from `Explicit.TraversedArrays`, because
+/// `toTraversal` builds the `Explicit` `Traversal` as a copy of the `Ideal`,
+/// so its `TraversedArrays` would be identical to `Ideal.TraversedArrays` and
+/// `CommonStrides` would degenerate to the `Ideal`'s array count.
+static Score score(const Traversal &Explicit,
+                   const Traversal &Ideal,
+                   llvm::ArrayRef<ArrayShape> AccessArrays) {
   int64_t StartDistance = Explicit.begin() - Ideal.begin();
   int64_t EndDistance = Explicit.end() - Ideal.end();
 
-  uint64_t CommonStrides = commonPrefixStrides(Explicit.TraversedArrays,
+  uint64_t CommonStrides = commonPrefixStrides(AccessArrays,
                                                Ideal.TraversedArrays);
   uint64_t TypeDistValue = typeDistance(Explicit.TargetType, Ideal.TargetType);
 
@@ -685,6 +695,31 @@ TypeTraversalAnalyzer::traverseImpl(mlir::Type Type,
 }
 
 // =============================================================================
+// `ExplicitPointerArithmetic` struct definition
+// =============================================================================
+
+/// An `ExplicitPointerArithmetic` pairs an explicit `PointerArithmetic` (a
+/// `PointerArithmetic` re-expressed along a concrete `ArrayPath`, so that every
+/// array index is evident in its `LinearCombination`) with the array shapes of
+/// that `ArrayPath`, sorted in the same descending-stride order as
+/// `Traversal::TraversedArrays`.
+///
+/// `AccessArrays` records the array structure the access *actually* walks. It
+/// is what the `CommonStrides` scoring criterion compares against each
+/// candidate `Ideal` traversal's arrays: an access stepping through a stride-2
+/// array should prefer an `Ideal` that goes through a stride-2 array. This is
+/// kept separate from the `Traversal` produced by `toTraversal`, whose
+/// `TraversedArrays` are a copy of the `Ideal`'s (used, unchanged, to drive the
+/// emission and the runtime-index representability checks).
+struct ExplicitPointerArithmetic {
+  PointerArithmetic Arithmetic;
+  llvm::SmallVector<ArrayShape> AccessArrays;
+};
+
+/// A list of `ExplicitPointerArithmetic`s, one per compatible `ArrayPath`
+using ExplicitPointerArithmetics = std::vector<ExplicitPointerArithmetic>;
+
+// =============================================================================
 // `BestTraversalChooser` class definition
 // =============================================================================
 
@@ -719,9 +754,11 @@ private:
                         const ArrayPath &ArrayPath);
 
   /// Obtain all the explicit rewritings of the input `Arithmetic` following all
-  /// the `ArrayPath`s for the `BaseType`. We explicitly specify the `BaseType`
-  /// to handle the _pointer as array_ situation.
-  std::vector<PointerArithmetic>
+  /// the `ArrayPath`s for the `BaseType`. Each rewriting is paired with the
+  /// array shapes of the `ArrayPath` it followed (see
+  /// `ExplicitPointerArithmetic`). We explicitly specify the `BaseType` to
+  /// handle the _pointer as array_ situation.
+  ExplicitPointerArithmetics
   toExplicitArrayAccesses(const PointerArithmetic &Arithmetic,
                           mlir::Type BaseType);
 
@@ -735,7 +772,7 @@ private:
   getBestTraversal(mlir::Type BaseType,
                    mlir::Type PointeeType,
                    const PointerArithmetic &Arithmetic,
-                   const std::vector<PointerArithmetic> &ExplicitArithmetics);
+                   const ExplicitPointerArithmetics &ExplicitAccesses);
 };
 
 std::optional<Traversal>
@@ -766,8 +803,8 @@ BestTraversalChooser::computeBestTraversal(ExpressionOpInterface
                       .getPointerSize()
                     * 8;
 
-  std::vector<PointerArithmetic>
-    ExplicitArithmetics = toExplicitArrayAccesses(Arithmetic, BaseType);
+  ExplicitPointerArithmetics
+    ExplicitAccesses = toExplicitArrayAccesses(Arithmetic, BaseType);
 
   mlir::Type
     PointeeType = clift::unwrapped_cast<PointerType>(PointerToReplaceType)
@@ -781,7 +818,7 @@ BestTraversalChooser::computeBestTraversal(ExpressionOpInterface
   auto BestTraversal = getBestTraversal(BaseType,
                                         PointeeType,
                                         Arithmetic,
-                                        ExplicitArithmetics);
+                                        ExplicitAccesses);
 
   // In case we end up with a `BestTraversal` which does not actually traverse
   // any `struct` field or `array` element, we avoid the rewriting altogether,
@@ -904,11 +941,11 @@ BestTraversalChooser::getExplicitArithmetic(const PointerArithmetic &Arithmetic,
   return Result;
 }
 
-std::vector<PointerArithmetic>
+ExplicitPointerArithmetics
 BestTraversalChooser::toExplicitArrayAccesses(const PointerArithmetic
                                                 &Arithmetic,
                                               mlir::Type BaseType) {
-  std::vector<PointerArithmetic> Result;
+  ExplicitPointerArithmetics Result;
 
   // We retrieve all the `ArrayPath`s that we can build from `BaseType`
   const std::vector<ArrayPath> &ArrayPaths = TraversalAnalyzer
@@ -925,11 +962,16 @@ BestTraversalChooser::toExplicitArrayAccesses(const PointerArithmetic
 
     // Try and turn `Arithmetic` into a form where all array indexes, even the
     // constant ones, are explicit. In case of success, we enqueue the
-    // `Explicit` in the final `Result`s
+    // `Explicit`, together with the array shapes it walked, in the final
+    // `Result`s. The array shapes carry the access's real array structure,
+    // which the `CommonStrides` criterion compares against each candidate
+    // `Ideal`.
     std::optional<PointerArithmetic>
       Explicit = getExplicitArithmetic(Arithmetic, *TheArrayPath);
     if (Explicit) {
-      Result.push_back(std::move(*Explicit));
+      Result
+        .push_back({ .Arithmetic = std::move(*Explicit),
+                     .AccessArrays = arrayPathToSortedVector(*TheArrayPath) });
     }
   }
 
@@ -950,7 +992,14 @@ Traversal BestTraversalChooser::toTraversal(const PointerArithmetic &PA,
   // Because `PA` is explicit (i.e. all array traversals at fixed index have
   // been expanded in the `LinearCombination`), the `Result` `Traversal` will
   // always be the same, except that we have to adjust the leftover offset
-  // and fix the `TargetType` to the actual type required by the traversal
+  // and fix the `TargetType` to the actual type required by the traversal.
+  //
+  // Note the `Result`'s `TraversedArrays` deliberately stay those of the
+  // `Ideal`: they describe the concrete type structure the emission walks (and
+  // whose real strides the runtime-index representability check relies on), not
+  // the array structure the access walks. The latter is carried separately in
+  // `ExplicitPointerArithmetic::AccessArrays` and only used to score
+  // `CommonStrides`.
   auto BaseOffset = PA.Offset.BaseOffset.getZExtValue();
   Traversal Result = Ideal;
   Result.TargetType = PointeeType;
@@ -965,8 +1014,8 @@ std::optional<Traversal>
 BestTraversalChooser::getBestTraversal(mlir::Type BaseType,
                                        mlir::Type PointeeType,
                                        const PointerArithmetic &Arithmetic,
-                                       const std::vector<PointerArithmetic>
-                                         &ExplicitArithmetics) {
+                                       const ExplicitPointerArithmetics
+                                         &ExplicitAccesses) {
 
   std::optional<Traversal> BestTraversal = std::nullopt;
   Score BestScore = Score::invalid();
@@ -975,7 +1024,8 @@ BestTraversalChooser::getBestTraversal(mlir::Type BaseType,
   const std::vector<Traversal> &Traversals = TraversalAnalyzer
                                                .getTraversals(BaseType);
 
-  for (const PointerArithmetic &Explicit : ExplicitArithmetics) {
+  for (const ExplicitPointerArithmetic &ExplicitAccess : ExplicitAccesses) {
+    const PointerArithmetic &Explicit = ExplicitAccess.Arithmetic;
 
     // Get the range of `Traversal`s to compare from the `TraversalAnalyzer`.
     // There are two modes of operation for this: with `SmartLookup`, or
@@ -1004,7 +1054,9 @@ BestTraversalChooser::getBestTraversal(mlir::Type BaseType,
       // different is just the `LeftOverOffset`.
       Traversal ExplicitTraversal = toTraversal(Explicit, PointeeType, Ideal);
 
-      Score CurrentScore = score(ExplicitTraversal, Ideal);
+      Score CurrentScore = score(ExplicitTraversal,
+                                 Ideal,
+                                 ExplicitAccess.AccessArrays);
 
       if (!CurrentScore.Valid)
         continue;
