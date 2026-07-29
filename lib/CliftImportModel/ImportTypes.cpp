@@ -18,8 +18,8 @@
 #include "revng/Model/ABI/Definition.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/Segment.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 
 namespace {
 

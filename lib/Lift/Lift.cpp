@@ -2,11 +2,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Transforms/IPO/StripSymbols.h"
+
 #include "revng/Lift/LibTcg.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ResourceFinder.h"
+#include "revng/Support/SimplePassManager.h"
 
 #include "CodeGenerator.h"
 #include "PostLiftVerifyPass.h"
@@ -25,11 +28,6 @@ alias A1("e",
          cat(MainCategory));
 
 } // namespace
-
-char LiftPass::ID;
-
-using Register = llvm::RegisterPass<LiftPass>;
-static Register X("lift", "Lift Pass", true, true);
 
 struct ExternalFilePaths {
   std::string LibHelpers;
@@ -63,41 +61,6 @@ findExternalFilePaths(const model::Architecture::Values Architecture) {
   Paths.EarlyLinked = OptionalEarlyLinked.value();
 
   return Paths;
-}
-
-bool LiftPass::runOnModule(llvm::Module &M) {
-  llvm::Task T(4, "Lift pass");
-  const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();
-
-  T.advance("findFiles", false);
-  const auto Paths = findExternalFilePaths(Model->Architecture());
-
-  // Look for the library in the system's paths
-  T.advance("Load libtcg", false);
-  auto TheLibTcg = LibTcg::get(Model->Architecture());
-
-  // Get access to raw binary data
-  RawBinaryView &RawBinary = getAnalysis<LoadBinaryWrapperPass>().get();
-
-  T.advance("Construct CodeGenerator", false);
-  CodeGenerator Generator(RawBinary,
-                          &M,
-                          Model,
-                          Paths.LibHelpers,
-                          Paths.EarlyLinked,
-                          model::Architecture::x86_64);
-
-  std::optional<uint64_t> EntryPointAddressOptional;
-  if (EntryPointAddress.getNumOccurrences() != 0)
-    EntryPointAddressOptional = EntryPointAddress;
-  T.advance("Translate", true);
-
-  Generator.translate(TheLibTcg, EntryPointAddressOptional);
-
-  sortModule(M);
-
-  return false;
 }
 
 /// Map describing the jump targets in the LLVM module, each one is identified
@@ -168,9 +131,9 @@ CustomInvalidationData Lift::run() {
   // TODO: convert this from a pass to a free-standing function
   PostLiftVerifyPass{}.runOnModule(Module);
 
-  // TODO: substitute with strip-dead-debug-info once the old pipeline
-  //       is dropped
-  pruneDICompileUnits(Module);
+  SimplePassManager PM;
+  PM.addPass(llvm::StripDeadDebugInfoPass());
+  PM.run(Module);
 
   // Compute invalidation data
   Buffer SerializedInvalidation;

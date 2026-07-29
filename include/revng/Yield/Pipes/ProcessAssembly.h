@@ -10,46 +10,14 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
+#include "revng/Model/RawBinaryView.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
-#include "revng/Pipeline/Contract.h"
-#include "revng/Pipeline/Target.h"
-#include "revng/Pipes/FileContainer.h"
-#include "revng/Pipes/StringMap.h"
 #include "revng/Yield/Function.h"
 #include "revng/Yield/Pipes/Containers.h"
 #include "revng/Yield/Pipes/YieldControlFlow.h"
 
 class DissassemblyHelper;
-
-namespace revng::pipes {
-
-class ProcessAssembly {
-public:
-  static constexpr const auto Name = "process-assembly";
-
-public:
-  inline std::array<pipeline::ContractGroup, 1> getContract() const {
-    using namespace pipeline;
-
-    return { ContractGroup{
-      Contract(kinds::Binary, 0, kinds::Binary, 0, InputPreservation::Preserve),
-      Contract(kinds::CFG,
-               1,
-               kinds::FunctionAssemblyInternal,
-               2,
-               InputPreservation::Preserve) } };
-  }
-
-public:
-  void run(pipeline::ExecutionContext &Context,
-           const BinaryFileContainer &SourceBinary,
-           const CFGMap &CFGMap,
-           FunctionAssemblyStringMap &OutputAssembly);
-};
-
-} // namespace revng::pipes
 
 namespace revng::pypeline::piperuns {
 

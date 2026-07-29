@@ -9,8 +9,3 @@
 #include "llvm/Support/CommandLine.h"
 
 extern llvm::cl::OptionCategory MainCategory;
-
-/// This is the path of the input binary. CLI tools should populate this on
-/// every invocations. Users of this variable need to account for it being
-/// possibly empty.
-extern std::string InputPath;

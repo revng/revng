@@ -14,8 +14,8 @@
 #include "revng/Model/StructField.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/PTML/Constants.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 
 inline Logger TypePrinterLog{ "clift-type-definition-printer" };
 

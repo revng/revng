@@ -6,8 +6,8 @@
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/Binary.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 #include "revng/Yield/CallEdge.h"
 #include "revng/Yield/CrossRelations/CrossRelations.h"
 

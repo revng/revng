@@ -50,7 +50,6 @@ function(typescript_module)
 endfunction()
 
 typescript_module(TARGET_NAME model)
-typescript_module(TARGET_NAME pipeline-description)
 
 install(DIRECTORY "${CMAKE_BINARY_DIR}/lib/node_modules"
         DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")

@@ -5,15 +5,8 @@
 revng_add_analyses_library_internal(
   revngModelImporter ImportPrototypesFromDatabase.cpp PrototypeMatching.cpp)
 
-target_link_libraries(
-  revngModelImporter
-  revngModel
-  revngModelPasses
-  revngPipeline
-  revngPipes
-  revngSupport
-  ${LLVM_LIBRARIES}
-  sqlite3)
+target_link_libraries(revngModelImporter revngModel revngModelPasses
+                      revngSupport ${LLVM_LIBRARIES} sqlite3)
 
 add_subdirectory(Binary)
 add_subdirectory(DebugInfo)

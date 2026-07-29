@@ -22,10 +22,6 @@ RemoveHelperCallsPass::run(llvm::Function &F,
                            llvm::FunctionAnalysisManager &FAM) {
   using namespace llvm;
 
-  // Get the result of the GCBI analysis
-  GCBI = &(FAM.getResult<GeneratedCodeBasicInfoAnalysis>(F));
-  revng_assert(GCBI != nullptr);
-
   SmallVector<Instruction *, 16> ToReplace;
   for (auto &BB : F)
     for (auto &I : BB)
@@ -49,7 +45,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
 
     // Assumption: helpers do not leave the stack altered, thus we can save the
     // stack pointer and restore it back later.
-    auto *SP = Builder.createLoad(GCBI->spReg());
+    auto *SP = Builder.createLoad(GCBI.spReg());
 
     auto *RetTy = cast<CallInst>(I)->getFunctionType()->getReturnType();
     auto *OriginalHelperMarker = OFPOriginalHelper.get(RetTy,
@@ -65,7 +61,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
       Clobberer.clobber(Builder, CSV);
 
     // Restore stack pointer back.
-    Builder.CreateStore(SP, GCBI->spReg());
+    Builder.CreateStore(SP, GCBI.spReg());
 
     I->replaceAllUsesWith(NewHelper);
     I->eraseFromParent();

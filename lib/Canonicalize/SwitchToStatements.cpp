@@ -58,7 +58,6 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRBuilder.h"
@@ -1252,9 +1251,11 @@ llvmGetPassPluginInfo() {
            SwitchToStatements::registerCallbacks };
 }
 
-static bool switchToStatements(const model::Binary *Model, llvm::Function &F) {
+namespace revng::pypeline::piperuns {
 
-  revng_log(Log, "switchToStatements: " << F.getName());
+void SwitchToStatements::runOnLLVMFunction(const model::Function &Function,
+                                           llvm::Function &LLVMFunction) {
+  revng_log(Log, "switchToStatements: " << LLVMFunction.getName());
 
   ModuleAnalysisManager MAM;
   FunctionAnalysisManager FAM;
@@ -1277,44 +1278,8 @@ static bool switchToStatements(const model::Binary *Model, llvm::Function &F) {
   registerAliasAnalysis(FAM);
   registerCommonAnalyses(FAM);
   FunctionPassManager FPM;
-  FPM.addPass(SwitchToStatements(getPointerSize(Model->Architecture())));
-  llvm::PreservedAnalyses Preserved = FPM.run(F, FAM);
-
-  return Preserved.areAllPreserved() ? false : true;
-}
-
-class SwitchToStatementsPass : public FunctionPass {
-public:
-  static char ID;
-
-  SwitchToStatementsPass() : FunctionPass(ID) {}
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesCFG();
-    AU.addRequired<LoadModelWrapperPass>();
-  }
-
-  bool runOnFunction(Function &F) override;
-};
-
-char SwitchToStatementsPass::ID = 0;
-
-bool SwitchToStatementsPass::runOnFunction(llvm::Function &F) {
-  auto
-    *Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel().get();
-  return switchToStatements(Model, F);
-}
-
-using Register = RegisterPass<SwitchToStatementsPass>;
-static Register
-  Y("switch-to-statements", "SwitchToStatementsPass", false, false);
-
-namespace revng::pypeline::piperuns {
-
-// TODO: inline switchToStatements once we dismiss the old pipeline
-void SwitchToStatements::runOnLLVMFunction(const model::Function &Function,
-                                           llvm::Function &LLVMFunction) {
-  switchToStatements(Model.get(), LLVMFunction);
+  FPM.addPass(::SwitchToStatements(getPointerSize(Model->Architecture())));
+  llvm::PreservedAnalyses Preserved = FPM.run(LLVMFunction, FAM);
 }
 
 } // namespace revng::pypeline::piperuns

@@ -5,7 +5,7 @@
 // TODO: this test should start *only* from the model, as the clift for it can
 //       easily be generated from it.
 
-// RUN: %root/bin/revng pipe import-descriptive-info %S/../model.yml %s /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
+// RUN: %root/bin/revng2 pipeline run-pipe import-descriptive-info %S/../model.yml <(tar -c --transform 's;.*;/binary;' %s) /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
 
 !void = !clift.void
 !uint8_t = !clift.int<unsigned 1>

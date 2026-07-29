@@ -11,32 +11,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/PipeboxCommon/RawContainer.h"
-#include "revng/Pipeline/Contract.h"
-#include "revng/Pipes/StringMap.h"
 #include "revng/Yield/Pipes/ProcessCallGraph.h"
-
-namespace revng::pipes {
-
-class YieldCallGraph {
-public:
-  static constexpr const auto Name = "yield-call-graph";
-
-public:
-  inline std::array<pipeline::ContractGroup, 1> getContract() const {
-    return { pipeline::ContractGroup(kinds::BinaryCrossRelations,
-                                     0,
-                                     kinds::CallGraphSVG,
-                                     1,
-                                     pipeline::InputPreservation::Preserve) };
-  }
-
-public:
-  llvm::Error run(pipeline::ExecutionContext &Context,
-                  const CrossRelationsFileContainer &InputFile,
-                  CallGraphSVGFileContainer &OutputFile);
-};
-
-} // namespace revng::pipes
 
 namespace revng::pypeline {
 

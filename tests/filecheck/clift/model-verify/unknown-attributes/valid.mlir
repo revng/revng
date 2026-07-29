@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng pipe verify-against-model %S/model.yml %s /dev/null
+// RUN: %root/bin/revng2 pipeline run-pipe verify-against-model %S/model.yml <(tar -c --transform 's;.*;/binary;' %s) /dev/null
 
 !void = !clift.void
 !uint64_t = !clift.int<unsigned 8>

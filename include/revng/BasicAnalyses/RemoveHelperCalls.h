@@ -11,10 +11,10 @@
 
 class RemoveHelperCallsPass
   : public llvm::PassInfoMixin<RemoveHelperCallsPass> {
-  GeneratedCodeBasicInfo *GCBI = nullptr;
+  GeneratedCodeBasicInfo &GCBI;
 
 public:
-  RemoveHelperCallsPass() = default;
+  RemoveHelperCallsPass(GeneratedCodeBasicInfo &GCBI) : GCBI(GCBI){};
 
   llvm::PreservedAnalyses run(llvm::Function &F,
                               llvm::FunctionAnalysisManager &FAM);

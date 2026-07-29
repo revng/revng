@@ -27,13 +27,14 @@
 class FunctionCallIdentification : public llvm::ModulePass {
 public:
   static char ID;
+  GeneratedCodeBasicInfo &GCBI;
 
 public:
-  FunctionCallIdentification() : llvm::ModulePass(ID) {}
+  FunctionCallIdentification(GeneratedCodeBasicInfo &GCBI) :
+    llvm::ModulePass(ID), GCBI(GCBI) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
-    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   }
 
   bool runOnModule(llvm::Module &M) override;

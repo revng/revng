@@ -664,9 +664,10 @@ void CodeGenerator::translate(LibTcg &LibTcg,
   revng_assert(Phis.begin() == Phis.end(),
                "A phi has appeared in the dispatcher");
 
+  GeneratedCodeBasicInfo GCBI(*Model, *TheModule);
   legacy::PassManager PostInstCombinePM;
-  PostInstCombinePM.add(new LoadModelWrapperPass(Model));
-  PostInstCombinePM.add(new PruneRetSuccessors);
+  PostInstCombinePM.add(new FunctionCallIdentification(GCBI));
+  PostInstCombinePM.add(new PruneRetSuccessors(GCBI));
   PostInstCombinePM.add(createGlobalDCEPass());
   PostInstCombinePM.run(*TheModule);
 

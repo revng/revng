@@ -3,46 +3,8 @@
 //
 
 #include "revng/CliftImportModel/Verify.h"
-#include "revng/CliftPipes/CliftContainer.h"
 #include "revng/CliftPipes/VerifyAgainstModel.h"
 #include "revng/Model/Binary.h"
-#include "revng/Pipeline/RegisterPipe.h"
-
-namespace {
-
-class VerifyAgainstModelPipe {
-public:
-  static constexpr auto Name = "verify-against-model";
-
-  std::array<pipeline::ContractGroup, 1> getContract() const {
-    using namespace pipeline;
-    using namespace revng::kinds;
-
-    return { ContractGroup({ Contract(CliftFunction,
-                                      0,
-                                      CliftFunction,
-                                      0,
-                                      InputPreservation::Preserve) }) };
-  }
-
-  void run(pipeline::ExecutionContext &EC,
-           revng::pipes::CliftFunctionContainer &CliftFunctionContainer) {
-
-    auto R = clift::verifyAgainstModel(CliftFunctionContainer.getModule(),
-                                       *revng::getModelFromContext(EC));
-    revng_assert(R.succeeded());
-
-    EC.commitAllFor(CliftFunctionContainer);
-  }
-};
-
-static pipeline::RegisterPipe<VerifyAgainstModelPipe> X;
-
-} // namespace
-
-//
-// New pipeline logic starts here.
-//
 
 namespace {
 

@@ -15,8 +15,6 @@ target_link_libraries(
   revngCliftImportModel
   revngModel
   revngPTML
-  revngPipeline
-  revngPipes
   revngSupport
   clangAST
   clangBasic

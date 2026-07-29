@@ -27,7 +27,6 @@ revng_add_library_internal(
   ResourceFinder.cpp
   Statistics.cpp
   Tag.cpp
-  GzipTarFile.cpp
   Tar.cpp
   GzipStream.cpp
   WindowsApiSetSchemaParser.cpp

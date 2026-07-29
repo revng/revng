@@ -31,13 +31,6 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/TypeDefinition.h"
-#include "revng/Pipeline/AllRegistries.h"
-#include "revng/Pipeline/Contract.h"
-#include "revng/Pipeline/ExecutionContext.h"
-#include "revng/Pipes/FunctionPass.h"
-#include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/RootKind.h"
-#include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
@@ -46,61 +39,41 @@
 
 using namespace llvm;
 
-class EnforceABI final : public pipeline::FunctionPassImpl {
+class EnforceABI {
 private:
   using UsedRegisters = abi::FunctionType::UsedRegisters;
   using CFG = efa::ControlFlowGraph;
-  using CFGGetterType = std::function<const CFG &(const MetaAddress &)>;
 
 private:
   const model::Binary &Binary;
   llvm::Module &M;
+  const model::Function &ModelFunction;
+  llvm::Function &OldFunction;
+  const revng::pypeline::CFGMap &CFGMap;
+  GeneratedCodeBasicInfo GCBI;
+
   std::map<Function *, Function *> OldToNew;
   std::vector<Function *> OldFunctions;
   Function *FunctionDispatcher = nullptr;
   StructInitializers Initializers;
-  CFGGetterType CFGGetter;
-  GeneratedCodeBasicInfo &GCBI;
 
 public:
-  EnforceABI(llvm::ModulePass &Pass,
-             const model::Binary &Binary,
-             llvm::Module &M) :
-    pipeline::FunctionPassImpl(Pass),
-    Binary(Binary),
-    M(M),
-    Initializers(&M),
-    GCBI(getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI()) {
-    ControlFlowGraphCache &Cache = getAnalysis<ControlFlowGraphCachePass>()
-                                     .get();
-    CFGGetter =
-      [&Cache](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
-      return Cache.getControlFlowGraph(Address);
-    };
-  }
-
   EnforceABI(const model::Binary &Binary,
-             llvm::Module &M,
-             GeneratedCodeBasicInfo &GCBI,
-             CFGGetterType CFGGetter) :
-    pipeline::FunctionPassImpl(),
+             const model::Function &ModelFunction,
+             llvm::Function &OldFunction,
+             const revng::pypeline::CFGMap &CFGMap) :
     Binary(Binary),
-    M(M),
-    Initializers(&M),
-    CFGGetter(CFGGetter),
-    GCBI(GCBI) {}
+    M(*OldFunction.getParent()),
+    ModelFunction(ModelFunction),
+    OldFunction(OldFunction),
+    CFGMap(CFGMap),
+    GCBI(Binary, M),
+    Initializers(&M) {}
 
-  ~EnforceABI() final = default;
+  ~EnforceABI() = default;
 
 public:
-  bool prologue() final;
-
-  bool runOnFunction(const model::Function &ModelFunction,
-                     llvm::Function &Function) final;
-
-  bool epilogue() final;
-
-  static void getAnalysisUsage(llvm::AnalysisUsage &AU);
+  void run();
 
 private:
   Function *getOrCreateNewFunction(Function &OldFunction,
@@ -121,16 +94,9 @@ private:
                          const efa::CallEdge &CallSite);
 };
 
-template<>
-char pipeline::FunctionPass<EnforceABI>::ID = 0;
-
-using Register = RegisterPass<pipeline::FunctionPass<EnforceABI>>;
-
-static Register X("enforce-abi", "Enforce ABI Pass", true, true);
-
 static Logger EnforceABILog("enforce-abi");
 
-bool EnforceABI::prologue() {
+void EnforceABI::run() {
   FunctionDispatcher = getIRHelper("function_dispatcher", M);
 
   if (FunctionDispatcher != nullptr)
@@ -162,13 +128,8 @@ bool EnforceABI::prologue() {
     OldToNew[OldFunction] = NewFunction;
   }
 
-  return true;
-}
-
-bool EnforceABI::runOnFunction(const model::Function &FunctionModel,
-                               llvm::Function &OldFunction) {
   // Recreate the function with the right prototype and the function prologue
-  const auto *ProtoT = Binary.prototypeOrDefault(FunctionModel.prototype());
+  const auto *ProtoT = Binary.prototypeOrDefault(ModelFunction.prototype());
   revng_assert(ProtoT != nullptr);
   auto UsedRegisters = abi::FunctionType::usedRegisters(*ProtoT);
   Function *NewFunction = getOrCreateNewFunction(OldFunction, UsedRegisters);
@@ -191,12 +152,8 @@ bool EnforceABI::runOnFunction(const model::Function &FunctionModel,
 
   // Actually process function calls
   for (CallInst *Call : Calls)
-    handleRegularFunctionCall(FunctionModel.Entry(), Call);
+    handleRegularFunctionCall(ModelFunction.Entry(), Call);
 
-  return true;
-}
-
-bool EnforceABI::epilogue() {
   // Drop all the old functions, after we stole all of its blocks
   for (Function *OldFunction : OldFunctions)
     eraseFromParent(OldFunction);
@@ -207,8 +164,6 @@ bool EnforceABI::epilogue() {
       EliminateUnreachableBlocks(*F, nullptr, false);
 
   revng::verify(&M);
-
-  return true;
 }
 
 using UsedRegisters = abi::FunctionType::UsedRegisters;
@@ -344,8 +299,8 @@ void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
 
   // Identify the corresponding call site in the model
   Function *CallerFunction = Call->getParent()->getParent();
-  const efa::ControlFlowGraph
-    &FM = CFGGetter(getMetaAddressOfIsolatedFunction(*CallerFunction));
+  MetaAddress Entry = getMetaAddressOfIsolatedFunction(*CallerFunction);
+  const efa::ControlFlowGraph &FM = *CFGMap.getElement(ObjectID(Entry));
 
   const efa::BasicBlock *CallerBlock = FM.findBlock(GCBI, Call->getParent());
   revng_assert(CallerBlock != nullptr);
@@ -487,87 +442,12 @@ CallInst *EnforceABI::generateCall(revng::IRBuilder &Builder,
   return Result;
 }
 
-void EnforceABI::getAnalysisUsage(llvm::AnalysisUsage &AU) {
-  AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-  AU.addRequired<ControlFlowGraphCachePass>();
-  AU.setPreservesAll();
-}
-
-struct EnforceABIPipe {
-  static constexpr auto Name = "enforce-abi";
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace revng;
-    using namespace pipeline;
-    return { ContractGroup({ Contract(kinds::Isolated,
-                                      1,
-                                      kinds::ABIEnforced,
-                                      1,
-                                      InputPreservation::Erase),
-                             Contract(kinds::CFG,
-                                      0,
-                                      kinds::ABIEnforced,
-                                      1,
-                                      InputPreservation::Preserve) }) };
-  }
-
-  void run(pipeline::ExecutionContext &EC,
-           const revng::pipes::CFGMap &CFGMap,
-           pipeline::LLVMContainer &ModuleContainer) {
-    llvm::legacy::PassManager Manager;
-    Manager.add(new pipeline::LoadExecutionContextPass(&EC,
-                                                       ModuleContainer.name()));
-    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(EC)));
-    Manager.add(new ControlFlowGraphCachePass(CFGMap));
-    Manager.add(new pipeline::FunctionPass<EnforceABI>());
-    Manager.run(ModuleContainer.getModule());
-  }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    const auto &Model = *revng::getModelFromContext(Context);
-
-    if (!Model.DefaultPrototype().isEmpty())
-      return llvm::Error::success();
-
-    for (const auto &Function : Model.Functions()) {
-      if (Function.Prototype().isEmpty()) {
-        return revng::createError("Binary needs to either have a default "
-                                  "prototype, or a prototype for each "
-                                  "function.");
-      }
-    }
-
-    for (const auto &Function : Model.ImportedDynamicFunctions()) {
-      if (Function.Prototype().isEmpty()) {
-        return revng::createError("Binary needs to either have a default "
-                                  "prototype, or a prototype for each "
-                                  "function.");
-      }
-    }
-
-    return llvm::Error::success();
-  }
-};
-
-static pipeline::RegisterPipe<EnforceABIPipe> Y;
-
 namespace revng::pypeline::piperuns {
 
-// TODO: merge ::EnforceABI into EnforceABI once we dismiss the old pipeline
 void EnforceABI::runOnLLVMFunction(const model::Function &Function,
                                    llvm::Function &LLVMFunction) {
-  llvm::Module &Module = *LLVMFunction.getParent();
-  GeneratedCodeBasicInfo GCBI(Binary, Module);
-
-  auto CFGGetter =
-    [this](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
-    return *CFG.getElement(ObjectID(Address));
-  };
-
-  ::EnforceABI Impl(Binary, Module, GCBI, CFGGetter);
-  Impl.prologue();
-  Impl.runOnFunction(Function, LLVMFunction);
-  Impl.epilogue();
+  ::EnforceABI Impl(Binary, Function, LLVMFunction, CFG);
+  Impl.run();
 }
 
 } // namespace revng::pypeline::piperuns

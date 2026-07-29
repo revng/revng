@@ -9,26 +9,24 @@
 #include "revng/CliftEmitC/Configuration.h"
 #include "revng/CliftEmitC/Headers.h"
 #include "revng/CliftPipes/EmitCAsDirectory.h"
-#include "revng/Support/GzipTarFile.h"
 #include "revng/Support/ResourceFinder.h"
+#include "revng/Support/Tar.h"
 
 void revng::pypeline::piperuns::EmitCAsDirectory::run() {
   std::unique_ptr<llvm::raw_pwrite_stream> Out = Output.getOStream(ObjectID());
   revng_assert(Out);
 
-  GzipTarWriter TarWriter{ *Out };
+  revng::TarWriter TarWriter{ *Out, TarFormat::Gzip };
 
-  llvm::StringRef Buffer = InputC.getMemoryBuffer(ObjectID{})->getBuffer();
-  TarWriter.append("decompiled/functions.c",
-                   llvm::ArrayRef<char>(Buffer.data(), Buffer.size()));
+  std::unique_ptr<llvm::MemoryBuffer> Buffer;
+  Buffer = InputC.getMemoryBuffer(ObjectID{});
+  TarWriter.addMember("decompiled/functions.c", *Buffer);
 
-  Buffer = InputTypesAndGlobals.getMemoryBuffer(ObjectID{})->getBuffer();
-  TarWriter.append("decompiled/types-and-globals.h",
-                   llvm::ArrayRef<char>(Buffer.data(), Buffer.size()));
+  Buffer = InputTypesAndGlobals.getMemoryBuffer(ObjectID{});
+  TarWriter.addMember("decompiled/types-and-globals.h", *Buffer);
 
-  Buffer = InputHelpers.getMemoryBuffer(ObjectID{})->getBuffer();
-  TarWriter.append("decompiled/helpers.h",
-                   llvm::ArrayRef<char>(Buffer.data(), Buffer.size()));
+  Buffer = InputHelpers.getMemoryBuffer(ObjectID{});
+  TarWriter.addMember("decompiled/helpers.h", *Buffer);
 
   {
     auto Path = revng::ResourceFinder.findFile("share/revng/include/"
@@ -40,8 +38,7 @@ void revng::pypeline::piperuns::EmitCAsDirectory::run() {
     auto BufferOrError = llvm::MemoryBuffer::getFileOrSTDIN(*Path);
     auto Buffer = cantFail(errorOrToExpected(std::move(BufferOrError)));
 
-    TarWriter.append("decompiled/attributes.h",
-                     { Buffer->getBufferStart(), Buffer->getBufferSize() });
+    TarWriter.addMember("decompiled/attributes.h", *Buffer);
   }
 
   {
@@ -54,9 +51,6 @@ void revng::pypeline::piperuns::EmitCAsDirectory::run() {
     auto BufferOrError = llvm::MemoryBuffer::getFileOrSTDIN(*Path);
     auto Buffer = cantFail(errorOrToExpected(std::move(BufferOrError)));
 
-    TarWriter.append("decompiled/primitive-types.h",
-                     { Buffer->getBufferStart(), Buffer->getBufferSize() });
+    TarWriter.addMember("decompiled/primitive-types.h", *Buffer);
   }
-
-  TarWriter.close();
 }

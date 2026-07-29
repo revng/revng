@@ -321,10 +321,7 @@ void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
     return;
   }
 
-  // TODO: do the following unconditionally once the old pipeline has been
-  //       dropped.
-  if (TheBinary.Reference.isValid())
-    Segment.Binary() = TheBinary.Reference;
+  Segment.Binary() = TheBinary.Reference;
   Segment.Name() = SegmentCommand.segname;
   Segment.FileSize() = SegmentCommand.filesize;
 

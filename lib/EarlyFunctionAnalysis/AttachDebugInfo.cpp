@@ -32,75 +32,14 @@
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/FunctionTags.h"
-#include "revng/Model/LoadModelPass.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipeline/RegisterPipe.h"
-#include "revng/Pipes/IRHelpers.h"
-#include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/ModelGlobal.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/MetaAddress.h"
 
 using namespace llvm;
 
 static Logger Log("attach-debug-info");
-
-class AttachDebugInfo : public pipeline::FunctionPassImpl {
-private:
-  using CFG = efa::ControlFlowGraph;
-  using CFGGetterType = std::function<const CFG &(const MetaAddress &)>;
-
-private:
-  llvm::Module &M;
-  DIBuilder DIB;
-  DICompileUnit *CU = nullptr;
-
-  GeneratedCodeBasicInfo &GCBI;
-  CFGGetterType CFGGetter;
-
-public:
-  AttachDebugInfo(llvm::ModulePass &Pass,
-                  const model::Binary &Binary,
-                  llvm::Module &M) :
-    pipeline::FunctionPassImpl(Pass),
-    M(M),
-    DIB(M),
-    GCBI(getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI()) {
-    ControlFlowGraphCache &Cache = getAnalysis<ControlFlowGraphCachePass>()
-                                     .get();
-    CFGGetter =
-      [&Cache](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
-      return Cache.getControlFlowGraph(Address);
-    };
-  }
-
-  AttachDebugInfo(const model::Binary &Binary,
-                  llvm::Module &M,
-                  GeneratedCodeBasicInfo &GCBI,
-                  CFGGetterType CFGGetter) :
-    pipeline::FunctionPassImpl(),
-    M(M),
-    DIB(M),
-    GCBI(GCBI),
-    CFGGetter(CFGGetter) {}
-
-  static void getAnalysisUsage(llvm::AnalysisUsage &AU) {
-    AU.setPreservesAll();
-    AU.addRequired<ControlFlowGraphCachePass>();
-    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-  }
-
-  bool prologue() final;
-
-  bool runOnFunction(const model::Function &ModelFunction,
-                     llvm::Function &Function) final;
-
-  bool epilogue() final { return false; }
-};
-
-template<>
-char pipeline::FunctionPass<AttachDebugInfo>::ID = 0;
 
 static bool isTrue(const llvm::Value *V) {
   return getLimitedValue(V) != 0;
@@ -240,131 +179,44 @@ public:
   }
 };
 
-bool AttachDebugInfo::prologue() {
-  // This will be used for attaching the !dbg to instructions.
-  // TODO: Document how are we going to abuse DILocation fields.
-  DIFile *File = DIB.createFile(M.getSourceFileName(), "./");
-  // Also add dummy CU.
-  CU = DIB.createCompileUnit(dwarf::DW_LANG_C,
-                             File,
-                             "revng", // Producer
-                             true, // isOptimized
-                             "", // Flags
-                             0 // RV
-  );
-
-  return true;
-}
-
-bool AttachDebugInfo::runOnFunction(const model::Function &ModelFunction,
-                                    llvm::Function &F) {
-  // Skip functions with debug-info.
-  if (F.getSubprogram())
-    return true;
-
-  // Skip declarations
-  revng_assert(not F.isDeclaration());
-
-  auto FM = CFGGetter(ModelFunction.Entry());
-  revng_log(Log,
-            "Metadata for Function " << F.getName() << ":"
-                                     << FM.Entry().toString());
-
-  LLVMContext &Context = F.getParent()->getContext();
-  DebugInformationBuilder Builder(DIB, Context, CU->getFile(), F.getName());
-  Builder.handleFunction(F, FM, GCBI);
-
-  return true;
-}
-
-// Note: unfortunately, due to the presence of kinds, we need two distinct pipes
-
-struct AttachDebugInfoToIsolatedPipe {
-  static constexpr auto Name = "attach-debug-info-to-isolated";
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace revng;
-    using namespace pipeline;
-    return { ContractGroup({ Contract(kinds::CFG,
-                                      0,
-                                      kinds::Isolated,
-                                      1,
-                                      InputPreservation::Preserve),
-                             Contract(kinds::Isolated,
-                                      1,
-                                      kinds::Isolated,
-                                      1,
-                                      InputPreservation::Preserve) }) };
-  }
-
-  void run(pipeline::ExecutionContext &EC,
-           const revng::pipes::CFGMap &CFGMap,
-           pipeline::LLVMContainer &ModuleContainer) {
-    llvm::legacy::PassManager Manager;
-    Manager.add(new pipeline::LoadExecutionContextPass(&EC,
-                                                       ModuleContainer.name()));
-    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(EC)));
-    Manager.add(new ControlFlowGraphCachePass(CFGMap));
-    Manager.add(new pipeline::FunctionPass<AttachDebugInfo>());
-    Manager.run(ModuleContainer.getModule());
-  }
-};
-
-static pipeline::RegisterPipe<AttachDebugInfoToIsolatedPipe> Y1;
-
-struct AttachDebugInfoToABIEnforcedPipe {
-  static constexpr auto Name = "attach-debug-info-to-abi-enforced";
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace revng;
-    using namespace pipeline;
-    return { ContractGroup({ Contract(kinds::ABIEnforced,
-                                      1,
-                                      kinds::ABIEnforced,
-                                      1,
-                                      InputPreservation::Preserve),
-                             Contract(kinds::CFG,
-                                      0,
-                                      kinds::Isolated,
-                                      1,
-                                      InputPreservation::Preserve) }) };
-  }
-
-  void run(pipeline::ExecutionContext &EC,
-           const revng::pipes::CFGMap &CFGMap,
-           pipeline::LLVMContainer &ModuleContainer) {
-    llvm::legacy::PassManager Manager;
-    Manager.add(new pipeline::LoadExecutionContextPass(&EC,
-                                                       ModuleContainer.name()));
-    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(EC)));
-    Manager.add(new ControlFlowGraphCachePass(CFGMap));
-    Manager.add(new pipeline::FunctionPass<AttachDebugInfo>());
-    Manager.run(ModuleContainer.getModule());
-  }
-};
-
-static pipeline::RegisterPipe<AttachDebugInfoToABIEnforcedPipe> Y2;
-
 namespace revng::pypeline::piperuns {
 
-// TODO: merge ::AttachDebugInfo into AttachDebugInfo once we dismiss the old
-//       pipeline
 void AttachDebugInfo::runOnLLVMFunction(const model::Function &Function,
                                         llvm::Function &LLVMFunction) {
-  const MetaAddress &Address = Function.Entry();
   llvm::Module &Module = *LLVMFunction.getParent();
   GeneratedCodeBasicInfo GCBI(Binary, Module);
 
-  auto CFGGetter =
-    [*this](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
-    return *CFG.getElement(ObjectID(Address));
-  };
+  DIBuilder DIB(Module);
+  // This will be used for attaching the !dbg to instructions.
+  // TODO: Document how are we going to abuse DILocation fields.
+  DIFile *File = DIB.createFile(Module.getSourceFileName(), "./");
+  // Also add dummy CU.
+  DICompileUnit *CU = DIB.createCompileUnit(dwarf::DW_LANG_C,
+                                            File,
+                                            "revng", // Producer
+                                            true, // isOptimized
+                                            "", // Flags
+                                            0 // RV
+  );
 
-  // TODO: inline the body of prologue and epilogue here
-  ::AttachDebugInfo Impl(Binary, Module, GCBI, CFGGetter);
-  Impl.prologue();
-  Impl.runOnFunction(Function, LLVMFunction);
-  Impl.epilogue();
+  // Skip functions with debug-info.
+  if (LLVMFunction.getSubprogram())
+    return;
+
+  // Skip declarations
+  revng_assert(not LLVMFunction.isDeclaration());
+
+  auto FM = *CFG.getElement(ObjectID(Function.Entry()));
+  revng_log(Log,
+            "Metadata for Function " << LLVMFunction.getName() << ":"
+                                     << FM.Entry().toString());
+
+  LLVMContext &Context = LLVMFunction.getParent()->getContext();
+  DebugInformationBuilder Builder(DIB,
+                                  Context,
+                                  CU->getFile(),
+                                  LLVMFunction.getName());
+  Builder.handleFunction(LLVMFunction, FM, GCBI);
 }
 
 } // namespace revng::pypeline::piperuns

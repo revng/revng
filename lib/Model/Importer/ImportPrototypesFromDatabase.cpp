@@ -16,8 +16,6 @@
 #include "revng/Model/Pass/DeduplicateCollidingNames.h"
 #include "revng/Model/Pass/DeduplicateEquivalentTypes.h"
 #include "revng/Model/Pass/FlattenPrimitiveTypedefs.h"
-#include "revng/Pipeline/RegisterAnalysis.h"
-#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/SQLite.h"
@@ -475,22 +473,3 @@ llvm::Error ImportPrototypesFromDatabase::run(Model &TheModel,
 }
 
 } // namespace revng::pypeline::analyses
-
-namespace {
-
-class ImportPrototypesFromDatabasePipelineAnalysis {
-public:
-  static constexpr auto Name = "import-prototypes-from-db";
-  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds;
-
-  void run(pipeline::ExecutionContext &Context) {
-    TupleTree<model::Binary>
-      &Model = revng::getWritableModelFromContext(Context);
-    PrototypeDatabase::run(Model);
-  }
-};
-
-} // namespace
-
-static pipeline::RegisterAnalysis<ImportPrototypesFromDatabasePipelineAnalysis>
-  RegisterImportPrototypesFromDatabase;

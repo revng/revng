@@ -13,4 +13,4 @@ revng_add_library_internal(
   PurgeUnnamedAndUnreachableTypes.cpp
   Verify.cpp)
 
-target_link_libraries(revngModelPasses revngModel revngPipes)
+target_link_libraries(revngModelPasses revngModel)

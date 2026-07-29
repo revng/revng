@@ -26,7 +26,6 @@ target_link_libraries(
   revngABI
   revngLocalVariables
   revngModel
-  revngPipes
   revngPTML
   revngLift
   ${LLVM_LIBRARIES})

@@ -612,7 +612,7 @@ void CFGAnalyzer::runOptimizationPipeline(llvm::Function *F) {
     // compute subexpressions elimination and resolve redundant expressions in
     // order to compute the stack height.
     FPM.addPass(RemoveNewPCCallsPass());
-    FPM.addPass(RemoveHelperCallsPass());
+    FPM.addPass(RemoveHelperCallsPass(GCBI));
     FPM.addPass(PromoteGlobalToLocalPass());
     FPM.addPass(SimplifyCFGPass());
     FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
@@ -628,7 +628,7 @@ void CFGAnalyzer::runOptimizationPipeline(llvm::Function *F) {
     // Second stage: add alias analysis info and canonicalize `i2p` + `add` into
     // `getelementptr` instructions. Since the IR may change remarkably, another
     // round of passes is necessary to take more optimization opportunities.
-    FPM.addPass(SegregateDirectStackAccessesPass());
+    FPM.addPass(SegregateDirectStackAccessesPass(GCBI));
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(InstCombinePass());
     FPM.addPass(GVNPass());
@@ -651,11 +651,6 @@ void CFGAnalyzer::runOptimizationPipeline(llvm::Function *F) {
 
       return AA;
     });
-    FAM.registerPass([this] {
-      using LMA = LoadModelAnalysis;
-      return LMA::fromModelWrapper(Binary);
-    });
-    FAM.registerPass([&] { return GeneratedCodeBasicInfoAnalysis(); });
     FAM.registerPass([&] { return ModuleAnalysisManagerFunctionProxy(MAM); });
 
     PassBuilder PB;

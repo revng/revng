@@ -6,8 +6,8 @@
 #include "revng/Model/Binary.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Doxygen.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 
 namespace ptml::tokens {
 

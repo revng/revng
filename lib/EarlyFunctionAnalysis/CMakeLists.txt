@@ -10,10 +10,8 @@ revng_add_analyses_library_internal(
   AttachDebugInfo.cpp
   CFGAnalyzer.cpp
   CollectCFG.cpp
-  CollectFunctionsFromCalleesPass.cpp
-  CollectFunctionsFromUnusedAddressesPass.cpp
+  CollectFunctionsFromUnusedAddresses.cpp
   ControlFlowGraph.cpp
-  ControlFlowGraphCache.cpp
   DetectABI.cpp
   FunctionSummaryOracle.cpp
   IndirectBranchInfoPrinterPass.cpp
@@ -38,7 +36,6 @@ target_link_libraries(
   revngInlineHelpers
   revngSupport
   revngModel
-  revngPipes
   ${LLVM_LIBRARIES})
 
 # Header files containing efa YAML must be added here

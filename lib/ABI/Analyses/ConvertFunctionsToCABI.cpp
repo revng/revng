@@ -12,9 +12,6 @@
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Model/VerifyHelper.h"
-#include "revng/Pipeline/Analysis.h"
-#include "revng/Pipeline/RegisterAnalysis.h"
-#include "revng/Pipes/Kinds.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/TupleTree/TupleTree.h"
 
@@ -137,42 +134,7 @@ static RecursiveCoroutine<bool> usesFloat(model::VerifyHelper &VH,
   rc_return VH.maybeFail(Result);
 }
 
-using namespace std::string_literals;
-
 static Logger Log("function-type-conversion-to-cabi-analysis");
-
-class ConvertFunctionsToCABI {
-public:
-  static constexpr auto Name = "convert-functions-to-cabi";
-
-  inline static const std::tuple Options = {
-    // Allows overriding the default ABI with a specific value when invoking
-    // the analysis.
-    pipeline::Option("abi", "Invalid"),
-
-    // Allows specifying the mode of operation,
-    // - safe: only convert the function if ABI belongs to the "tested" list.
-    // - unsafe: always convert the function.
-    pipeline::Option("mode", "safe"),
-
-    // Allows specifying the confidence we have in the ABI, which then leads to
-    // different levels of strictness when doing the argument deductions
-    // (different behaviour in cases where the function does not seem to comply
-    // to the abi):
-    // - low: use safe deduction that will avoid changing function in cases of
-    //        non-compliance.
-    // - high: override/discard any information about the function that does not
-    //         comply with an ABI (i.e. an argument in a register that is not
-    //         dedicated for passing arguments, etc.).
-    pipeline::Option("confidence", "low")
-  };
-  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
-
-  void run(pipeline::ExecutionContext &Context,
-           std::string TargetABI,
-           std::string Mode,
-           std::string ABIConfidence);
-};
 
 static void convertFunctionsToCABI(TupleTree<model::Binary> &Model,
                                    model::ABI::Values ABI,
@@ -301,26 +263,6 @@ static void convertFunctionsToCABI(TupleTree<model::Binary> &Model,
   // Don't forget to clean up any possible remainders of removed types.
   purgeUnnamedAndUnreachableTypes(Model);
 }
-
-void ConvertFunctionsToCABI::run(pipeline::ExecutionContext &Context,
-                                 std::string TargetABI,
-                                 std::string Mode,
-                                 std::string ABIConfidence) {
-  auto &Model = revng::getWritableModelFromContext(Context);
-  revng_assert(!TargetABI.empty());
-
-  model::ABI::Values ABI = model::ABI::fromName(TargetABI);
-  if (ABI == model::ABI::Values::Invalid) {
-    revng_log(Log,
-              "No ABI explicitly specified for the conversion, using the "
-              "`Model->DefaultABI()`.");
-    ABI = Model->DefaultABI();
-  }
-
-  convertFunctionsToCABI(Model, ABI, Mode, ABIConfidence);
-}
-
-pipeline::RegisterAnalysis<ConvertFunctionsToCABI> ToCABIAnalysis;
 
 struct ConvertFunctionsToCABIConfiguration {
   std::string ABI;

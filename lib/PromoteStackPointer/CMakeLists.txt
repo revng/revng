@@ -6,12 +6,12 @@ revng_add_analyses_library_internal(
   revngPromoteStackPointer
   CleanupStackSizeMarkersPass.cpp
   ComputeStackAccessesBoundsPass.cpp
-  DetectStackSizePass.cpp
+  DetectStackSize.cpp
   InstrumentStackAccessesPass.cpp
-  InjectStackSizeProbesAtCallSitesPass.cpp
-  PromoteStackPointerPass.cpp
+  InjectStackSizeProbesAtCallSites.cpp
+  PromoteStackPointer.cpp
   RemoveStackAlignmentPass.cpp
-  SegregateStackAccessesPass.cpp)
+  SegregateStackAccesses.cpp)
 
 target_link_libraries(
   revngPromoteStackPointer
@@ -21,5 +21,4 @@ target_link_libraries(
   revngEarlyFunctionAnalysis
   revngLocalVariables
   revngModel
-  revngPipes
   ${LLVM_LIBRARIES})

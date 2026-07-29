@@ -10,8 +10,8 @@
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftImportModel/CAttributeListBuilder.h"
 #include "revng/PTML/CDoxygenEmitter.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 
 using namespace clift;
 

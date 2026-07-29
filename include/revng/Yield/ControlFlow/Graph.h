@@ -5,8 +5,8 @@
 //
 
 #include "revng/GraphLayout/Graphs.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Yield/BasicBlock.h"
 

@@ -10,7 +10,6 @@ revng_add_analyses_library_internal(
   CommonTypeMethods.cpp
   FunctionTags.cpp
   InlineSegmentGlobalGetters.cpp
-  LoadModelPass.cpp
   GlobalVariableBuilder.cpp
   NameBuilder.cpp
   TypeSystemPrinter.cpp

@@ -4,7 +4,6 @@
 
 revng_add_analyses_library_internal(
   revngCliftPipes
-  CliftContainer.cpp
   Clifter.cpp
   EmitC.cpp
   EmitCAsDirectory.cpp
@@ -13,7 +12,6 @@ revng_add_analyses_library_internal(
   ImportDataModel.cpp
   ImportDescriptiveInfo.cpp
   ImportTypes.cpp
-  Optimization.cpp
   VerifyAgainstModel.cpp)
 
 target_link_libraries(
@@ -23,6 +21,4 @@ target_link_libraries(
   revngClifter
   revngCliftImportModel
   revngCliftTransforms
-  revngPipeline
-  revngPipes
   MLIRTransforms)

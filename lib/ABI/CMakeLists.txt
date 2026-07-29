@@ -13,11 +13,5 @@ revng_add_analyses_library_internal(
   ModelHelpers.cpp
   RegisterStateDeductions.cpp)
 
-target_link_libraries(
-  revngABI
-  revngModel
-  revngModelPasses
-  revngPipeline
-  revngPipes
-  revngSupport
-  ${LLVM_LIBRARIES})
+target_link_libraries(revngABI revngModel revngModelPasses revngSupport
+                      ${LLVM_LIBRARIES})

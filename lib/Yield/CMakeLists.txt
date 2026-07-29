@@ -87,4 +87,4 @@ revng_add_analyses_library_internal(
   Pipes/CFGPipes.cpp)
 
 target_link_libraries(revngYieldPipes revngYield revngFunctionIsolation
-                      revngPipes revngSupport)
+                      revngSupport)

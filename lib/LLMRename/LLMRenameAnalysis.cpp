@@ -5,9 +5,6 @@
 #include "llvm/Support/Process.h"
 
 #include "revng/LLMRename/LLMRenameAnalysis.h"
-#include "revng/Pipeline/RegisterAnalysis.h"
-#include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/ProgramRunner.h"
 #include "revng/TupleTree/VisitsImpl.h"
 

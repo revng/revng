@@ -16,8 +16,8 @@
 
 // TODO: Ideally the CTokenEmitter would not have this dependency. To remove it
 //       would require moving more of the logic to the UI.
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 
 using ptml::CTokenEmitter;
 

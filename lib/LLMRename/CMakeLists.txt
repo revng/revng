@@ -5,12 +5,5 @@
 revng_add_analyses_library_internal(revngLLMRenameAnalysis
                                     LLMRenameAnalysis.cpp)
 
-target_link_libraries(
-  revngLLMRenameAnalysis
-  revngModel
-  revngSupport
-  revngPipeline
-  revngPipes
-  revngPTML
-  revngBasicAnalyses
-  ${LLVM_LIBRARIES})
+target_link_libraries(revngLLMRenameAnalysis revngModel revngSupport revngPTML
+                      revngBasicAnalyses ${LLVM_LIBRARIES})

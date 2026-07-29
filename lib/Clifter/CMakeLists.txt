@@ -5,4 +5,4 @@
 revng_add_library_internal(revngClifter SHARED Clifter.cpp)
 
 target_link_libraries(revngClifter revngClift revngCliftImportModel
-                      revngLocalVariables revngPipes revngRestructureCFG)
+                      revngLocalVariables revngRestructureCFG)

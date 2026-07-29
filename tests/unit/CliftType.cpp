@@ -43,4 +43,4 @@ static bool checkSerialization(const TupleTree<model::Binary> &Tree) {
   return true;
 }
 
-#include "revng/tests/unit/ModelType.inc"
+#include "ModelType.inc"

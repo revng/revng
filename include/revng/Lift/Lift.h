@@ -7,12 +7,9 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Pass.h"
 
-#include "revng/Lift/LoadBinaryPass.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
 #include "revng/PipeboxCommon/LLVMContainer.h"
 #include "revng/PipeboxCommon/Model.h"
-#include "revng/Pipeline/ExecutionContext.h"
-#include "revng/Pipes/FunctionPass.h"
 #include "revng/Support/Debug.h"
 
 namespace JTReason {
@@ -159,22 +156,6 @@ inline Values fromName(llvm::StringRef Name) {
 }
 
 } // namespace KillReason
-
-class LiftPass : public llvm::ModulePass {
-public:
-  static char ID;
-
-public:
-  LiftPass() : llvm::ModulePass(ID) {}
-
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.addRequired<LoadBinaryWrapperPass>();
-    AU.addRequired<LoadModelWrapperPass>();
-    AU.addRequired<pipeline::LoadExecutionContextPass>();
-  }
-
-  bool runOnModule(llvm::Module &M) override;
-};
 
 namespace revng::lift::internal {
 

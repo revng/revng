@@ -7,7 +7,7 @@
 #include <string>
 
 #include "revng/PTML/Tag.h"
-#include "revng/Pipeline/Location.h"
+#include "revng/Ranks/Location.h"
 #include "revng/Support/BasicBlockID.h"
 
 class MetaAddress;

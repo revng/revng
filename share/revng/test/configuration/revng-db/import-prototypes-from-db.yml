@@ -21,7 +21,6 @@ commands:
       - type: source
         filter: import-prototypes-from-db
     command: |-
-      revng analyze import-prototypes-from-db /dev/null
-        --model "$INPUT"
+      revng2 pipeline run-analysis import-prototypes-from-db "$INPUT"
         | revng model opt -verify
         | FileCheck "${SOURCE}"

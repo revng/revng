@@ -8,12 +8,10 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
-#include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Pipes/IRHelpers.h"
-#include "revng/Pipes/Kinds.h"
+#include "revng/Ranks/IRHelpers.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
@@ -62,11 +60,10 @@ class BasicControlFlowGraphCache {
   using Function = typename Traits::Function;
   using CallInst = typename Traits::CallInst;
 
-  const revng::pipes::CFGMap &CFGs;
   std::map<MetaAddress, TupleTree<efa::ControlFlowGraph>> Deserialized;
 
 public:
-  BasicControlFlowGraphCache(const revng::pipes::CFGMap &CFGs) : CFGs(CFGs) {}
+  BasicControlFlowGraphCache() {}
 
 public:
   void set(TupleTree<efa::ControlFlowGraph> &&New) {
@@ -76,13 +73,8 @@ public:
 public:
   const efa::ControlFlowGraph &getControlFlowGraph(const MetaAddress &Address) {
     auto It = Deserialized.find(Address);
-    if (It != Deserialized.end())
-      return *It->second.get();
-
-    using TupleTree = TupleTree<efa::ControlFlowGraph>;
-    TupleTree &Result = Deserialized[Address];
-    Result = cantFail(TupleTree::fromString(CFGs.at(Address)));
-    return *Result.get();
+    revng_assert(It != Deserialized.end());
+    return *It->second.get();
   }
 
   const efa::ControlFlowGraph &getControlFlowGraph(const Function Function) {
@@ -179,31 +171,3 @@ public:
 };
 
 using ControlFlowGraphCache = BasicControlFlowGraphCache<LLVMIRMetadataTraits>;
-
-class ControlFlowGraphCachePass : public llvm::ImmutablePass {
-public:
-  static char ID;
-
-private:
-  ControlFlowGraphCache Cache;
-
-public:
-  ControlFlowGraphCachePass(const revng::pipes::CFGMap &CFGs) :
-    llvm::ImmutablePass(ID), Cache(CFGs) {}
-  ControlFlowGraphCache &get() { return Cache; }
-};
-
-class ControlFlowGraphCacheAnalysis
-  : public llvm::AnalysisInfoMixin<ControlFlowGraphCacheAnalysis> {
-  friend llvm::AnalysisInfoMixin<ControlFlowGraphCacheAnalysis>;
-
-private:
-  ControlFlowGraphCache Cache;
-  static llvm::AnalysisKey Key;
-
-public:
-  using Result = ControlFlowGraphCache;
-
-public:
-  ControlFlowGraphCache *runOnModule(llvm::Module &M) { return &Cache; }
-};

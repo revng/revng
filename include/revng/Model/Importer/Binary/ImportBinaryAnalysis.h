@@ -9,28 +9,6 @@
 
 #include "revng/PipeboxCommon/BinariesContainer.h"
 #include "revng/PipeboxCommon/Common.h"
-#include "revng/Pipeline/Contract.h"
-#include "revng/Pipeline/Target.h"
-#include "revng/Pipes/FileContainer.h"
-#include "revng/Pipes/Kinds.h"
-
-namespace revng::pipes {
-
-class ImportBinaryAnalysis {
-public:
-  static constexpr auto Name = "import-binary";
-
-public:
-  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::kinds::Binary }
-  };
-
-public:
-  llvm::Error run(pipeline::ExecutionContext &Context,
-                  const BinaryFileContainer &SourceBinary);
-};
-
-} // namespace revng::pipes
 
 namespace revng::pypeline::analyses {
 

@@ -8,37 +8,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
 #include "revng/Model/VerifyHelper.h"
-#include "revng/Pipeline/Analysis.h"
-#include "revng/Pipeline/RegisterAnalysis.h"
-#include "revng/Pipes/Kinds.h"
 #include "revng/TupleTree/TupleTree.h"
-
-class ConvertFunctionsToRaw {
-public:
-  static constexpr auto Name = "convert-functions-to-raw";
-
-  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
-
-  void run(pipeline::ExecutionContext &Context) {
-    auto &Model = revng::getWritableModelFromContext(Context);
-
-    model::VerifyHelper VH;
-
-    using abi::FunctionType::filterTypes;
-    using CABIFD = model::CABIFunctionDefinition;
-    auto ToConvert = filterTypes<CABIFD>(Model->TypeDefinitions());
-    for (model::CABIFunctionDefinition *Old : ToConvert) {
-      model::UpcastableType New = abi::FunctionType::convertToRaw(*Old, Model);
-      revng_assert(!New.isEmpty());
-      revng_assert(New->verify(VH));
-    }
-
-    // Don't forget to clean up any possible remainders of removed types.
-    purgeUnnamedAndUnreachableTypes(Model);
-  }
-};
-
-static pipeline::RegisterAnalysis<ConvertFunctionsToRaw> ToRawAnalysis;
 
 namespace revng::pypeline::analyses {
 

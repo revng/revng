@@ -340,9 +340,7 @@ python_module(TARGET_NAME revng-python-cli WHEEL revng_internal MODULE_FILES
 set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/translate.py
     revng/internal/cli/_commands/opt.py
-    revng/internal/cli/_commands/pipeline_tools.py
     revng/internal/cli/_commands/override_by_name.py
-    revng/internal/cli/_commands/daemon.py
     revng/internal/cli/_commands/llm_rename/__init__.py
     revng/internal/cli/_commands/llm_rename/prompt.tpl
     revng/internal/cli/_commands/hard_purge.py
@@ -381,14 +379,6 @@ python_module(
   TARGET_NAME revng-python-cli-commands-fetchdebuginfo WHEEL revng_internal
   MODULE_FILES ${REVNG_CLI_COMMANDS_FETCHDEBUGINFO_MODULE_FILES})
 
-set(REVNG_CLI_COMMANDS_GRAPHQL_MODULE_FILES
-    revng/internal/cli/_commands/graphql/__init__.py
-    revng/internal/cli/_commands/graphql/runner.py
-    revng/internal/cli/_commands/graphql/daemon_handler.py)
-python_module(
-  TARGET_NAME revng-python-cli-commands-graphql WHEEL revng_internal
-  MODULE_FILES ${REVNG_CLI_COMMANDS_GRAPHQL_MODULE_FILES})
-
 set(REVNG_CLI_COMMANDS_MASS_TESTING_MODULE_FILES
     revng/internal/cli/_commands/mass_testing/__init__.py
     revng/internal/cli/_commands/mass_testing/generate_report/db.py
@@ -401,45 +391,6 @@ set(REVNG_CLI_COMMANDS_MASS_TESTING_MODULE_FILES
 python_module(
   TARGET_NAME revng-python-cli-commands-mass-testing WHEEL revng_internal
   MODULE_FILES ${REVNG_CLI_COMMANDS_MASS_TESTING_MODULE_FILES})
-
-#
-# Install revng.api
-#
-set(REVNG_API_MODULE_FILES
-    revng/internal/api/__init__.py
-    revng/internal/api/_capi.py
-    revng/internal/api/errors.py
-    revng/internal/api/exceptions.py
-    revng/internal/api/invalidations.py
-    revng/internal/api/manager.py
-    revng/internal/api/string_map.py
-    revng/internal/api/syncing_manager.py
-    revng/internal/api/synchronizer.py
-    revng/internal/api/target.py
-    revng/internal/api/utils.py)
-python_module(TARGET_NAME revng-python-api WHEEL revng_internal MODULE_FILES
-              ${REVNG_API_MODULE_FILES})
-
-# Also copy PipelineC headers in the build directory so revng.api can use them
-# from there
-set(PIPELINE_C_HEADERS_SOURCE_DIR "${CMAKE_SOURCE_DIR}/include/revng/PipelineC")
-set(PIPELINE_C_HEADERS_BUILD_DIR "${CMAKE_BINARY_DIR}/include/revng/PipelineC")
-set(REQUIRED_PIPELINE_C_HEADERS ForwardDeclarationsC.h Prototypes.h)
-file(MAKE_DIRECTORY "${PIPELINE_C_HEADERS_BUILD_DIR}")
-foreach(HEADER ${REQUIRED_PIPELINE_C_HEADERS})
-  configure_file("${PIPELINE_C_HEADERS_SOURCE_DIR}/${HEADER}"
-                 "${PIPELINE_C_HEADERS_BUILD_DIR}/${HEADER}" COPYONLY)
-endforeach()
-
-#
-# Install revng.daemon
-#
-set(REVNG_DAEMON_MODULE_FILES
-    revng/internal/daemon/__init__.py revng/internal/daemon/multiqueue.py
-    revng/internal/daemon/schema.graphql revng/internal/daemon/graphql.py
-    revng/internal/daemon/util.py)
-python_module(TARGET_NAME revng-python-daemon WHEEL revng_internal MODULE_FILES
-              ${REVNG_DAEMON_MODULE_FILES})
 
 #
 # Install revng.internal.support
@@ -458,20 +409,6 @@ set(REVNG_SUPPORT_MODULE_FILES
     revng/support/artifacts.py revng/support/location.py)
 python_module(TARGET_NAME revng-python-support WHEEL revng MODULE_FILES
               ${REVNG_SUPPORT_MODULE_FILES})
-
-#
-# Install revng.pipeline_description
-#
-set(PYTHON_PIPELINEDESCRIPTION_FILES revng/pipeline_description/__init__.py)
-python_module(
-  TARGET_NAME
-  python-pipeline-description
-  WHEEL
-  revng
-  MODULE_FILES
-  ${PYTHON_PIPELINEDESCRIPTION_FILES}
-  MODULE_GENERATED_FILES
-  revng/pipeline_description/_generated.py)
 
 #
 # Install pypeline
