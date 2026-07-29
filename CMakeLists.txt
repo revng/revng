@@ -250,6 +250,10 @@ foreach(
   #   bodies.
   # * `fix-helpers` rewrites helper bodies to access CSVs via the env pointer,
   #   switching on env-relative offsets.
+  # * `function-attrs` infers the memory effects of each helper. It has to run
+  #   after `fix-helpers`, which introduces accesses to the CSVs. Helpers that
+  #   end up as `memory(none)` (e.g. `bit_parity`, which only reads a constant
+  #   lookup table) become dead code when their result is unused.
   # * `detect-uninlinable-helpers` excludes not viable helpers from inlining.
 
   # Only the x86 softfloat helpers iterate over the vector-register lanes with
@@ -269,7 +273,7 @@ foreach(
     COMMAND
       ./bin/revng opt -mark-inline-helpers-up-to -sroa -instsimplify
       -cpu-loop-exit -analyze-helper-arguments ${EXTRA_HELPER_PASSES}
-      -fix-helpers -fix-helpers-architecture="${ARCH}" -dce
+      -fix-helpers -fix-helpers-architecture="${ARCH}" -function-attrs -dce
       -detect-uninlinable-helpers "${LIBTCG_HELPERS}" -o
       "${LIBTCG_HELPERS_FULL}")
   add_custom_target("annotated-libtcg-helpers-${ARCH}" ALL
