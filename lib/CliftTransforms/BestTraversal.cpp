@@ -6,6 +6,8 @@
 #include <limits>
 #include <optional>
 
+#include "llvm/Support/MathExtras.h"
+
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Clift/Clift.h"
 #include "revng/Support/Assert.h"
@@ -416,6 +418,16 @@ static Score score(const Traversal &Explicit,
 // `TypeTraversalAnalyzer` class definition
 // =============================================================================
 
+/// Upper bound on the number of `Traversal`s that `TypeTraversalAnalyzer` will
+/// materialize for a single `BaseType`. Real, non-degenerate types stay far
+/// below this (the largest observed in practice is a few tens of thousands);
+/// degenerate DLA type systems, whose deeply-nested high-arity unions share
+/// substructure, reach millions of distinct root-to-leaf traversals. Above this
+/// bound EFA bails out of the rewrite for accesses into the offending type
+/// (leaving the raw pointer arithmetic), which caps both the memory used to
+/// store the traversals and the time spent scoring an access against them.
+static constexpr uint64_t MaxTraversalsPerType = 250000;
+
 /// `TypeTraversalAnalyzer` is used as an oracle to compute and retrieve
 /// `Traversal`s and `ArrayPath`s in a lazy manner
 class TypeTraversalAnalyzer {
@@ -424,6 +436,10 @@ private:
   /// `ArrayPath`s. This passed in the constructor, as we want to cache the
   /// information across different runs
   TraversalInfoMap &Data;
+
+  /// Memoizes `countTraversals`. A type's traversal count depends only on the
+  /// type, so it is safe to cache and reuse across `BaseType`s.
+  llvm::DenseMap<mlir::Type, uint64_t> TraversalCountCache;
 
 public:
   TypeTraversalAnalyzer(TraversalInfoMap &Data) : Data(Data) {}
@@ -455,6 +471,14 @@ public:
                     bool SmartLookup);
 
 private:
+  /// Counts, without materializing them, how many `Traversal`s `traverseImpl`
+  /// would emit for `Type` (one per traversed node; pointers are leaves).
+  /// Saturates at `MaxTraversalsPerType + 1`, so a degenerate, deeply-shared
+  /// type cannot overflow the counter or make counting itself expensive. Uses
+  /// `RecursiveCoroutine` for stack safety on deeply nested types (like
+  /// `traverseImpl`); evaluate it with `rc_eval`.
+  RecursiveCoroutine<uint64_t> countTraversals(mlir::Type Type);
+
   /// Entry point for traversing the `BaseType`, and producing the corresponding
   /// `Traversal`s and `ArrayPaths` (takes care of ordering them)
   llvm::DenseMap<mlir::Type, TraversalInfo>::iterator
@@ -509,12 +533,73 @@ TypeTraversalAnalyzer::getTraversalRange(mlir::Type BaseType,
   revng_abort("Fast lookup not implemented");
 }
 
+RecursiveCoroutine<uint64_t>
+TypeTraversalAnalyzer::countTraversals(mlir::Type Type) {
+  // A type's traversal count depends only on the type: reuse cached results.
+  if (auto It = TraversalCountCache.find(Type); It != TraversalCountCache.end())
+    rc_return It->second;
+
+  // By-value types cannot form a cycle (it would have infinite size), but seed
+  // the cache with a saturated value before recurring so that, if a malformed
+  // type ever did, it would be treated as over the cap rather than recurring
+  // forever. `llvm::SaturatingAdd` likewise keeps the running count from
+  // overflowing on a degenerate type; only its comparison with the cap matters.
+  TraversalCountCache[Type] = std::numeric_limits<uint64_t>::max();
+
+  uint64_t Count = 0;
+  if (mlir::isa<clift::PrimitiveType, clift::PointerType>(Type)) {
+    // Leaves: `traverseImpl` emits a single `Traversal` and stops (in
+    // particular it does not follow pointers).
+    Count = 1;
+  } else if (auto Typedef = mlir::dyn_cast<clift::TypedefType>(Type)) {
+    uint64_t Underlying = rc_recur countTraversals(Typedef.getUnderlyingType());
+    Count = llvm::SaturatingAdd(Underlying, uint64_t{ 1 });
+  } else if (auto Array = mlir::dyn_cast<clift::ArrayType>(Type)) {
+    uint64_t Element = rc_recur countTraversals(Array.getElementType());
+    Count = llvm::SaturatingAdd(Element, uint64_t{ 1 });
+  } else if (auto Class = mlir::dyn_cast<clift::ClassType>(Type)) {
+    // One `Traversal` for the class itself, plus every field's subtree.
+    Count = 1;
+    for (clift::FieldAttr Field : Class.getFields()) {
+      uint64_t FieldCount = rc_recur countTraversals(Field.getType());
+      Count = llvm::SaturatingAdd(Count, FieldCount);
+    }
+  } else if (auto Enum = mlir::dyn_cast<clift::EnumType>(Type)) {
+    uint64_t Underlying = rc_recur countTraversals(Enum.getUnderlyingType());
+    Count = llvm::SaturatingAdd(Underlying, uint64_t{ 1 });
+  }
+
+  TraversalCountCache[Type] = Count;
+  rc_return Count;
+}
+
 llvm::DenseMap<mlir::Type, TraversalInfo>::iterator
 TypeTraversalAnalyzer::traverse(mlir::Type BaseType) {
   revng_assert(Data.count(BaseType) == 0);
 
   auto [It, Inserted] = Data.insert({ BaseType, TraversalInfo() });
   auto &[Traversals, ArrayPaths] = It->second;
+
+  // Some DLA type systems contain deeply-nested, high-arity unions whose fields
+  // share substructure, so that the number of distinct root-to-leaf traversals
+  // is exponential in the nesting depth (millions, even for types with only a
+  // handful of fields each). Enumerating and storing them all exhausts memory,
+  // and scoring an access against all of them does not terminate in reasonable
+  // time. Counting the traversals is cheap (memoized, one value per type) where
+  // enumerating them is not, so we count first and, above the cap, bail out
+  // leaving `Traversals`/`ArrayPaths` empty. Downstream, `computeBestTraversal`
+  // then finds no traversal and EFA leaves the raw pointer arithmetic in place,
+  // exactly as it does for any access it cannot lower onto a field access.
+  if (rc_eval(countTraversals(BaseType)) > MaxTraversalsPerType) {
+    llvm::StringRef Handle = "<anonymous>";
+    if (auto Defined = mlir::dyn_cast<clift::DefinedType>(BaseType))
+      Handle = Defined.getHandle();
+    revng_log(Log,
+              "WARNING: skipping field-access rewrite for type '"
+                << Handle << "' producing more than " << MaxTraversalsPerType
+                << " traversals");
+    return It;
+  }
 
   // Add the empty `ArrayPath` representing the case where no `array` is
   // traversed. This ensures that `toExplicitArrayAccesses` can produce
