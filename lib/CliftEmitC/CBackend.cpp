@@ -797,17 +797,17 @@ public:
 
   //===---------------------------- Statements ----------------------------===//
 
-  RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp S,
+  RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp Var,
                                                         bool EmitNewline) {
-    emitDeclaration(S.getResult().getType(),
+    emitDeclaration(Var.getResult().getType(),
                     DeclaratorInfo{
-                      .Identifier = S.getName(),
-                      .Location = S.getHandle(),
-                      .CAttributes = getDeclarationOpCAttributes(S),
+                      .Identifier = Var.getName(),
+                      .Location = Var.getHandle(),
+                      .CAttributes = getDeclarationOpCAttributes(Var),
                       .Kind = CTE::EntityKind::LocalVariable,
                     });
 
-    if (not S.getInitializer().empty()) {
+    if (not Var.getInitializer().empty()) {
       Tokens.emitSpace();
       Tokens.emitOperator(CTE::Operator::Equals);
       Tokens.emitSpace();
@@ -815,7 +815,7 @@ public:
       // Comma expressions in a variable initialiser must be parenthesized.
       CurrentPrecedence = OperatorPrecedence::Comma;
 
-      mlir::Value Expression = getExpressionValue(S.getInitializer());
+      mlir::Value Expression = getExpressionValue(Var.getInitializer());
 
       if (auto Aggregate = Expression.getDefiningOp<AggregateOp>())
         rc_recur emitAggregateInitializer(Aggregate);
