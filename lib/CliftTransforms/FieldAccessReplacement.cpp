@@ -45,11 +45,18 @@ struct Replacement {
       Array
     } TheKind;
 
-    // We need to have the possibility to represent an `Index` with both a
-    // constant and a variable component (in order to represent access like
-    // `[i + 4]`)
+    // An array index is a linear combination of runtime variables plus a
+    // constant, `sum(Variables[k].Coefficient * Variables[k].Variable) +
+    // Constant`, so that we can represent accesses like `[2*i + 3*j + 4]`. Each
+    // coefficient maps a strided term's stride to the traversed array's element
+    // stride, and is 1 for an exact stride match. For `struct`/`union` accesses
+    // `Variables` is empty and `Constant` holds the field index.
     struct IndexInfo {
-      mlir::Value Variable;
+      struct ScaledVariable {
+        uint64_t Coefficient;
+        mlir::Value Variable;
+      };
+      llvm::SmallVector<ScaledVariable> Variables;
       uint64_t Constant;
     } Index;
   };
@@ -134,8 +141,7 @@ Replacement Replacement::make(unsigned PointerBitWidth,
       unsigned FieldIndex = *FieldIt++;
 
       Result.FieldAccesses.push_back({ .TheKind = Kind,
-                                       .Index = { mlir::Value(),
-                                                  FieldIndex } });
+                                       .Index = { {}, FieldIndex } });
 
       // Look up the field by positional index. Subtract the field's byte
       // offset from LeftoverOffset (for unions, getOffset() returns 0)
@@ -151,12 +157,18 @@ Replacement Replacement::make(unsigned PointerBitWidth,
 
       ArrayShape CurrentArray = *ArrayIt++;
 
-      // When reaching this iteration, if there was an array traversal in the
-      // original traversal with a larger stride than the current, it must have
-      // been already processed in a previous iteration
-      if (not LeftoverOffset.LinearCombination.empty()) {
-        revng_assert(LeftoverOffset.LinearCombination.front()
-                       .Stride.ule(CurrentArray.Stride));
+      // This array consumes every remaining term whose stride it divides
+      // (below); a term it does not divide is left for a later, smaller-stride
+      // array. Selection (`canLowerArithmeticOntoTraversal`) guarantees some
+      // array divides every term carrying a runtime index, so the front
+      // (largest-stride) term, if it carries one, is either divisible by this
+      // array or still has a later array to be visited; otherwise it would be
+      // stranded here.
+      if (not LeftoverOffset.LinearCombination.empty()
+          and LeftoverOffset.LinearCombination.front().Idx.Variable) {
+        const auto &Front = LeftoverOffset.LinearCombination.front();
+        revng_assert(Front.Stride.urem(CurrentArray.Stride) == 0
+                     or ArrayIt != ArrayEnd);
       }
 
       // We decide if we consume the offset from the `BaseOffset` or the
@@ -169,28 +181,40 @@ Replacement Replacement::make(unsigned PointerBitWidth,
                                      * NumFixedConsumedElements;
       }
 
-      mlir::Value DynamicElementId = {};
-      const auto &LinearCombination = LeftoverOffset.LinearCombination;
-      if (not LinearCombination.empty()
-          and LinearCombination.front().Stride == CurrentArray.Stride) {
-        auto &FrontTerm = LeftoverOffset.LinearCombination.front();
-        DynamicElementId = FrontTerm.Idx.Variable;
-
-        // If the Idx also has a constant component, add it to the fixed
-        // consumed elements count
-        if (FrontTerm.Idx.Constant.getBoolValue()) {
-          NumFixedConsumedElements += FrontTerm.Idx.Constant;
+      // We consume every strided term this array's stride divides. A term
+      // contributes `Stride * (Variable + Constant)` bytes, that is
+      // `Coefficient * (Variable + Constant)` elements of this array, where
+      // `Coefficient = Stride / CurrentArray.Stride`. Consuming all divisible
+      // terms lets the array be indexed by a linear combination of the runtime
+      // variables (e.g. `[2*i + j]`); an exact stride match is the coefficient
+      // being 1.
+      llvm::SmallVector<FieldAccessInfo::IndexInfo::ScaledVariable>
+        IndexVariables;
+      auto &LinearCombination = LeftoverOffset.LinearCombination;
+      for (auto It = LinearCombination.begin();
+           It != LinearCombination.end();) {
+        if (It->Stride.urem(CurrentArray.Stride) != 0) {
+          ++It;
+          continue;
         }
 
-        LeftoverOffset.LinearCombination
-          .erase(LeftoverOffset.LinearCombination.begin());
+        llvm::APInt Quotient = It->Stride.udiv(CurrentArray.Stride);
+        if (It->Idx.Variable)
+          IndexVariables.push_back({ Quotient.getZExtValue(),
+                                     It->Idx.Variable });
+
+        // The constant component is scaled by the same coefficient when
+        // converting the term from stride units to array-element units.
+        if (It->Idx.Constant.getBoolValue())
+          NumFixedConsumedElements += It->Idx.Constant * Quotient;
+
+        It = LinearCombination.erase(It);
       }
 
       Result.FieldAccesses
         .push_back({ .TheKind = FieldAccessInfo::Array,
-                     .Index = { DynamicElementId,
-                                static_cast<uint64_t>(NumFixedConsumedElements
-                                                        .getZExtValue()) } });
+                     .Index = { std::move(IndexVariables),
+                                NumFixedConsumedElements.getZExtValue() } });
 
       // Move to the `array` element `Type`
       BaseType = ArrayType.getElementType();
@@ -289,45 +313,39 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
                                                CurrentValue);
       }
 
-      // Emit the `mlir::Value` representing the `Index` access.
-      // We declare all the possible components (constant and variable parts)
-      // as uninitialized here, and later fill only the components that we
-      // need to emit.
-      mlir::Value FixedIndexValue = {};
-      mlir::Value DynamicIndexValue = {};
+      // Emit the array index as the linear combination
+      // `Constant + sum(Coefficient * Variable)`. We emit the constant first
+      // (or a bare `imm` when the index has no variable part, e.g. a `[0]` or
+      // `[n]` access), then add each scaled variable component.
       mlir::Value IndexValue = {};
-
-      // If present, we emit a new `mlir::Value` representing the constant
-      // component of the `Index` access. If we do not have a `DynamicIndex`
-      // component, we still emit a `imm 0` to represent the access to `[0]`.
-      if (Access.Index.Constant != 0 or not Access.Index.Variable) {
-        auto Index = Access.Index.Constant;
-        auto IntegerType = Access.Index.Variable ?
-                             Access.Index.Variable.getType() :
+      if (Access.Index.Constant != 0 or Access.Index.Variables.empty()) {
+        auto IntegerType = Access.Index.Variables.empty() ?
                              clift::IntegerType::get(Builder.getContext(),
                                                      IntegerKind::Generic,
-                                                     PointerSize);
-        FixedIndexValue = Builder.create<ImmediateOp>(PointerToReplaceLoc,
-                                                      IntegerType,
-                                                      Index);
+                                                     PointerSize) :
+                             Access.Index.Variables.front().Variable.getType();
+        IndexValue = Builder.create<ImmediateOp>(PointerToReplaceLoc,
+                                                 IntegerType,
+                                                 Access.Index.Constant);
       }
 
-      // If present, we emit a new `mlir::Value` representing the variable
-      // component of the `Index` access
-      if (Access.Index.Variable) {
-        DynamicIndexValue = Access.Index.Variable;
-      }
-
-      // We compose the constant and variable components of the `Index` access
-      // depending on whether they are present
-      if (FixedIndexValue and DynamicIndexValue) {
-        IndexValue = Builder.create<AddOp>(PointerToReplaceLoc,
-                                           FixedIndexValue,
-                                           DynamicIndexValue);
-      } else if (FixedIndexValue) {
-        IndexValue = FixedIndexValue;
-      } else {
-        IndexValue = DynamicIndexValue;
+      for (const auto &Term : Access.Index.Variables) {
+        mlir::Value Contribution = Term.Variable;
+        if (Term.Coefficient != 1) {
+          auto Coefficient = Builder
+                               .create<ImmediateOp>(PointerToReplaceLoc,
+                                                    Term.Variable.getType(),
+                                                    Term.Coefficient);
+          Contribution = Builder.create<MulOp>(PointerToReplaceLoc,
+                                               Contribution,
+                                               Coefficient);
+        }
+        if (IndexValue)
+          IndexValue = Builder.create<AddOp>(PointerToReplaceLoc,
+                                             IndexValue,
+                                             Contribution);
+        else
+          IndexValue = Contribution;
       }
 
       // The `SubscriptOp` requires its `Pointer` operand to be a `PointerType`.
@@ -392,6 +410,12 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
 
     // Add strided terms
     for (const auto &Term : LeftoverOffset.LinearCombination) {
+      // Traversal selection (`canLowerArithmeticOntoTraversal`) guarantees that
+      // every runtime index was consumed into an array subscript, so any term
+      // left over here is a pure constant. A variable index would be silently
+      // dropped by the emission below, so we enforce the invariant explicitly.
+      revng_assert(not Term.Idx.Variable);
+
       // Multiply stride by index
       auto IndexValue = Builder.create<ImmediateOp>(PointerToReplaceLoc,
                                                     IntPtrType,

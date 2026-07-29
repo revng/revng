@@ -94,6 +94,7 @@ set(FILECHECK_TESTS
     clift/comments/3-bonus/Helpers.mlir
     clift/comments/3-bonus/Newlines.mlir
     clift/emit-field-accesses/array-index-from-struct-field.mlir
+    clift/emit-field-accesses/array-index-linear-combination.mlir
     clift/emit-field-accesses/array-index-with-constant-component.mlir
     clift/emit-field-accesses/array-linearcombination-access-argument-plus-offset.mlir
     clift/emit-field-accesses/array-linearcombination-access-argument.mlir
@@ -107,6 +108,7 @@ set(FILECHECK_TESTS
     clift/emit-field-accesses/array-ptradd-linear-combination.mlir
     clift/emit-field-accesses/array-struct-stride-mul.mlir
     clift/emit-field-accesses/array-struct-stride-shl.mlir
+    clift/emit-field-accesses/common-strides-selection.mlir
     clift/emit-field-accesses/negative-stride-and-offset-no-rewrite.mlir
     clift/emit-field-accesses/struct-array-field-no-traverse.mlir
     clift/emit-field-accesses/struct-array-field-target.mlir
@@ -129,6 +131,7 @@ set(FILECHECK_TESTS
     clift/emit-field-accesses/struct-typedef-field-access.mlir
     clift/emit-field-accesses/struct-typedef-field-target.mlir
     clift/emit-field-accesses/struct-union-access.mlir
+    clift/emit-field-accesses/union-array-stride-selection.mlir
     clift/expression-rewrites/addressof.mlir
     clift/expression-rewrites/assign-type-punned-reused.mlir
     clift/expression-rewrites/assign-type-punned.mlir
