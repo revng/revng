@@ -289,6 +289,7 @@ void emitHelperHeader(ptml::CTokenEmitter &Tokens,
                             }));
 
   TypeEmitterConfiguration Configuration = {
+    .EmitMaximumEnumValue = true,
     .ExplicitPadding = true,
   };
 
