@@ -799,13 +799,37 @@ public:
 
   RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp Var,
                                                         bool EmitNewline) {
-    emitDeclaration(Var.getResult().getType(),
-                    DeclaratorInfo{
-                      .Identifier = Var.getName(),
-                      .Location = Var.getHandle(),
-                      .CAttributes = getDeclarationOpCAttributes(Var),
-                      .Kind = CTE::EntityKind::LocalVariable,
-                    });
+    mlir::Type Type = Var.getResult().getType();
+    DeclaratorInfo Declarator{
+      .Identifier = Var.getName(),
+      .Location = Var.getHandle(),
+      .CAttributes = getDeclarationOpCAttributes(Var),
+      .Kind = CTE::EntityKind::LocalVariable,
+    };
+
+    bool DefinitionEmitted = false;
+    if (Configuration.InlineStackFrameType) {
+      // When the configuration enables stack-frame inlining,
+      if (auto Flag = Var->getAttrOfType<mlir::BoolAttr>("clift.stack_frame")) {
+        if (Flag.getValue()) {
+          // and the variable has been tagged as the canonical stack frame,
+          if (auto S = clift::unwrapped_dyn_cast<clift::StructType>(Type)) {
+            // emit the *definition* of the struct/union type inline instead of
+            // a regular declaration, so the C output reads as
+            // `struct _PACKED ... my_stack { ... } var_1;`.
+            //
+            // Note that this skips all the typedefs that might be there before
+            // the struct.
+            TypeDefinitionEmitter Emitter(Tokens, DataModel, Configuration);
+            Emitter.emitClassDefinition(S, Declarator);
+            DefinitionEmitted = true;
+          }
+        }
+      }
+    }
+
+    if (not DefinitionEmitted)
+      emitDeclaration(Type, Declarator);
 
     if (not Var.getInitializer().empty()) {
       Tokens.emitSpace();
@@ -1319,8 +1343,6 @@ public:
                                           CTE::Delimiter::Braces);
 
       Tokens.emitNewline();
-
-      // TODO: Re-enable stack frame inlining.
 
       rc_recur emitStatementRegion(Op.getBody());
 
