@@ -8,6 +8,15 @@
 #include <string>
 
 #include "revng/Clift/Clift.h"
+#include "revng/CliftEmitC/Configuration.h"
 #include "revng/PTML/CTokenEmitter.h"
 
-void decompile(clift::FunctionOp Function, ptml::CTokenEmitter &Emitter);
+/// Backend-specific configuration options.
+struct CBackendConfiguration {
+  /// Configuration for the type emitter.
+  TypeEmitterConfiguration TypeEmitter = {};
+};
+
+void decompile(clift::FunctionOp Function,
+               ptml::CTokenEmitter &Emitter,
+               CBackendConfiguration Configuration = {});

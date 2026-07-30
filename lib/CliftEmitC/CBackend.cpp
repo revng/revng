@@ -56,7 +56,17 @@ class CliftToCEmitter : CEmitter {
   // Ambient precedence of the current expression.
   OperatorPrecedence CurrentPrecedence = {};
 
+  // Configuration controlling optional emission behaviour for this function,
+  // most notably whether the stack-frame struct definition should be inlined
+  // at the top of the function body.
+  CBackendConfiguration Configuration;
+
 public:
+  CliftToCEmitter(ptml::CTokenEmitter &Emitter,
+                  const CDataModel &DataModel,
+                  CBackendConfiguration Configuration) :
+    CEmitter(Emitter, DataModel), Configuration(Configuration) {}
+
   using CEmitter::CEmitter;
 
   static OperatorPrecedence decrementPrecedence(OperatorPrecedence Precedence) {
@@ -1303,6 +1313,9 @@ public:
 
 } // namespace
 
-void decompile(FunctionOp Function, ptml::CTokenEmitter &Emitter) {
-  CliftToCEmitter(Emitter, getDataModel(Function)).emitFunction(Function);
+void decompile(FunctionOp Function,
+               ptml::CTokenEmitter &Emitter,
+               CBackendConfiguration Configuration) {
+  CliftToCEmitter(Emitter, getDataModel(Function), Configuration)
+    .emitFunction(Function);
 }
