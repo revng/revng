@@ -9,6 +9,8 @@
 #include "revng/Clift/CliftOpHelpers.h"
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CEmitter.h"
+#include "revng/CliftEmitC/Configuration.h"
+#include "revng/CliftEmitC/TypeDefinitionEmitter.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Ranks/Location.h"
 #include "revng/Ranks/Ranks.h"
@@ -56,7 +58,17 @@ class CliftToCEmitter : CEmitter {
   // Ambient precedence of the current expression.
   OperatorPrecedence CurrentPrecedence = {};
 
+  // Configuration controlling optional emission behaviour for this function,
+  // most notably whether the stack-frame struct definition should be inlined
+  // at the top of the function body.
+  TypeEmitterConfiguration Configuration;
+
 public:
+  CliftToCEmitter(ptml::CTokenEmitter &Emitter,
+                  const CDataModel &DataModel,
+                  TypeEmitterConfiguration Configuration) :
+    CEmitter(Emitter, DataModel), Configuration(Configuration) {}
+
   using CEmitter::CEmitter;
 
   static OperatorPrecedence decrementPrecedence(OperatorPrecedence Precedence) {
@@ -785,17 +797,41 @@ public:
 
   //===---------------------------- Statements ----------------------------===//
 
-  RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp S,
+  RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp Var,
                                                         bool EmitNewline) {
-    emitDeclaration(S.getResult().getType(),
-                    DeclaratorInfo{
-                      .Identifier = S.getName(),
-                      .Location = S.getHandle(),
-                      .CAttributes = getDeclarationOpCAttributes(S),
-                      .Kind = CTE::EntityKind::LocalVariable,
-                    });
+    mlir::Type Type = Var.getResult().getType();
+    DeclaratorInfo Declarator{
+      .Identifier = Var.getName(),
+      .Location = Var.getHandle(),
+      .CAttributes = getDeclarationOpCAttributes(Var),
+      .Kind = CTE::EntityKind::LocalVariable,
+    };
 
-    if (not S.getInitializer().empty()) {
+    bool DefinitionEmitted = false;
+    if (Configuration.InlineStackFrameType) {
+      // When the configuration enables stack-frame inlining,
+      if (auto Flag = Var->getAttrOfType<mlir::BoolAttr>("clift.stack_frame")) {
+        if (Flag.getValue()) {
+          // and the variable has been tagged as the canonical stack frame,
+          if (auto S = clift::unwrapped_dyn_cast<clift::StructType>(Type)) {
+            // emit the *definition* of the struct/union type inline instead of
+            // a regular declaration, so the C output reads as
+            // `struct _PACKED ... my_stack { ... } var_1;`.
+            //
+            // Note that this skips all the typedefs that might be there before
+            // the struct.
+            TypeDefinitionEmitter Emitter(Tokens, DataModel, Configuration);
+            Emitter.emitClassDefinition(S, Declarator);
+            DefinitionEmitted = true;
+          }
+        }
+      }
+    }
+
+    if (not DefinitionEmitted)
+      emitDeclaration(Type, Declarator);
+
+    if (not Var.getInitializer().empty()) {
       Tokens.emitSpace();
       Tokens.emitOperator(CTE::Operator::Equals);
       Tokens.emitSpace();
@@ -803,7 +839,7 @@ public:
       // Comma expressions in a variable initialiser must be parenthesized.
       CurrentPrecedence = OperatorPrecedence::Comma;
 
-      mlir::Value Expression = getExpressionValue(S.getInitializer());
+      mlir::Value Expression = getExpressionValue(Var.getInitializer());
 
       if (auto Aggregate = Expression.getDefiningOp<AggregateOp>())
         rc_recur emitAggregateInitializer(Aggregate);
@@ -1308,8 +1344,6 @@ public:
 
       Tokens.emitNewline();
 
-      // TODO: Re-enable stack frame inlining.
-
       rc_recur emitStatementRegion(Op.getBody());
 
       // TODO: emit a comment containing homeless variable names.
@@ -1322,6 +1356,9 @@ public:
 
 } // namespace
 
-void decompile(FunctionOp Function, ptml::CTokenEmitter &Emitter) {
-  CliftToCEmitter(Emitter, getDataModel(Function)).emitFunction(Function);
+void decompile(FunctionOp Function,
+               ptml::CTokenEmitter &Emitter,
+               TypeEmitterConfiguration Configuration) {
+  CliftToCEmitter(Emitter, getDataModel(Function), Configuration)
+    .emitFunction(Function);
 }

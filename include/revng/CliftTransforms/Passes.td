@@ -104,8 +104,13 @@ def CliftVerifyC : Clift_Pass<"verify-c", "mlir::ModuleOp"> {
 // A class gathering up options common for all the PTML emitters.
 class Clift_EmitPTMLPass<string arg, string operation> : Clift_Pass<arg, operation> {
   let options = [
-    Option<"EmitTags", "ptml", "bool", /*default=*/"false", "Emit PTML tags">,
-    Option<"Output", "output", "std::string", /*default*/"\"-\"", "C output path">
+    Option<"EmitTags", "ptml", "bool", /* default = */"false", "Emit PTML tags">,
+    Option<"Output", "output", "std::string", /* default = */"\"-\"", "C output path">,
+    Option<"InlineStackFrameType",
+           "inline-stack-frame",
+           "bool",
+           /* default = */"false",
+           "Inline the body of each function's stack-frame struct type.">
   ];
 }
 

@@ -148,7 +148,9 @@ void TypeDefinitionEmitter::emitPaddingField(clift::ClassType Class,
   Tokens.emitNewline();
 }
 
-void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class) {
+void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class,
+                                                std::optional<DeclaratorInfo>
+                                                  Declarator) {
   {
     auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                 Class.getHandle());
@@ -248,8 +250,18 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class) {
       emitPaddingField(Class, PreviousOffset, Class.getObjectSize());
   }
 
-  Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
-  Tokens.emitNewline();
+  if (Declarator) {
+    Tokens.emitSpace();
+    Tokens.emitIdentifier(Declarator->Identifier,
+                          Declarator->Location,
+                          Declarator->Kind,
+                          ptml::CTokenEmitter::IdentifierKind::Definition);
+    if (Declarator->CAttributes) {
+      emitCAttributes(Declarator->CAttributes,
+                      /* SpaceBefore = */ true,
+                      /* SpaceAfter = */ false);
+    }
+  }
 }
 
 void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
@@ -340,28 +352,27 @@ void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
       }
     }
   }
-
-  Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
-  Tokens.emitNewline();
 }
 
 void TypeDefinitionEmitter::emitTypeDefinition(clift::DefinedType Type) {
   if (auto Class = mlir::dyn_cast<clift::ClassType>(Type)) {
     emitClassDefinition(Class);
-    return;
 
   } else if (auto Enum = mlir::dyn_cast<clift::EnumType>(Type)) {
     emitEnumDefinition(Enum);
-    return;
 
   } else if (not isSeparateDeclarationAllowed(Type)) {
     emitTypeDeclaration(Type);
     Tokens.emitNewline();
     return;
+
+  } else {
+    Type.dump();
+    revng_abort("Unknown defined type.");
   }
 
-  Type.dump();
-  revng_abort("Unknown defined type.");
+  Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+  Tokens.emitNewline();
 }
 
 void TypeDefinitionEmitter::emitTypeTree(const TypeDependencyNode &Root,

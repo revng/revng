@@ -46,6 +46,11 @@ set(FILECHECK_TESTS
     clift/backend/operators.mlir
     clift/backend/pointer.mlir
     clift/backend/raw-function.mlir
+    clift/backend/stack-frame-basic.mlir
+    clift/backend/stack-frame-initializer.mlir
+    clift/backend/stack-frame-non-class.mlir
+    clift/backend/stack-frame-with-comments.mlir
+    clift/backend/stack-frame-typedef.mlir
     clift/backend/string.mlir
     clift/backend/switch.mlir
     clift/backend/ternary.mlir

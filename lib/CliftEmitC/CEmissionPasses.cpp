@@ -51,7 +51,7 @@ struct CEmissionPass : BaseT<CEmissionPass<BaseT, Impl>> {
     auto Tagging = static_cast<ptml::Tagging>(Base::EmitTags.getValue());
     ptml::CTokenEmitter Emitter(File->os(), Tagging);
 
-    if (not Impl(Module, Emitter))
+    if (not Impl(Module, Emitter, Base::InlineStackFrameType))
       return Base::signalPassFailure();
   }
 };
@@ -60,10 +60,18 @@ struct CEmissionPass : BaseT<CEmissionPass<BaseT, Impl>> {
 
 clift::PassPtr<mlir::ModuleOp> clift::createEmitCPass() {
   static constexpr auto Impl = [](mlir::ModuleOp Module,
-                                  ptml::CTokenEmitter &Emitter) {
-    Module->walk([&Emitter](clift::FunctionOp Function) {
+                                  ptml::CTokenEmitter &Emitter,
+                                  bool InlineStackFrameType) {
+    TypeEmitterConfiguration Configuration = {
+      .TypeToOmit = {},
+      .EmitMaximumEnumValue = false,
+      .ExplicitPadding = true,
+      .InlineStackFrameType = InlineStackFrameType,
+    };
+
+    Module->walk([&Emitter, &Configuration](clift::FunctionOp Function) {
       if (not Function.isExternal())
-        decompile(Function, Emitter);
+        decompile(Function, Emitter, Configuration);
     });
 
     return true;
@@ -77,11 +85,13 @@ using TaGHBase = clift::impl::CliftEmitTypeAndGlobalHeaderBase<T>;
 
 clift::PassPtr<mlir::ModuleOp> clift::createEmitTypeAndGlobalHeaderPass() {
   static constexpr auto Impl = [](mlir::ModuleOp Module,
-                                  ptml::CTokenEmitter &Tokens) {
+                                  ptml::CTokenEmitter &Tokens,
+                                  bool /*InlineStackFrameType*/) {
     TypeEmitterConfiguration Configuration = {
       .TypeToOmit = {},
       .EmitMaximumEnumValue = false,
       .ExplicitPadding = true,
+      .InlineStackFrameType = false,
     };
 
     emitTypeAndGlobalHeader(Tokens, Module, Configuration);
@@ -96,7 +106,8 @@ using HHBase = clift::impl::CliftEmitHelperHeaderBase<T>;
 
 clift::PassPtr<mlir::ModuleOp> clift::createEmitHelperHeaderPass() {
   static constexpr auto Impl = [](mlir::ModuleOp Module,
-                                  ptml::CTokenEmitter &Tokens) {
+                                  ptml::CTokenEmitter &Tokens,
+                                  bool /*InlineStackFrameType*/) {
     emitHelperHeader(Tokens, { Module }, model::Binary{});
     return true;
   };

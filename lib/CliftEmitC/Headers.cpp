@@ -180,7 +180,7 @@ public:
       }
 
       auto Struct = clift::makeOpaqueStruct(Context, Size);
-      emitClassDefinition(Struct);
+      emitTypeDefinition(Struct);
       emitTypeDeclaration(Struct);
     }
 
@@ -289,7 +289,9 @@ void emitHelperHeader(ptml::CTokenEmitter &Tokens,
                             }));
 
   TypeEmitterConfiguration Configuration = {
+    .EmitMaximumEnumValue = true,
     .ExplicitPadding = true,
+    .InlineStackFrameType = false,
   };
 
   CHeaderEmitterImpl Emitter(Tokens, DataModel, Configuration);
