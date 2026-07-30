@@ -404,8 +404,11 @@ def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
   let regions = (region Clift_StatementRegion:$body,
                         Clift_ExpressionRegion:$condition);
 
+  // The leading `` suppresses the space the printer inserts before the label
+  // directive, which prints each label with its own leading space instead. This
+  // keeps a label-less loop free of stray whitespace.
   let assemblyFormat = [{
-    custom<CliftLoopLabels>($label_mask, $labels)
+    `` custom<CliftLoopLabels>($label_mask, $labels)
     `body` $body `cond` $condition attr-dict-with-keyword
   }];
 
@@ -687,8 +690,11 @@ def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
   let regions = (region Clift_ExpressionRegion:$condition,
                         Clift_StatementRegion:$body);
 
+  // The leading `` suppresses the space the printer inserts before the label
+  // directive, which prints each label with its own leading space instead. This
+  // keeps a label-less loop free of stray whitespace.
   let assemblyFormat = [{
-    custom<CliftLoopLabels>($label_mask, $labels)
+    `` custom<CliftLoopLabels>($label_mask, $labels)
     `cond` $condition `body` $body attr-dict-with-keyword
   }];
 

@@ -554,16 +554,16 @@ static void printCliftLoopLabels(mlir::OpAsmPrinter &Printer,
 
   unsigned Next = 0;
 
+  // Each label is printed with a leading space. Loops using this directive
+  // suppress the space the printer would otherwise emit before it, so an empty
+  // label list produces no stray whitespace.
   if (Mask & clift::impl::BreakLabelFlag) {
-    Printer << "break ";
+    Printer << " break ";
     Printer.printOperand(Labels[Next++]);
   }
 
   if (Mask & clift::impl::ContinueLabelFlag) {
-    if (Next != 0)
-      Printer << " ";
-
-    Printer << "continue ";
+    Printer << " continue ";
     Printer.printOperand(Labels[Next++]);
   }
 }
@@ -789,9 +789,7 @@ void ForOp::print(mlir::OpAsmPrinter &Printer) {
   SetInitType(getExpression());
   SetInitType(getBody());
 
-  Printer << ' ';
   printCliftLoopLabels(Printer, *this, getLabelMaskAttr(), getLabels());
-  Printer << ' ';
 
   if (InitType or not getInitializer().empty()) {
     Printer << " init ";
