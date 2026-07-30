@@ -29,6 +29,7 @@ PassPtr<clift::FunctionOp> createEmitFieldAccessesPass();
 PassPtr<clift::FunctionOp> createTerminalBranchComplementHoistingPass();
 PassPtr<clift::FunctionOp> createVariableScopeTighteningPass();
 PassPtr<clift::FunctionOp> createVariableInitializerHoistingPass();
+PassPtr<clift::FunctionOp> createPromoteBreakContinuePass();
 
 PassPtr<clift::FunctionOp> createCLegalizationPass();
 

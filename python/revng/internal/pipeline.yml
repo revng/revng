@@ -472,6 +472,7 @@ branches:
             - terminal-branch-complement-hoisting
             - tighten-variable-scopes
             - hoist-variable-initializers
+            - promote-break-continue
         artifacts:
           - name: clift-optimized
             container: clift-functions

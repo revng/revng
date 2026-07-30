@@ -70,6 +70,14 @@ def CliftVariableInitializerHoisting : Clift_Pass<"hoist-variable-initializers",
   let constructor = "clift::createVariableInitializerHoistingPass()";
 }
 
+def CliftPromoteBreakContinue : Clift_Pass<"promote-break-continue",
+                                           "clift::FunctionOp"> {
+
+  let summary = "Promote break_to/continue_to targeting the innermost enclosing "
+                "loop to plain operand-less break/continue.";
+  let constructor = "clift::createPromoteBreakContinuePass()";
+}
+
 def CliftCLegalization : Clift_Pass<"c-legalization", "clift::FunctionOp"> {
   let summary = "Legalize the input for emitting C code.";
   let constructor = "clift::createCLegalizationPass()";

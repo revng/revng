@@ -17,6 +17,7 @@ revng_add_library_internal(
   LoopDetection.cpp
   PatternRewriter.cpp
   PointerArithmetic.cpp
+  PromoteBreakContinue.cpp
   RewriteHelpers.cpp
   Statements.cpp
   TerminalBranchComplementHoisting.cpp
