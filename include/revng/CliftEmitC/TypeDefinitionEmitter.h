@@ -39,9 +39,11 @@ public:
   void emitFunctionTypedef(clift::FunctionType Function);
   void emitTypeDeclaration(clift::DefinedType Type);
 
-public:
+private:
   void emitClassDefinition(clift::ClassType StructOrUnion);
   void emitEnumDefinition(clift::EnumType Enum);
+
+public:
   void emitTypeDefinition(clift::DefinedType Type);
 
 private:
