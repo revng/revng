@@ -360,6 +360,23 @@ void TypeDefinitionEmitter::emitTypeDefinition(clift::DefinedType Type) {
   Tokens.emitNewline();
 }
 
+void // formatting
+TypeDefinitionEmitter::emitInlineClassDefinition(clift::ClassType Class,
+                                                 DeclaratorInfo Declarator) {
+  emitClassDefinition(Class);
+
+  Tokens.emitSpace();
+  Tokens.emitIdentifier(Declarator.Identifier,
+                        Declarator.Location,
+                        Declarator.Kind,
+                        ptml::CTokenEmitter::IdentifierKind::Definition);
+  if (Declarator.CAttributes) {
+    emitCAttributes(Declarator.CAttributes,
+                    /* SpaceBefore = */ true,
+                    /* SpaceAfter = */ false);
+  }
+}
+
 void TypeDefinitionEmitter::emitTypeTree(const TypeDependencyNode &Root,
                                          NodeSet &Emitted) {
   revng_log(TypePrinterLog,

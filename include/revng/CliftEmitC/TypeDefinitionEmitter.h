@@ -56,6 +56,12 @@ public:
   /// It emits the trailing `;\n`.
   void emitTypeDefinition(clift::DefinedType Type);
 
+  /// Emit a *class* definition inline, while also initializing a variable.
+  ///
+  /// The trailing `;` is NOT emitted here; it is the caller's responsibility.
+  void emitInlineClassDefinition(clift::ClassType StructOrUnion,
+                                 DeclaratorInfo Declarator);
+
 private:
   using NodeSet = std::unordered_set<const TypeDependencyNode *>;
 
