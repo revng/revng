@@ -873,6 +873,25 @@ public:
 
   RecursiveCoroutine<void>
   emitLabeledJumpStatement(JumpStatementOpInterface S) {
+    // A break_to/continue_to with no target label was promoted to a plain C
+    // break/continue by the promote-break-continue pass.
+    if (not S.getLabel()) {
+      if (mlir::isa<BreakToOp>(S))
+        Tokens.emitKeyword(CTE::Keyword::Break);
+      else if (mlir::isa<ContinueToOp>(S))
+        Tokens.emitKeyword(CTE::Keyword::Continue);
+      else
+        revng_abort("Unsupported operand-less jump statement");
+
+      Tokens.emitPunctuator(CTE::Punctuator::Semicolon);
+      Tokens.emitNewline();
+
+      rc_return;
+    }
+
+    // A labeled jump keeps its explicit form: goto, or a break_to/continue_to
+    // that could not be promoted (it targets an outer loop, or a plain break
+    // would be captured by an interposing switch).
     auto LabelOp = S.getLabel().getDefiningOp<MakeLabelOp>();
 
     if (mlir::isa<GotoOp>(S))

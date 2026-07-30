@@ -20,6 +20,9 @@ using namespace clift;
 
 LabelAssignmentOpInterface
 clift::impl::getLabelAssignmentOp(mlir::Value Label) {
+  // A promoted (operand-less) break_to/continue_to has no target label.
+  if (not Label)
+    return {};
   return Label.getDefiningOp<MakeLabelOp>().getAssignment();
 }
 

@@ -583,6 +583,28 @@ bool BlockStatementOp::isIndirectlyNoFallthrough() {
 //===------------------------------ BreakToOp -----------------------------===//
 
 mlir::LogicalResult BreakToOp::verify() {
+  // Operand-less form: this represents a plain C `break`. It is valid only if
+  // the innermost enclosing loop-or-switch construct is a loop, so that a plain
+  // break targets that loop rather than an interposing switch.
+  if (not getLabel()) {
+    bool CrossedSwitch = false;
+    LoopOpInterface Loop = getEnclosingLoop(getOperation(), &CrossedSwitch);
+
+    if (not Loop) {
+      return emitOpError() << getOperationName()
+                           << " with no target label must be nested within a "
+                              "loop.";
+    }
+
+    if (CrossedSwitch) {
+      return emitOpError() << getOperationName()
+                           << " with no target label may not be separated from "
+                              "its target loop by a switch.";
+    }
+
+    return mlir::success();
+  }
+
   mlir::Operation *Assignment = getLabelAssignmentOp();
   auto Loop = mlir::dyn_cast<LoopOpInterface>(Assignment);
 
@@ -602,6 +624,18 @@ mlir::LogicalResult BreakToOp::verify() {
 //===---------------------------- ContinueToOp ----------------------------===//
 
 mlir::LogicalResult ContinueToOp::verify() {
+  // Operand-less form: this represents a plain C `continue`. It is valid as
+  // long as it is nested within a loop (switches are transparent to continue).
+  if (not getLabel()) {
+    if (not getEnclosingLoop(getOperation())) {
+      return emitOpError() << getOperationName()
+                           << " with no target label must be nested within a "
+                              "loop.";
+    }
+
+    return mlir::success();
+  }
+
   mlir::Operation *Assignment = getLabelAssignmentOp();
   auto Loop = mlir::dyn_cast<LoopOpInterface>(Assignment);
 

@@ -216,6 +216,29 @@ inline BlockPosition getJumpTarget(JumpStatementOpInterface Jump) {
   return BlockPosition::get(Op);
 }
 
+/// Returns the innermost loop enclosing \p Op, or a null interface if there is
+/// none within the current function. If \p CrossedSwitch is non-null, it is set
+/// to true whenever a switch statement is nested strictly between \p Op and the
+/// returned loop. This mirrors the reachability of a plain C break statement,
+/// which is captured by the innermost enclosing loop *or* switch: a break can
+/// only stand in for a break_to targeting a loop when no switch is crossed.
+inline LoopOpInterface getEnclosingLoop(mlir::Operation *Op,
+                                        bool *CrossedSwitch = nullptr) {
+  if (CrossedSwitch != nullptr)
+    *CrossedSwitch = false;
+
+  for (mlir::Operation *Parent = Op->getParentOp(); Parent != nullptr;
+       Parent = Parent->getParentOp()) {
+    if (auto Loop = mlir::dyn_cast<LoopOpInterface>(Parent))
+      return Loop;
+
+    if (CrossedSwitch != nullptr and mlir::isa<SwitchOp>(Parent))
+      *CrossedSwitch = true;
+  }
+
+  return {};
+}
+
 template<typename PredicateT>
 StatementOpInterface
 getLastStatementIf(mlir::Region &R, PredicateT &&Predicate) {

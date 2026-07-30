@@ -366,10 +366,13 @@ def Clift_BlockStatementOp
 }
 
 def Clift_BreakToOp : Clift_JumpStatementOp<"break_to"> {
-  let arguments = (ins Clift_LabelType:$label);
+  // The target label operand is optional: a break_to with no operand represents
+  // a plain C `break` targeting the innermost enclosing loop. The operand is
+  // dropped by the promote-break-continue pass when that promotion is valid.
+  let arguments = (ins Optional<Clift_LabelType>:$label);
 
   let assemblyFormat = [{
-    $label attr-dict
+    ($label^)? attr-dict
   }];
 
   let hasVerifier = 1;
@@ -380,10 +383,14 @@ def Clift_BreakToOp : Clift_JumpStatementOp<"break_to"> {
 }
 
 def Clift_ContinueToOp : Clift_JumpStatementOp<"continue_to"> {
-  let arguments = (ins Clift_LabelType:$label);
+  // The target label operand is optional: a continue_to with no operand
+  // represents a plain C `continue` targeting the innermost enclosing loop. The
+  // operand is dropped by the promote-break-continue pass when that promotion is
+  // valid.
+  let arguments = (ins Optional<Clift_LabelType>:$label);
 
   let assemblyFormat = [{
-    $label attr-dict
+    ($label^)? attr-dict
   }];
 
   let hasVerifier = 1;
