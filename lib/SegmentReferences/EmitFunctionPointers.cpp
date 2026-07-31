@@ -4,6 +4,8 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
+#include "revng/Model/FunctionTags.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/SegmentReferences/EmitFunctionPointers.h"
 #include "revng/SegmentReferences/SegmentUsesEnumerator.h"
@@ -105,6 +107,16 @@ private:
       revng_assert(Result->getFunctionType() == &FT);
     } else {
       Result = Function::Create(&FT, GlobalValue::ExternalLinkage, LLVMName, M);
+
+      // Mark the new declaration exactly like the ones emitted by `Isolate`:
+      // the rest of the pipeline recognizes an isolated function through the
+      // `Isolated` tag and the function entry metadata. Without them the
+      // Clifter treats this declaration as a helper and names it after its
+      // LLVM symbol instead of using the name coming from the model.
+      FunctionTags::Isolated.addTo(Result);
+      setMetaAddressMetadata(Result,
+                             FunctionEntryMDName,
+                             ModelFunction.Entry());
     }
 
     return *Result;
