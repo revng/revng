@@ -1,0 +1,31 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng.test-always-inline
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-always-inline
+    suffix: /
+    command: |-
+      cd "$OUTPUT";
+      export REVNG_OPTIONS="$${REVNG_OPTIONS:-} --debug-names";
+
+      revng project init --overwrite --no-initial-auto-analysis "$INPUT";
+      revng project analyze parse-binary -o /dev/null;
+      revng project analyze detect-abi -o /dev/null;
+
+      # Mark the function after `detect-abi`, which recomputes the attributes
+      # of every function it gives a prototype to.
+      revng model override-by-name
+        revng.yml
+        ${SOURCE}.yml
+        > model-tmp.yml;
+      mv model-tmp.yml revng.yml;
+      rm -r .cache;
+
+      revng project artifact isolate --tar |
+        revng merge llvm |
+        revng opt -S |
+        FileCheck ${SOURCE}.filecheck.ll;
