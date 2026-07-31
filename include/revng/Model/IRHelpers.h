@@ -76,30 +76,34 @@ inline llvm::IntegerType *getLLVMTypeForScalar(llvm::LLVMContext &Context,
   return getLLVMIntegerTypeFor(Context, Type);
 }
 
-/// Given an LLVM module with a single isolated function, find it and return a
-/// reference to it. This function will assert if there is any other amount (0,
-/// 2 -> inf) number of functions. If the Address is provided it will also
-/// assert that the found function has the expected MetaAddress.
+/// Given an LLVM module, find the isolated function with the given address and
+/// return a reference to it.
+///
+/// The module can contain more than one isolated function, as is the case for
+/// a module carrying the body of the functions to inline into its own one, but
+/// only one of them can have the requested address.
+///
+/// \note asserts if there is no such function.
 inline decltype(auto)
 getUniqueIsolatedFunction(ConstOrNot<llvm::Module> auto &Module,
-                          const MetaAddress &Address = MetaAddress::invalid()) {
+                          const MetaAddress &Address) {
   using ModuleType = std::remove_reference_t<decltype(Module)>;
   using FunctionType = ConstIf<std::is_const_v<ModuleType>, llvm::Function>;
+
+  revng_assert(Address.isValid());
 
   FunctionType *Function = nullptr;
   for (FunctionType &F : Module.functions()) {
     if (F.isDeclaration() or not FunctionTags::Isolated.isTagOf(&F))
       continue;
 
+    if (getMetaAddressOfIsolatedFunction(F) != Address)
+      continue;
+
     revng_assert(Function == nullptr);
     Function = &F;
   }
   revng_assert(Function != nullptr);
-
-  if (not Address.isInvalid()) {
-    MetaAddress FoundAddress = getMetaAddressOfIsolatedFunction(*Function);
-    revng_assert(Address == FoundAddress);
-  }
 
   return *Function;
 }
