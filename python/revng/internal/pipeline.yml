@@ -194,6 +194,8 @@ branches:
         arguments: [cfg-map, llvm-root, llvm-functions]
       - pipe: attach-debug-info
         arguments: [cfg-map, llvm-functions]
+      - pipe: inline-always-inline-functions
+        arguments: [llvm-functions]
       - savepoint: isolate
         containers: [llvm-functions]
         artifacts:
