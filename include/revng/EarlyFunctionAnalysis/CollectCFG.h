@@ -53,6 +53,13 @@ public:
              LLVMRootContainer &Input,
              CFGMap &Output);
   void runOnFunction(const model::Function &TheFunction);
+
+private:
+  efa::ControlFlowGraph analyzeFunction(const MetaAddress &Entry);
+
+  /// Record in \p Bundle the control-flow graph of each `AlwaysInline`
+  /// function reachable from its main function through `AlwaysInline` calls
+  void collectAlwaysInlineFunctions(efa::FunctionBundle &Bundle);
 };
 
 } // namespace piperuns
