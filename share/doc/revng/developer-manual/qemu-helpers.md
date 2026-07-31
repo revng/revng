@@ -511,7 +511,7 @@ $ revng2 project artifact enforce-abi -o enforced.bc
 
 Let's look at the isolated function.
 
-```bash ignore="%[0-9]|[0-9]:"
+```bash ignore="%[0-9]+|[0-9]+:"
 $ revng opt -strip-debug -S enforced.bc \
     | sed -n "/^define.*@local_0x400000_Code_x86_64/,/^}/p" \
     | pretty \
@@ -561,7 +561,7 @@ Running `-simplifycfg` eliminates the `unreachable` blocks, turning the error co
 These `llvm.assume` calls are later removed by the `remove-llvmassume-calls` pass (which runs as part of the `segregate-stack-accesses` step).
 Adding `-dce` cleans up the remaining dead instructions:
 
-```bash ignore="%[0-9]|[0-9]:"
+```bash ignore="%[0-9]+|[0-9]+:"
 $ revng opt -strip-debug -simplifycfg -remove-llvmassume-calls -dce -S enforced.bc \
     | sed -n "/^define.*@local_0x400000_Code_x86_64/,/^}/p" \
     | pretty \

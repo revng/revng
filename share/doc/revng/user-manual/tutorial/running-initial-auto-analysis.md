@@ -19,7 +19,7 @@ $ gcc example.c -o example -O2
 
 We run the [`parse-binary` analysis](../../references/analyses.md#parse-binary-analysis) using [`revng2 project analyze`](../../references/cli/revng2-project-analyze.md) to automatically collect all the loading information available in the ELF headers:
 
-```{bash ignore="VirtualSize|FileSize"}
+```{bash ignore="^.*(VirtualSize|FileSize):.*[0-9]+$"}
 $ mkdir project-dir
 $ revng2 -C project-dir project init example --no-initial-auto-analysis
 $ revng2 -C project-dir project analyze parse-binary -o /dev/null
