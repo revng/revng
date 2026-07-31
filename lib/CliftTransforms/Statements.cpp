@@ -206,7 +206,7 @@ struct BranchEqualizationPattern : StatementRegionRewritePattern {
     mlir::Region *FallthroughRegion = nullptr;
 
     for (mlir::Region &R : Branch.getBranchRegions()) {
-      if (clift::isIndirectlyNoFallthrough(R))
+      if (not clift::indirectlyFallsThrough(R))
         continue;
 
       if (FallthroughRegion)

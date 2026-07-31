@@ -67,8 +67,8 @@ static std::optional<HoistingTarget> selectHoistingTarget(IfOp If) {
   if (isEmptyRegionOrBlock(If.getThen()))
     return HoistingTarget::Then;
 
-  bool ThenFallthrough = not isIndirectlyNoFallthrough(If.getThen());
-  bool ElseFallthrough = not isIndirectlyNoFallthrough(If.getElse());
+  bool ThenFallthrough = indirectlyFallsThrough(If.getThen());
+  bool ElseFallthrough = indirectlyFallsThrough(If.getElse());
 
   // If both branches fall through, neither can be hoisted.
   if (ThenFallthrough and ElseFallthrough)
