@@ -24,13 +24,15 @@ struct Annotation {
 };
 
 struct AttributeRegistry {
-  static constexpr std::array<Attribute, 5> StaticAttributes{
+  static constexpr std::array<Attribute, 6> StaticAttributes{
     Attribute{ .Macro = "_PACKED", .Value = "packed" },
     Attribute{ .Macro = "_ALWAYS_INLINE", .Value = "always_inline" },
     Attribute{ .Macro = "_NORETURN", .Value = "noreturn" },
 
     Attribute{ .Macro = "_STACK", .Value = "stack" },
-    Attribute{ .Macro = "_CAN_CONTAIN_CODE", .Value = "can_contain_code" }
+    Attribute{ .Macro = "_CAN_CONTAIN_CODE", .Value = "can_contain_code" },
+    Attribute{ .Macro = "_HAS_ONE_BROKEN_RETURN",
+               .Value = "has_one_broken_return" }
   };
   static constexpr std::array<Annotation, 5> StaticAnnotations{
     Annotation{ .Macro = "_REG", .Prefix = "reg:" },

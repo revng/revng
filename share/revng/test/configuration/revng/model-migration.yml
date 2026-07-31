@@ -21,6 +21,7 @@ sources:
       - v5/
       - v6/
       - v9/
+      - v10/
 
 commands:
   - type: revng.model-migration

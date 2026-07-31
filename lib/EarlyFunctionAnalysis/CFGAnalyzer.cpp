@@ -1001,7 +1001,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
     // Do nothing
   } else if (FoundBrokenReturn && BrokenReturnCount == 1
              && NoReturnCount == 0) {
-    Attributes.insert(model::FunctionAttribute::AlwaysInline);
+    Attributes.insert(model::FunctionAttribute::HasOneBrokenReturn);
   } else {
     Attributes.insert(model::FunctionAttribute::NoReturn);
   }

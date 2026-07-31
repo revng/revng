@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 9
+version: 10
 root_type: Binary
 
 definitions:
@@ -1088,6 +1088,14 @@ definitions:
 
       - name: AlwaysInline
         doc: The function call must always be inlined in the caller.
+
+      - name: HasOneBrokenReturn
+        doc: |-
+          The function does not return, but it has exactly one indirect jump
+          targeting the return address of its caller, leaving the stack in an
+          unexpected position. Such a function is not a function at all: its
+          body needs to be inlined in the caller in order to recover a sane
+          control-flow graph.
 
   - name: StatementComment
     type: struct

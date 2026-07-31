@@ -176,7 +176,7 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
     BasicBlock *CalleeBlock = getFunctionCallCallee(T);
 
     using namespace model::FunctionAttribute;
-    bool IsMarkedInline = Summary->Attributes.contains(AlwaysInline);
+    bool IsMarkedInline = Summary->Attributes.contains(HasOneBrokenReturn);
     bool IsCallingTheCaller = CallerFunction == Callee;
     bool IsBanned = FunctionsMap.isBanned(Callee);
     IsInline = IsMarkedInline and not IsCallingTheCaller and not IsBanned;

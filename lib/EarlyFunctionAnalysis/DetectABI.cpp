@@ -390,7 +390,7 @@ void DetectABI::preliminaryFunctionAnalysis() {
           MetaAddress CallerPC = Caller->Address;
           const auto &CallerSummary = Oracle.getLocalFunction(CallerPC);
           using namespace model::FunctionAttribute;
-          if (CallerSummary.Attributes.contains(AlwaysInline))
+          if (CallerSummary.Attributes.contains(HasOneBrokenReturn))
             InlineFunctionWorklist.insert(Caller);
 
           if (Binary->Functions().at(CallerPC).Prototype().isEmpty()) {

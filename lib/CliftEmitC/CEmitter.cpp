@@ -392,6 +392,8 @@ mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
       Builder.setOrUpdate<"_NORETURN">();
     if (Function->hasAttr("always_inline"))
       Builder.setOrUpdate<"_ALWAYS_INLINE">();
+    if (Function->hasAttr("has_one_broken_return"))
+      Builder.setOrUpdate<"_HAS_ONE_BROKEN_RETURN">();
 
     Builder.append(Function.getFunctionType().getCAttributes());
   }

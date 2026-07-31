@@ -133,6 +133,7 @@ def Clift_FunctionOp : Clift_Op<"func",
                        OptionalAttr<DictArrayAttr>:$res_attrs,
                        UnitAttr:$noreturn,
                        UnitAttr:$always_inline,
+                       UnitAttr:$has_one_broken_return,
                        DefaultValuedStrAttr<StrAttr, "">:$handle);
 
   let description = [{
