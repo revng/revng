@@ -135,8 +135,8 @@ $ ROOT="$(dirname "$(dirname "$(which revng)")")"
 $ pretty() { sed "s/ #[0-9]*//; s/ ![^ ]*//g; s/;.*//"; }
 $ revng opt -strip-debug -sroa -instcombine -dce -S \
     "$ROOT/share/libtcg/libtcg-helpers-x86_64.bc" \
-    -o libtcg-helpers-x86_64-optimized.S
-$ cat libtcg-helpers-x86_64-optimized.S \
+    -o libtcg-helpers-x86_64-optimized.ll
+$ cat libtcg-helpers-x86_64-optimized.ll \
     | sed -n "/^define void @helper_clts/,/^}/p" \
     | pretty
 define void @helper_clts(ptr noundef %0) section "revng_inline" {
@@ -160,7 +160,7 @@ The function takes a `%struct.CPUArchState` pointer `%0` (the `env` argument) an
 Now let's look at `helper_divb_AL`:
 
 ```bash
-$ cat libtcg-helpers-x86_64-optimized.S \
+$ cat libtcg-helpers-x86_64-optimized.ll \
     | sed -n "/^define void @helper_divb_AL/,/^}/p" \
     | pretty \
     | head -16
@@ -218,8 +218,8 @@ Let's look at `helper_clts` after the `fix-helpers` transformation:
 ```bash
 $ revng opt -strip-debug -instcombine -dce -S \
     "$ROOT/share/revng/libtcg-helpers-full-x86_64.bc" \
-    -o libtcg-helpers-full-x86_64-optimized.S
-$ cat libtcg-helpers-full-x86_64-optimized.S \
+    -o libtcg-helpers-full-x86_64-optimized.ll
+$ cat libtcg-helpers-full-x86_64-optimized.ll \
     | sed -n "/^define void @helper_clts/,/^}/p" \
     | pretty
 define void @helper_clts(ptr noundef %0) section "revng_inline" {
@@ -241,7 +241,7 @@ Well-known registers get human-readable names instead.
 For instance, `helper_divb_AL` after annotation:
 
 ```bash
-$ cat libtcg-helpers-full-x86_64-optimized.S \
+$ cat libtcg-helpers-full-x86_64-optimized.ll \
     | sed -n "/^define void @helper_divb_AL/,/^}/p" \
     | pretty \
     | head -10
@@ -281,7 +281,7 @@ But in the full module, `fix-helpers` cannot replace them with a single CSV — 
 Instead, it emits a `switch` on the pointer value (which is the byte offset of the register within `CPUState`) to dispatch to the correct CSV:
 
 ```bash
-$ cat libtcg-helpers-full-x86_64-optimized.S \
+$ cat libtcg-helpers-full-x86_64-optimized.ll \
     | sed -n "/^define void @helper_addsd/,/^}/p" \
     | pretty \
     | sed -n '1,12p'
@@ -312,8 +312,8 @@ For example, `helper_clts` (which is `REVNG_INLINE`) still has its full definiti
 ```bash
 $ revng opt -strip-debug -S \
     "$ROOT/share/revng/libtcg-helpers-to-inline-x86_64.bc" \
-    -o libtcg-helpers-to-inline-x86_64-optimized.S
-$ cat libtcg-helpers-to-inline-x86_64-optimized.S \
+    -o libtcg-helpers-to-inline-x86_64-optimized.ll
+$ cat libtcg-helpers-to-inline-x86_64-optimized.ll \
     | grep "^define.*@helper_clts" \
     | pretty
 define void @helper_clts(ptr noundef %0) section "revng_inline" {
@@ -323,7 +323,7 @@ We can see the counts: the *to-inline* module has a small number of definitions 
 
 ```bash
 $ echo "Definitions:"
-$ cat libtcg-helpers-to-inline-x86_64-optimized.S \
+$ cat libtcg-helpers-to-inline-x86_64-optimized.ll \
     | grep -c "^define"
 Definitions:
 363
@@ -337,8 +337,8 @@ Every function, including `REVNG_INLINE` ones, is a bare declaration.
 ```bash
 $ revng opt -strip-debug -S \
     "$ROOT/share/revng/libtcg-helpers-declarations-only-x86_64.bc" \
-    -o libtcg-helpers-declarations-only-x86_64-optimized.S
-$ cat libtcg-helpers-declarations-only-x86_64-optimized.S \
+    -o libtcg-helpers-declarations-only-x86_64-optimized.ll
+$ cat libtcg-helpers-declarations-only-x86_64-optimized.ll \
     | grep "^declare.*@helper_clts" \
     | pretty
 declare void @helper_clts(ptr noundef) section "revng_inline"
@@ -348,12 +348,12 @@ The module has 0 definitions and 1089 declarations:
 
 ```bash
 $ echo "Definitions:"
-$ cat libtcg-helpers-declarations-only-x86_64-optimized.S \
+$ cat libtcg-helpers-declarations-only-x86_64-optimized.ll \
     | { grep -c "^define" || true; }
 Definitions:
 0
 $ echo "Declarations:"
-$ cat libtcg-helpers-declarations-only-x86_64-optimized.S \
+$ cat libtcg-helpers-declarations-only-x86_64-optimized.ll \
     | grep "^declare" | grep -c "helper_"
 Declarations:
 1089
@@ -367,7 +367,7 @@ This metadata records which CSVs a helper reads and which it writes, *even when 
 For instance, in the *declarations-only* module, `helper_write_eflags` has no body, yet its declaration carries the metadata:
 
 ```bash
-$ cat libtcg-helpers-declarations-only-x86_64-optimized.S \
+$ cat libtcg-helpers-declarations-only-x86_64-optimized.ll \
     | grep "^declare.*@helper_write_eflags"
 declare !revng.csua !299 !revng.csvaccess.offsets.load !303 !revng.csvaccess.offsets.store !305 !revng.tags !13 void @helper_write_eflags(ptr noundef, i64 noundef, i32 noundef) #0
 ```
@@ -376,7 +376,7 @@ The `!303` and `!305` are references to metadata nodes defined at the end of the
 Resolving them reveals the actual CSV lists:
 
 ```bash
-$ cat libtcg-helpers-declarations-only-x86_64-optimized.S \
+$ cat libtcg-helpers-declarations-only-x86_64-optimized.ll \
     | grep -E "^!(303|304|305|306) ="
 !303 = !{i32 0, !304}
 !304 = !{!"_state_0x2848"}
