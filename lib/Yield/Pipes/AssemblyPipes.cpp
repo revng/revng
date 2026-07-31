@@ -42,7 +42,7 @@ void ProcessAssembly::runOnFunction(const model::Function &TheFunction) {
 
   TupleTree<yield::Function> &OutputFunction = Output.getElement(Object);
   Helper->disassemble(TheFunction,
-                      *Metadata,
+                      Metadata->MainFunction(),
                       *BinaryView,
                       Binary,
                       NameBuilder,

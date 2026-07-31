@@ -2,11 +2,37 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 1
+version: 2
 
-root_type: ControlFlowGraph
+root_type: FunctionBundle
 
 definitions:
+  - name: FunctionBundle
+    doc: |-
+      The control-flow information associated to a function: its own
+      control-flow graph plus a copy of the control-flow graph of each of the
+      functions that need to be inlined into it.
+
+      Carrying the callees around is necessary because the pipeline is
+      incremental at function granularity: a pipe processing a function only
+      ever sees that function's own objects, so a callee's control-flow graph
+      would otherwise be out of reach.
+    type: struct
+    fields:
+      - name: MainFunction
+        doc: The control-flow graph of the function this bundle refers to
+        type: ControlFlowGraph
+
+      - name: AlwaysInlineFunctions
+        doc: |-
+          The control-flow graph of each `AlwaysInline` function reachable
+          from `MainFunction` through `AlwaysInline` calls. They are emitted
+          next to `MainFunction` at isolation time so that a later pipe can
+          inline them.
+        sequence:
+          type: SortedVector
+          elementType: ControlFlowGraph
+
   - name: ControlFlowGraph
     doc: |-
       Metadata attached to a function. As of now, it includes a list of basic

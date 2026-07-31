@@ -344,10 +344,11 @@ void DetectABI::preliminaryFunctionAnalysis() {
 
     // Serialize CFG in the ControlFlowGraphCache
     {
-      TupleTree<efa::ControlFlowGraph> New;
-      New->Entry() = EntryNode->Address;
-      New->Blocks() = AnalysisResult.CFG;
-      New->simplify(*Binary);
+      TupleTree<efa::FunctionBundle> New;
+      efa::ControlFlowGraph &Main = New->MainFunction();
+      Main.Entry() = EntryNode->Address;
+      Main.Blocks() = AnalysisResult.CFG;
+      Main.simplify(*Binary);
       FMC.set(std::move(New));
     }
 

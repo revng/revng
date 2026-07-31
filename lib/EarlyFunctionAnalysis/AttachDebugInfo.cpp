@@ -110,7 +110,7 @@ private:
 
 public:
   void handleFunction(llvm::Function &F,
-                      efa::ControlFlowGraph &FM,
+                      const efa::ControlFlowGraph &FM,
                       GeneratedCodeBasicInfo &GCBI) {
     BasicBlockID CurrentBB = BasicBlockID(FM.Entry());
     DILocation *DefaultDI = buildDI(FM.Entry(), CurrentBB, FM.Entry());
@@ -206,7 +206,8 @@ void AttachDebugInfo::runOnLLVMFunction(const model::Function &Function,
   // Skip declarations
   revng_assert(not LLVMFunction.isDeclaration());
 
-  auto FM = *CFG.getElement(ObjectID(Function.Entry()));
+  ObjectID Object(Function.Entry());
+  const efa::ControlFlowGraph &FM = CFG.getElement(Object)->MainFunction();
   revng_log(Log,
             "Metadata for Function " << LLVMFunction.getName() << ":"
                                      << FM.Entry().toString());

@@ -21,7 +21,7 @@ void ProcessCallGraph::run() {
 
   SortedVector<efa::ControlFlowGraph> Metadata;
   for (const ObjectID &Object : Input.objects())
-    Metadata.insert(*Input.getElement(Object));
+    Metadata.insert(Input.getElement(Object)->MainFunction());
 
   *Output.getElement(ObjectID()) = CrossRelations(Metadata, Binary);
 }

@@ -32,5 +32,6 @@ commands:
 
             return False
 
-        cfgs = [cfg for cfg in yaml.safe_load(sys.stdin.read()) if should_keep(cfg)]
-        print(yaml.dump(cfgs))
+        bundles = yaml.safe_load(sys.stdin.read())
+        cfgs = [b["MainFunction"] for b in bundles]
+        print(yaml.dump([cfg for cfg in cfgs if should_keep(cfg)]))

@@ -34,23 +34,24 @@ void CollectCFG::runOnFunction(const model::Function &Function) {
   const model::Binary &Binary = *Model.get().get();
 
   // Recover the control-flow graph of the function
-  TupleTree<efa::ControlFlowGraph> New;
-  New->Entry() = EntryAddress;
-  New->Blocks() = std::move(Analyzer.analyze(EntryAddress).CFG);
+  TupleTree<efa::FunctionBundle> New;
+  efa::ControlFlowGraph &Main = New->MainFunction();
+  Main.Entry() = EntryAddress;
+  Main.Blocks() = std::move(Analyzer.analyze(EntryAddress).CFG);
 
   if (DebugNames) {
     auto Function = Binary.Functions().at(EntryAddress);
-    New->Name() = Function.Name();
+    Main.Name() = Function.Name();
   }
 
-  if (New->Blocks().size() > 0)
-    revng_assert(New->Blocks().contains(BasicBlockID(New->Entry())));
+  if (Main.Blocks().size() > 0)
+    revng_assert(Main.Blocks().contains(BasicBlockID(Main.Entry())));
 
   // Run final steps on the CFG
-  New->simplify(Binary);
+  Main.simplify(Binary);
 
-  if (New->Blocks().size() > 0)
-    revng_assert(New->Blocks().contains(BasicBlockID(New->Entry())));
+  if (Main.Blocks().size() > 0)
+    revng_assert(Main.Blocks().contains(BasicBlockID(Main.Entry())));
 
   Output.getElement(ObjectID(EntryAddress)) = std::move(New);
 }

@@ -61,7 +61,8 @@ static void outputHexDump(const model::Binary &Binary,
 
   for (const Function *F : Functions) {
     MetaAddress Address = getMetaAddressOfIsolatedFunction(*F);
-    const efa::ControlFlowGraph &Metadata = *CFG.getElement(ObjectID(Address));
+    const efa::FunctionBundle &Bundle = *CFG.getElement(ObjectID(Address));
+    const efa::ControlFlowGraph &Metadata = Bundle.MainFunction();
     MetaAddress EntryAddress = Metadata.Entry();
 
     for (const Instruction &I : llvm::instructions(F)) {

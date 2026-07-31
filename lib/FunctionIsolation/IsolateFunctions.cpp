@@ -644,7 +644,8 @@ Isolate::Isolate(const class Model &Model,
 void Isolate::runOnFunction(const model::Function &TheFunction) {
   const MetaAddress Entry = TheFunction.Entry();
   revng_assert(Entry.isValid());
-  const efa::ControlFlowGraph &FM = *CFG.getElement(ObjectID(Entry));
+  const efa::FunctionBundle &Bundle = *CFG.getElement(ObjectID(Entry));
+  const efa::ControlFlowGraph &FM = Bundle.MainFunction();
 
   // Get or create the llvm::Function
   Function *F = getLocalFunction(Entry);

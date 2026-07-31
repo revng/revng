@@ -300,7 +300,8 @@ void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
   // Identify the corresponding call site in the model
   Function *CallerFunction = Call->getParent()->getParent();
   MetaAddress Entry = getMetaAddressOfIsolatedFunction(*CallerFunction);
-  const efa::ControlFlowGraph &FM = *CFGMap.getElement(ObjectID(Entry));
+  const efa::FunctionBundle &Bundle = *CFGMap.getElement(ObjectID(Entry));
+  const efa::ControlFlowGraph &FM = Bundle.MainFunction();
 
   const efa::BasicBlock *CallerBlock = FM.findBlock(GCBI, Call->getParent());
   revng_assert(CallerBlock != nullptr);

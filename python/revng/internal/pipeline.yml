@@ -181,8 +181,9 @@ branches:
             description: |-
               This artifact is an archive containing one YAML file for each
               function.
-              Each document contains information about the control-flow graph of
-              each function.
+              Each document contains the control-flow graph of a function, plus
+              the control-flow graph of each of the functions that need to be
+              inlined into it.
             container: cfg-map
             category: debug
 
