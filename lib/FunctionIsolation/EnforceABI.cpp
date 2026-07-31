@@ -85,8 +85,7 @@ private:
   void createPrologue(Function *NewFunction,
                       const UsedRegisters &UsedRegisters);
 
-  void handleRegularFunctionCall(const MetaAddress &CallerAddress,
-                                 CallInst *Call);
+  void handleRegularFunctionCall(CallInst *Call);
   CallInst *generateCall(revng::IRBuilder &Builder,
                          MetaAddress Entry,
                          FunctionCallee Callee,
@@ -152,7 +151,7 @@ void EnforceABI::run() {
 
   // Actually process function calls
   for (CallInst *Call : Calls)
-    handleRegularFunctionCall(ModelFunction.Entry(), Call);
+    handleRegularFunctionCall(Call);
 
   // Drop all the old functions, after we stole all of its blocks
   for (Function *OldFunction : OldFunctions)
@@ -293,17 +292,17 @@ void EnforceABI::createPrologue(Function *NewFunction,
   }
 }
 
-void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
-                                           CallInst *Call) {
+void EnforceABI::handleRegularFunctionCall(CallInst *Call) {
   revng_assert(Call->getDebugLoc());
 
   // Identify the corresponding call site in the model
   Function *CallerFunction = Call->getParent()->getParent();
   MetaAddress Entry = getMetaAddressOfIsolatedFunction(*CallerFunction);
   const efa::FunctionBundle &Bundle = *CFGMap.getElement(ObjectID(Entry));
-  const efa::ControlFlowGraph &FM = Bundle.MainFunction();
 
-  const efa::BasicBlock *CallerBlock = FM.findBlock(GCBI, Call->getParent());
+  // The call site can come from a function inlined into this one, in which
+  // case it is described by that function, not by this one
+  auto &&[FM, CallerBlock] = Bundle.findBlock(GCBI, Call);
   revng_assert(CallerBlock != nullptr);
 
   // Find the CallEdge
@@ -355,7 +354,7 @@ void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
   // Generate the call
   revng::IRBuilder Builder(Call);
   CallInst *NewCall = generateCall(Builder,
-                                   CallerAddress,
+                                   FM->Entry(),
                                    Callee,
                                    *CallerBlock,
                                    *CallSite);

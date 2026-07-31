@@ -11,8 +11,10 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/FunctionBundle.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Ranks/IRHelpers.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -119,6 +121,20 @@ const efa::BasicBlock *ControlFlowGraph::findBlock(GeneratedCodeBasicInfo &GCBI,
   }
 
   return &*It;
+}
+
+std::pair<const efa::ControlFlowGraph *, const efa::BasicBlock *>
+FunctionBundle::findBlock(GeneratedCodeBasicInfo &GCBI,
+                          llvm::Instruction *I) const {
+  if (auto MaybeLocation = getLocation(I)) {
+    BasicBlockID ID = MaybeLocation->parent().back();
+    for (const efa::ControlFlowGraph &CFG : AlwaysInlineFunctions())
+      if (auto It = CFG.Blocks().find(ID); It != CFG.Blocks().end())
+        return { &CFG, &*It };
+  }
+
+  const efa::ControlFlowGraph &Main = MainFunction();
+  return { &Main, Main.findBlock(GCBI, I->getParent()) };
 }
 
 void ControlFlowGraph::serialize(GeneratedCodeBasicInfo &GCBI) const {
