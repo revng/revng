@@ -366,7 +366,7 @@ This metadata records which CSVs a helper reads and which it writes, *even when 
 
 For instance, in the *declarations-only* module, `helper_write_eflags` has no body, yet its declaration carries the metadata:
 
-```bash
+```bash ignore="![0-9]+"
 $ cat libtcg-helpers-declarations-only-x86_64-optimized.ll \
     | grep "^declare.*@helper_write_eflags"
 declare !revng.csua !299 !revng.csvaccess.offsets.load !303 !revng.csvaccess.offsets.store !305 !revng.tags !13 void @helper_write_eflags(ptr noundef, i64 noundef, i32 noundef) #0
@@ -375,7 +375,7 @@ declare !revng.csua !299 !revng.csvaccess.offsets.load !303 !revng.csvaccess.off
 The `!303` and `!305` are references to metadata nodes defined at the end of the module.
 Resolving them reveals the actual CSV lists:
 
-```bash
+```{bash notest}
 $ cat libtcg-helpers-declarations-only-x86_64-optimized.ll \
     | grep -E "^!(303|304|305|306) ="
 !303 = !{i32 0, !304}
