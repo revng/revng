@@ -5,9 +5,11 @@
 //
 
 #include <optional>
+#include <string>
 
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/PTMLEmitter.h"
@@ -15,27 +17,37 @@
 
 namespace ptml {
 
-/// Provides a stream-like interface for emitting C tokens and simple
-/// preprocessor directives. It is ensured that through this interface, only
-/// lexically valid C code can be emitted.
-//
+/// Builder for C tokens and simple preprocessor directives.
+///
+/// This class ensures that through this interface, only lexically valid C code
+/// can be emitted.
+///
+/// This class builds the output internally and reformats it
+/// using `clang-format`. Users can get the output via `extract`.
 // IMPORTANT: If you are about to add a new method in here, please make sure
-//            what it emits is wrapped into a ptml `<span>` tag with:
-//            - `data-token` set (determines syntax highlighting),
-//            - either `data-location-definition` or `data-location-references`
-//              set (ensures correct ctrl+click behavior),
-//            - `data-allowed-actions` and `data-action-context-location` set
-//              iff it is actionable (allows for user interactivity).
+// what it emits is wrapped into a ptml `<span>` tag with:
 //
-//            Practically, you should use:
-//            - `PTML.initializeOpenTag(ptml::tags::Span)` for the tag,
-//            - `CTokenEmitter::getEntityKindAttribute` to select
-//              the `data-token` attribute,
-//            - `CTokenEmitter::getAllowedActions` to select
-//              the `data-allowed-actions`.
-//            - `data-location-definition` or `data-location-references` should
-//              be set based on the handle you already likely have.
+// - `data-token` set (determines syntax highlighting),
+// - either `data-location-definition` or `data-location-references` set
+//   (ensures correct ctrl+click behavior),
+// - `data-allowed-actions` and `data-action-context-location` set iff it is
+//   actionable (allows for user interactivity).
+//
+// Practically, you should use:
+//
+// - `PTML.initializeOpenTag(ptml::tags::Span)` for the tag,
+// - `CTokenEmitter::getEntityKindAttribute` to select the `data-token`
+//   attribute, `CTokenEmitter::getAllowedActions` to select the
+//   `data-allowed-actions`.
+// - `data-location-definition` or `data-location-references` should be set
+//   based on the handle you already likely have.
 class CTokenEmitter {
+private:
+  Tagging Tags;
+
+  std::string Buffer;
+  llvm::raw_string_ostream BufferStream;
+
   // It is very important to hide the PTML emitter and not to expose any direct
   // access to it in the public interface of this class. This design prevents
   // the emission of lexically invalid C.
@@ -44,19 +56,28 @@ class CTokenEmitter {
   // Used to ensure that only one comment emitter may exist at any given time.
   bool IsEmittingComment = false;
 
-  // This ensures the extra `<div></div>` we need for multi-element artifacts
-  // is properly emitted (PTML requires each document to be a single tag).
+  // The extra `<div></div>` we need for multi-element artifacts (PTML requires
+  // each document to be a single tag). extract() closes it before reformatting.
   //
   // TODO: eventually we will want to introduce a separate emitter layer (think
   //       along the lines of a `DocumentEmitter`) to take care of this instead.
   PTMLTagEmitter MainTag;
 
-public:
-  explicit CTokenEmitter(llvm::raw_ostream &OS, Tagging Tags) :
-    PTML(OS, Tags), MainTag(PTML.makeTagInitializer(ptml::tags::Div)) {
-
-    MainTag.finalizeOpenTag();
+  // Metadata only exists to reposition whitespace in the tagged document; the
+  // plain-C path reformats without it.
+  static EmissionMode getEmissionMode(Tagging Tags) {
+    return Tags == Tagging::Enabled ? EmissionMode::TagsAndMetadata :
+                                      EmissionMode::PlainText;
   }
+
+public:
+  explicit CTokenEmitter(Tagging Tags);
+
+public:
+  // Returns the emitted document, reformatted with clang-format. Closes the
+  // wrapping element, so it must be called exactly once, after all emission is
+  // complete.
+  [[nodiscard]] std::string extract();
 
   void emitSpace() { PTML.emit(" "); }
   void emitNewline() { PTML.emit("\n"); }
@@ -313,13 +334,11 @@ public:
     std::optional<PTMLTagEmitter> Tag;
 
     CTokenEmitter::Delimiter Delimiter;
-    int Indent;
 
   public:
     explicit Scope(CTokenEmitter &Emitter,
                    ScopeKind Kind,
-                   CTokenEmitter::Delimiter Delimiter,
-                   int Indent);
+                   CTokenEmitter::Delimiter Delimiter);
 
     Scope(const Scope &) = delete;
     Scope &operator=(const Scope &) = delete;
@@ -327,9 +346,8 @@ public:
     ~Scope();
   };
 
-  [[nodiscard]] Scope
-  enterScope(ScopeKind Kind, Delimiter Delimiter, int Indent = 1) {
-    return Scope(*this, Kind, Delimiter, Indent);
+  [[nodiscard]] Scope enterScope(ScopeKind Kind, Delimiter Delimiter) {
+    return Scope(*this, Kind, Delimiter);
   }
 
   enum class RegionKind : uint8_t {

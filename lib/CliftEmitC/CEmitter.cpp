@@ -535,9 +535,6 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
                   });
 }
 
-// Accounts for a `\` before it and a space after.
-static constexpr uint64_t ExtraKeywordIndentation = 2;
-
 void CEmitter::emitFunctionDoxygenComment(FunctionOp Function) {
   std::optional<ptml::CDoxygenEmitter> Emitter = std::nullopt;
 
@@ -583,12 +580,7 @@ void CEmitter::emitFunctionDoxygenComment(FunctionOp Function) {
                           ptml::CTokenEmitter::IdentifierKind::Reference);
     Emitter->emit(" ");
 
-    uint64_t Indentation = Keyword.size() + ExtraKeywordIndentation
-                           + EmittedName.size() + 1;
-
-    Emitter->indent(Indentation);
     Emitter->emit(CommentBody);
-    Emitter->indent(-Indentation);
     Emitter->emit("\n");
   }
 
@@ -615,11 +607,7 @@ void CEmitter::emitFunctionDoxygenComment(FunctionOp Function) {
       Emitter->emitKeyword(Keyword);
       Emitter->emit(" ");
 
-      size_t Indentation = Keyword.size() + ExtraKeywordIndentation;
-
-      Emitter->indent(Indentation);
       Emitter->emit(CommentBody);
-      Emitter->indent(-Indentation);
     }
   }
 }

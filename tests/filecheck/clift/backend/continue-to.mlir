@@ -25,7 +25,7 @@ module attributes {clift.module} {
     clift.for continue %continue body {
       // CHECK: continue_to continue_label;
       clift.continue_to %continue
-      // CHECK: continue_label: ;
+      // CHECK: continue_label:;
     }
     // CHECK: }
   }

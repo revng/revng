@@ -158,7 +158,7 @@ static void emitFilteredHeader(llvm::raw_fd_ostream &Out,
                                                 TypeToEdit->key());
   Configuration.TypeToOmit = EditedTypeHandle;
 
-  ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Disabled);
+  ptml::CTokenEmitter Tokens(ptml::Tagging::Disabled);
   emitCommonIncludes(Tokens, Model.targetDataModel());
 
   if (TypeToEdit != nullptr and isSeparateDeclarationAllowed(*TypeToEdit)) {
@@ -170,6 +170,8 @@ static void emitFilteredHeader(llvm::raw_fd_ostream &Out,
   }
 
   emitTypes(Tokens, *HeaderModule, Configuration);
+
+  Out << Tokens.extract();
 }
 
 static llvm::Error parseCompiledC(EditCTypeState &State,

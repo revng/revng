@@ -34,7 +34,7 @@ module attributes {clift.module} {
       clift.yield %1 : !uint32_t
     }
 
-    // CHECK: (uint32_t) &var_0;
+    // CHECK: (uint32_t) & var_0;
     clift.expr {
       %0 = clift.addressof %x : !uint32_t$ptr
       %1 = clift.bitcast %0 : !uint32_t$ptr -> !uint32_t

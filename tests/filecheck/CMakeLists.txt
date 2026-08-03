@@ -357,6 +357,8 @@ set(FILECHECK_TESTS
     clift/passes/implicit-cast-elision-call.mlir
     clift/passes/implicit-cast-elision-neg.mlir
     clift/passes/implicit-cast-elision-shl.mlir
+    clift/reformat/normalization.mlir
+    clift/reformat/tag-preservation.mlir
     clift/serialization/const.mlir
     clift/statement-rewrites/branch-equalization.mlir
     clift/statement-rewrites/do-while-conversion-iterative.mlir

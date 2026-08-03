@@ -26,7 +26,7 @@ module attributes {clift.module} {
       // CHECK: break_to break_label;
       clift.break_to %break
     }
-    // CHECK: break_label: ;
+    // CHECK: break_label:;
   }
   // CHECK: }
 }

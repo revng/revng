@@ -34,7 +34,7 @@ module attributes {clift.module} {
     // list. The local comment is rendered before the struct definition
     // because the inlined emission is anchored by the local declaration.
     //
-    // INLINE:      //variable comment
+    // INLINE:      // variable comment
     // INLINE:      /// struct-level comment for the frame
     // INLINE-NEXT: struct _PACKED _SIZE(8) frame {
     // INLINE:   /// comment for field a
@@ -47,7 +47,7 @@ module attributes {clift.module} {
     // only the local declaration ends up in the function body. The local
     // comment is still rendered in front of it.
     //
-    // PLAIN:      //variable comment
+    // PLAIN:      // variable comment
     // PLAIN-NEXT: frame frame_var;
     %frame = clift.local : !frame attributes {
       handle = "/stack-frame-variable/0x1000:Code_x86_64",

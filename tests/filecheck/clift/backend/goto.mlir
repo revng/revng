@@ -28,7 +28,7 @@ module attributes {clift.module} {
     }
     // CHECK: goto label_0;
     clift.goto %exit
-    // CHECK: label_0: ;
+    // CHECK: label_0:;
     clift.assign_label %exit
   }
   // CHECK: }
