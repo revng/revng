@@ -281,23 +281,21 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
 
   const auto &Segments = Model.Segments();
 
-  for (Function &F : FunctionTags::SegmentGlobalGetter.functions(&M)) {
-    const model::Segment *Segment = &Segments
-                                       .at(extractSegmentKeyFromMetadata(F));
+  // Connect each segment's node to the DLA node of its global variable. After
+  // inline-segment-global-getters, segment accesses reference this global
+  // directly (see isAlwaysAddress in the base-address explorer), so the fields
+  // recovered from them live on the global's node. We go through the segment
+  // globals rather than the segment getters: the getters are unused after
+  // inlining and are not guaranteed to survive until the DLA runs.
+  for (llvm::GlobalVariable &SegmentGlobalVar :
+       FunctionTags::SegmentGlobal.globals(&M)) {
+    const model::Segment
+      *Segment = &Segments.at(SegmentGlobal::getAddress(SegmentGlobalVar));
     LayoutTypeSystemNode *SegmentNode = SegmentNodeMap.at(Segment);
 
-    LayoutTypeSystemNode *SegmentRefNode = getOrCreateLayoutType(&F).first;
-
-    // The type of the segment and the type returned by segmentref are the same
-    TS.addEqualityLink(SegmentNode, SegmentRefNode);
-
-    for (const llvm::CallBase *Call : callers(&F)) {
-      LayoutTypeSystemNode *SegmentRefCallNode = getOrCreateLayoutType(Call)
-                                                   .first;
-      // The type of the segment is also the same as the type of all the calls
-      // to the SegmentRef function.
-      TS.addEqualityLink(SegmentNode, SegmentRefCallNode);
-    }
+    LayoutTypeSystemNode
+      *SegmentGlobalNode = getOrCreateLayoutType(&SegmentGlobalVar).first;
+    TS.addEqualityLink(SegmentNode, SegmentGlobalNode);
   }
 
   if (VerifyLog.isEnabled())
