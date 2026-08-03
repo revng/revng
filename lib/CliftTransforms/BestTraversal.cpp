@@ -6,11 +6,13 @@
 #include <limits>
 #include <optional>
 
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MathExtras.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Clift/Clift.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/CommandLine.h"
 
 #include "BestTraversal.h"
 #include "PointerArithmetic.h"
@@ -418,15 +420,23 @@ static Score score(const Traversal &Explicit,
 // `TypeTraversalAnalyzer` class definition
 // =============================================================================
 
+static const char *D = "Upper bound on the number of type traversals "
+                       "emit-field-accesses materializes per type before "
+                       "leaving an access as raw pointer arithmetic; "
+                       "0 removes the bound.";
+
 /// Upper bound on the number of `Traversal`s that `TypeTraversalAnalyzer` will
 /// materialize for a single `BaseType`. Real, non-degenerate types stay far
-/// below this (the largest observed in practice is a few tens of thousands);
-/// degenerate DLA type systems, whose deeply-nested high-arity unions share
-/// substructure, reach millions of distinct root-to-leaf traversals. Above this
-/// bound EFA bails out of the rewrite for accesses into the offending type
-/// (leaving the raw pointer arithmetic), which caps both the memory used to
-/// store the traversals and the time spent scoring an access against them.
-static constexpr uint64_t MaxTraversalsPerType = 250000;
+/// below this; degenerate DLA type systems, whose deeply-nested high-arity
+/// unions share substructure, reach millions of distinct root-to-leaf
+/// traversals. Above this bound EFA bails out of the rewrite for accesses into
+/// the offending type (leaving the raw pointer arithmetic), which caps both the
+/// memory used to store the traversals and the time spent scoring an access
+/// against them. A value of 0 removes the bound, treating it as infinite.
+static llvm::cl::opt<uint64_t> MaxTraversalsPerType("max-traversals-per-type",
+                                                    llvm::cl::init(1024),
+                                                    llvm::cl::cat(MainCategory),
+                                                    llvm::cl::desc(D));
 
 /// `TypeTraversalAnalyzer` is used as an oracle to compute and retrieve
 /// `Traversal`s and `ArrayPath`s in a lazy manner
@@ -590,14 +600,15 @@ TypeTraversalAnalyzer::traverse(mlir::Type BaseType) {
   // leaving `Traversals`/`ArrayPaths` empty. Downstream, `computeBestTraversal`
   // then finds no traversal and EFA leaves the raw pointer arithmetic in place,
   // exactly as it does for any access it cannot lower onto a field access.
-  if (rc_eval(countTraversals(BaseType)) > MaxTraversalsPerType) {
+  if (MaxTraversalsPerType != 0
+      and rc_eval(countTraversals(BaseType)) > MaxTraversalsPerType) {
     llvm::StringRef Handle = "<anonymous>";
     if (auto Defined = mlir::dyn_cast<clift::DefinedType>(BaseType))
       Handle = Defined.getHandle();
     revng_log(Log,
               "WARNING: skipping field-access rewrite for type '"
-                << Handle << "' producing more than " << MaxTraversalsPerType
-                << " traversals");
+                << Handle << "' producing more than "
+                << MaxTraversalsPerType.getValue() << " traversals");
     return It;
   }
 
