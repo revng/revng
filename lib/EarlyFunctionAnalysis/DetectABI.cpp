@@ -670,6 +670,23 @@ void DetectABI::applyABIDeductions() {
   }
 }
 
+/// \return whether \p CFG is a single basic block calling a dynamic function
+///
+/// That is what a PLT stub looks like: it exists only to reach the dynamic
+/// function, so inlining it lets its callers call that function directly.
+static bool isDynamicFunctionStub(const SortedVector<efa::BasicBlock> &CFG) {
+  if (CFG.size() != 1)
+    return false;
+
+  for (const auto &Edge : CFG.begin()->Successors()) {
+    const auto *Call = llvm::dyn_cast<efa::CallEdge>(Edge.get());
+    if (Call != nullptr and not Call->DynamicFunction().empty())
+      return true;
+  }
+
+  return false;
+}
+
 void DetectABI::recordRegisters(const efa::CSVSet &CSVs, auto Inserter) {
   for (auto *CSV : CSVs) {
     auto Reg = model::Register::fromCSVName(CSV->getName(),
@@ -694,6 +711,9 @@ void DetectABI::finalizeModel() {
 
     // Replace function attributes
     Function.Attributes() = Summary.Attributes;
+
+    if (isDynamicFunctionStub(Summary.CFG))
+      Function.Attributes().insert(FunctionAttribute::AlwaysInline);
 
     auto &&[Prototype, NewType] = Binary->makeRawFunctionDefinition();
     Prototype.Architecture() = getCodeArchitecture(EntryPC);
