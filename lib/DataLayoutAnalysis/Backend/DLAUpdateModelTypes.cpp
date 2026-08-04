@@ -737,8 +737,13 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
                               std::set<MetaAddress> &UpdatedSegments) {
   bool Updated = false;
 
-  for (const auto &F : FunctionTags::SegmentGlobalGetter.functions(&M)) {
-    MetaAddress SegmentKey = extractSegmentKeyFromMetadata(F);
+  // Iterate the segment global variables rather than the segment getters: the
+  // getters are unused (and may be gone) after inline-segment-global-getters,
+  // while the fields recovered by the DLA live on the global's node (which the
+  // frontend links to the segment's node). See isAlwaysAddress.
+  for (const llvm::GlobalVariable &SegmentGlobalVar :
+       FunctionTags::SegmentGlobal.globals(&M)) {
+    MetaAddress SegmentKey = SegmentGlobal::getAddress(SegmentGlobalVar);
     auto Segment = Model->Segments().at(SegmentKey);
 
     // If the Segment type is missing, we have nothing to update.
@@ -749,9 +754,9 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
     // It's empty, we'll fill it up.
     model::StructDefinition &SegmentStruct = *Segment.type();
 
-    LayoutTypePtr Key{ &F, LayoutTypePtr::FieldNumNone };
+    LayoutTypePtr Key{ &SegmentGlobalVar, LayoutTypePtr::FieldNumNone };
     if (auto TypeIt = TypeMap.find(Key); TypeIt != TypeMap.end()) {
-      // A segment's getter is duplicated in every module that accesses it, so
+      // A segment's global is duplicated in every module that accesses it, so
       // fill each segment's type only once.
       if (not UpdatedSegments.insert(SegmentKey).second)
         continue;

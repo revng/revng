@@ -19,6 +19,18 @@ static bool isConstantAddress(const llvm::ConstantInt *C) {
   return false;
 }
 
+// A SCEV that is unconditionally the address of a known object, so that a
+// `ptrtoint` of it should be seen through rather than treated as an opaque
+// address. In particular the `ptrtoint` of a global variable (e.g. a segment
+// global) is just the integer form of that global's address: seeing through it
+// lets accesses at different offsets share the global as their base, which is
+// what the DLA needs to recover the fields.
+static bool isAlwaysAddress(const llvm::SCEV *S) {
+  if (const auto *U = llvm::dyn_cast<llvm::SCEVUnknown>(S))
+    return llvm::isa<llvm::GlobalVariable>(U->getValue());
+  return false;
+}
+
 std::set<const llvm::SCEV *>
 SCEVBaseAddressExplorer::findBases(llvm::ScalarEvolution *SE,
                                    const llvm::SCEV *Root,
@@ -133,7 +145,18 @@ SCEVBaseAddressExplorer::checkAddressOrTraverse(llvm::ScalarEvolution *SE,
     Worklist.push_back(ZE->getOperand());
   } break;
 
-  case llvm::scPtrToInt:
+  case llvm::scPtrToInt: {
+    // A `ptrtoint` of a global variable (e.g. a segment global) is just the
+    // integer form of that global's address, so we see through it to the
+    // global. That way accesses reached through `ptrtoint(@global) + offset`
+    // (which is how segment accesses look after inline-segment-global-getters)
+    // share the global as their base address and their fields can be recovered.
+    // Other `ptrtoint`s are treated as opaque addresses, like the casts below.
+    const llvm::SCEV *Operand = cast<llvm::SCEVCastExpr>(S)->getOperand();
+    if (isAlwaysAddress(Operand))
+      Worklist.push_back(Operand);
+  } break;
+
   case llvm::scTruncate:
   case llvm::scSignExtend: {
     // Truncate and Extend are basically casts, so in the first implementation
