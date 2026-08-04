@@ -1,0 +1,206 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Architecture: x86_64
+OperatingSystem: Linux
+DefaultABI: SystemV_x86_64
+Segments:
+  - StartAddress: 0x401370:Generic64
+    Type:
+      Kind: DefinedType
+      Definition: /TypeDefinitions/4-StructDefinition
+Functions:
+  - Entry: 0x4001f0:Code_x86_64
+    StackFrame:
+      Type:
+        Kind: DefinedType
+        Definition: /TypeDefinitions/19-StructDefinition
+  - Entry: 0x400140:Code_x86_64
+    Prototype:
+      Kind: DefinedType
+      Definition: /TypeDefinitions/24-CABIFunctionDefinition
+TypeDefinitions:
+  - ID: 4
+    Kind: StructDefinition
+    Size: 80
+    Fields:
+      - Offset: 16
+        Name: data
+        Type:
+          Kind: DefinedType
+          Definition: /TypeDefinitions/5-StructDefinition
+  - ID: 5
+    Kind: StructDefinition
+    Size: 48
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Offset: 8
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+      - Offset: 12
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+      - Offset: 16
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Offset: 24
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 2
+      - Offset: 26
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 2
+      - Offset: 28
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+      - Offset: 32
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Offset: 40
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+      - Offset: 44
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+  - ID: 19
+    Kind: StructDefinition
+    Size: 72
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Offset: 8
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+      - Offset: 12
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+      - Offset: 16
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Offset: 24
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 2
+      - Offset: 26
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 2
+      - Offset: 28
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+      - Offset: 32
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Offset: 40
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Offset: 48
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+  - ID: 24
+    Kind: CABIFunctionDefinition
+    ABI: SystemV_x86_64
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: /TypeDefinitions/22-StructDefinition
+  - ID: 22
+    Kind: StructDefinition
+    Size: 56
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Offset: 8
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+      - Offset: 12
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+      - Offset: 16
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Offset: 24
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 2
+      - Offset: 26
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 2
+      - Offset: 28
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+      - Offset: 32
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Offset: 40
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+      - Offset: 48
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8

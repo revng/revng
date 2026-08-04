@@ -1,0 +1,11 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng.test-dla
+    from:
+      - type: revng-qa.compiled-stripped
+        filter: for-dla
+    command: |-
+      revng2 quick analyze "$INPUT" | revng model compare "$SOURCE".model.yml
