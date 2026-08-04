@@ -37,8 +37,15 @@ StatementKind cliftStatementKind(mlir::Operation *Op) {
     return StatementKind::For;
   else if (mlir::isa<SwitchOp>(Op))
     return StatementKind::Switch;
-  // TODO: once clift emits plain `break` and `continue`, handle them.
-  else if (mlir::isa<GotoOp, BreakToOp, ContinueToOp>(Op))
+  // A break_to/continue_to with no target label was promoted to a plain C
+  // `break`/`continue` by the promote-break-continue pass. One that kept its
+  // label is emitted as `break_to`/`continue_to`, which the header defines as
+  // `goto`, so Clang parses it as a goto statement.
+  else if (auto Break = mlir::dyn_cast<BreakToOp>(Op))
+    return Break.getLabel() ? StatementKind::Goto : StatementKind::Break;
+  else if (auto Continue = mlir::dyn_cast<ContinueToOp>(Op))
+    return Continue.getLabel() ? StatementKind::Goto : StatementKind::Continue;
+  else if (mlir::isa<GotoOp>(Op))
     return StatementKind::Goto;
   else if (mlir::isa<AssignLabelOp>(Op))
     return StatementKind::Label;
