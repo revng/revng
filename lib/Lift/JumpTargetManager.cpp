@@ -16,6 +16,7 @@
 
 #include "revng/Lift/Lift.h"
 #include "revng/Model/FunctionTags.h"
+#include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/SimplePassManager.h"

@@ -36,6 +36,7 @@
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/BasicBlockID.h"
+#include "revng/Support/EmitAbort.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/MetaAddress.h"

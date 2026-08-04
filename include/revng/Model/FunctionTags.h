@@ -14,7 +14,6 @@ MetaAddress extractSegmentKeyFromMetadata(const llvm::Function &F);
 namespace FunctionTags {
 
 extern Tag QEMU;
-extern Tag Helper;
 extern Tag ABIEnforced;
 extern Tag CSVsPromoted;
 extern Tag Exceptional;
@@ -224,48 +223,6 @@ void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction, MetaAddress Key);
 
 /// Returns true if \F has an attached metadata representing a segment key.
 bool hasSegmentKeyMetadata(const llvm::Function &F);
-
-inline constexpr llvm::StringRef AbortFunctionName = "revng_abort";
-
-/// \p PCH if not nullptr, the function will force the program counter CSVs to
-///    a sensible value for better debugging.
-llvm::CallInst &emitAbort(revng::IRBuilder &Builder,
-                          const llvm::Twine &Message,
-                          const llvm::DebugLoc &DbgLocation = {},
-                          const ProgramCounterHandler *PCH = nullptr);
-
-inline llvm::CallInst &emitAbort(llvm::Instruction *InsertionPoint,
-                                 const llvm::Twine &Message,
-                                 const llvm::DebugLoc &DbgLocation = {},
-                                 const ProgramCounterHandler *PCH = nullptr) {
-  revng::IRBuilder Builder(InsertionPoint);
-  return emitAbort(Builder, Message, DbgLocation, PCH);
-}
-
-inline llvm::CallInst &emitAbort(llvm::BasicBlock *InsertionPoint,
-                                 const llvm::Twine &Message,
-                                 const llvm::DebugLoc &DbgLocation = {},
-                                 const ProgramCounterHandler *PCH = nullptr) {
-  revng::IRBuilder Builder(InsertionPoint, DbgLocation);
-  return emitAbort(Builder, Message, DbgLocation, PCH);
-}
-
-/// \p PCH if not nullptr, the function will force the program counter CSVs to
-///    a sensible value for better debugging.
-llvm::CallInst &emitMessage(revng::IRBuilder &Builder,
-                            const llvm::Twine &Message,
-                            const llvm::DebugLoc &DbgLocation = {},
-                            const ProgramCounterHandler *PCH = nullptr);
-
-template<typename IPType>
-  requires std::constructible_from<revng::IRBuilder, IPType>
-llvm::CallInst &emitMessage(IPType &&InsertionPoint,
-                            const llvm::Twine &Message,
-                            const llvm::DebugLoc &DbgLocation = {},
-                            const ProgramCounterHandler *PCH = nullptr) {
-  revng::IRBuilder Builder(std::forward<IPType>(InsertionPoint));
-  return emitMessage(Builder, Message, DbgLocation, PCH);
-}
 
 inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
   revng_assert(FunctionTags::Isolated.isTagOf(&F));

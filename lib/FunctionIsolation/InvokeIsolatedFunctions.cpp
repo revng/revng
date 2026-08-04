@@ -15,6 +15,7 @@
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
 
 using namespace llvm;

@@ -24,6 +24,9 @@ Tag UniquedByMetadata("uniqued-by-metadata");
 Tag UniquedByPrototype("uniqued-by-prototype");
 Tag Isolated("isolated");
 
+// This is here because it is needed by `emitAbort` and friends
+Tag Helper("helper");
+
 Tag::Tag(llvm::StringRef Name) : DynamicHierarchy(Name) {
 }
 Tag::Tag(llvm::StringRef Name, Tag &Parent) : DynamicHierarchy(Name, Parent) {

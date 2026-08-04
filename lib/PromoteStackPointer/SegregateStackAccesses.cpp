@@ -24,6 +24,7 @@
 #include "revng/Model/VerifyHelper.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng/PromoteStackPointer/SegregateStackAccesses.h"
+#include "revng/Support/EmitAbort.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"

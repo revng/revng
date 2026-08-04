@@ -13,7 +13,6 @@
 namespace FunctionTags {
 
 Tag QEMU("qemu");
-Tag Helper("helper");
 
 Tag ABIEnforced("abi-enforced", Isolated);
 Tag CSVsPromoted("csvs-promoted", ABIEnforced);
@@ -263,78 +262,6 @@ MetaAddress extractSegmentKeyFromMetadata(const llvm::Function &F) {
   MetaAddress StartAddress = MetaAddress::fromString(SAMD->getString());
   revng_assert(StartAddress.isValid());
   return StartAddress;
-}
-
-// This name corresponds to a function in `early-linked`.
-RegisterIRHelper AbortHelper(AbortFunctionName.str());
-
-template<bool ShouldTerminateTheBlock>
-llvm::CallInst &emitMessageImpl(revng::IRBuilder &Builder,
-                                const llvm::Twine &Message,
-                                const llvm::DebugLoc &DbgLocation,
-                                const ProgramCounterHandler *PCH) {
-  using namespace llvm;
-
-  // Create the function if there's not already one.
-  Module *M = getModule(Builder.GetInsertBlock());
-  auto *FT = createFunctionType<void, const uint8_t *>(M->getContext());
-  auto Callee = getOrInsertIRHelper(AbortFunctionName, *M, FT);
-
-  // Ensure it's marked as a helper.
-  Function *F = cast<Function>(Callee.getCallee());
-  if (not FunctionTags::Helper.isTagOf(F))
-    FunctionTags::Helper.addTo(F);
-
-  // Optionally update the program counter.
-  if (PCH != nullptr) {
-    MetaAddress SourcePC = MetaAddress::invalid();
-
-    if (Instruction *T = Builder.GetInsertBlock()->getTerminator())
-      SourcePC = getPC(T).first;
-
-    PCH->setLastPCPlainMetaAddress(Builder, SourcePC);
-    PCH->setCurrentPCPlainMetaAddress(Builder);
-  }
-
-  llvm::DebugLoc DebugLocation = DbgLocation ?
-                                   DbgLocation :
-                                   Builder.getCurrentDebugLocation();
-
-  // Create the call.
-  auto *NewCall = Builder.CreateCall(Callee, getUniqueString(M, Message.str()));
-  NewCall->setDebugLoc(DebugLocation);
-
-  if constexpr (ShouldTerminateTheBlock) {
-    // Add an unreachable mark after this call.
-    Instruction *T = Builder.CreateUnreachable();
-    T->setDebugLoc(DebugLocation);
-
-    // Assert there's one and only one terminator
-    auto *BB = Builder.GetInsertBlock();
-    unsigned Terminators = 0;
-    for (Instruction &I : *BB)
-      if (I.isTerminator())
-        ++Terminators;
-    revng_assert(Terminators == 1,
-                 "There's already a terminator in this basic block. "
-                 "Did you mean to use `emitMessage` instead?");
-  }
-
-  return *NewCall;
-}
-
-llvm::CallInst &emitAbort(revng::IRBuilder &Builder,
-                          const llvm::Twine &Message,
-                          const llvm::DebugLoc &DbgLocation,
-                          const ProgramCounterHandler *PCH) {
-  return emitMessageImpl<true>(Builder, Message, DbgLocation, PCH);
-}
-
-llvm::CallInst &emitMessage(revng::IRBuilder &Builder,
-                            const llvm::Twine &Message,
-                            const llvm::DebugLoc &DbgLocation,
-                            const ProgramCounterHandler *PCH) {
-  return emitMessageImpl<false>(Builder, Message, DbgLocation, PCH);
 }
 
 llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract) {
