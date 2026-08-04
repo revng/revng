@@ -29,6 +29,7 @@
 #include "revng/Lift/VariableManager.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -111,23 +112,21 @@ private:
   VariableManager &Variables;
   Type &IntPtrType;
   revng::IRBuilder Builder;
-  Function &Abort;
 
 public:
   AccessFixer(Module &M, VariableManager &Variables, Type &IntPtrType) :
     Variables(Variables),
     IntPtrType(IntPtrType),
-    Builder(IntPtrType.getContext()),
-    Abort(notNull(M.getFunction("abort"))) {}
+    Builder(IntPtrType.getContext()) {}
 
 public:
   void fixMemoryAccess(Instruction &I, const aua::Annotation &Annotation);
 
-  CallInst *emitAbort(Function &F) {
+  CallInst &emitMessageAtEntry(Function &F, const llvm::Twine &Message) {
     Builder.SetInsertPointPastAllocas(&F);
-    auto *AbortCall = Builder.CreateCall(&Abort);
-    AbortCall->setMetadata("dbg", nullptr);
-    return AbortCall;
+    CallInst &Call = ::emitMessage(Builder, Message);
+    Call.setMetadata("dbg", nullptr);
+    return Call;
   }
 
 private:
@@ -137,13 +136,9 @@ private:
   template<AccessType Type>
   Value *emit(Instruction &I, uint64_t Offset, uint64_t Size);
 
-  CallInst *emitAbort(revng::IRBuilder &Builder) {
-    return Builder.CreateCall(&Abort);
-  }
-
-  CallInst *emitAbort(Instruction &Before) {
+  CallInst &emitMessageBefore(Instruction &Before, const llvm::Twine &Message) {
     Builder.SetInsertPoint(&Before);
-    return emitAbort(Builder);
+    return ::emitMessage(Builder, Message);
   }
 
   std::pair<CallInst &, CallInst &> decomposeMemcpy(llvm::Instruction &I);
@@ -271,7 +266,7 @@ void AccessFixer::handle(Instruction &I,
   // Create the default case
   BasicBlock *DefaultCase = BasicBlock::Create(Context, "", F, After);
   Builder.SetInsertPoint(DefaultCase);
-  emitAbort(*Builder.CreateUnreachable());
+  emitAbort(Builder, "Accessing the CPU state at an unexpected offset");
 
   // Create the switch. We dispatch on the env-relative offset (d - &env)
   // rather than on the raw runtime address, so the case constants below
@@ -332,7 +327,7 @@ AccessFixer::decomposeMemcpy(llvm::Instruction &I) {
 
   BasicBlock &Entry = I.getFunction()->getEntryBlock();
   Builder.SetInsertPoint(&Entry, Entry.begin());
-  auto *UInt8Type = IntegerType::getInt8Ty(Abort.getContext());
+  auto *UInt8Type = IntegerType::getInt8Ty(IntPtrType.getContext());
   auto *StorageType = ArrayType::get(UInt8Type, Size->getZExtValue());
   auto *Storage = Builder.CreateAlloca(StorageType);
   uint64_t Alignment = Storage->getAlign().value();
@@ -359,14 +354,14 @@ void AccessFixer::fixMemoryAccess(Instruction &I,
   auto *Store = dyn_cast<StoreInst>(&I);
   if (Annotation.Escapes) {
     revng_log(Log, "It escapes, emitting abort.");
-    emitAbort(I);
+    emitMessageBefore(I, "The CPU state escapes this memory access");
   } else if (Load != nullptr and Load->getType()->isPointerTy()) {
     revng_log(Log, "Loading a pointer, emitting abort.");
-    emitAbort(I);
+    emitMessageBefore(I, "Loading a pointer out of the CPU state");
   } else if (Store != nullptr
              and Store->getValueOperand()->getType()->isPointerTy()) {
     revng_log(Log, "Storing a pointer, emitting abort.");
-    emitAbort(I);
+    emitMessageBefore(I, "Storing a pointer into the CPU state");
   } else {
     revng_log(Log, "It's a memcpy-like.");
 
@@ -411,7 +406,7 @@ static void fixHelpers(VariableManager &Variables, Module &Module) {
 
     if (Annotation.Escapes) {
       revng_log(Log, "CPU state escapes, emitting an abort");
-      Fixer.emitAbort(F);
+      Fixer.emitMessageAtEntry(F, "The CPU state escapes this helper");
     }
 
     // Go through all instructions and replace memory accesses in env with
