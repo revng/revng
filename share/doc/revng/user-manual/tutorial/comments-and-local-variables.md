@@ -91,7 +91,7 @@ We hand this back to `edit-c-body`, together with the address of `resolve`, whic
 The configuration is a small YAML file with the function address and the edited C, which we assemble (indenting the code two spaces under the `CCode:` block) and pass to `-c`.
 We copy the model aside first, so a `diff` afterwards shows exactly what the analysis wrote:
 
-```{bash ignore="^(---|\+\+\+|@@)|TypeDefinitions/[0-9]|Code_x86_64"}
+```{bash ignore=".*(---|\+\+\+|@@).*|.*TypeDefinitions/[0-9]+.*|0x[0-9a-f]+:Code_x86_64"}
 $ RESOLVE=$(yq -r '.Functions[] | select(.Name == "resolve") | .Entry' revng.yml)
 $ cat > edit.yml << EOF
 Function: $RESOLVE

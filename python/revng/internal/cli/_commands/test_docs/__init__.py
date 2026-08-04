@@ -175,14 +175,27 @@ class BashDoctest(Doctest):
                 if heredoc_terminator is None:
                     next_line_is_command = line.endswith("\\")
             else:
-                if not ignore_regexp or not re.match(".*(" + ignore_regexp + ").*", line):
+                if not ignore_regexp:
                     self.expected_output += line + "\n"
+                else:
+                    self.expected_output += re.sub(ignore_regexp, "IGNORED", line) + "\n"
 
         if silent:
             self.script += " ) >& /dev/null\n"
 
         if ignore_regexp:
-            self.script += f" ) |& grep -vE '{ignore_regexp}'\n"
+            # TODO: in the future we could replace only certain parts of the regexp using named
+            #       groups: `struct_(?P<ignore>[0-9]+)` would turn `a struct_1234 b` into
+            #       `a struct_IGNORED b` instead of `a IGNORED b`, as this does.
+            filter_script = """
+import re
+import sys
+pattern = re.compile(sys.argv[1])
+sys.stdout.writelines(pattern.sub("IGNORED", line) for line in sys.stdin)
+"""
+            self.script += (
+                f" ) |& python3 -c {shlex.quote(filter_script)} {shlex.quote(ignore_regexp)}\n"
+            )
 
 
 class TypeScriptDoctest(Doctest):

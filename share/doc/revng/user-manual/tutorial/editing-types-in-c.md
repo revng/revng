@@ -40,7 +40,7 @@ $ revng2 project init account
 
 Here is the decompiled `summary`:
 
-```{bash ignore="struct_[0-9]"}
+```{bash ignore="struct_[0-9]+"}
 $ revng2 project artifact emit-c summary | revng ptml
 _ABI(SystemV_x86_64)
 generic64_t summary(struct_58 *argument_0) {
@@ -60,7 +60,7 @@ $ TYPE_ID=$(revng2 project artifact emit-c summary | revng ptml | grep -oE 'stru
 
 The [`emit-single-type-definition`](../../references/artifacts.md#emit-single-type-definition-artifact) artifact prints a single type as a C header:
 
-```{bash ignore="struct_[0-9]"}
+```{bash ignore="struct_[0-9]+"}
 $ revng2 project artifact emit-single-type-definition /type-definition/${TYPE_ID}-StructDefinition
 struct _PACKED _SIZE(40) struct_58 {
   generic32_t offset_0 _STARTS_AT(0);
@@ -72,7 +72,7 @@ struct _PACKED _SIZE(40) struct_58 {
 This is deliberately *not* the same C you get from the regular decompiled header, the [`emit-type-and-global-header` artifact](../../references/artifacts.md#emit-type-and-global-header-artifact).
 That one is meant to be recompilable by an ordinary C compiler, so it spells the padding out as explicit fields:
 
-```{bash ignore="struct_[0-9]"}
+```{bash ignore="struct_[0-9]+"}
 $ revng2 project artifact emit-type-and-global-header | revng ptml | grep -A6 "struct_${TYPE_ID} {"
 struct _PACKED _SIZE(40) struct_58 {
   generic32_t offset_0;
