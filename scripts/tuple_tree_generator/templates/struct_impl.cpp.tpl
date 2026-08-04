@@ -203,6 +203,15 @@ std::optional<TupleTreePath> stringAsPath</*= base_namespace =*/::/*= root_type 
 template
 std::optional<std::string> pathAsString</*= base_namespace =*/::/*= root_type =*/>(const TupleTreePath &Path);
 
+std::optional<TupleTreeEntries</*= base_namespace =*/::/*= root_type =*/>::ContainerKeys>
+TupleTreeEntries</*= base_namespace =*/::/*= root_type =*/>::keyOf(const Types &Element) {
+/** for element, key in container_elements|dictsort **/
+  if (const /*= element =*/ *Value = std::get_if</*= element =*/>(&Element))
+    return ContainerKeys(KeyedObjectTraits</*= element =*/>::key(*Value));
+/** endfor **/
+  return std::nullopt;
+}
+
 template
 bool TupleTree</*= base_namespace =*/::/*= root_type =*/>::verifyReferences(bool Assert) const;
 

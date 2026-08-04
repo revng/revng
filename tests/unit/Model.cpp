@@ -409,3 +409,40 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectAllSegments) {
   auto Expected = toTupleTreePaths({ "/Segments" });
   BOOST_TEST(Collected.ExactVectors == Expected);
 }
+
+BOOST_AUTO_TEST_CASE(DiffPathsShouldMentionTheAddedElement) {
+  const auto Address = MetaAddress::fromPC(model::Architecture::x86_64, 0);
+
+  model::Binary Before;
+  model::Binary After;
+  After.Segments().insert(Segment(Address));
+
+  std::set<std::string> Paths = diff(Before, After).paths();
+  BOOST_TEST(Paths.contains("/Segments"));
+  BOOST_TEST(Paths.contains("/Segments/0x0:Code_x86_64"));
+}
+
+BOOST_AUTO_TEST_CASE(DiffPathsShouldMentionTheRemovedElement) {
+  const auto Address = MetaAddress::fromPC(model::Architecture::x86_64, 0);
+
+  model::Binary Before;
+  Before.Segments().insert(Segment(Address));
+  model::Binary After;
+
+  std::set<std::string> Paths = diff(Before, After).paths();
+  BOOST_TEST(Paths.contains("/Segments"));
+  BOOST_TEST(Paths.contains("/Segments/0x0:Code_x86_64"));
+}
+
+BOOST_AUTO_TEST_CASE(DiffPathsShouldMentionTheAddedAttribute) {
+  model::Binary Before;
+  Before.Functions().insert(Function(ARM1000));
+
+  model::Binary After = Before;
+  auto &Attributes = After.Functions().at(ARM1000).Attributes();
+  Attributes.insert(model::FunctionAttribute::NoReturn);
+
+  std::set<std::string> Paths = diff(Before, After).paths();
+  BOOST_TEST(Paths.contains("/Functions/0x1000:Code_arm/Attributes"));
+  BOOST_TEST(Paths.contains("/Functions/0x1000:Code_arm/Attributes/NoReturn"));
+}
