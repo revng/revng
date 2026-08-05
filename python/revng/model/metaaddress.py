@@ -67,7 +67,9 @@ class MetaAddress:
         return self.Type == MetaAddressType.Invalid
 
     def to_string(self) -> str:
-        if self.Address == 0:
+        # The address is left out only by the invalid MetaAddress, ":Invalid".
+        # Address zero is a perfectly good address.
+        if self.is_invalid():
             addr = ""
         else:
             addr = hex(self.Address)
