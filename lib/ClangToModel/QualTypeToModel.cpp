@@ -3,6 +3,7 @@
 //
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -22,6 +23,7 @@
 #include "revng/Model/PrimitiveType.h"
 #include "revng/Model/TypeDefinitionByName.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/CDataModel.h"
 
 using namespace llvm;
 using namespace clang;
@@ -38,6 +40,8 @@ struct Converter {
   clang::ASTContext &Context;
   std::vector<std::string> &Errors;
   llvm::StringRef ErrorPrefix;
+
+  model::UpcastableType makeStandardPrimitive(const BuiltinType *Builtin);
 
   model::UpcastableType makePrimitive(const BuiltinType *UnderlyingBuiltin,
                                       QualType Type);
@@ -56,20 +60,86 @@ struct Converter {
   RecursiveCoroutine<model::UpcastableType> convert(const QualType &QT);
 };
 
+/// The C standard type a builtin is spelled as, if the data model gives that
+/// spelling a size. The signed and unsigned members of a pair share an entry:
+/// only the width is read from here, the signedness comes from the builtin.
+static std::optional<CStandardType>
+getStandardType(const BuiltinType *Builtin) {
+  switch (Builtin->getKind()) {
+  case BuiltinType::Char_S:
+  case BuiltinType::Char_U:
+  case BuiltinType::SChar:
+  case BuiltinType::UChar:
+    return CStandardType::Char;
+
+  case BuiltinType::Short:
+  case BuiltinType::UShort:
+    return CStandardType::Short;
+
+  case BuiltinType::Int:
+  case BuiltinType::UInt:
+    return CStandardType::Int;
+
+  case BuiltinType::Long:
+  case BuiltinType::ULong:
+    return CStandardType::Long;
+
+  case BuiltinType::LongLong:
+  case BuiltinType::ULongLong:
+    return CStandardType::LongLong;
+
+  case BuiltinType::Float:
+    return CStandardType::Float;
+
+  case BuiltinType::Double:
+    return CStandardType::Double;
+
+  case BuiltinType::LongDouble:
+    return CStandardType::LongDouble;
+
+  default:
+    return std::nullopt;
+  }
+}
+
+/// Converts a builtin spelled as a plain C type, such as `unsigned long`, into
+/// a primitive whose size is the one the target ABI gives that type.
+model::UpcastableType
+Converter::makeStandardPrimitive(const BuiltinType *Builtin) {
+  if (Builtin->getKind() == BuiltinType::Void)
+    return model::PrimitiveType::makeVoid();
+
+  std::optional<CStandardType> Standard = getStandardType(Builtin);
+  if (not Standard) {
+    PrintingPolicy Policy(Context.getLangOpts());
+    Errors.emplace_back(ErrorPrefix.str() + " Builtin type `"
+                        + Builtin->getName(Policy).str()
+                        + "` is not supported, please use a revng "
+                          "model::PrimitiveType instead.\n");
+
+    return model::UpcastableType::empty();
+  }
+
+  uint64_t Size = Binary.targetDataModel().getStandardTypeSize(*Standard);
+  if (isFloatingPointType(*Standard))
+    return model::PrimitiveType::makeFloat(Size);
+
+  revng_assert(isIntegerType(*Standard));
+
+  // A plain `char` is whichever the parse says it is: `Char_S` under
+  // `-fsigned-char`, which is how we parse C, and `Char_U` otherwise.
+  return Builtin->isUnsignedInteger() ?
+           model::PrimitiveType::makeUnsigned(Size) :
+           model::PrimitiveType::makeSigned(Size);
+}
+
 model::UpcastableType
 Converter::makePrimitive(const BuiltinType *UnderlyingBuiltin, QualType Type) {
   revng_assert(UnderlyingBuiltin);
 
   auto AsElaboratedType = Type->getAs<ElaboratedType>();
-  if (not AsElaboratedType) {
-    PrintingPolicy Policy(Context.getLangOpts());
-    Errors.emplace_back(ErrorPrefix.str() + " Builtin type `"
-                        + UnderlyingBuiltin->getName(Policy).str()
-                        + "` not allowed, please use a revng "
-                          "model::PrimitiveType instead.\n");
-
-    return model::UpcastableType::empty();
-  }
+  if (not AsElaboratedType)
+    return makeStandardPrimitive(UnderlyingBuiltin);
 
   while (auto Typedef = AsElaboratedType->getAs<TypedefType>()) {
     auto TheUnderlyingType = Typedef->getDecl()->getUnderlyingType();
