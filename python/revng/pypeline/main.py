@@ -103,6 +103,8 @@ def parse_base_directory(path: str, ctx: ClickContext):
 )
 @pass_context
 def pype(ctx: ClickContext, verbose: bool) -> None:
+    ctx.obj.verbose = verbose
+
     # Enable debug logging for pypeline if requested
     if verbose:
         pypeline_logger.debug = True
@@ -173,7 +175,7 @@ def autocomplete(ctx, shell):
     click.echo(completion.source())
 
 
-def main(args: Sequence[str]) -> None:
+def main(args: Sequence[str], obj_class=ContextObject) -> None:
     # Divide click's argument from pipebox's arguments
     if "--" in args:
         position = args.index("--")
@@ -187,7 +189,7 @@ def main(args: Sequence[str]) -> None:
     try:
         exit_code = pype.main(
             args=click_args,
-            obj=ContextObject.make(pipebox_args=pipebox_args),
+            obj=obj_class.make(pipebox_args=pipebox_args),
             standalone_mode=False,
         )
     except click.ClickException as e:

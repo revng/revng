@@ -18,9 +18,11 @@ from revng.internal.support import cache_directory
 from revng.pypeline.cli.pipeline import pipeline
 from revng.pypeline.cli.project import project
 from revng.pypeline.cli.wrappers import WRAPPER_REGISTRY, WrapperOption
-from revng.pypeline.main import pype, run
+from revng.pypeline.main import main as pype_main
+from revng.pypeline.main import pype
 from revng.support import collect_files, get_root
 
+from .common import ContextObject, cli_logger
 from .pypeline_commands import init, quick, run_analysis_native, run_pipe_native
 
 
@@ -63,8 +65,21 @@ def patch_pype():
     revng2 is based on `pype`, but we want to change some defaults to be revng specific,
     and we want to add some commands.
     """
+
     # Replace the name (needed for autocompletion and usage)
     pype.name = "revng2"
+
+    # Patch the callback function so that the cli_logger is enabled with
+    # `--verbose`
+    pype_original_callback = pype.callback
+
+    def pype_callback(*args, **kwargs):
+        if kwargs["verbose"]:
+            cli_logger.debug = True
+        return pype_original_callback(*args, **kwargs)
+
+    pype.callback = pype_callback
+
     pype.add_command(quick)
     # Replace the default for pipebox
     for param in pype.params:
@@ -91,7 +106,7 @@ def main():
     """Entry point for revng2."""
     signal.signal(signal.SIGINT, lambda x, y: sys.exit(1))
     patch_pype()
-    run()
+    pype_main(sys.argv[1:], ContextObject)
 
 
 if __name__ == "__main__":

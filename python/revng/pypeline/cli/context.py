@@ -50,6 +50,8 @@ class ContextObject:
     # are hidden by default (e.g. hidden artifacts, pipe/analysis config
     # options)
     show_hidden: bool = False
+    # If set to true, the user asked for verbose output via `--verbose`
+    verbose: bool = False
     # The configuration for the current pipeline
     configuration: "dict[Pipe | Analysis, str]" = field(default_factory=dict)
     # The configuration for hypercorn
