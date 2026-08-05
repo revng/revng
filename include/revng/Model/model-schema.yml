@@ -569,35 +569,59 @@ definitions:
     doc: |-
       The kind of a primitive type.
 
+      Primitive types are read from and written to C as follows: take its kind's
+      prefix, add its size *in bits* and `_t`, so a `Signed` of size 4 is
+      `int32_t` and a `Float` of size 8 is `float64_t`.
+
     members:
       - name: Void
-        doc: The `void` type.
+        doc: |-
+          The `void` type.
 
       - name: Generic
         doc: |-
           The most generic primitive kind: it can be any of the other primitive
           kinds, except for `Void`.
 
+          Written in C as `generic8_t`, `generic16_t`, `generic32_t`,
+          `generic64_t`, `generic80_t`, `generic96_t`, `generic128_t`.
+
       - name: PointerOrNumber
         doc: |-
           A kind representing either a `Number` kind or a pointer.
           This can also be seen as not-a-`Float`.
 
+          Written in C as `pointer_or_number8_t`, `pointer_or_number16_t`,
+          `pointer_or_number32_t`, `pointer_or_number64_t`,
+          `pointer_or_number128_t`.
+
       - name: Number
         doc: |-
           A two's complement integer number, either `Signed` or `Unsigned`.
+
+          Written in C as `number8_t`, `number16_t`, `number32_t`, `number64_t`,
+          `number128_t`.
 
       - name: Unsigned
         doc: |-
           An `unsigned` two's complement integer number.
 
+          Written in C as `uint8_t`, `uint16_t`, `uint32_t`, `uint64_t`,
+          `uint128_t`.
+
       - name: Signed
         doc: |-
           An `signed` two's complement integer number.
 
+          Written in C as `int8_t`, `int16_t`, `int32_t`, `int64_t`, `int128_t`.
+
       - name: Float
         doc: |-
           A IEEE 754 floating point number.
+
+          Written in C as `float16_t`, `float32_t`, `float64_t`, `float80_t`,
+          `float96_t`, `float128_t` -- so C's `float` is `float32_t` and
+          `double` is `float64_t`. There is no `float8_t`.
 
   - name: PointerType
     inherits: Type
