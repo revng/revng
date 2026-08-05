@@ -27,10 +27,11 @@ from revng.pypeline.cli.common_options import container_format_options, debug_op
 from revng.pypeline.cli.common_options import project_id_option, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.pipeline import pipeline
-from revng.pypeline.cli.project import project
+from revng.pypeline.cli.project import parse_pipeline_path, project
 from revng.pypeline.cli.project.artifact import ArtifactGroup as ProjectArtifactGroup
 from revng.pypeline.cli.utils import EagerParsedPath, build_arg_objects, compute_objects
-from revng.pypeline.cli.utils import normalize_flag, sort_option_groups
+from revng.pypeline.cli.utils import load_pipebox, load_pipeline, normalize_flag
+from revng.pypeline.cli.utils import sort_option_groups
 from revng.pypeline.cli.wrappers import WRAPPER_REGISTRY, WrappablePypeCommand, WrapperOption
 from revng.pypeline.cli.wrappers import exec_with_wrapper, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerDeclaration, ContainerFormat
@@ -39,7 +40,6 @@ from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
 from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration
-from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.local_provider import LocalStorageProviderFactory
 from revng.pypeline.storage.storage_provider import FileStorageEntry, LockType, StorageProvider
@@ -70,22 +70,17 @@ def generate_model_with_binaries(binaries: list[Path]):
 @click.option(
     "--pipeline",
     "pipeline",
-    type=EagerParsedPath(
-        name="pipeline",
-        parser=lambda path, _ctx: load_pipeline_yaml_file(path),
-    ),
+    type=EagerParsedPath(name="pipeline", parser=parse_pipeline_path),
     help='Path to the pipeline file. Defaults to the "PYPELINE_PIPELINE" environment if set',
     default=Path(__file__).parent.parent / "pipeline.yml",
     envvar="PYPELINE_PIPELINE",
     show_default=True,
+    expose_value=False,
 )
 @pass_context
-def quick(
-    ctx: ClickContext,
-    pipeline: Pipeline,
-):
-    # Store the params so the subcommands can access them
-    ctx.obj.pipeline = pipeline
+def quick(ctx: ClickContext):
+    load_pipebox(ctx)
+    load_pipeline(ctx)
 
 
 def handle_analysis_argument(

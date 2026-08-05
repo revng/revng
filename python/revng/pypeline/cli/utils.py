@@ -2,6 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import importlib.util
 import os
 import sys
 from collections import defaultdict
@@ -15,12 +16,15 @@ from click_option_group import GroupedOption, OptionGroup
 from click_option_group._core import _GroupTitleFakeOption
 from click_option_group._helpers import get_fake_option_name, resolve_wrappers
 
+from revng.pypeline import initialize_pypeline
 from revng.pypeline.cli.backend import BackendFactory
 from revng.pypeline.cli.context import ClickContext
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectSet
+from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.task.task import TaskArgument
+from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.naming import normalize_flag, normalize_pos_arg_name
 from revng.pypeline.utils.naming import normalize_whitespace
 from revng.pypeline.utils.registry import get_registry
@@ -124,12 +128,7 @@ class EagerParsedPath(click.Path):
         if ctx is None:
             raise ValueError("Context is required for parsing")
         # If the value is a string, we parse it using the provided parser
-        res = self.parser(path, cast("ClickContext", ctx))
-        # Store the parsed value in the context object
-        setattr(ctx.obj, self.name, res)
-        # And also store the path to the parsed value
-        setattr(ctx.obj, self.name + "_path", Path(path).resolve())
-        return res
+        return self.parser(path, cast("ClickContext", ctx))
 
 
 class StorageProviderUrl(click.ParamType):
@@ -361,3 +360,71 @@ def sort_option_groups(command: click.Command):
 
     # Assign the re-ordered list to the command
     command.params = new_params
+
+
+def _import_pipebox(module_path: Path, is_autocomplete: bool) -> object:
+    """Import a module from a path. This is used to import the pipebox file.
+    Args:
+        module_path (Path): The path to the module.
+        is_autocomplete (bool): If True, do not raise an error if the pipebox
+            is not found, since when autocompleting the pipebox path might be
+            missing or incomplete.
+    """
+    # Absolute path to the module
+    if not module_path.exists():
+        # This is a small trick to allow generating the module auto-complete
+        # without having a pipebox file
+        if is_autocomplete:
+            return object()
+        pypeline_logger.log(
+            f'Pipebox file "{module_path}" does not exist. Either set it using the '
+            "PYPELINE_PIPEBOX env var, or pass the --pipebox option."
+        )
+        sys.exit(1)
+    # We guess that the module name is the file name without the extension
+    module_name: str = module_path.stem
+    # Dynamic import of the pipebox module
+    spec = importlib.util.spec_from_file_location(module_name, str(module_path))
+    if spec is None:
+        if is_autocomplete:
+            return object()
+        pypeline_logger.log(f'Could not load module "{module_name}" from "{module_path}"')
+        sys.exit(1)
+    module = importlib.util.module_from_spec(spec)
+    if spec.loader is None:
+        if is_autocomplete:
+            return object()
+        pypeline_logger.log(f'Could not load module "{module_name}" from "{module_path}"')
+        sys.exit(1)
+    # Execute the module to load it
+    spec.loader.exec_module(module)
+    # Initialize the pypeline as we just imported the pipebox
+    initialize_pypeline()
+
+    return module
+
+
+def _call_pipebox_initialize(pipebox, pipebox_path: Path | str, args: list[str]):
+    # Get its initialize function
+    pipebox_initialize = getattr(pipebox, "initialize", None)
+    if pipebox_initialize is None:
+        pypeline_logger.log(
+            f'Pipebox file "{pipebox_path!s}" does not have an "initialize" function.'
+            " This is required to setup the pypeline."
+        )
+        sys.exit(1)
+
+    # Call the initialize
+    pipebox_initialize(args)
+
+
+def load_pipebox(ctx: ClickContext):
+    is_autocomplete = detect_autocomplete(ctx)
+    pipebox = _import_pipebox(ctx.obj.pipebox_path, is_autocomplete)
+    ctx.obj.pipebox = pipebox
+    initialize_args = ctx.obj.pipebox_args if not is_autocomplete else []
+    _call_pipebox_initialize(pipebox, ctx.obj.pipebox_path, initialize_args)
+
+
+def load_pipeline(ctx: ClickContext):
+    ctx.obj.pipeline = load_pipeline_yaml_file(ctx.obj.pipeline_path)

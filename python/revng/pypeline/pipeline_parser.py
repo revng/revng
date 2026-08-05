@@ -361,7 +361,7 @@ def load_pipeline_yaml(yaml_data: str) -> Pipeline:
     return PipelineParser(values).parse()
 
 
-def load_pipeline_yaml_file(file: str) -> Pipeline:
+def load_pipeline_yaml_file(file: str | Path) -> Pipeline:
     """
     Load a pipeline from a YAML file."""
     with open(file, "r", encoding="utf-8") as f:
