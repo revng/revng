@@ -8,10 +8,13 @@ The path is computed relatively to this file, so this should work regardless of
 where revng is installed.
 """
 
+import os
 import shlex
 import signal
 import sys
 from collections import defaultdict
+from importlib import import_module
+from inspect import isfunction
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +28,6 @@ from revng.pypeline.main import pype
 from revng.support import collect_files, get_root
 
 from .common import CommandRegistry, ContextObject, cli_logger
-from .pypeline_commands import init, quick, run_analysis_native, run_pipe_native
 
 
 class ValgrindWrapperOption(WrapperOption):
@@ -141,26 +143,35 @@ def patch_pype():
             param.envvar = ["REVNG_STORAGE_PROVIDER", param.envvar]
 
 
-def build_registry() -> GroupRegistry:
-    """Create the registry and populate it with the revng-specific commands."""
-    registry = GroupRegistry(pype)
+def load_commands(registry: CommandRegistry):
+    """Let each module in `_commands` register the commands it implements."""
+    modules = []
+    with os.scandir(Path(__file__).parent / "_commands") as scan:
+        for entry in scan:
+            entry_path = Path(entry.path)
+            if entry_path.name.startswith("__") or entry_path.name.startswith("."):
+                continue
+            if entry.is_file():
+                modules.append(import_module(f"._commands.{entry_path.stem}", __package__))
+            elif entry.is_dir():
+                modules.append(import_module(f"._commands.{entry_path.name}", __package__))
 
-    registry.register((), quick)
-    # Add `init` to project subcommand
-    registry.register(("project",), init)
-    # Add native counterparts to the pipeline subcommand
-    registry.register(("pipeline",), run_pipe_native)
-    registry.register(("pipeline",), run_analysis_native)
-
-    return registry
+    for module in modules:
+        setup = getattr(module, "setup", None)
+        if setup is not None and isfunction(setup):
+            setup(registry)
 
 
 def main():
     """Entry point for revng2."""
     signal.signal(signal.SIGINT, lambda x, y: sys.exit(1))
     patch_pype()
-    registry = build_registry()
+
+    # Create and populate the registry
+    registry = GroupRegistry(pype)
+    load_commands(registry)
     registry.check()
+
     pype_main(sys.argv[1:], ContextObject)
 
 

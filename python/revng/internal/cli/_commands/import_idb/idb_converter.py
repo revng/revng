@@ -3,7 +3,6 @@
 #
 # mypy: disable-error-code="attr-defined,name-defined"
 
-import sys
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 import idb
@@ -13,6 +12,7 @@ import idb.typeinf
 import idb.typeinf_flags
 
 import revng.model as m
+from revng.internal.cli.common import cli_logger
 from revng.model.metaaddress import MetaAddressType
 from revng.support import log_error
 
@@ -79,7 +79,7 @@ def get_pointer_size(architecture):
 
 
 class IDBConverter:
-    def __init__(self, input_idb: idb.fileformat.IDB, base_addr, verbose):
+    def __init__(self, input_idb: idb.fileformat.IDB, base_addr):
         self.idb: idb.fileformat.IDB = input_idb
         self.api = idb.IDAPython(self.idb)
 
@@ -92,7 +92,6 @@ class IDBConverter:
         self.dynamic_functions: List[m.DynamicFunction] = []
         self.imported_libraries: List[str] = []
         self.base_addr = base_addr
-        self.verbose = verbose
 
         self._structs_to_fixup: Set[Tuple[m.StructDefinition, idb.typeinf.TInfo]] = set()
         self._ordinal_types_to_fixup: Set[Tuple[m.Type, int]] = set()
@@ -106,8 +105,7 @@ class IDBConverter:
         self._collect_imports()
 
     def log(self, message):
-        if self.verbose:
-            sys.stderr.write(message + "\n")
+        cli_logger.debug_log(message)
 
     def _import_types(self):
         """Imports initial types from the IDB. The types will be incomplete and need to be fixed"""

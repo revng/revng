@@ -2,7 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import argparse
 import re
 import sys
 import tarfile
@@ -10,9 +9,11 @@ from contextlib import contextmanager, suppress
 from io import TextIOWrapper
 from typing import IO, Generator, List, Mapping, Optional, Union, cast
 
+import click
 import yaml
+from click_option_group import MutuallyExclusiveOptionGroup, optgroup
 
-from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.internal.cli.common import CommandRegistry
 from revng.internal.cli.support import TarDictionary, file_wrapper
 from revng.ptml.printer import ColorMode, ptml_print, ptml_print_mapping
 from revng.support import to_bytes
@@ -44,29 +45,36 @@ def suppress_brokenpipe() -> Generator[None, None, None]:
     sys.unraisablehook = old_unraisablehook
 
 
-def handler(args) -> int:
-    if args.inplace and args.input in (None, "-"):
+def handler(
+    input_: str | None,
+    output: str | None,
+    plain: bool,
+    color_: bool,
+    filter_: tuple[str, ...],
+    extract: str | None,
+    inplace: bool,
+) -> int:
+    if inplace and input_ in (None, "-"):
         sys.stderr.write("Cannot strip inplace while reading from stdin\n")
         return 1
 
-    filters = normalize_filter_extract(args.filter, args.extract)
+    filters = normalize_filter_extract(list(filter_), extract)
 
     color = ColorMode.Autodetect
-    if args.color:
+    if color_:
         color = ColorMode.AutodetectForceColor
-    if args.plain:
+    if plain:
         color = ColorMode.Off
 
-    if args.inplace:
-        with open(args.input, "rb+") as input_file:
+    if inplace:
+        assert input_ is not None
+        with open(input_, "rb+") as input_file:
             content = input_file.read()
             input_file.seek(0)
             input_file.truncate(0)
             return handler_inner(content, TextIOWrapper(input_file, "utf-8"), color, filters)
     else:
-        with file_wrapper(args.input, "rb") as input_file, file_wrapper(
-            args.output, "w"
-        ) as output_file:
+        with file_wrapper(input_, "rb") as input_file, file_wrapper(output, "w") as output_file:
             return handler_inner(input_file, output_file, color, filters)
 
 
@@ -116,50 +124,42 @@ def handle_filters(
         ptml_print_mapping(data, output, color, lambda x: x in cast(List[str], filters))
 
 
-class PTMLCommand(Command):
-    def __init__(self):
-        super().__init__(("ptml",), "Tool to manipulate PTML files")
-
-    def register_arguments(self, parser: argparse.ArgumentParser):
-        parser.description = "Tool to manipulate PTML files"
-        parser.add_argument("input", nargs="?", help="Input file (stdin if omitted)")
-
-        parser_format_group = parser.add_argument_group(
-            "Output Format",
-            "Picks the output format, if omitted it will be color on terminal\n"
-            "(if supported) or plain otherwise",
-        )
-        parser_format = parser_format_group.add_mutually_exclusive_group()
-        parser_format.add_argument("-p", "--plain", action="store_true", help="Plaintext output")
-        parser_format.add_argument("-c", "--color", action="store_true", help="Color output")
-
-        parser_filter_group = parser.add_argument_group("Output Filtering")
-        parser_filter = parser_filter_group.add_mutually_exclusive_group()
-        parser_filter.add_argument(
-            "-f",
-            "--filter",
-            type=str,
-            action="append",
-            default=[],
-            required=False,
-            help="Only show the specified comma-separated keys (if present)",
-        )
-        parser_filter.add_argument(
-            "-e", "--extract", type=str, required=False, help="Extract the specified key"
-        )
-
-        parser_out_group = parser.add_argument_group("Output")
-        parser_out = parser_out_group.add_mutually_exclusive_group()
-        parser_out.add_argument("-i", "--inplace", action="store_true", help="Strip inplace")
-        parser_out.add_argument(
-            "-o", "--output", nargs="?", metavar="FILE", help="Output file (stdout if omitted)"
-        )
-
-    def run(self, options: Options) -> Optional[int]:
-        with suppress(KeyboardInterrupt), suppress_brokenpipe():
-            return handler(options.parsed_args)
-        return 0
+@click.command(name="ptml", help="Tool to manipulate PTML files")
+@click.argument("input_", metavar="[INPUT]", required=False)
+@optgroup.group(
+    "Output Format",
+    cls=MutuallyExclusiveOptionGroup,
+    help="Picks the output format, if omitted it will be color on terminal "
+    "(if supported) or plain otherwise",
+)
+@optgroup.option("-p", "--plain", is_flag=True, help="Plaintext output")
+@optgroup.option("-c", "--color", "color_", is_flag=True, help="Color output")
+@optgroup.group("Output Filtering", cls=MutuallyExclusiveOptionGroup)
+@optgroup.option(
+    "-f",
+    "--filter",
+    "filter_",
+    type=str,
+    multiple=True,
+    help="Only show the specified comma-separated keys (if present)",
+)
+@optgroup.option("-e", "--extract", type=str, help="Extract the specified key")
+@optgroup.group("Output", cls=MutuallyExclusiveOptionGroup)
+@optgroup.option("-i", "--inplace", is_flag=True, help="Strip inplace")
+@optgroup.option("-o", "--output", metavar="FILE", help="Output file (stdout if omitted)")
+def ptml(
+    input_: str | None,
+    plain: bool,
+    color_: bool,
+    filter_: tuple[str, ...],
+    extract: str | None,
+    inplace: bool,
+    output: str | None,
+) -> Optional[int]:
+    with suppress(KeyboardInterrupt), suppress_brokenpipe():
+        return handler(input_, output, plain, color_, filter_, extract, inplace)
+    return 0
 
 
-def setup(commands_registry: CommandsRegistry):
-    commands_registry.register_command(PTMLCommand())
+def setup(registry: CommandRegistry):
+    registry.register((), ptml)

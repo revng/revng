@@ -235,7 +235,6 @@ python_module(TARGET_NAME python-tupletree WHEEL revng MODULE_FILES
 
 set(MERGE_DYNAMIC_MODULE_FILES
     revng/internal/cli/_commands/merge_dynamic/__init__.py
-    revng/internal/cli/_commands/merge_dynamic/log.py
     revng/internal/cli/_commands/merge_dynamic/merge_dynamic.py
     revng/internal/cli/_commands/merge_dynamic/parsed_elf.py
     revng/internal/cli/_commands/merge_dynamic/util.py)
@@ -328,13 +327,9 @@ python_module(TARGET_NAME revng-dump-model WHEEL revng_internal MODULE_FILES
 # Install revng.cli
 #
 set(REVNG_CLI_MODULE_FILES
-    revng/internal/cli/commands_registry.py
-    revng/internal/cli/common.py
-    revng/internal/cli/__init__.py
-    revng/internal/cli/pypeline_commands.py
-    revng/internal/cli/revng.py
-    revng/internal/cli/revng2.py
-    revng/internal/cli/support.py)
+    revng/internal/cli/commands_registry.py revng/internal/cli/common.py
+    revng/internal/cli/__init__.py revng/internal/cli/revng.py
+    revng/internal/cli/revng2.py revng/internal/cli/support.py)
 python_module(TARGET_NAME revng-python-cli WHEEL revng_internal MODULE_FILES
               ${REVNG_CLI_MODULE_FILES})
 
@@ -351,11 +346,13 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/tar_to_yaml.py
     revng/internal/cli/_commands/test_docs/__init__.py
     revng/internal/cli/_commands/test_docs/doctest_runner.py
+    revng/internal/cli/_commands/groups.py
     revng/internal/cli/_commands/merge-irs.py
     revng/internal/cli/_commands/model_compare.py
     revng/internal/cli/_commands/model_migrate.py
     revng/internal/cli/_commands/model_export_sqlite.py
-    revng/internal/cli/_commands/ptml.py)
+    revng/internal/cli/_commands/ptml.py
+    revng/internal/cli/_commands/pypeline_commands.py)
 python_module(TARGET_NAME revng-python-cli-commands WHEEL revng_internal
               MODULE_FILES ${REVNG_CLI_COMMANDS_MODULE_FILES})
 

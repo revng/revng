@@ -5,10 +5,11 @@
 import sys
 from pathlib import Path
 
+import click
 import jinja2
 import yaml
 
-from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.internal.cli.common import CommandRegistry
 
 pages = [
     ("/pipeline/", "pipeline.md"),
@@ -20,58 +21,57 @@ pages = [
 ]
 
 
-class ProcessYAMLDocsCommand(Command):
-    def __init__(self):
-        super().__init__(("process-docs-yaml",), "Process YAML containing pipeline's doc", False)
+@click.command(
+    name="process-docs-yaml",
+    help="Process YAML containing pipeline's doc",
+    add_help_option=False,
+)
+@click.argument("template", type=str)
+def process_docs_yaml(template: str) -> int:
+    data = yaml.load(sys.stdin, Loader=yaml.SafeLoader)
 
-    def register_arguments(self, parser):
-        parser.add_argument("template", type=str)
+    def link_filter(path):
+        name = path.split("/")[-1]
 
-    def run(self, options: Options):
-        data = yaml.load(sys.stdin, Loader=yaml.SafeLoader)
+        for prefix, page in pages:
+            if path.startswith(prefix):
+                path = f"{page}#{path}"
+                break
+        else:
+            raise ValueError(f"No known prefix for {path}")
 
-        def link_filter(path):
-            name = path.split("/")[-1]
+        return f"[`{name}`]({path})"
 
-            for prefix, page in pages:
-                if path.startswith(prefix):
-                    path = f"{page}#{path}"
-                    break
-            else:
-                raise ValueError(f"No known prefix for {path}")
+    tracker = {}
+    every = 3
 
-            return f"[`{name}`]({path})"
+    def emit_edge(source, destination):
+        if source not in tracker:
+            tracker[source] = ("", 0)
 
-        tracker = {}
-        every = 3
+        last, count = tracker[source]
 
-        def emit_edge(source, destination):
-            if source not in tracker:
-                tracker[source] = ("", 0)
+        result = f'  "{source}" -> "{destination}":n;'
 
-            last, count = tracker[source]
+        if count % every == every - 1:
+            tracker[source] = (destination, count)
 
-            result = f'  "{source}" -> "{destination}":n;'
+        if count >= every:
+            result += f'\n  "{last}" -> "{destination}" [color=transparent];'
 
-            if count % every == every - 1:
-                tracker[source] = (destination, count)
+        tracker[source] = (tracker[source][0], count + 1)
 
-            if count >= every:
-                result += f'\n  "{last}" -> "{destination}" [color=transparent];'
+        return result
 
-            tracker[source] = (tracker[source][0], count + 1)
+    template_path = Path(template)
+    loader = jinja2.FileSystemLoader(searchpath=str(template_path.parent))
+    environment = jinja2.Environment(loader=loader)
+    environment.filters["link"] = link_filter
+    jinja_template = environment.get_template(template_path.name)
 
-            return result
-
-        template_path = Path(options.parsed_args.template)
-        loader = jinja2.FileSystemLoader(searchpath=str(template_path.parent))
-        environment = jinja2.Environment(loader=loader)
-        environment.filters["link"] = link_filter
-        template = environment.get_template(template_path.name)
-
-        print(template.render(data=data, emit_edge=emit_edge))
-        return 0
+    print(jinja_template.render(data=data, emit_edge=emit_edge))
+    return 0
 
 
-def setup(commands_registry: CommandsRegistry):
-    commands_registry.register_command(ProcessYAMLDocsCommand())
+def setup(registry: CommandRegistry):
+    registry.register((), process_docs_yaml)

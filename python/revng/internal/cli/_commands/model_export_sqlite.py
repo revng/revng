@@ -2,23 +2,18 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import argparse
 import re
 import sqlite3
-import sys
 from pathlib import Path
 from typing import Any
 
+import click
 import yaml
 
-from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.internal.cli.common import CommandRegistry, cli_logger
 
 _Loader = yaml.CSafeLoader
 _Dumper = yaml.CSafeDumper
-
-
-def log(message: str) -> None:
-    print(message, file=sys.stderr)
 
 
 TYPE_DEFINITION_REFERENCE_PATTERN = re.compile(r"/TypeDefinitions/(\d+)-(\w+)")
@@ -221,75 +216,58 @@ def import_model(
         )
 
 
-class ModelExportSqliteCommand(Command):
-    def __init__(self):
-        super().__init__(
-            ("model", "export", "sqlite"),
-            "Import rev.ng YAML models into a SQLite database",
-        )
+@click.command(name="sqlite", help="Import rev.ng YAML models into a SQLite database")
+@click.option("--db", required=True, help="Path to the output SQLite database")
+@click.option("--platform", required=True, help="Platform name (e.g. ubuntu-24-04-x86-64)")
+@click.option(
+    "--operating-system", required=True, help="Operating system (e.g. linux, windows, macos)"
+)
+@click.option(
+    "--library",
+    default=None,
+    help="Override library name (default: filename stem, "
+    "or path relative to --prefix with .yml stripped)",
+)
+@click.option(
+    "--prefix",
+    default=None,
+    help="When set, library name defaults to the path of the YAML "
+    "relative to this prefix, with the .yml suffix stripped. "
+    "Ignored if --library is also set.",
+)
+@click.argument("models", metavar="MODELS...", nargs=-1, required=True)
+def model_export_sqlite(
+    db: str,
+    platform: str,
+    operating_system: str,
+    library: str | None,
+    prefix: str | None,
+    models: tuple[str, ...],
+) -> int:
+    connection = sqlite3.connect(db)
+    connection.execute("PRAGMA journal_mode=WAL")
+    connection.execute("PRAGMA synchronous=NORMAL")
+    create_schema(connection)
 
-    def register_arguments(self, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument(
-            "--db",
-            required=True,
-            help="Path to the output SQLite database",
-        )
-        parser.add_argument(
-            "--platform",
-            required=True,
-            help="Platform name (e.g. ubuntu-24-04-x86-64)",
-        )
-        parser.add_argument(
-            "--operating-system",
-            required=True,
-            help="Operating system (e.g. linux, windows, macos)",
-        )
-        parser.add_argument(
-            "--library",
-            default=None,
-            help="Override library name (default: filename stem, "
-            "or path relative to --prefix with .yml stripped)",
-        )
-        parser.add_argument(
-            "--prefix",
-            default=None,
-            help="When set, library name defaults to the path of the YAML "
-            "relative to this prefix, with the .yml suffix stripped. "
-            "Ignored if --library is also set.",
-        )
-        parser.add_argument(
-            "models",
-            nargs="+",
-            help="YAML model file(s) to import",
-        )
+    assert_every_symbol_has_a_prototype(connection, "before import")
 
-    def run(self, options: Options) -> int:
-        args = options.parsed_args
+    prefix_path = Path(prefix).resolve() if prefix is not None else None
 
-        connection = sqlite3.connect(args.db)
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA synchronous=NORMAL")
-        create_schema(connection)
+    for model_path in models:
+        path = Path(model_path)
+        cli_logger.log(f"Importing {path.name}...")
+        library_name = library
+        if library_name is None and prefix_path is not None:
+            relative = path.resolve().relative_to(prefix_path)
+            library_name = relative.with_suffix("").as_posix()
+        import_model(connection, path, platform, operating_system, library_name)
 
-        assert_every_symbol_has_a_prototype(connection, "before import")
-
-        prefix = Path(args.prefix).resolve() if args.prefix is not None else None
-
-        for model_path in args.models:
-            path = Path(model_path)
-            log(f"Importing {path.name}...")
-            library_name = args.library
-            if library_name is None and prefix is not None:
-                relative = path.resolve().relative_to(prefix)
-                library_name = relative.with_suffix("").as_posix()
-            import_model(connection, path, args.platform, args.operating_system, library_name)
-
-        connection.commit()
-        assert_every_symbol_has_a_prototype(connection, "after import")
-        connection.close()
-        log("Import complete.")
-        return 0
+    connection.commit()
+    assert_every_symbol_has_a_prototype(connection, "after import")
+    connection.close()
+    cli_logger.log("Import complete.")
+    return 0
 
 
-def setup(commands_registry: CommandsRegistry):
-    commands_registry.register_command(ModelExportSqliteCommand())
+def setup(registry: CommandRegistry):
+    registry.register(("model", "export"), model_export_sqlite)

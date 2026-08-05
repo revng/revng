@@ -2,44 +2,33 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import argparse
 import sys
 
+import click
 import yaml
 
-from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.internal.cli.common import CommandRegistry
 
 from .remap import remap_metaaddress
 
 
-class ModelToJsonCommand(Command):
-    def __init__(self):
-        super().__init__(("model", "to-json"), "Extract and process rev.ng model")
+@click.command(name="to-json", help="Extract and process rev.ng model")
+@click.option("--remap", is_flag=True, help="Remap MetaAddresses")
+def model_to_json(remap: bool) -> int:
+    # Consume YAML generated from revng-efa-extractcfg
+    input_file = sys.stdin
 
-    def register_arguments(self, parser: argparse.ArgumentParser):
-        parser.add_argument(
-            "--remap",
-            action="store_true",
-            help="Remap MetaAddresses",
-        )
+    # Decode YAML
+    parsed_text = yaml.load(input_file, Loader=yaml.SafeLoader)
 
-    def run(self, options: Options) -> int:
-        args = options.parsed_args
+    # Remap MetaAddress
+    if remap:
+        parsed_text = remap_metaaddress(parsed_text)
 
-        # Consume YAML generated from revng-efa-extractcfg
-        input_file = sys.stdin
-
-        # Decode YAML
-        parsed_text = yaml.load(input_file, Loader=yaml.SafeLoader)
-
-        # Remap MetaAddress
-        if args.remap:
-            parsed_text = remap_metaaddress(parsed_text)
-
-        # Dump as JSON
-        print(yaml.dump(parsed_text))
-        return 0
+    # Dump as JSON
+    print(yaml.dump(parsed_text))
+    return 0
 
 
-def setup(commands_registry: CommandsRegistry):
-    commands_registry.register_command(ModelToJsonCommand())
+def setup(registry: CommandRegistry):
+    registry.register(("model",), model_to_json)

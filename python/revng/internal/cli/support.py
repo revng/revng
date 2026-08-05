@@ -6,25 +6,17 @@ from __future__ import annotations
 
 import os
 import shlex
-import signal
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
-from subprocess import Popen
 from tempfile import NamedTemporaryFile
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Literal, Mapping, NoReturn
-from typing import Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Literal
 
+import click
 import yaml
 
 from revng.internal.support.collect import collect_libraries
-from revng.internal.support.elf import is_executable
-from revng.support import TarDictionary, get_command
-
-if TYPE_CHECKING:
-    from _typeshed import FileDescriptorLike
-
-OptionalEnv = Optional[Mapping[str, str]]
+from revng.support import TarDictionary, get_command, get_root, read_lines
 
 
 @dataclass
@@ -38,12 +30,20 @@ class Options:
     search_prefixes: List[str]
 
 
+def search_prefixes() -> List[str]:
+    """
+    The prefixes where the programs and libraries shipped with revng are looked
+    up: the revng root, which takes precedence, followed by the prefixes listed
+    in `additional-search-prefixes`, if any.
+    """
+    prefixes = [str(get_root())]
+    additional = read_lines(get_root() / "additional-search-prefixes")
+    prefixes.extend(prefix for prefix in additional if prefix not in prefixes)
+    return prefixes
+
+
 def shlex_join(split_command: Iterable[str]) -> str:
     return " ".join(shlex.quote(arg) for arg in split_command)
-
-
-def wrap(args: List[str], command_prefix: List[str]):
-    return command_prefix + args
 
 
 def relative(path: str) -> str:
@@ -52,102 +52,6 @@ def relative(path: str) -> str:
         return relative_path
     else:
         return path
-
-
-def _run_common(
-    command, options: Options, environment: OptionalEnv = None
-) -> Tuple[List[str], Dict[str, str]]:
-    if not os.path.isfile(command[0]):
-        command = [get_command(command[0], options.search_prefixes), *command[1:]]
-
-    if len(options.command_prefix) > 0:
-        if is_executable(command[0]):
-            command = wrap(command, options.command_prefix)
-        else:
-            sh = get_command("sh", options.search_prefixes)
-            command = wrap([sh, "-c", 'exec "$0" "$@"', *command], options.command_prefix)
-
-    if options.verbose:
-        program_path = relative(command[0])
-        sys.stderr.write("{}\n\n".format(" \\\n  ".join([program_path] + command[1:])))
-
-    environment = dict(os.environ if environment is None else environment)
-
-    if "valgrind" in command:
-        environment["PYTHONMALLOC"] = "malloc"
-
-    return command, environment
-
-
-def _popen(command, options: Options, environment: OptionalEnv = None, **kwargs) -> int | Popen:
-    command, environment = _run_common(command, options, environment)
-
-    if options.dry_run:
-        return 0
-
-    return Popen(command, env=environment, **kwargs)
-
-
-def popen(
-    command,
-    options: Options,
-    environment: OptionalEnv = None,
-    stdin: FileDescriptorLike | None = None,
-    stdout: FileDescriptorLike | None = None,
-    stderr: FileDescriptorLike | None = None,
-) -> int | Popen:
-    return _popen(command, options, environment, stdin=stdin, stdout=stdout, stderr=stderr)
-
-
-def try_run(
-    command,
-    options: Options,
-    environment: OptionalEnv = None,
-    stdin: FileDescriptorLike | None = None,
-    stdout: FileDescriptorLike | None = None,
-    stderr: FileDescriptorLike | None = None,
-) -> int:
-    try:
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-        process = _popen(
-            command,
-            options,
-            environment,
-            preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL),
-            close_fds=False,
-            stdin=stdin,
-            stdout=stdout,
-            stderr=stderr,
-        )
-        if isinstance(process, int):
-            return process
-        return process.wait()
-    finally:
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-
-
-def run(
-    command,
-    options: Options,
-    environment: OptionalEnv = None,
-    stdin: FileDescriptorLike | None = None,
-    stdout: FileDescriptorLike | None = None,
-    stderr: FileDescriptorLike | None = None,
-):
-    result = try_run(command, options, environment, stdin, stdout, stderr)
-    if result != 0:
-        sys.exit(result)
-
-    return result
-
-
-def exec_run(command, options: Options, environment: OptionalEnv) -> Union[int, NoReturn]:
-    command, environment = _run_common(command, options, environment)
-
-    if options.dry_run:
-        return 0
-
-    return os.execvpe(command[0], command, environment)
 
 
 def interleave(base: List[str], repeat: str):
@@ -179,15 +83,16 @@ def handle_asan(dependencies: Iterable[str], search_prefixes: Iterable[str]) -> 
     ]
 
 
-def build_command_with_loads(command: str, args: Iterable[str], options: Options) -> List[str]:
-    (to_load, dependencies) = collect_libraries(options.search_prefixes)
-    prefix = handle_asan(dependencies, options.search_prefixes)
+def build_command_with_loads(command: str, args: Iterable[str]) -> List[str]:
+    prefixes = search_prefixes()
+    (to_load, dependencies) = collect_libraries(prefixes)
+    prefix = handle_asan(dependencies, prefixes)
 
     return (
         prefix
-        + [relative(get_command(command, options.search_prefixes))]
+        + [relative(get_command(command, prefixes))]
         + interleave(to_load, "-load")
-        + args
+        + list(args)
     )
 
 
@@ -212,16 +117,21 @@ def is_file_executable(filename: str) -> bool:
     return stat.st_mode & 0o111 == 0o111
 
 
-def temporary_file_gen(prefix: str, options: Options):
+def temporary_file_gen(prefix: str, keep_temporaries: bool):
     def temporary_file(suffix="", mode="w+"):
         return NamedTemporaryFile(
             prefix=prefix,
             suffix=suffix,
             mode=mode,
-            delete=not options.keep_temporaries,
+            delete=not keep_temporaries,
         )
 
     return temporary_file
+
+
+keep_temporaries_option = click.option(
+    "--keep-temporaries", is_flag=True, help="Do not delete temporary files."
+)
 
 
 @contextmanager

@@ -13,7 +13,8 @@ from typing import Optional, Sequence, Tuple
 
 from revng.support import collect_files
 
-from .support import Options, executable_name, try_run
+from .common import ContextObject
+from .support import Options, executable_name
 
 
 class Command(ABC):
@@ -41,7 +42,8 @@ class ExternalCommand(Command):
         pass
 
     def run(self, options: Options):
-        return try_run([self.path] + options.remaining_args, options)
+        obj = ContextObject.make(verbose=options.verbose)
+        return obj.try_run([self.path] + options.remaining_args, options)
 
 
 COMMAND_ARG_PREFIX = "command_name"

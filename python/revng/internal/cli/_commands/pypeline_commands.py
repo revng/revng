@@ -11,6 +11,7 @@ from typing import IO, AsyncContextManager
 import click
 import yaml
 
+from revng.internal.cli.common import CommandRegistry
 from revng.pypeline.analysis import Analysis
 from revng.pypeline.cli.backend import BackendFeature, backend_factory_for
 from revng.pypeline.cli.common_options import AllAnalysesOption, add_pipeline_config_options
@@ -61,7 +62,7 @@ def generate_model_with_binaries(binaries: list[Path]):
     "pipeline",
     type=EagerParsedPath(name="pipeline", parser=parse_pipeline_path),
     help='Path to the pipeline file. Defaults to the "PYPELINE_PIPELINE" environment if set',
-    default=Path(__file__).parent.parent / "pipeline.yml",
+    default=Path(__file__).parent.parent.parent / "pipeline.yml",
     envvar="PYPELINE_PIPELINE",
     show_default=True,
     expose_value=False,
@@ -514,3 +515,10 @@ class RunAnalysisNativeGroup(click.Group):
 )
 def run_analysis_native() -> None:
     pass
+
+
+def setup(registry: CommandRegistry):
+    registry.register((), quick)
+    registry.register(("project",), init)
+    registry.register(("pipeline",), run_pipe_native)
+    registry.register(("pipeline",), run_analysis_native)
