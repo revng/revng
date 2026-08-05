@@ -211,6 +211,15 @@ class StorageProviderFactory(ABC):
         """
         return True
 
+    def model_path(self, base_directory: Path) -> Path | None:
+        """
+        Retrieve the path of the model on the local disk, given a base
+        directory. If the model cannot be found or this provider works with
+        a model that's not on disk (e.g. in-memory, across network) then this
+        will return None
+        """
+        return None
+
 
 # TODO: find a more suitable name
 def storage_provider_factory_factory(url: str) -> StorageProviderFactory:

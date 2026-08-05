@@ -56,7 +56,7 @@ cp revng.yml good-model.yml
 # Start the daemon in the background, backed by the on-disk project, and wait
 # until it answers.
 PORT="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
-revng2 project --storage-provider "local://$WORKDIR" daemon \
+revng2 project --storage-provider "local://?inline" daemon \
   --bind "127.0.0.1:$PORT" > "$WORKDIR/daemon.log" 2>&1 &
 DAEMON_PID=$!
 

@@ -242,3 +242,9 @@ class Daemon:
         diff = bytes_to_string(diff_raw, model_type.is_text())
         # Return the updated model
         return Response(code=200, body={"epoch": new_epoch, "diff": diff})
+
+    def socket_path(self) -> Path | None:
+        model_path = self.storage_provider_factory.model_path(self.base_directory)
+        if model_path is None:
+            return None
+        return model_path.parent / "revng.sock"

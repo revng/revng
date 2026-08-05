@@ -15,7 +15,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path, PurePath
 from tempfile import TemporaryDirectory
-from typing import AsyncGenerator, Collection, Mapping
+from typing import AsyncGenerator, Collection, Mapping, cast
+from urllib.parse import parse_qsl, urlsplit
 from uuid import uuid4
 
 import yaml
@@ -217,11 +218,32 @@ def _compute_pipeline_hash(pipeline: Pipeline) -> str:
     return compute_hash(json.dumps(description, sort_keys=True).encode())
 
 
-class _LocalStorageProviderCommon:
+_FactoryStorage = tuple["LocalStorageProvider", TemporaryDirectory | None]
+
+
+class LocalStorageProviderFactory(StorageProviderFactory):
+    def __init__(self, url: str):
+        parsed_url = urlsplit(url)
+        assert parsed_url.scheme == "local"
+        # Check that netlock (`user:pass@host`), path and fragment (`#frag`) are all empty
+        assert (parsed_url.netloc, parsed_url.path, parsed_url.fragment) == ("", "", "")
+        query = dict(parse_qsl(parsed_url.query, keep_blank_values=True))
+        assert set(query) - {"inline", "temporary", "multiproject"} == set()
+        self.inline = "inline" in query
+        self.temporary = "temporary" in query
+        self.multiproject = "multiproject" in query
+        assert ((self.inline or self.multiproject) + self.temporary) <= 1
+        self.providers: Locked[dict[ProjectID | None, Locked[_FactoryStorage]]] = Locked({})
+
+    @classmethod
+    def scheme(cls) -> str:
+        return "local"
+
     def get_notification_websocket(self) -> str | None:
         return None
 
     def init(self, directory: Path, overwrite: bool):
+        assert not self.multiproject
         model_type = get_singleton(Model)  # type: ignore [type-abstract]
         model_name = model_type.model_name()
         model_path = directory / model_name
@@ -231,38 +253,39 @@ class _LocalStorageProviderCommon:
         model_path.write_text("")
         return True
 
-
-class LocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFactory):
-    def __init__(self, url: str):
-        assert url == "local://" or "local://?inline"
-        # TODO: use urlparse if more options are introduced
-        self.inline = url == "local://?inline"
-        self.providers: Locked[dict[ProjectID | None, Locked[LocalStorageProvider]]] = Locked({})
-
-    @classmethod
-    def scheme(cls) -> str:
-        return "local"
-
-    def _create_provider(
-        self, base_directory: Path, cache_dir: str, pipeline_hash: str
-    ) -> LocalStorageProvider:
+    def _find_model(self, project_id: str | None, base_directory: Path) -> Path | None:
         # Figure out how the model should be name
         model_type = get_singleton(Model)  # type: ignore [type-abstract]
         model_name = model_type.model_name()
+        if self.multiproject and project_id is not None:
+            assert model_name.count(".") in (0, 1)
+            if model_name.count(".") == 1:
+                model_filename, model_extension = model_name.rsplit(".", 1)
+                model_name = f"{model_filename}-{project_id}.{model_extension}"
+            else:
+                model_name = f"{model_name}-{project_id}"
 
         # Find the model in the current directory or any of its parents
-
         directory = base_directory
         while True:
             pypeline_logger.debug_log(f'Searching for model at "{directory / model_name}"')
             if (directory / model_name).exists():
                 break
             if directory == directory.parent:
-                raise FileNotFoundError(f'Model "{str(directory / model_name)}" not found')
+                return None
             directory = directory.parent
 
         model_path = directory / model_name
         pypeline_logger.debug_log(f'Model "{model_name}" found at "{model_path}"')
+        return model_path
+
+    def _create_provider(
+        self, project_id: str | None, base_directory: Path, cache_dir: str, pipeline_hash: str
+    ):
+        model_path = self._find_model(project_id, base_directory)
+        if model_path is None:
+            model_type = get_singleton(Model)  # type: ignore [type-abstract]
+            raise FileNotFoundError(f"Model file {model_type.model_name()} not found")
         # Compute the hash of the model path as a tentative unique identifier for the project
         # TODO: we are relying on the *absolute* model path, which means that if the
         # user moves the project around, it will be treated as a different project
@@ -270,94 +293,79 @@ class LocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFa
         # the project and creates a new one at the same path, it will reuse the
         # old cache.
         if self.inline:
-            cache_path = (directory / ".cache").resolve()
+            cache_path = (model_path.parent / ".cache").resolve()
             cache_path.mkdir(parents=True, exist_ok=True)
-            db_path = cache_path / "data.sqlite"
+            if self.multiproject and project_id is not None:
+                # TODO: we could make the database projectID-aware, at that
+                #       point we don't need a different file for each projectID
+                db_path = cache_path / f"{project_id}-data.sqlite"
+            else:
+                db_path = cache_path / "data.sqlite"
         else:
             cache_path = Path(cache_dir)
             db_name = crypto_hash(str(model_path)) + ".sqlite"
             db_path = Path(cache_dir) / db_name
 
         pypeline_logger.debug_log(f'Using DB "{db_path}"')
-        return LocalStorageProvider(db_path, model_path, cache_path, pipeline_hash)
+        provider = LocalStorageProvider(db_path, model_path, cache_path, pipeline_hash)
+        return (provider, None)
 
-    @asynccontextmanager
-    async def get(
-        self,
-        base_directory: Path,
-        pipeline: Pipeline,
-        lock_type: LockType,
-        project_id: ProjectID | None,
-        token: str | None,
-        cache_dir: str | None,
-    ) -> AsyncGenerator[StorageProvider]:
-        assert cache_dir is not None, "Cache directory must be provided"
-
-        # Get or create the provider for the given project ID
-        async with self.providers() as providers:
-            project_provider: Locked[LocalStorageProvider] | None = providers.get(project_id)
-            # If the provider is not found, create a new one and put it in a lock
-            if project_provider is None:
-                pipeline_hash = _compute_pipeline_hash(pipeline)
-                project_provider = Locked(
-                    self._create_provider(base_directory, cache_dir, pipeline_hash)
-                )
-                providers[project_id] = project_provider
-
-        # Release the global lock and acquire the project-specific one so other
-        # projects can proceed in parallel
-        async with project_provider() as provider:
-            yield provider
-
-
-TemporaryProviderTuple = tuple["LocalStorageProvider", TemporaryDirectory]
-
-
-class TemporaryLocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFactory):
-    def __init__(self, url: str):
-        assert url == "temporary://"
-        self.providers: Locked[dict[ProjectID | None, Locked[TemporaryProviderTuple]]] = Locked({})
-
-    @classmethod
-    def scheme(cls) -> str:
-        return "temporary"
-
-    @asynccontextmanager
-    async def get(
-        self,
-        base_directory: Path,
-        pipeline: Pipeline,
-        lock_type: LockType,
-        project_id: ProjectID | None,
-        token: str | None,
-        cache_dir: str | None,
-    ) -> AsyncGenerator[StorageProvider]:
+    def _create_temporary_provider(self, pipeline_hash: str):
         model_type = get_singleton(Model)  # type: ignore [type-abstract]
         model_name = model_type.model_name()
 
+        temporary_dir = TemporaryDirectory()
+        temp_dir_path = Path(temporary_dir.name)
+        (temp_dir_path / model_name).touch()
+        (temp_dir_path / "cache").mkdir()
+
+        storage_provider = LocalStorageProvider(
+            db_path=temp_dir_path / "db.sqlite",
+            model_path=temp_dir_path / model_name,
+            cache_dir=temp_dir_path / "cache",
+            pipeline_hash=pipeline_hash,
+        )
+
+        return (storage_provider, temporary_dir)
+
+    @asynccontextmanager
+    async def get(
+        self,
+        base_directory: Path,
+        pipeline: Pipeline,
+        lock_type: LockType,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str | None,
+    ) -> AsyncGenerator[StorageProvider]:
+        if not self.temporary:
+            assert cache_dir is not None, "Cache directory must be provided"
+        if project_id is not None and not (self.temporary or self.multiproject):
+            raise ValueError("By default LocalStorageProvider supports only one project")
+
         # Get or create the provider for the given project ID
         async with self.providers() as providers:
-            project_provider: Locked[TemporaryProviderTuple] | None = providers.get(project_id)
+            project_provider: Locked[_FactoryStorage] | None = providers.get(project_id)
             # If the provider is not found, create a new one and put it in a lock
             if project_provider is None:
-                temporary_dir = TemporaryDirectory()
-                temp_dir_path = Path(temporary_dir.name)
-                (temp_dir_path / model_name).touch()
-                (temp_dir_path / "cache").mkdir()
-
-                storage_provider = LocalStorageProvider(
-                    db_path=temp_dir_path / "db.sqlite",
-                    model_path=temp_dir_path / model_name,
-                    cache_dir=temp_dir_path / "cache",
-                    pipeline_hash=_compute_pipeline_hash(pipeline),
-                )
-                project_provider = Locked((storage_provider, temporary_dir))
+                pipeline_hash = _compute_pipeline_hash(pipeline)
+                if self.temporary:
+                    project_provider = Locked(self._create_temporary_provider(pipeline_hash))
+                else:
+                    project_provider = Locked(
+                        self._create_provider(
+                            project_id, base_directory, cast(str, cache_dir), pipeline_hash
+                        )
+                    )
                 providers[project_id] = project_provider
 
         # Release the global lock and acquire the project-specific one so other
         # projects can proceed in parallel
         async with project_provider() as provider:
             yield provider[0]
+
+    def model_path(self, base_directory: Path) -> Path | None:
+        return self._find_model(None, base_directory)
 
 
 class _MetadataUpdate(enum.Enum):
@@ -598,7 +606,9 @@ class LocalStorageProvider(StorageProvider):
         return self.epoch
 
     def get_model(self) -> tuple[Model, int]:
-        model, changed = self._model_type.deserialize(self._model_path.read_bytes())
+        model, changed = self._model_type.deserialize(
+            self._model_path.read_bytes(), str(self._model_path)
+        )
         if changed:
             self.prune_objects()
             self._write_model(model)

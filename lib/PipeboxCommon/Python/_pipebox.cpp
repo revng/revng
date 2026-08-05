@@ -56,10 +56,11 @@ static Logger ModelMigrationLogger("pypeline-model-migration");
 /// time around the parsing fails. Returns the model object and a bool
 /// indicating if a migration has happened.
 static llvm::Expected<std::pair<Model, bool>>
-deserializeModel(llvm::ArrayRef<uint8_t> Input) {
+deserializeModel(llvm::ArrayRef<uint8_t> Input,
+                 std::optional<std::string> Path) {
   using namespace revng::pypeline::helpers::python;
 
-  auto MaybeModel = Model::deserialize(Input);
+  auto MaybeModel = Model::deserialize(Input, Path);
   if (MaybeModel)
     return std::pair{ *MaybeModel, false };
 
@@ -85,7 +86,8 @@ deserializeModel(llvm::ArrayRef<uint8_t> Input) {
             "model");
   auto OutputBytes = nanobind::cast<nanobind::bytes>(Output);
   auto *BytesPointer = static_cast<const uint8_t *>(OutputBytes.data());
-  auto MaybeModel2 = Model::deserialize({ BytesPointer, OutputBytes.size() });
+  auto MaybeModel2 = Model::deserialize({ BytesPointer, OutputBytes.size() },
+                                        Path);
   if (MaybeModel2) {
     // Here consumeError is valid because the error came from the fact that the
     // model was of a previous version and it got updated
@@ -101,16 +103,21 @@ deserializeModel(llvm::ArrayRef<uint8_t> Input) {
 }
 
 NB_MODULE(_pipebox, m) {
+  using namespace nanobind::literals;
   using namespace revng::pypeline::helpers::python;
 
   auto Initialize = [m](std::set<int> Signals,
                         std::vector<std::string> ArgVector) {
     revng_assert(not nanobind::hasattr(m, "__init_revng__"));
 
+    // This map stores the SIG_DFL and SIG_IGN for later
+    std::map<int, sighandler_t> IgnoredOrDefaultSignals;
     // Save the signal pointers for later
     for (int SigNumber : Signals) {
       sighandler_t Handler = signal(SigNumber, SIG_DFL);
-      if (Handler != SIG_ERR && Handler != NULL)
+      if (Handler == SIG_DFL or Handler == SIG_IGN)
+        IgnoredOrDefaultSignals[SigNumber] = Handler;
+      else if (Handler != SIG_ERR)
         SavedSignals[SigNumber] = Handler;
     }
 
@@ -149,6 +156,8 @@ NB_MODULE(_pipebox, m) {
 
     for (int SigNumber : std::ranges::views::keys(SavedSignals))
       signal(SigNumber, &handleSignal);
+    for (auto &[SigNumber, Handler] : IgnoredOrDefaultSignals)
+      signal(SigNumber, Handler);
   };
   m.def("initialize", Initialize);
 
@@ -250,7 +259,10 @@ NB_MODULE(_pipebox, m) {
            //       copy anyways.
            return nanobind::bytes(Buffer.data(), Buffer.size());
          })
-    .def_static("deserialize", &deserializeModel)
+    .def_static("deserialize",
+                &deserializeModel,
+                "data"_a,
+                "path"_a = nanobind::none())
     .def("__eq__",
          [](Model &Handle, nanobind::object Other) {
            Model *OtherHandle;
@@ -259,7 +271,8 @@ NB_MODULE(_pipebox, m) {
            return Handle == *OtherHandle;
          })
     .def("enable_caching", &Model::enableCaching)
-    .def("disable_caching", &Model::disableCaching);
+    .def("disable_caching", &Model::disableCaching)
+    .def("path", &Model::path);
 
   // Register all Pipes, Analyses and Containers
   BaseClasses BC{

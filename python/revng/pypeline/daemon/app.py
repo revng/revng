@@ -5,6 +5,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 from functools import wraps
+from typing import Callable
 
 from starlette.applications import Starlette
 from starlette.datastructures import UploadFile
@@ -86,7 +87,11 @@ def prepare_endpoint(func):
     return wrapper
 
 
-def make_starlette(production: bool, daemon: Daemon) -> Starlette:
+def make_starlette(
+    production: bool,
+    daemon: Daemon,
+    on_startup: Callable[[], None] = lambda: None,
+) -> Starlette:
     # This doesn't use `prepare_endpoint` as it doesn't need the project_id nor token
     async def pipeline_endpoint(request: Request) -> JSONResponse:
         """Get pipeline information"""
@@ -160,6 +165,7 @@ def make_starlette(production: bool, daemon: Daemon) -> Starlette:
 
     @asynccontextmanager
     async def lifespan(app):
+        on_startup()
         global shutdown_begun
         shutdown_begun = asyncio.Event()
         yield

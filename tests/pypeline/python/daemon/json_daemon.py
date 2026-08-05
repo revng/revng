@@ -50,7 +50,6 @@ class JsonTestServer(TestServer):
         os.chdir(self.tmp_dir_path)
 
         self.cache_dir_tmp = TemporaryDirectory()
-        self.project_id = "test_project_id_json"
 
         with open(self.pipeline_path, "r") as pipeline_file:
             self.pipeline = load_pipeline_yaml(pipeline_file.read())
@@ -66,7 +65,7 @@ class JsonTestServer(TestServer):
 
     @handle_exceptions
     def get_epoch(self) -> Response:
-        response = asyncio.run(self.daemon.get_epoch({"project_id": self.project_id}))
+        response = asyncio.run(self.daemon.get_epoch({}))
         return Response(code=response.code, body=response.body)
 
     @handle_exceptions
@@ -76,24 +75,21 @@ class JsonTestServer(TestServer):
 
     @handle_exceptions
     def get_model(self) -> Response:
-        response = asyncio.run(self.daemon.get_model({"project_id": self.project_id}))
+        response = asyncio.run(self.daemon.get_model({}))
         return Response(code=response.code, body=response.body)
 
     @handle_exceptions
     def put_file(self, put_file_request) -> Response:
-        put_file_request.setdefault("project_id", self.project_id)
         response = asyncio.run(self.daemon.put_file(put_file_request))
         return Response(code=response.code, body=response.body)
 
     @handle_exceptions
     def run_analysis(self, analysis_request) -> Response:
-        analysis_request.setdefault("project_id", self.project_id)
         response = asyncio.run(self.daemon.analyze(analysis_request))
         return Response(code=response.code, body=response.body)
 
     @handle_exceptions
     def get_artifact(self, artifact_request) -> Response:
-        artifact_request.setdefault("project_id", self.project_id)
         response = asyncio.run(self.daemon.artifact(artifact_request))
         return Response(code=response.code, body=response.body)
 

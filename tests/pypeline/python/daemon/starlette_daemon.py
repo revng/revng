@@ -36,7 +36,6 @@ class StarletteTestServer(TestServer):
         super().__init__()
         self.port = port or find_free_port()
         self.base_url = f"http://127.0.0.1:{self.port}"
-        self.project_id = "test_project_id"
         self.storage_provider_url = storage_provider_url
         # Create temporary files for the DB and the config that points to the DB
         self.cache_dir = TemporaryDirectory()
@@ -44,7 +43,6 @@ class StarletteTestServer(TestServer):
 
         # Configure a session that can directly talk to the daemon
         self.session = requests.Session()
-        self.session.headers["x-project-id"] = self.project_id
 
         # The server daemon has to be a daemon so when the tests finish it will
         # be killed. But this silences the exceptions, so if it fails, you need
@@ -144,6 +142,4 @@ class StarletteTestServer(TestServer):
         return Response(code=r.status_code, body=r.json())
 
     def subscribe(self):
-        return websockets.sync.client.connect(
-            f"ws://127.0.0.1:{self.port}/api/notifications?project_id={self.project_id}"
-        )
+        return websockets.sync.client.connect(f"ws://127.0.0.1:{self.port}/api/notifications")

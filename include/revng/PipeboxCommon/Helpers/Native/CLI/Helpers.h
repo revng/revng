@@ -70,7 +70,7 @@ inline llvm::Expected<Model> modelFromPath(llvm::StringRef Path) {
   using llvm::MemoryBuffer;
   auto ModelBuffer = revng::cantFail(MemoryBuffer::getFile(Path));
   auto BufferRef = llvm::arrayRefFromStringRef(ModelBuffer->getBuffer());
-  return Model::deserialize(BufferRef);
+  return Model::deserialize(BufferRef, std::nullopt);
 }
 
 // The `--configuration` and `--static-configuration` options carry the path to
