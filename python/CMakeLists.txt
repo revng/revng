@@ -329,8 +329,8 @@ python_module(TARGET_NAME revng-dump-model WHEEL revng_internal MODULE_FILES
 #
 set(REVNG_CLI_MODULE_FILES
     revng/internal/cli/commands_registry.py revng/internal/cli/__init__.py
-    revng/internal/cli/revng.py revng/internal/cli/revng2.py
-    revng/internal/cli/support.py)
+    revng/internal/cli/pypeline_commands.py revng/internal/cli/revng.py
+    revng/internal/cli/revng2.py revng/internal/cli/support.py)
 python_module(TARGET_NAME revng-python-cli WHEEL revng_internal MODULE_FILES
               ${REVNG_CLI_MODULE_FILES})
 
