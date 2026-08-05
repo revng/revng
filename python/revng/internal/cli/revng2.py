@@ -21,13 +21,16 @@ from typing import Any
 import click
 
 from revng.internal.support import cache_directory
+from revng.internal.support.collect import collect_files_recursive
 from revng.pypeline.cli.project import project
 from revng.pypeline.cli.wrappers import WRAPPER_REGISTRY, WrapperOption
 from revng.pypeline.main import main as pype_main
 from revng.pypeline.main import pype
 from revng.support import collect_files, get_root
 
-from .common import CommandRegistry, ContextObject, cli_logger
+from .common import ClickContext, CommandRegistry, ContextObject, WrappableCommand, cli_logger
+from .common import pass_context
+from .support import executable_name, is_file_executable, search_prefixes
 
 
 class ValgrindWrapperOption(WrapperOption):
@@ -72,14 +75,14 @@ class GroupRegistry(CommandRegistry):
     """
 
     def __init__(self, root: click.Group):
-        self.groups: dict[tuple[str, ...], click.Group] = {}
+        self.groups: dict[tuple[str, ...], tuple[click.Group, str]] = {}
         # Commands whose group has not been registered yet
         self.pending: dict[tuple[str, ...], list[click.Command]] = defaultdict(list)
         self._add_group((), root)
 
     def _add_group(self, path: tuple[str, ...], group: click.Group):
         assert path not in self.groups
-        self.groups[path] = group
+        self.groups[path] = (group, "-".join(path))
 
         # Recursively check for sub-groups
         for name, command in group.commands.items():
@@ -94,7 +97,7 @@ class GroupRegistry(CommandRegistry):
             self.pending[group].append(command)
             return
 
-        self.groups[group].add_command(command)
+        self.groups[group][0].add_command(command)
         if isinstance(command, click.Group):
             assert command.name is not None
             self._add_group((*group, command.name), command)
@@ -106,6 +109,52 @@ class GroupRegistry(CommandRegistry):
                 for command in commands:
                     cli_logger.log(f"* {command} in {group}")
             raise ValueError
+
+    @staticmethod
+    def _build_external_command(group: tuple[str, ...], name: str, path: str) -> click.Command:
+        @click.command(
+            cls=WrappableCommand,
+            name=name,
+            help=f"see {" ".join((executable_name(), *group, name))} --help",
+            add_help_option=False,
+            context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+        )
+        @click.argument("arguments", metavar="[ARGS]...", nargs=-1, type=click.UNPROCESSED)
+        @pass_context
+        def external_command(ctx: ClickContext, arguments: tuple[str, ...]) -> int:
+            return ctx.obj.try_run([path, *arguments])
+
+        return external_command
+
+    def _resolve_command_path(self, executable: str) -> tuple[tuple[str, ...], str]:
+        """
+        Turn the path of an executable, relative to `libexec/revng`, into the group
+        it belongs to and its command name. Each directory is a group, then the
+        longest prefix of `-`-separated words matching a group is consumed.
+        """
+        name = Path(executable).parts[-1]
+        group = Path(executable).parts[:-1]
+
+        def is_group_prefix(group_tuple: tuple[str, ...]):
+            return len(group_tuple) > len(group) and group_tuple[: len(group)] == group
+
+        candidates = [
+            (k, v[1])
+            for k, v in self.groups.items()
+            if v[1] != "" and name.startswith(v[1]) and name != v[1] and is_group_prefix(k)
+        ]
+        candidates.sort(key=lambda x: len(x[1]), reverse=True)
+
+        if len(candidates) > 0:
+            group = candidates[0][0]
+            name = name.removeprefix(f"{candidates[0][1]}-")
+
+        return group, name
+
+    def add_external_executable(self, path: str, executable: str):
+        group, name = self._resolve_command_path(executable)
+        if name not in self.groups[group][0].commands:
+            self.register(group, self._build_external_command(group, name, path))
 
 
 def patch_pype():
@@ -143,6 +192,17 @@ def patch_pype():
             param.envvar = ["REVNG_STORAGE_PROVIDER", param.envvar]
 
 
+def register_external_commands(registry: GroupRegistry):
+    """
+    Register the executables in `libexec/revng` as commands. Their name is
+    split on `-` to find the innermost group they belong to, e.g. `model-opt`
+    becomes `model opt`.
+    """
+    for executable, path in collect_files_recursive(search_prefixes(), ["libexec", "revng"], "*"):
+        if is_file_executable(path) and os.path.splitext(path)[1] == "":
+            registry.add_external_executable(path, executable)
+
+
 def load_commands(registry: CommandRegistry):
     """Let each module in `_commands` register the commands it implements."""
     modules = []
@@ -170,6 +230,7 @@ def main():
     # Create and populate the registry
     registry = GroupRegistry(pype)
     load_commands(registry)
+    register_external_commands(registry)
     registry.check()
 
     pype_main(sys.argv[1:], ContextObject)
