@@ -61,11 +61,11 @@ commands:
       TEMPORARY=$$(temp -d);
       mkdir "$$TEMPORARY/project1" "$$TEMPORARY/project2";
 
-      revng2 -C "$$TEMPORARY/project1" project init --overwrite --no-initial-auto-analysis "$INPUT1";
-      revng2 -C "$$TEMPORARY/project1" project analyze parse-binary -o /dev/null;
+      revng -C "$$TEMPORARY/project1" project init --overwrite --no-initial-auto-analysis "$INPUT1";
+      revng -C "$$TEMPORARY/project1" project analyze parse-binary -o /dev/null;
 
-      revng2 -C "$$TEMPORARY/project2" project init --overwrite --no-initial-auto-analysis "$INPUT2";
-      revng2 -C "$$TEMPORARY/project2" project analyze parse-binary -o /dev/null;
+      revng -C "$$TEMPORARY/project2" project init --overwrite --no-initial-auto-analysis "$INPUT2";
+      revng -C "$$TEMPORARY/project2" project analyze parse-binary -o /dev/null;
 
       ( revng model diff "$$TEMPORARY/project1/revng.yml" "$$TEMPORARY/project2/revng.yml" || true )
         | revng model apply "$$TEMPORARY/project1/revng.yml"

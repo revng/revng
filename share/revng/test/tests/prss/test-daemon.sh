@@ -26,7 +26,7 @@ PIDS_TO_KILL+=($!)
 
 # Start the revng daemon
 DAEMON_PORT=$(available_port)
-revng2 project \
+revng project \
     --storage-provider "rss://127.0.0.1:$RSS_SERVER_PORT/?proto=http" \
     daemon \
     --bind "127.0.0.1:$DAEMON_PORT" \

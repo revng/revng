@@ -9,5 +9,5 @@ SCRIPT_DIR=$(realpath "$(dirname "${BASH_SOURCE[0]}")")
 INPUT=$1
 OUTPUT=$2
 
-./bin/revng2 project dump-pipeline | \
+./bin/revng project dump-pipeline | \
     "$SCRIPT_DIR/generate-project-mixins.py" -o "$OUTPUT" "$INPUT"

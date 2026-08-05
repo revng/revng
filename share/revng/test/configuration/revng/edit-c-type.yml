@@ -80,7 +80,7 @@ commands:
       echo -e "$$CONFIGURATION" > "${OUTPUT}/configuration.yml";
 
       EXIT_CODE=0;
-      revng2 pipeline run-analysis edit-c-type
+      revng pipeline run-analysis edit-c-type
         -c "${OUTPUT}/configuration.yml"
         "${INPUT}/input-model.yml"
         -o "${OUTPUT}/model.yml"

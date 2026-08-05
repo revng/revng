@@ -14,7 +14,7 @@ This page reports the list of all the analyses currently featured in rev.ng.
 ## <a id="/analyses/{{analysis.analysis}}"></a>`{{analysis.analysis}}` analysis
 
 ```{bash notest}
-revng2 project analyze {{analysis.analysis}}
+revng project analyze {{analysis.analysis}}
 ```
 
 {{ common.maybe('Runs after', "/pipeline/branches/" + branch_name) -}}
@@ -27,7 +27,7 @@ revng2 project analyze {{analysis.analysis}}
 ## <a id="/analyses/{{name}}"></a>`{{name}}` analysis
 
 ```{bash notest}
-revng2 project analyze {{name}}
+revng project analyze {{name}}
 ```
 
 {% if analysis is not string and analysis.description %}{{ analysis.description }}{% endif %}

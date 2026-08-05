@@ -38,13 +38,13 @@ Let's compile it and create a project, just like on the [previous page](running-
 
 ```bash
 $ gcc calc.c -o calc -O1 -fno-stack-protector
-$ revng2 project init calc
+$ revng project init calc
 ```
 
 Here is the decompiled `resolve`:
 
 ```bash
-$ revng2 project artifact emit-c resolve | revng ptml
+$ revng project artifact emit-c resolve | revng ptml
 _ABI(SystemV_x86_64)
 generic64_t resolve(generic64_t argument_0, generic64_t argument_1) {
   generic64_t var_0 = 0UL;
@@ -108,7 +108,7 @@ CCode: |
   }
 EOF
 $ cp revng.yml before-edit.yml
-$ revng2 project analyze edit-c-body -o /dev/null -c edit.yml
+$ revng project analyze edit-c-body -o /dev/null -c edit.yml
 $ diff -u before-edit.yml revng.yml || true
 --- before-edit.yml
 +++ revng.yml
@@ -137,7 +137,7 @@ $ diff -u before-edit.yml revng.yml || true
 The comment, the name and the type are now part of the model, so they show up in the decompiled code:
 
 ```bash
-$ revng2 project artifact emit-c resolve | revng ptml | grep -E 'value =|mix the key'
+$ revng project artifact emit-c resolve | revng ptml | grep -E 'value =|mix the key'
   int64_t value = 0L;
   // only mix the key when it differs from the salt
     value = raw(argument_0) ^ argument_0;

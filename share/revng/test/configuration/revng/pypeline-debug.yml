@@ -9,4 +9,4 @@ commands:
       - type: revng-qa.compiled
         filter: example-executable-1 and with-debug-info
     command: |-
-      revng2 quick artifact emit-c-as-single-file -o /dev/null --debug "$$(temp -d)" "$INPUT";
+      revng quick artifact emit-c-as-single-file -o /dev/null --debug "$$(temp -d)" "$INPUT";

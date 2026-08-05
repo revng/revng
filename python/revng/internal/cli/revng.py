@@ -2,12 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-"""
-This is just a wrapper over `pype` that sets pipebox to the revng pipebox path.
-The path is computed relatively to this file, so this should work regardless of
-where revng is installed.
-"""
-
 import os
 import shlex
 import signal
@@ -70,7 +64,7 @@ WRAPPER_REGISTRY.register_wrappers(
 class GroupRegistry(CommandRegistry):
     """
     Registry of the click groups making up the revng command-line, addressed by
-    their path, e.g. `("model", "import")` for `revng2 model import`; the root
+    their path, e.g. `("model", "import")` for `revng model import`; the root
     command is addressed by the empty tuple.
     """
 
@@ -159,12 +153,12 @@ class GroupRegistry(CommandRegistry):
 
 def patch_pype():
     """
-    revng2 is based on `pype`, but we want to change some defaults to be revng specific,
+    revng is based on `pype`, but we want to change some defaults to be revng specific,
     and we want to add some commands.
     """
 
     # Replace the name (needed for autocompletion and usage)
-    pype.name = "revng2"
+    pype.name = "revng"
 
     # Patch the callback function so that the cli_logger is enabled with
     # `--verbose`
@@ -223,7 +217,7 @@ def load_commands(registry: CommandRegistry):
 
 
 def main():
-    """Entry point for revng2."""
+    """Entry point for revng"""
     signal.signal(signal.SIGINT, lambda x, y: sys.exit(1))
     patch_pype()
 

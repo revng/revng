@@ -15,7 +15,7 @@ You can now use `revng` as follows:
 
 ```{bash notest}
 $ export PATH="$PATH:$PWD/revng"
-$ revng2 project artifact --help
+$ revng project artifact --help
 ```
 
 Alternatively, you can set the environment so you don't need to run `./revng` but just `revng`:
@@ -23,7 +23,7 @@ Alternatively, you can set the environment so you don't need to run `./revng` bu
 ```{bash notest}
 $ cd revng
 $ source ./environment
-$ revng2 project artifact --help
+$ revng project artifact --help
 ```
 
 Note that this second option will pollute a bit your environment. If that's not desirable for you, use the solution above.
@@ -89,7 +89,7 @@ Now you can enter the environment where you can use `revng`:
 
 ```{bash notest}
 $ orc shell
-$ revng2 project artifact --help
+$ revng project artifact --help
 ```
 
 The rest of the documentation assumes you're in an `orc shell`.

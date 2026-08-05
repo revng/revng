@@ -12,7 +12,7 @@ export PATH="$BIN_PATH:$PATH"
 DEBUG_DIR=$(mktemp -d --tmpdir tmp.revng-pypeline-native-debug-test.XXXXXXXXXX)
 trap 'rm -rf -- "$DEBUG_DIR"' EXIT
 
-revng2 quick artifact output -o /dev/null --debug "$DEBUG_DIR" /dev/null
+revng quick artifact output -o /dev/null --debug "$DEBUG_DIR" /dev/null
 
 # Assert that the debug dir is as it is expected
 cd "$DEBUG_DIR"

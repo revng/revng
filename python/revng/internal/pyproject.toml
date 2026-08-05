@@ -42,7 +42,6 @@ revng = [
 [tool.setuptools]
 script-files = [
   "scripts/revng",
-  "scripts/revng2",
 ]
 
 [tool.setuptools.dynamic]

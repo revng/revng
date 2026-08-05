@@ -24,18 +24,18 @@ commands:
         trap 'rm -rf "$WORKDIR"' EXIT
         cd "$WORKDIR"
 
-        revng2 project init --overwrite --no-initial-auto-analysis "$BINARY";
-        revng2 project analyze parse-binary -o /dev/null;
+        revng project init --overwrite --no-initial-auto-analysis "$BINARY";
+        revng project analyze parse-binary -o /dev/null;
 
         PRE_ARTIFACT_PATCH="${FILECHECK/.filecheck/.pre-patch.yml}"
         if [[ -e "$PRE_ARTIFACT_PATCH" ]]; then
-            revng2 project analyze apply-diff \
+            revng project analyze apply-diff \
               -c "$PRE_ARTIFACT_PATCH" -o /dev/null
         fi
 
-        revng2 project artifact enforce-abi -o /dev/null
+        revng project artifact enforce-abi -o /dev/null
 
-        revng2 project analyze apply-diff \
+        revng project analyze apply-diff \
           -c "$FILECHECK" -o /dev/null \
           --invalidations invalidations.yml
 

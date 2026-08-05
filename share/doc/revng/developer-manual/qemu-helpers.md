@@ -467,7 +467,7 @@ Disassembly of section .data:
 ```
 
 ```{bash silent}
-$ revng2 project artifact lift -o module.bc
+$ revng project artifact lift -o module.bc
 ```
 
 Let's inspect the basic block.
@@ -506,7 +506,7 @@ At the `enforce-abi` stage, the *to-inline* module is linked.
 The `inline-helpers` pass walks each isolated function, finds calls to functions in `section "revng_inline"`, and inlines them in a fixed-point loop.
 
 ```{bash silent}
-$ revng2 project artifact enforce-abi -o enforced.bc
+$ revng project artifact enforce-abi -o enforced.bc
 ```
 
 Let's look at the isolated function.

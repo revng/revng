@@ -10,14 +10,14 @@ An *artifact* is an output of the pipeline. Some artifacts are designed to be co
 
 For instance, the [`disassemble` artifact](../../references/artifacts.md#disassemble-artifact) produces a set of text files containing the disassembled code of each function.
 
-In order to produce an artifact, use the [`revng2-project-artifact`](../../references/cli/revng2-project-artifact.md) CLI tool.
+In order to produce an artifact, use the [`revng-project-artifact`](../../references/cli/revng-project-artifact.md) CLI tool.
 
 Artifacts can have different *granularity*.
 For instance, the [`render-svg-call-graph` artifact](../../references/artifacts.md#render-svg-call-graph-artifact), which represents the call graph of the whole input program, is a single file generated considering the input as a whole.
 Other artifacts, such as the previously mentioned `disassemble` artifact, have a *function-wise* granularity.
 This means that they contain an "object" for each function defined in the model ([`Binary.Functions`](../../references/model.md#Binary.Functions)).
 
-If there's a single output, `revng2-project-artifact` emits it directly, otherwise it either emits a YAML dictionary with one entry per function (default), or a `.tar` archive with one file per function.
+If there's a single output, `revng-project-artifact` emits it directly, otherwise it either emits a YAML dictionary with one entry per function (default), or a `.tar` archive with one file per function.
 
 Note that, for performance reasons, rev.ng does not recompute an artifact each time it's requested, but it has a caching feature.
 Making changes to the model, automatically invalidates the parts of the cache affected by the change.
@@ -41,6 +41,6 @@ Its final result is to add to the model the prototypes of each analyzed function
 Unlike artifacts, which are designed to be run many times during the lifetime of a project, most analyses are usually run once at the start of a project.
 In order to maintain a list of analyses that are beneficial to run at the start of a project, rev.ng maintains an [*analysis list*](../../references/pipeline.md#analysis-lists) called `initial-auto-analysis`.
 
-In order to run an analysis, use the `revng2 project analyze` CLI tool.
+In order to run an analysis, use the `revng project analyze` CLI tool.
 
 The reference documents the [full list of analyses](../../references/analyses.md).

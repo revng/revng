@@ -58,7 +58,7 @@ function start_relay_server() {
     RELAY_PUBLISH_PORT=$(available_port)
     RELAY_PSK=$(dd if=/dev/random bs=1 count=32 status=none | base64 | sed 's;=*$;;')
 
-    revng2 rss relay \
+    revng rss relay \
         --psk "$RELAY_PSK" \
         --notifications-bind "127.0.0.1:$RELAY_NOTIFICATIONS_PORT" \
         --publish-bind "127.0.0.1:$RELAY_PUBLISH_PORT" \
@@ -76,7 +76,7 @@ function start_rss_server() {
         RSS_SERVER_OPTS+=(--public-notification-url "http://127.0.0.1:$RELAY_NOTIFICATIONS_PORT")
     fi
 
-    revng2 rss server \
+    revng rss server \
         --bind "127.0.0.1:$RSS_SERVER_PORT" \
         --storage-driver postgres \
         --connection-string "postgresql://127.0.0.1:$POSTGRES_PORT/rss" \
@@ -89,7 +89,7 @@ function start_rss_server() {
 function start_rss_viewer() {
     RSS_VIEWER_PORT=$(available_port)
 
-    revng2 rss viewer \
+    revng rss viewer \
         --bind "127.0.0.1:$RSS_VIEWER_PORT" \
         --storage-driver postgres \
         --connection-string "postgresql://127.0.0.1:$POSTGRES_PORT/rss" \

@@ -14,7 +14,7 @@ This page reports the list of all the artifacts that can be produced by rev.ng.
 ## <a id="/artifacts/{{artifact.name}}"></a>`{{artifact.name}}` artifact
 
 ```{bash notest}
-revng2 project artifact {{artifact.name}}
+revng project artifact {{artifact.name}}
 ```
 
 {{ common.maybe('Branch', "/pipeline/branches/" + branch_name) -}}

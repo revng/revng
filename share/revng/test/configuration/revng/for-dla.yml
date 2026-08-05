@@ -8,4 +8,4 @@ commands:
       - type: revng-qa.compiled-stripped
         filter: for-dla
     command: |-
-      revng2 quick analyze "$INPUT" | revng model compare "$SOURCE".model.yml
+      revng quick analyze "$INPUT" | revng model compare "$SOURCE".model.yml

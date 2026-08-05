@@ -24,7 +24,7 @@ from revng.support import TarDictionary
 class CLIProject(Project):
     """
     This class is used to run revng analysis and artifact through
-    the revng2 CLI with subprocess.
+    the revng CLI with subprocess.
     """
 
     def __init__(

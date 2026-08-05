@@ -13,7 +13,7 @@ namespace revng::pypeline::helpers::native::cli {
 /// Helper class that allows parsing command-line arguments for containers given
 /// a signature object. It also takes care of loading and saving containers from
 /// disk; these are assumed to be in the same tar format as the output of
-/// `revng2 project artifact --tar`. This will also take care of storing the
+/// `revng project artifact --tar`. This will also take care of storing the
 /// containers, these are retrievable with \ref getContainers.
 class ContainerHandler {
 private:

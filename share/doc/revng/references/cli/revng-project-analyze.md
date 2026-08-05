@@ -1,20 +1,20 @@
-`revng2-project-analyze`
+`revng-project-analyze`
 ================
 
 NAME
 ----
 
-`revng2 project analyze` - Run an analysis or an analysis list.
+`revng project analyze` - Run an analysis or an analysis list.
 
 SYNOPSIS
 --------
 
-    revng2 project analyze ANALYSIS [OPTIONS] [-- PIPEBOX ARGS...]
+    revng project analyze ANALYSIS [OPTIONS] [-- PIPEBOX ARGS...]
 
 DESCRIPTION
 -----------
 
-This command is a subcommand of [`revng2 project`](revng2-project.md).
+This command is a subcommand of [`revng project`](revng-project.md).
 
 Runs the [analysis](../analyses.md) (or [analysis list](../pipeline.md#analysis-lists)) `ANALYSIS` on the project in the current directory, updating its model in place.
 
@@ -22,7 +22,7 @@ Run without arguments to list all the available analyses.
 
 The documentation describes [what an analysis is](../../user-manual/key-concepts/artifacts-and-analyses.md#analyses).
 
-The project must have been created with [`revng2 project init`](revng2-project-init.md) first, so that a `revng.yml` is present in the working directory.
+The project must have been created with [`revng project init`](revng-project-init.md) first, so that a `revng.yml` is present in the working directory.
 
 OPTIONS
 -------
@@ -40,15 +40,15 @@ OPTIONS
 : List the available objects for each argument and then exit.
 
 `--<ARG>-objects LIST`
-: For the incoming container argument `ARG`, the comma-separated list of objects to feed the analysis. Objects use the same syntax accepted by [`revng2 project artifact`](revng2-project-artifact.md#description) (a location, a bare key, a name, or an automatic name). There is one such option per container argument of the analysis; run with `--help` to see them, or `--list` to see the available objects. If omitted, all the available objects are used.
+: For the incoming container argument `ARG`, the comma-separated list of objects to feed the analysis. Objects use the same syntax accepted by [`revng project artifact`](revng-project-artifact.md#description) (a location, a bare key, a name, or an automatic name). There is one such option per container argument of the analysis; run with `--help` to see them, or `--list` to see the available objects. If omitted, all the available objects are used.
 
 `--debug RUNNER_CONTEXT`
-: Run the command in debug mode, recording each pipeline step under the given directory. See [`revng2-common`](revng2-common.md#debug).
+: Run the command in debug mode, recording each pipeline step under the given directory. See [`revng-common`](revng-common.md#debug).
 
 `--help-full`
 : Show the help including the hidden per-pipe `--*-configuration` options, then exit.
 
-This command supports the [developer wrapper options](revng2-common.md#developer-wrapper-options) and [pipebox arguments](revng2-common.md#pipebox-arguments).
+This command supports the [developer wrapper options](revng-common.md#developer-wrapper-options) and [pipebox arguments](revng-common.md#pipebox-arguments).
 
 INVALIDATION DATA
 -----------------
@@ -87,7 +87,7 @@ EXAMPLES
 Apply a patch (a model diff) to the current project, for example renaming a function:
 
 ```{bash notest}
-revng2 project analyze apply-diff -c patch.yml
+revng project analyze apply-diff -c patch.yml
 ```
 
 where `patch.yml` contains the diff:
@@ -102,10 +102,10 @@ Changes:
 Run a single analysis and save the resulting model to a file:
 
 ```{bash notest}
-revng2 project analyze detect-abi -o revng.yml
+revng project analyze detect-abi -o revng.yml
 ```
 
 SEE ALSO
 --------
 
-[`revng2-project`](revng2-project.md), [`revng2-project-artifact`](revng2-project-artifact.md), [`revng2-project-init`](revng2-project-init.md)
+[`revng-project`](revng-project.md), [`revng-project-artifact`](revng-project-artifact.md), [`revng-project-init`](revng-project-init.md)

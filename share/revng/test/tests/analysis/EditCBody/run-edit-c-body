@@ -41,10 +41,10 @@ assert_reemitted() {
 }
 
 mkdir -p "$PROJECT"
-revng2 -C "$PROJECT" project init --overwrite "$BINARY"
+revng -C "$PROJECT" project init --overwrite "$BINARY"
 
 # The decompiled C, produced live.
-revng2 -C "$PROJECT" project artifact emit-c "$FUNCTION" | revng ptml > "$PROJECT/live.c"
+revng -C "$PROJECT" project artifact emit-c "$FUNCTION" | revng ptml > "$PROJECT/live.c"
 
 # Insert one directive of each kind before its anchor line.
 python3 - "$PROJECT/live.c" "$PROJECT/edited.c" <<'PYEOF'
@@ -79,7 +79,7 @@ fi
   sed 's/^/  /' "$PROJECT/edited.c"
 } > "$PROJECT/edit.yml"
 
-revng2 -C "$PROJECT" project analyze edit-c-body -o /dev/null -c "$PROJECT/edit.yml"
+revng -C "$PROJECT" project analyze edit-c-body -o /dev/null -c "$PROJECT/edit.yml"
 
 # The comment, both renames and the retype must reach the model. A rename-only
 # variable has no `Type`, so `renamed_local` carrying a 4-byte type (uint32_t)
@@ -99,7 +99,7 @@ assert_model \
 
 # The renames and the comment round-trip back into the re-emitted code (a type
 # change is model-only and does not reach emit-c, so it is not checked here).
-REEMIT="$(revng2 -C "$PROJECT" project artifact emit-c "$FUNCTION" | revng ptml)"
+REEMIT="$(revng -C "$PROJECT" project artifact emit-c "$FUNCTION" | revng ptml)"
 assert_reemitted "A plain comment on a statement."
 assert_reemitted "renamed_local"
 assert_reemitted "renamed_goto_label:"

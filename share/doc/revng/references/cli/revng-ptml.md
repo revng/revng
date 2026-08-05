@@ -45,23 +45,23 @@ EXAMPLES
 Pretty-print the decompiled C with color:
 
 ```{bash notest}
-revng2 project artifact emit-c-as-single-file | revng ptml -c
+revng project artifact emit-c-as-single-file | revng ptml -c
 ```
 
 Extract a single function's disassembly from the `disassemble` artifact:
 
 ```{bash notest}
-revng2 project artifact disassemble | revng ptml -e /function/0x401000:Code_x86_64
+revng project artifact disassemble | revng ptml -e /function/0x401000:Code_x86_64
 ```
 
 Strip a saved artifact to plain text:
 
 ```{bash notest}
-revng2 project artifact emit-c-as-single-file -o code.ptml
+revng project artifact emit-c-as-single-file -o code.ptml
 revng ptml -p code.ptml -o code.c
 ```
 
 SEE ALSO
 --------
 
-[`revng2-project-artifact`](revng2-project-artifact.md), [`revng-merge-llvm`](revng-merge-llvm.md)
+[`revng-project-artifact`](revng-project-artifact.md), [`revng-merge-llvm`](revng-merge-llvm.md)

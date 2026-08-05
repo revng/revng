@@ -1,21 +1,21 @@
-`revng2-project-init`
+`revng-project-init`
 ================
 
 NAME
 ----
 
-`revng2 project init` - Initialize a new project.
+`revng project init` - Initialize a new project.
 Given a binary, it runs the initial auto analyses to start the reverse engineering process.
 
 SYNOPSIS
 --------
 
-    revng2 project init [OPTIONS] [BINARY] [-- PIPEBOX ARGS...]
+    revng project init [OPTIONS] [BINARY] [-- PIPEBOX ARGS...]
 
 DESCRIPTION
 -----------
 
-This command is a subcommand of [`revng2 project`](revng2-project.md).
+This command is a subcommand of [`revng project`](revng-project.md).
 
 Creates a new project in the current directory by creating and initializing a `revng.yml`.
 
@@ -32,7 +32,7 @@ OPTIONS
 `--overwrite`
 : Overwrite an existing project model instead of failing. Any `revng.yml` already present in the target directory is clobbered.
 
-This command supports the [developer wrapper options](revng2-common.md#developer-wrapper-options), [pipebox arguments](revng2-common.md#pipebox-arguments) and the [project id and token](revng2-common.md#project-id-and-token) options.
+This command supports the [developer wrapper options](revng-common.md#developer-wrapper-options), [pipebox arguments](revng-common.md#pipebox-arguments) and the [project id and token](revng-common.md#project-id-and-token) options.
 
 EXAMPLES
 --------
@@ -40,16 +40,16 @@ EXAMPLES
 Create a project from a binary and run the initial auto analysis:
 
 ```{bash notest}
-revng2 project init /usr/bin/hostname
+revng project init /usr/bin/hostname
 ```
 
 Create an empty project and import the binary without running any analysis:
 
 ```{bash notest}
-revng2 project init /usr/bin/hostname --no-initial-auto-analysis
+revng project init /usr/bin/hostname --no-initial-auto-analysis
 ```
 
 SEE ALSO
 --------
 
-[`revng2-project`](revng2-project.md), [`revng2-project-analyze`](revng2-project-analyze.md), [`revng2-project-artifact`](revng2-project-artifact.md)
+[`revng-project`](revng-project.md), [`revng-project-analyze`](revng-project-analyze.md), [`revng-project-artifact`](revng-project-artifact.md)
