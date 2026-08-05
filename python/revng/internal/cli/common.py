@@ -43,3 +43,17 @@ cli_logger = get_logger("cli")
 """
 The pre-initialized logger to use inside the revng command-line code.
 """
+
+
+class CommandRegistry(Protocol):
+    """
+    Interface used by the `setup` function of each command module to add its
+    commands to the revng command-line.
+    """
+
+    def register(self, group: tuple[str, ...], command: click.Command):
+        """
+        Add `command` to the group addressed by `group`, the root command being
+        addressed by the empty tuple. Registering into a group that does not
+        exist yet is allowed: the command will be added as soon as the group is.
+        """
