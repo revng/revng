@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+set -euo pipefail
+
+# Both locals of `ambiguous` are read only by the same call, so they share the
+# address set rev.ng identifies a local variable by and cannot be told apart.
+# Renaming either must be rejected rather than applied to whichever of them the
+# decompiler happens to reach first. `var_0` is that first one, so rejecting it
+# too is what keeps a model entry from ever being written for a set naming more
+# than one variable.
+
+BINARY="$1"
+PROJECT="$2"
+FUNCTION="ambiguous"
+
+fail() {
+  echo "edit-c-body: $1" >&2
+  exit 1
+}
+
+# Read a value out of a function's model with yq.
+function_model() {
+  yq ".Functions[] | select(.Name == \"$1\") | $2" "$PROJECT/revng.yml"
+}
+
+# Assert a model query on a function returns an expected value.
+assert_model() {
+  [ "$(function_model "$1" "$2")" = "$3" ] || fail "$4"
+}
+
+# Copy the decompiled function inserting a `//` line before the first line
+# holding the anchor.
+insert_directive() {
+  python3 - "$@" <<'PYEOF'
+import sys
+
+source, target, anchor, directive = sys.argv[1:5]
+lines = open(source).read().split("\n")
+
+for index, line in enumerate(lines):
+    if anchor in line:
+        indent = line[:len(line) - len(line.lstrip())]
+        lines.insert(index, indent + "// " + directive)
+        break
+else:
+    sys.exit("anchor not found in the decompiled code: " + anchor)
+
+open(target, "w").write("\n".join(lines) + "\n")
+PYEOF
+}
+
+# Wrap the edited function into an edit-c-body configuration. The configuration
+# needs the function's entry address; read it from the model.
+make_configuration() {
+  local address
+  address="$(function_model "$1" '.Entry' | tr -d '"')"
+  if [ -z "$address" ] || [ "$address" = "null" ]; then
+    fail "could not find the entry address of $1"
+  fi
+
+  {
+    echo "Function: $address"
+    echo "CCode: |"
+    sed 's/^/  /' "$2"
+  } > "$3"
+}
+
+mkdir -p "$PROJECT"
+revng -C "$PROJECT" project init --overwrite "$BINARY"
+
+revng -C "$PROJECT" project artifact emit-c "$FUNCTION" \
+  | revng ptml > "$PROJECT/live.c"
+
+insert_directive "$PROJECT/live.c" "$PROJECT/edited.c" \
+  "var_0" "RENAME: renamed_ambiguous"
+
+make_configuration "$FUNCTION" "$PROJECT/edited.c" "$PROJECT/edit.yml"
+
+if ERROR="$(revng -C "$PROJECT" project analyze edit-c-body -o /dev/null \
+              -c "$PROJECT/edit.yml" 2>&1)"; then
+  fail "renaming a local variable sharing its addresses was not rejected"
+fi
+grep -qF "\`var_0\` shares its addresses" <<< "$ERROR" \
+  || fail "unexpected rejection message: $ERROR"
+
+# A rejected edit must leave the model alone.
+assert_model "$FUNCTION" '.LocalVariables // [] | length' 0 \
+  "a rejected edit still wrote to the model"

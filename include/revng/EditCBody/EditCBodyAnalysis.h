@@ -34,7 +34,13 @@ namespace revng::pypeline::analyses {
 /// - a `RENAME: <name>` and/or `RETYPE: <type>` comment renames and/or retypes
 ///   a local variable, recorded as a `LocalVariable` located by the addresses
 ///   of the instructions that use it. It can only be placed before the
-///   variable's declaration.
+///   variable's declaration. On a goto label, `RENAME` renames the label
+///   instead, recorded the same way as a `GotoLabel`.
+///
+/// That address set is all a local variable or a goto label is identified by,
+/// so two of them used only by the same instructions cannot be told apart. An
+/// edit aimed at one of those is rejected: applying it would edit whichever of
+/// them rev.ng reaches first, which need not be the one it was written for.
 class EditCBody {
 public:
   static constexpr llvm::StringRef Name = "edit-c-body";
