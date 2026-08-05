@@ -338,7 +338,6 @@ python_module(TARGET_NAME revng-python-cli WHEEL revng_internal MODULE_FILES
 # Install revng.cli._commands
 #
 set(REVNG_CLI_COMMANDS_MODULE_FILES
-    revng/internal/cli/_commands/translate.py
     revng/internal/cli/_commands/opt.py
     revng/internal/cli/_commands/override_by_name.py
     revng/internal/cli/_commands/llm_rename/__init__.py
@@ -348,7 +347,6 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/tar_to_yaml.py
     revng/internal/cli/_commands/test_docs/__init__.py
     revng/internal/cli/_commands/test_docs/doctest_runner.py
-    revng/internal/cli/_commands/trace_run.py
     revng/internal/cli/_commands/merge-irs.py
     revng/internal/cli/_commands/model_compare.py
     revng/internal/cli/_commands/model_migrate.py
