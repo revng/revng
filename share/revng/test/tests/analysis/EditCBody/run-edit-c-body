@@ -5,16 +5,18 @@
 
 set -euo pipefail
 
-# Exercise the edit-c-body analysis end to end. The test function decompiles to a
+# Exercise the edit-c-body analysis end to end. The test functions decompile to a
 # fixed, well-known shape, so each directive is placed by anchoring on a literal
-# name the decompiler is guaranteed to produce:
+# name the decompiler is guaranteed to produce.
+#
+# In `irreducible`, every directive is expected to land:
 #
 #   - `var_0`       the first local variable declaration -> RENAME + RETYPE;
 #   - `label_0`     the goto label                       -> RENAME;
-#   - `var_2 = 0UL` a plain assignment statement          -> a statement comment.
+#   - `var_2 = 0`   a plain assignment statement          -> a statement comment.
 #
-# Each directive is then checked to reach the model and, where the decompiler
-# renders it, the re-emitted code.
+# Each is then checked to reach the model and, where the decompiler renders it,
+# the re-emitted code.
 
 BINARY="$1"
 PROJECT="$2"
@@ -25,19 +27,58 @@ fail() {
   exit 1
 }
 
-# Read a value out of the edited function's model with yq.
+# Read a value out of a function's model with yq.
 function_model() {
-  yq ".Functions[] | select(.Name == \"$FUNCTION\") | $1" "$PROJECT/revng.yml"
+  yq ".Functions[] | select(.Name == \"$1\") | $2" "$PROJECT/revng.yml"
 }
 
-# Assert a model query returns an expected value.
+# Assert a model query on a function returns an expected value.
 assert_model() {
-  [ "$(function_model "$1")" = "$2" ] || fail "$3"
+  [ "$(function_model "$1" "$2")" = "$3" ] || fail "$4"
 }
 
 # Assert the re-emitted C contains a string.
 assert_reemitted() {
   grep -qF "$1" <<< "$REEMIT" || fail "re-emitted code is missing: $1"
+}
+
+# Copy a decompiled function inserting a `//` line before the first line holding
+# each anchor. Takes the source, the target, then anchor/directive pairs.
+insert_directives() {
+  python3 - "$@" <<'PYEOF'
+import sys
+
+source, target = sys.argv[1], sys.argv[2]
+pairs = sys.argv[3:]
+lines = open(source).read().split("\n")
+
+for anchor, directive in zip(pairs[::2], pairs[1::2]):
+    for index, line in enumerate(lines):
+        if anchor in line:
+            indent = line[:len(line) - len(line.lstrip())]
+            lines.insert(index, indent + "// " + directive)
+            break
+    else:
+        sys.exit("anchor not found in the decompiled code: " + anchor)
+
+open(target, "w").write("\n".join(lines) + "\n")
+PYEOF
+}
+
+# Wrap an edited function into an edit-c-body configuration. The configuration
+# needs the function's entry address; read it from the model.
+make_configuration() {
+  local address
+  address="$(function_model "$1" '.Entry' | tr -d '"')"
+  if [ -z "$address" ] || [ "$address" = "null" ]; then
+    fail "could not find the entry address of $1"
+  fi
+
+  {
+    echo "Function: $address"
+    echo "CCode: |"
+    sed 's/^/  /' "$2"
+  } > "$3"
 }
 
 mkdir -p "$PROJECT"
@@ -47,53 +88,29 @@ revng -C "$PROJECT" project init --overwrite "$BINARY"
 revng -C "$PROJECT" project artifact emit-c "$FUNCTION" | revng ptml > "$PROJECT/live.c"
 
 # Insert one directive of each kind before its anchor line.
-python3 - "$PROJECT/live.c" "$PROJECT/edited.c" <<'PYEOF'
-import sys
+insert_directives "$PROJECT/live.c" "$PROJECT/edited.c" \
+  "var_0" "RENAME: renamed_local" \
+  "var_0" "RETYPE: uint32_t" \
+  "label_0:" "RENAME: renamed_goto_label" \
+  "var_2 = 0" "A plain comment on a statement."
 
-lines = open(sys.argv[1]).read().split("\n")
-
-def insert_before(anchor, *directives):
-    for index, line in enumerate(lines):
-        if anchor in line:
-            indent = line[:len(line) - len(line.lstrip())]
-            lines[index:index] = [indent + directive for directive in directives]
-            return
-    sys.exit("anchor not found in the decompiled code: " + anchor)
-
-insert_before("var_0", "// RENAME: renamed_local", "// RETYPE: uint32_t")
-insert_before("label_0:", "// RENAME: renamed_goto_label")
-insert_before("var_2 = 0", "// A plain comment on a statement.")
-
-open(sys.argv[2], "w").write("\n".join(lines) + "\n")
-PYEOF
-
-# The configuration needs the function's entry address; read it from the model.
-ADDRESS="$(function_model '.Entry' | tr -d '"')"
-if [ -z "$ADDRESS" ] || [ "$ADDRESS" = "null" ]; then
-  fail "could not find the entry address of $FUNCTION"
-fi
-
-{
-  echo "Function: $ADDRESS"
-  echo "CCode: |"
-  sed 's/^/  /' "$PROJECT/edited.c"
-} > "$PROJECT/edit.yml"
+make_configuration "$FUNCTION" "$PROJECT/edited.c" "$PROJECT/edit.yml"
 
 revng -C "$PROJECT" project analyze edit-c-body -o /dev/null -c "$PROJECT/edit.yml"
 
 # The comment, both renames and the retype must reach the model. A rename-only
 # variable has no `Type`, so `renamed_local` carrying a 4-byte type (uint32_t)
 # proves the retype landed.
-assert_model \
+assert_model "$FUNCTION" \
   '[.Comments[] | select(.Body == "A plain comment on a statement.")] | length' 1 \
   "the statement comment did not reach the model"
-assert_model \
+assert_model "$FUNCTION" \
   '[.LocalVariables[] | select(.Name == "renamed_local")] | length' 1 \
   "the local variable rename did not reach the model"
-assert_model \
+assert_model "$FUNCTION" \
   '.LocalVariables[] | select(.Name == "renamed_local") | .Type.Size' 4 \
   "the local variable retype did not reach the model"
-assert_model \
+assert_model "$FUNCTION" \
   '[.GotoLabels[] | select(.Name == "renamed_goto_label")] | length' 1 \
   "the goto label rename did not reach the model"
 
@@ -103,3 +120,4 @@ REEMIT="$(revng -C "$PROJECT" project artifact emit-c "$FUNCTION" | revng ptml)"
 assert_reemitted "A plain comment on a statement."
 assert_reemitted "renamed_local"
 assert_reemitted "renamed_goto_label:"
+

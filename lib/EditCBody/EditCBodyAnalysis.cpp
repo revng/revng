@@ -4,6 +4,7 @@
 
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -77,6 +78,62 @@ writeHeader(const revng::pypeline::PTMLCContainer &TypeAndGlobalHeader,
 }
 
 //
+// Location ambiguity
+//
+
+namespace {
+
+/// The address sets that identify more than one local variable, or more than
+/// one goto label, of a function.
+///
+/// Both are identified by the addresses of the instructions using them, so two
+/// of them sharing a set cannot be told apart: a model entry located there is
+/// picked up by whichever of them comes first (see
+/// \ref model::Function::findByLocation), no matter which one it was meant
+/// for.
+struct AmbiguousLocations {
+  std::set<SortedVector<MetaAddress>> Variables;
+  std::set<SortedVector<MetaAddress>> Labels;
+};
+
+} // namespace
+
+/// Collect the address sets appearing more than once in \p Locations. An empty
+/// set identifies nothing to begin with and is reported on its own, so it never
+/// counts as ambiguous.
+static std::set<SortedVector<MetaAddress>>
+findDuplicates(llvm::ArrayRef<SortedVector<MetaAddress>> Locations) {
+  std::set<SortedVector<MetaAddress>> Seen;
+  std::set<SortedVector<MetaAddress>> Duplicates;
+
+  for (const SortedVector<MetaAddress> &Location : Locations)
+    if (not Location.empty() and not Seen.insert(Location).second)
+      Duplicates.insert(Location);
+
+  return Duplicates;
+}
+
+/// Gather the address sets that cannot be attributed to a single local variable
+/// or a single goto label of \p Function.
+static AmbiguousLocations
+collectAmbiguousLocations(clift::FunctionOp Function) {
+  std::vector<SortedVector<MetaAddress>> Variables;
+  Function.walk([&](clift::LocalVariableOp Op) {
+    // The stack frame variable is identified by its handle, not by addresses.
+    if (pipeline::locationFromString(rr::LocalVariable, Op.getHandle()))
+      Variables.push_back(clift::getUserAddressSet(Op.getResult()));
+  });
+
+  std::vector<SortedVector<MetaAddress>> Labels;
+  Function.walk([&](clift::MakeLabelOp Op) {
+    if (pipeline::locationFromString(rr::GotoLabel, Op.getHandle()))
+      Labels.push_back(clift::getUserAddressSet(Op.getResult()));
+  });
+
+  return { findDuplicates(Variables), findDuplicates(Labels) };
+}
+
+//
 // Annotation building
 //
 
@@ -115,7 +172,8 @@ static llvm::Expected<model::LocalVariable>
 makeLocalVariableEdit(mlir::Operation *Op,
                       const std::optional<std::string> &NewName,
                       const std::optional<std::string> &NewTypeName,
-                      const ResolvedTypeMap &ResolvedTypes) {
+                      const ResolvedTypeMap &ResolvedTypes,
+                      const AmbiguousLocations &Ambiguous) {
   auto LocalVariable = mlir::dyn_cast_or_null<clift::LocalVariableOp>(Op);
   if (not LocalVariable
       or not pipeline::locationFromString(rr::LocalVariable,
@@ -128,6 +186,16 @@ makeLocalVariableEdit(mlir::Operation *Op,
   if (Location.empty()) {
     return revng::createError("the local variable cannot be identified by "
                               "its addresses");
+  }
+
+  if (Ambiguous.Variables.contains(Location)) {
+    std::string Name = LocalVariable.getName().str();
+    return revng::createError("`" + Name + "` shares its addresses ("
+                              + addressesToString(Location)
+                              + ") with another local variable, so it cannot "
+                                "be edited: rev.ng identifies a local variable "
+                                "by the addresses of the instructions using "
+                                "it");
   }
 
   model::LocalVariable Variable;
@@ -148,7 +216,8 @@ makeLocalVariableEdit(mlir::Operation *Op,
 /// to a label statement.
 static llvm::Expected<model::GotoLabel>
 makeGotoLabelEdit(mlir::Operation *Op,
-                  const std::optional<std::string> &NewName) {
+                  const std::optional<std::string> &NewName,
+                  const AmbiguousLocations &Ambiguous) {
   auto AssignLabel = mlir::dyn_cast_or_null<clift::AssignLabelOp>(Op);
   clift::MakeLabelOp Label = AssignLabel ? AssignLabel.getLabelOp() : nullptr;
   if (not Label
@@ -161,6 +230,15 @@ makeGotoLabelEdit(mlir::Operation *Op,
   if (Location.empty()) {
     return revng::createError("the label cannot be identified by its "
                               "addresses");
+  }
+
+  if (Ambiguous.Labels.contains(Location)) {
+    std::string Name = Label.getName().str();
+    return revng::createError("`" + Name + "` shares its addresses ("
+                              + addressesToString(Location)
+                              + ") with another goto label, so it cannot be "
+                                "edited: rev.ng identifies a goto label by the "
+                                "addresses of the instructions using it");
   }
 
   model::GotoLabel Result;
@@ -187,7 +265,8 @@ static llvm::Expected<StatementEdits>
 computeStatementEdits(llvm::ArrayRef<std::string> LeadingComments,
                       mlir::Operation *Op,
                       StatementKind Kind,
-                      const ResolvedTypeMap &ResolvedTypes) {
+                      const ResolvedTypeMap &ResolvedTypes,
+                      const AmbiguousLocations &Ambiguous) {
   // A `RENAME:`/`RETYPE:` line edits the statement's local variable (or, on a
   // label statement, renames the label); any other line is a plain comment
   // attached to the statement.
@@ -217,7 +296,7 @@ computeStatementEdits(llvm::ArrayRef<std::string> LeadingComments,
       // A label has only a name; `RETYPE:` does not apply.
       if (NewTypeName.has_value())
         return revng::createError("`RETYPE` cannot be applied to a label");
-      auto MaybeLabel = makeGotoLabelEdit(Op, NewName);
+      auto MaybeLabel = makeGotoLabelEdit(Op, NewName, Ambiguous);
       if (not MaybeLabel)
         return MaybeLabel.takeError();
       Edits.Label = std::move(*MaybeLabel);
@@ -225,7 +304,8 @@ computeStatementEdits(llvm::ArrayRef<std::string> LeadingComments,
       auto MaybeVariable = makeLocalVariableEdit(Op,
                                                  NewName,
                                                  NewTypeName,
-                                                 ResolvedTypes);
+                                                 ResolvedTypes,
+                                                 Ambiguous);
       if (not MaybeVariable)
         return MaybeVariable.takeError();
       Edits.Variable = std::move(*MaybeVariable);
@@ -292,6 +372,8 @@ llvm::Error EditCBody::run(Model &Model,
   std::vector<CliftStatement> CliftStatements;
   flattenCliftRegion(Function.getBody(), CliftStatements);
 
+  AmbiguousLocations Ambiguous = collectAmbiguousLocations(Function);
+
   // Parse the user's C code and flatten it in the same way.
   auto MaybeHeader = writeHeader(TypeAndGlobalHeader, HelperHeader);
   if (not MaybeHeader)
@@ -334,7 +416,8 @@ llvm::Error EditCBody::run(Model &Model,
     auto MaybeEdits = computeStatementEdits(Parsed.LeadingComments,
                                             Decompiled.Op,
                                             Decompiled.Kind,
-                                            MaybeParsed->ResolvedTypes);
+                                            MaybeParsed->ResolvedTypes,
+                                            Ambiguous);
     if (not MaybeEdits)
       return MaybeEdits.takeError();
 
