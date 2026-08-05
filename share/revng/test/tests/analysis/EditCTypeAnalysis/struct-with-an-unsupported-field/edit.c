@@ -4,5 +4,5 @@
 
 struct _PACKED _SIZE(24) my_struct {
   _STARTS_AT(16)
-  int unsupported_field;
+  _Float16 unsupported_field;
 };

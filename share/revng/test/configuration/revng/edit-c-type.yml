@@ -35,7 +35,6 @@ sources:
       - struct
       - struct-with-a-broken-annotation
       - struct-with-a-broken-field
-      - struct-with-a-forbidden-type
       - struct-with-an-unsupported-field
       - struct-with-a-rare-type
       - struct-with-a-typo
@@ -46,6 +45,8 @@ sources:
       - struct-with-explicit-padding
       - struct-without-the-packed-attribute
       - struct-with-overlapping-fields
+      - struct-with-standard-c-types
+      - struct-with-standard-c-types-on-a-32-bit-abi
       - typedef
       - typedef-to-pointer
       - typedef-to-value

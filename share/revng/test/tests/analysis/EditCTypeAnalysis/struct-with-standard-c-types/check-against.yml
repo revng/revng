@@ -1,0 +1,91 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+TypeDefinitions:
+  - Kind: StructDefinition
+    ID: 0
+    Name: "my_struct"
+    Size: 73
+    # The leading $ means that the size of the Fields list must match
+    $Fields:
+      - Offset: 0
+        Name: "plain_char"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 1
+      - Offset: 1
+        Name: "explicitly_signed_char"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 1
+      - Offset: 2
+        Name: "explicitly_unsigned_char"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 1
+      - Offset: 3
+        Name: "short_field"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 2
+      - Offset: 5
+        Name: "int_field"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+      - Offset: 9
+        Name: "unsigned_int_field"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4
+      - Offset: 13
+        Name: "long_field"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 8
+      - Offset: 21
+        Name: "unsigned_long_field"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
+      - Offset: 29
+        Name: "long_long_field"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 8
+      - Offset: 37
+        Name: "float_field"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 4
+      - Offset: 41
+        Name: "double_field"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 8
+      - Offset: 49
+        Name: "long_double_field"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 16
+      - Offset: 65
+        Name: "void_pointer"
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Void

@@ -3,10 +3,10 @@
 #
 
 ---
-Architecture: x86_64
-DefaultABI: SystemV_x86_64
+Architecture: x86
+DefaultABI: SystemV_x86
 TypeDefinitions:
   - Kind: StructDefinition
     ID: 0
     Fields: []
-    Size: 24
+    Size: 8
