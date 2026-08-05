@@ -296,6 +296,77 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypeArgumentsPathShouldParse) {
   BOOST_TEST(MaybeParsed.has_value());
 }
 
+BOOST_AUTO_TEST_CASE(UnreadableTypeDefinitionsShouldNotAbort) {
+  // A `TypeDefinitions` entry whose concrete type cannot be established leaves
+  // the upcastable pointer empty. Each of these has to be reported as an error
+  // rather than dereferenced.
+  const char *BadModels[] = {
+    // Not a mapping, so there is no `Kind` to read
+    R"(Architecture: x86_64
+TypeDefinitions:
+  - null
+)",
+    // A mapping without a `Kind`
+    R"(Architecture: x86_64
+TypeDefinitions:
+  - ID: 0
+)",
+    // An empty `Kind`
+    R"(Architecture: x86_64
+TypeDefinitions:
+  - Kind:
+)",
+    // A `Kind` naming no concrete type
+    R"(Architecture: x86_64
+TypeDefinitions:
+  - Kind: NotAKind
+)",
+    // A `Kind` that is not a scalar
+    R"(Architecture: x86_64
+TypeDefinitions:
+  - Kind: { Nested: Mapping }
+)",
+    R"(Architecture: x86_64
+TypeDefinitions:
+  - Kind: [ Sequence ]
+)",
+    // An unreadable entry among readable ones, so that the container is left
+    // holding it and sorts it against the others
+    R"(Architecture: x86_64
+TypeDefinitions:
+  - Kind: StructDefinition
+    ID: 0
+    Size: 8
+  - null
+  - Kind: StructDefinition
+    ID: 1
+    Size: 8
+)",
+  };
+
+  for (const char *BadModel : BadModels) {
+    auto MaybeModel = TupleTree<model::Binary>::fromString(BadModel);
+    bool Parsed = static_cast<bool>(MaybeModel);
+    BOOST_TEST(not Parsed);
+    llvm::consumeError(MaybeModel.takeError());
+  }
+
+  // The same entries, all readable, still parse.
+  const char *GoodModel = R"(Architecture: x86_64
+TypeDefinitions:
+  - Kind: StructDefinition
+    ID: 0
+    Size: 8
+  - Kind: StructDefinition
+    ID: 1
+    Size: 8
+)";
+  auto MaybeModel = TupleTree<model::Binary>::fromString(GoodModel);
+  bool Parsed = static_cast<bool>(MaybeModel);
+  BOOST_TEST(Parsed);
+  llvm::consumeError(MaybeModel.takeError());
+}
+
 class LocationExample : public revng::LocationBase {
 public:
   std::string toString() const final { return "don't care"; };

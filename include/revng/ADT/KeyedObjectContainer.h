@@ -105,10 +105,20 @@ struct llvm::yaml::SequenceTraits<T> {
     }
 
     void postflightElement(unsigned) {
-      if (not IsOutputting) {
-        BatchInserter->insert(Instance);
-        Instance = KOT::fromKey(key_type());
-      }
+      if (IsOutputting)
+        return;
+
+      // An element that could not be read is left empty, skip it.
+      //
+      // Only an upcastable pointer has that state, and this trait is
+      // instantiated for containers of other element types too, hence the
+      // `if constexpr`.
+      if constexpr (UpcastablePointerLike<value_type>)
+        if (Instance.isEmpty())
+          return;
+
+      BatchInserter->insert(Instance);
+      Instance = KOT::fromKey(key_type());
     };
   };
 };

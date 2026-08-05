@@ -33,7 +33,7 @@ void dispatchMappingTraits(llvm::yaml::IO &TheIO, O &Obj) {
 
   if constexpr (I < std::tuple_size_v<concrete_types>) {
     using type = typename std::tuple_element_t<I, concrete_types>;
-    if (type *Upcast = llvm::dyn_cast<type>(Obj.get()))
+    if (type *Upcast = llvm::dyn_cast_or_null<type>(Obj.get()))
       llvm::yaml::MappingTraits<type>::mapping(TheIO, *Upcast);
     else
       dispatchMappingTraits<O, I + 1>(TheIO, Obj);
@@ -53,6 +53,11 @@ struct PolymorphicMappingTraits {
       std::string Kind;
       TheIO.mapRequired("Kind", Kind);
       initializeOwningPointer(Kind, TheIO, Obj);
+
+      // The pointer is left empty when `Kind` names no concrete type, do not
+      // proceed.
+      if (Obj.isEmpty())
+        return;
     }
 
     dispatchMappingTraits(TheIO, Obj);
