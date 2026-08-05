@@ -94,7 +94,7 @@ class WrapperRegistry:
         self.wrappers.append(wrapper)
         for command in self.commands:
             command.params.append(wrapper.make_option(self.group, command))
-        sort_option_groups(command)
+            sort_option_groups(command)
 
     def register_wrappers(self, *wrappers: WrapperOption):
         for wrapper in wrappers:
