@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -57,6 +57,35 @@ getFormattingReplacements(llvm::StringRef Code) {
   return clang::format::reformat(Style, Code, Ranges, "input.c");
 }
 
+/// The tag starting exactly at Offset, or nullptr if none does.
+///
+/// Tags are recorded as they are written, so they come in document order and
+/// their byte ranges are disjoint: both their Begin and their End offsets
+/// ascend, and either can be binary searched.
+static const PTMLTagRange *tagStartingAt(llvm::ArrayRef<PTMLTagRange> Tags,
+                                         size_t Offset) {
+  auto ByBegin = [](const PTMLTagRange &Tag, size_t Value) {
+    return Tag.Begin < Value;
+  };
+  const PTMLTagRange *Tag = llvm::lower_bound(Tags, Offset, ByBegin);
+  if (Tag == Tags.end() or Tag->Begin != Offset)
+    return nullptr;
+  return Tag;
+}
+
+/// The tag ending exactly at Offset, or nullptr if none does. See tagStartingAt
+/// for why this is a binary search.
+static const PTMLTagRange *tagEndingAt(llvm::ArrayRef<PTMLTagRange> Tags,
+                                       size_t Offset) {
+  auto ByEnd = [](const PTMLTagRange &Tag, size_t Value) {
+    return Tag.End < Value;
+  };
+  const PTMLTagRange *Tag = llvm::lower_bound(Tags, Offset, ByEnd);
+  if (Tag == Tags.end() or Tag->End != Offset)
+    return nullptr;
+  return Tag;
+}
+
 /// Extends Begin leftward over any opening tags flush against the range (a tag
 /// whose End equals Begin), so the replacement whitespace is emitted *before*
 /// them and stays outside the elements they open.
@@ -67,15 +96,12 @@ getFormattingReplacements(llvm::StringRef Code) {
 /// would land inside b's span ("<span>a</span><span>\nb</span>"); pulling Begin
 /// left across that <span> makes spliceTags emit it before the tag instead
 /// ("<span>a</span>\n<span>b</span>").
-static size_t
-expandLeftPastOpeningTags(size_t Begin,
-                          const llvm::DenseMap<size_t, const PTMLTagRange *>
-                            &EndToTag) {
-  while (true) {
-    auto Iterator = EndToTag.find(Begin);
-    if (Iterator == EndToTag.end() or Iterator->second->IsClosing)
+static size_t expandLeftPastOpeningTags(size_t Begin,
+                                        llvm::ArrayRef<PTMLTagRange> Tags) {
+  while (const PTMLTagRange *Tag = tagEndingAt(Tags, Begin)) {
+    if (Tag->IsClosing)
       break;
-    Begin = Iterator->second->Begin;
+    Begin = Tag->Begin;
   }
   return Begin;
 }
@@ -85,15 +111,12 @@ expandLeftPastOpeningTags(size_t Begin,
 /// them and stays outside the elements they close. This is the mirror of
 /// expandLeftPastOpeningTags: e.g. a newline inserted just before a "</div>"
 /// that ends a scope is pushed out to after that tag.
-static size_t
-expandRightPastClosingTags(size_t End,
-                           const llvm::DenseMap<size_t, const PTMLTagRange *>
-                             &StartToTag) {
-  while (true) {
-    auto Iterator = StartToTag.find(End);
-    if (Iterator == StartToTag.end() or not Iterator->second->IsClosing)
+static size_t expandRightPastClosingTags(size_t End,
+                                         llvm::ArrayRef<PTMLTagRange> Tags) {
+  while (const PTMLTagRange *Tag = tagStartingAt(Tags, End)) {
+    if (not Tag->IsClosing)
       break;
-    End = Iterator->second->End;
+    End = Tag->End;
   }
   return End;
 }
@@ -101,8 +124,7 @@ expandRightPastClosingTags(size_t End,
 /// Rebuilds the PTML byte range [Begin, End) with its whitespace replaced by
 /// Replacement, keeping every tag in the range. Leading closing tags stay
 /// before the new whitespace and everything else after it, so the whitespace
-/// ends up between elements rather than inside one. StartToTag maps a tag's
-/// start offset to the tag.
+/// ends up between elements rather than inside one.
 ///
 /// The range holds only whitespace and whole tags (no partial tags or other
 /// content) and never reorders them, so any close/open run works. For example
@@ -121,19 +143,18 @@ expandRightPastClosingTags(size_t End,
 ///
 /// Before is "</div>", After is "", so it returns "</div>" + "\n" + "" =
 /// "</div>\n": the closing tag is preserved and the blank line collapses.
-static std::string
-spliceTags(llvm::StringRef PTML,
-           const llvm::DenseMap<size_t, const PTMLTagRange *> &StartToTag,
-           size_t Begin,
-           size_t End,
-           llvm::StringRef Replacement) {
+static std::string spliceTags(llvm::StringRef PTML,
+                              llvm::ArrayRef<PTMLTagRange> Tags,
+                              size_t Begin,
+                              size_t End,
+                              llvm::StringRef Replacement) {
   std::string Before;
   std::string After;
   bool InLeadingClosingRun = true;
 
   for (size_t Cursor = Begin; Cursor < End;) {
-    auto Iterator = StartToTag.find(Cursor);
-    if (Iterator == StartToTag.end()) {
+    const PTMLTagRange *Tag = tagStartingAt(Tags, Cursor);
+    if (Tag == nullptr) {
       // Not the start of a tag, so a whitespace byte being replaced: drop it.
       ++Cursor;
       continue;
@@ -141,16 +162,15 @@ spliceTags(llvm::StringRef PTML,
 
     // A tag: keep it. Leading closing tags belong before the new whitespace;
     // the first opening tag, and everything after it, belongs after.
-    const PTMLTagRange &Tag = *Iterator->second;
-    llvm::StringRef Text = PTML.slice(Tag.Begin, Tag.End);
-    if (InLeadingClosingRun and Tag.IsClosing) {
+    llvm::StringRef Text = PTML.slice(Tag->Begin, Tag->End);
+    if (InLeadingClosingRun and Tag->IsClosing) {
       Before.append(Text.data(), Text.size());
     } else {
       InLeadingClosingRun = false;
       After.append(Text.data(), Text.size());
     }
 
-    Cursor = Tag.End;
+    Cursor = Tag->End;
   }
 
   return Before + Replacement.str() + After;
@@ -192,16 +212,6 @@ std::string PTMLCReformattableDocument::reformat(llvm::StringRef PTML) const {
   clang::tooling::Replacements Replacements = getFormattingReplacements(Source);
   // -> Replacements = { at Source offset 3, replace 2 bytes with "\n" }
 
-  // Index every tag by the byte offset it starts and ends at.
-  llvm::DenseMap<size_t, const PTMLTagRange *> StartToTag;
-  llvm::DenseMap<size_t, const PTMLTagRange *> EndToTag;
-  for (const PTMLTagRange &Tag : Tags) {
-    StartToTag.try_emplace(Tag.Begin, &Tag);
-    EndToTag.try_emplace(Tag.End, &Tag);
-  }
-  // -> StartToTag = { 0:<div>, 9:</div>, 16:<div>, 24:</div> }
-  // -> EndToTag   = { 5:<div>, 15:</div>, 21:<div>, 30:</div> }
-
   // Apply the edits in one forward pass, copying the untouched PTML in between.
   // Replacements come in ascending Source offset, which maps to ascending PTML
   // offsets, so Position only moves forward.
@@ -225,8 +235,8 @@ std::string PTMLCReformattableDocument::reformat(llvm::StringRef PTML) const {
     // Nudge the range past any tags flush against it, so the new whitespace
     // lands between elements. Both are no-ops here: no tag ends at 8, and the
     // tag starting at 16 is opening, not closing.
-    Begin = expandLeftPastOpeningTags(Begin, EndToTag); // -> 8
-    End = expandRightPastClosingTags(End, StartToTag); // -> 16
+    Begin = expandLeftPastOpeningTags(Begin, Tags); // -> 8
+    End = expandRightPastClosingTags(End, Tags); // -> 16
 
     // Whitespace-only edits never overlap: mapped to PTML they stay ordered,
     // and the nudges above only ever meet flush ranges, never cross them, so
@@ -241,11 +251,7 @@ std::string PTMLCReformattableDocument::reformat(llvm::StringRef PTML) const {
 
     // Rebuild the range: drop its whitespace, keep its tags. Here this returns
     // "</div>\n" (the straddled closing tag stays left of the new "\n").
-    std::string Rebuilt = spliceTags(PTML,
-                                     StartToTag,
-                                     Begin,
-                                     End,
-                                     ReplacementText);
+    std::string Rebuilt = spliceTags(PTML, Tags, Begin, End, ReplacementText);
 
     // Copy the untouched PTML up to the edit, then the rebuilt range.
     Result.append(PTML.data() + Position, Begin - Position); // -> "<div>foo"
