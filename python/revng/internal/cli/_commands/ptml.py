@@ -7,16 +7,27 @@ import sys
 import tarfile
 from contextlib import contextmanager, suppress
 from io import TextIOWrapper
-from typing import IO, Generator, List, Mapping, Optional, Union, cast
+from typing import IO, Any, Generator, List, Mapping, Optional, Union, cast
 
 import click
+import jsonschema
 import yaml
 from click_option_group import MutuallyExclusiveOptionGroup, optgroup
 
 from revng.internal.cli.common import CommandRegistry
 from revng.internal.cli.support import TarDictionary, file_wrapper
 from revng.ptml.printer import ColorMode, ptml_print, ptml_print_mapping
-from revng.support import to_bytes
+from revng.support import log_error, to_bytes
+
+# A PTML dictionary maps object ids to PTML documents. Since PTML is based on
+# HTML, each document starts with the '<' of its root tag.
+PTML_DICTIONARY_SCHEMA = {
+    "type": "object",
+    "propertyNames": {"type": "string"},
+    "additionalProperties": {"type": "string", "pattern": r"^\s*<"},
+}
+
+PTML_DICTIONARY_VALIDATOR = jsonschema.Draft7Validator(PTML_DICTIONARY_SCHEMA)
 
 
 def normalize_filter_extract(filters: List[str], extract: Optional[str]) -> Union[str, List[str]]:
@@ -55,7 +66,7 @@ def handler(
     inplace: bool,
 ) -> int:
     if inplace and input_ in (None, "-"):
-        sys.stderr.write("Cannot strip inplace while reading from stdin\n")
+        log_error("Cannot strip inplace while reading from stdin")
         return 1
 
     filters = normalize_filter_extract(list(filter_), extract)
@@ -88,40 +99,56 @@ def handler_inner(
         # read them is trying and move on if there is an exception.
 
         if len(wrapped) == 0:
-            raise ValueError("Input is empty!")
+            log_error("The input is empty")
+            return 1
 
         # Try and read the input as a tar file with one or more PTML files
         with suppress(tarfile.ReadError):
             mapper = TarDictionary(wrapped)
-            handle_filters(mapper, filters, output, color)
+            return handle_filters(mapper, filters, output, color)
+
+        # PTML is based on HTML, so a '<' as the first non-whitespace character
+        # means the input is a single PTML document.
+        if re.match(rb"\s*<", wrapped) is not None:
+            ptml_print(wrapped, output, color)
             return 0
 
-        # PTML is based on HTML, so we should be seeing a '<' as the first
-        # non-whitespace character, if this is not the case it might be a YAML
-        # file, try and read it as such.
-        if re.match(rb"\s*<", wrapped) is None:
-            data = None
-            with suppress(yaml.YAMLError):
-                data = yaml.load(wrapped, Loader=yaml.CSafeLoader)
-            if data is not None:
-                handle_filters(data, filters, output, color)
-                return 0
+        # Otherwise the input might be a YAML dictionary of PTML documents.
+        data: Any = None
+        with suppress(yaml.YAMLError):
+            data = yaml.load(wrapped, Loader=yaml.CSafeLoader)
+        if is_ptml_dictionary(data):
+            return handle_filters(data, filters, output, color)
 
-        # We've tried all other options, try and read the file as a plain PTML
-        ptml_print(wrapped, output, color)
+        log_error(
+            "The input is in none of the formats this command reads: a PTML "
+            "document, a YAML dictionary of PTML documents, or a tar archive "
+            "of PTML documents"
+        )
+        return 1
 
-    return 0
+
+def is_ptml_dictionary(data: Any) -> bool:
+    """Checks that what YAML gave us is a dictionary of PTML documents. YAML is
+    permissive enough that most inputs parse successfully (a plain text file,
+    for instance, parses as a string), so a successful parse on its own does
+    not mean the input really is a YAML file."""
+    return PTML_DICTIONARY_VALIDATOR.is_valid(data)
 
 
 def handle_filters(
     data: Mapping[str, bytes], filters: str | list[str], output: IO[str], color: ColorMode
-):
+) -> int:
     if isinstance(filters, str):
+        if filters not in data:
+            log_error(f"Could not find `{filters}` in the input")
+            return 1
         ptml_print(data[filters], output, color)
     elif len(filters) == 0:
         ptml_print_mapping(data, output, color, lambda x: True)
     else:
         ptml_print_mapping(data, output, color, lambda x: x in cast(List[str], filters))
+    return 0
 
 
 @click.command(name="ptml", help="Tool to manipulate PTML files")
