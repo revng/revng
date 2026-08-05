@@ -5,10 +5,8 @@
 from __future__ import annotations
 
 import os
-import shlex
 import sys
 from contextlib import contextmanager
-from dataclasses import dataclass
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, Iterable, List, Literal
 
@@ -17,17 +15,6 @@ import yaml
 
 from revng.internal.support.collect import collect_libraries
 from revng.support import TarDictionary, get_command, get_root, read_lines
-
-
-@dataclass
-class Options:
-    parsed_args: Any
-    remaining_args: List[str]
-    command_prefix: List[str]
-    verbose: bool
-    dry_run: bool
-    keep_temporaries: bool
-    search_prefixes: List[str]
 
 
 def search_prefixes() -> List[str]:
@@ -40,10 +27,6 @@ def search_prefixes() -> List[str]:
     additional = read_lines(get_root() / "additional-search-prefixes")
     prefixes.extend(prefix for prefix in additional if prefix not in prefixes)
     return prefixes
-
-
-def shlex_join(split_command: Iterable[str]) -> str:
-    return " ".join(shlex.quote(arg) for arg in split_command)
 
 
 def relative(path: str) -> str:
