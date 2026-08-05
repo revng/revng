@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: %root/bin/revng2 pipeline run-pipe import-types %s /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
+# RUN: %root/bin/revng pipeline run-pipe import-types %s /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
 
 Architecture: x86_64
 TypeDefinitions:

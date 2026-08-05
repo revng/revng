@@ -11,7 +11,7 @@ commands:
       - type: revng-qa.compiled
         filter: one-per-architecture
     suffix: /
-    command: revng2 -C "$OUTPUT" project init --overwrite "$INPUT"
+    command: revng -C "$OUTPUT" project init --overwrite "$INPUT"
 
   #
   # Perform lifting
@@ -22,7 +22,7 @@ commands:
     suffix: /
     command: |-
       cp -Tar "$INPUT" "$OUTPUT";
-      revng2 -C "$OUTPUT" project artifact lift -o /dev/null;
+      revng -C "$OUTPUT" project artifact lift -o /dev/null;
 
   #
   # Produce enforce-abi artifact from revng.lifted
@@ -33,7 +33,7 @@ commands:
     suffix: /
     command: |-
       cp -Tar "$INPUT" "$OUTPUT";
-      revng2 -C "$OUTPUT" project artifact enforce-abi -o /dev/null;
+      revng -C "$OUTPUT" project artifact enforce-abi -o /dev/null;
 
   #
   # Produce hexdump artifact from revng.lifted
@@ -44,7 +44,7 @@ commands:
     suffix: /
     command: |-
       cp -Tar "$INPUT" "$OUTPUT";
-      revng2 -C "$OUTPUT" project artifact hexdump -o /dev/null;
+      revng -C "$OUTPUT" project artifact hexdump -o /dev/null;
 
   #
   # Produce render-svg-call-graph artifact from revng.lifted
@@ -55,7 +55,7 @@ commands:
     suffix: /
     command: |-
       cp -Tar "$INPUT" "$OUTPUT";
-      revng2 -C "$OUTPUT" project artifact render-svg-call-graph -o /dev/null;
+      revng -C "$OUTPUT" project artifact render-svg-call-graph -o /dev/null;
 
   #
   # Produce render-svg-call-graph-slice artifact from revng.lifted
@@ -66,7 +66,7 @@ commands:
     suffix: /
     command: |-
       cp -Tar "$INPUT" "$OUTPUT";
-      revng2 -C "$OUTPUT" project artifact render-svg-call-graph-slice -o /dev/null;
+      revng -C "$OUTPUT" project artifact render-svg-call-graph-slice -o /dev/null;
 
   #
   # Produce disassemble artifact from revng.lifted
@@ -77,7 +77,7 @@ commands:
     suffix: /
     command: |-
       cp -Tar "$INPUT" "$OUTPUT";
-      revng2 -C "$OUTPUT" project artifact disassemble -o /dev/null;
+      revng -C "$OUTPUT" project artifact disassemble -o /dev/null;
 
   #
   # Produce render-svg-cfg artifact from revng.lifted
@@ -88,7 +88,7 @@ commands:
     suffix: /
     command: |-
       cp -Tar "$INPUT" "$OUTPUT";
-      revng2 -C "$OUTPUT" project artifact render-svg-cfg -o /dev/null;
+      revng -C "$OUTPUT" project artifact render-svg-cfg -o /dev/null;
 
   #
   # Produce a tarball of decompile files from revng.analyzed-model
@@ -101,7 +101,7 @@ commands:
     suffix: /
     command: |-
       cp -Tar "$INPUT" "$OUTPUT";
-      revng2 -C "$OUTPUT" project artifact emit-c > "$OUTPUT/decompiled.tar.gz";
+      revng -C "$OUTPUT" project artifact emit-c > "$OUTPUT/decompiled.tar.gz";
 
       diff -u <(yq -r '.Functions[].Entry | "/function/" + .' "$OUTPUT/revng.yml" | sort)
               <(yq -r '. | keys | .[]' "$OUTPUT/decompiled.tar.gz" | sort);
@@ -115,7 +115,7 @@ commands:
     suffix: /
     command: |-
       cp -Tar "$INPUT" "$OUTPUT";
-      revng2 -C "$OUTPUT" project artifact emit-recompilable-archive > "$OUTPUT/recompilable-archive.tar.gz";
+      revng -C "$OUTPUT" project artifact emit-recompilable-archive > "$OUTPUT/recompilable-archive.tar.gz";
 
       mkdir -p "$OUTPUT";
       tar -xzf "$OUTPUT/recompilable-archive.tar.gz" -C "$OUTPUT";

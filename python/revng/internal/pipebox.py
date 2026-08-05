@@ -67,17 +67,17 @@ def argv_hook(input_: list[str]):
         # Check if the specified pipe is a native pipe, if so then use the
         # `run-pipe-native` command instead of `run-pipe`
         if pipe_name not in _native_pipes:
-            return ["revng2", *input_[1:]]
+            return ["revng", *input_[1:]]
         else:
-            return ["revng2", "pipeline", "run-pipe-native", *input_[3:]]
+            return ["revng", "pipeline", "run-pipe-native", *input_[3:]]
     else:
         analysis_name = input_[3]
         # Check if the specified analysis is a native analysis, if so then use
         # the `run-analysis-native` command instead of `run-analysis`
         if analysis_name not in _native_analyses:
-            return ["revng2", *input_[1:]]
+            return ["revng", *input_[1:]]
         else:
-            return ["revng2", "pipeline", "run-analysis-native", *input_[3:]]
+            return ["revng", "pipeline", "run-analysis-native", *input_[3:]]
 
 
 class ImportFiles(Pipe):

@@ -2,7 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import argparse
 import functools
 import os
 import re
@@ -13,9 +12,9 @@ from shutil import copy2, copytree, which
 from subprocess import DEVNULL, PIPE, run
 from typing import Dict
 
+import click
 import yaml
 
-from revng.internal.cli.commands_registry import Command, Options
 from revng.support import get_root
 
 from .db import create_and_populate
@@ -79,91 +78,79 @@ def generate_flamegraphs(
         )
 
 
-class MassTestingGenerateReportCommand(Command):
-    def __init__(self):
-        super().__init__(("mass-testing", "generate-report"), "Generate report for mass-testing")
+@click.command(name="generate-report", help="Generate report for mass-testing")
+@click.argument("input_", metavar="INPUT")
+@click.argument("output_", metavar="OUTPUT")
+def generate_report(input_: str, output_: str) -> int:
+    if which("inkscape") is None:
+        sys.stderr.write("ERROR: 'inkscape' not found in PATH")
+        return 1
 
-    def register_arguments(self, parser: argparse.ArgumentParser):
-        parser.description = "Generate report for mass-testing"
-        parser.add_argument("input", help="Input directory")
-        parser.add_argument("output", help="Output directory")
+    output = Path(output_)
 
-    def run(self, options: Options):
-        if which("inkscape") is None:
-            sys.stderr.write("ERROR: 'inkscape' not found in PATH")
-            return 1
+    tests = []
+    for dirpath, dirnames, filenames in os.walk(input_):
+        test_dir = TestDirectory(dirpath, os.path.relpath(dirpath, input_))
+        if test_dir.is_valid():
+            tests.append(test_dir)
 
-        args = options.parsed_args
-        output = Path(args.output)
+    global_meta_path = Path(input_) / "meta.yml"
+    if global_meta_path.exists():
+        with open(global_meta_path) as f:
+            global_meta = GlobalMeta.from_dict(yaml.safe_load(f))
+    else:
+        global_meta = GlobalMeta.from_dict({})
 
-        tests = []
-        for dirpath, dirnames, filenames in os.walk(args.input):
-            test_dir = TestDirectory(dirpath, os.path.relpath(dirpath, args.input))
-            if test_dir.is_valid():
-                tests.append(test_dir)
+    stacktrace_categories = ("CRASHED", "TIMED_OUT", "OOM")
+    tests_by_category: Dict[str, list[TestDirectory]] = {k: [] for k in stacktrace_categories}
+    for test in tests:
+        if test.status in stacktrace_categories:
+            tests_by_category[test.status].append(test)
 
-        global_meta_path = Path(args.input) / "meta.yml"
-        if global_meta_path.exists():
-            with open(global_meta_path) as f:
-                global_meta = GlobalMeta.from_dict(yaml.safe_load(f))
-        else:
-            global_meta = GlobalMeta.from_dict({})
+    stack_aggregation = global_meta.stacktrace_aggregation
+    gf_options = {
+        "CRASHED": GFOptions("failures", "Stack traces", "Crash"),
+        "TIMED_OUT": GFOptions("timeouts", "Timeouts", "Time out"),
+        "OOM": GFOptions("ooms", "OOMs", "OOM"),
+    }
 
-        stacktrace_categories = ("CRASHED", "TIMED_OUT", "OOM")
-        tests_by_category: Dict[str, list[TestDirectory]] = {k: [] for k in stacktrace_categories}
-        for test in tests:
-            if test.status in stacktrace_categories:
-                tests_by_category[test.status].append(test)
+    total_counts: list[tuple[str, str, str, int]] = []
+    flamegraph_exclude_paths = global_meta.flamegraph_exclude_paths
+    for component_filter in global_meta.crash_components_filters:
+        stacktraces = filter_data(component_filter, tests_by_category[component_filter.category])
+        total_counts.extend(
+            [
+                (component_filter.category, component_filter.suffix, *v)
+                for v in generate_crash_components(stacktraces, stack_aggregation)
+            ]
+        )
 
-        stack_aggregation = global_meta.stacktrace_aggregation
-        gf_options = {
-            "CRASHED": GFOptions("failures", "Stack traces", "Crash"),
-            "TIMED_OUT": GFOptions("timeouts", "Timeouts", "Time out"),
-            "OOM": GFOptions("ooms", "OOMs", "OOM"),
-        }
+        parent_options = gf_options[component_filter.category]
+        new_options = GFOptions(
+            f"{parent_options.file_prefix}_{component_filter.suffix}",
+            parent_options.legend_prefix,
+            parent_options.end_location_name,
+        )
+        generate_flamegraphs(stacktraces, output, new_options, flamegraph_exclude_paths)
 
-        total_counts: list[tuple[str, str, str, int]] = []
-        flamegraph_exclude_paths = global_meta.flamegraph_exclude_paths
-        for component_filter in global_meta.crash_components_filters:
-            stacktraces = filter_data(
-                component_filter, tests_by_category[component_filter.category]
-            )
-            total_counts.extend(
-                [
-                    (component_filter.category, component_filter.suffix, *v)
-                    for v in generate_crash_components(stacktraces, stack_aggregation)
-                ]
-            )
+    for cat, cat_tests in tests_by_category.items():
+        stacktraces = [t.stacktrace for t in cat_tests]
+        total_counts.extend(
+            [(cat, "all", *v) for v in generate_crash_components(stacktraces, stack_aggregation)]
+        )
+        generate_flamegraphs(stacktraces, output, gf_options[cat], flamegraph_exclude_paths)
 
-            parent_options = gf_options[component_filter.category]
-            new_options = GFOptions(
-                f"{parent_options.file_prefix}_{component_filter.suffix}",
-                parent_options.legend_prefix,
-                parent_options.end_location_name,
-            )
-            generate_flamegraphs(stacktraces, output, new_options, flamegraph_exclude_paths)
+    db = output / "main.db"
+    db.unlink(missing_ok=True)
+    create_and_populate(db, tests, total_counts, global_meta)
 
-        for cat, cat_tests in tests_by_category.items():
-            stacktraces = [t.stacktrace for t in cat_tests]
-            total_counts.extend(
-                [
-                    (cat, "all", *v)
-                    for v in generate_crash_components(stacktraces, stack_aggregation)
-                ]
-            )
-            generate_flamegraphs(stacktraces, output, gf_options[cat], flamegraph_exclude_paths)
+    copytree(get_root() / "share/mass-testing-report", output, dirs_exist_ok=True)
+    if global_meta_path.exists():
+        copy2(global_meta_path, output)
 
-        db = output / "main.db"
-        db.unlink(missing_ok=True)
-        create_and_populate(db, tests, total_counts, global_meta)
+    for test in tests:
+        output_dir = output / test.name
+        output_dir.mkdir(parents=True, exist_ok=True)
+        test.copy_to(output_dir)
 
-        copytree(get_root() / "share/mass-testing-report", output, dirs_exist_ok=True)
-        if global_meta_path.exists():
-            copy2(global_meta_path, output)
-
-        for test in tests:
-            output_dir = output / test.name
-            output_dir.mkdir(parents=True, exist_ok=True)
-            test.copy_to(output_dir)
-
-        return 0
+    return 0

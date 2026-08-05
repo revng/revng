@@ -40,23 +40,23 @@ nav:
       - Artifacts: references/artifacts.md
       - Analyses: references/analyses.md
       - CLI:
-          - revng2:
-              - references/cli/revng2.md
-              - revng2-common: references/cli/revng2-common.md
-              - revng2-project:
-                  - references/cli/revng2-project.md
-                  - revng2-project-init: references/cli/revng2-project-init.md
-                  - revng2-project-analyze: references/cli/revng2-project-analyze.md
-                  - revng2-project-artifact: references/cli/revng2-project-artifact.md
-                  - revng2-project-daemon: references/cli/revng2-project-daemon.md
-              - revng2-quick:
-                  - references/cli/revng2-quick.md
-                  - revng2-quick-analyze: references/cli/revng2-quick-analyze.md
-                  - revng2-quick-artifact: references/cli/revng2-quick-artifact.md
-              - revng2-pipeline:
-                  - references/cli/revng2-pipeline.md
-                  - revng2-pipeline-run-pipe: references/cli/revng2-pipeline-run-pipe.md
-                  - revng2-pipeline-run-analysis: references/cli/revng2-pipeline-run-analysis.md
+          - revng:
+              - references/cli/revng.md
+              - revng-common: references/cli/revng-common.md
+              - revng-project:
+                  - references/cli/revng-project.md
+                  - revng-project-init: references/cli/revng-project-init.md
+                  - revng-project-analyze: references/cli/revng-project-analyze.md
+                  - revng-project-artifact: references/cli/revng-project-artifact.md
+                  - revng-project-daemon: references/cli/revng-project-daemon.md
+              - revng-quick:
+                  - references/cli/revng-quick.md
+                  - revng-quick-analyze: references/cli/revng-quick-analyze.md
+                  - revng-quick-artifact: references/cli/revng-quick-artifact.md
+              - revng-pipeline:
+                  - references/cli/revng-pipeline.md
+                  - revng-pipeline-run-pipe: references/cli/revng-pipeline-run-pipe.md
+                  - revng-pipeline-run-analysis: references/cli/revng-pipeline-run-analysis.md
           - revng-merge-llvm: references/cli/revng-merge-llvm.md
           - revng-ptml: references/cli/revng-ptml.md
       - "MIME types": references/mime-types.md

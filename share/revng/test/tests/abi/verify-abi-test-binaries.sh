@@ -27,8 +27,8 @@ if test -e "${BINARY}.pdb"; then
 fi
 
 # Import DWARF information
-revng2 -C "$OUTPUT_DIRECTORY" project init --overwrite --no-initial-auto-analysis "$BINARY"
-revng2 -C "$OUTPUT_DIRECTORY" project analyze parse-binary -o /dev/null -- "${EXTRA_ARGUMENTS[@]}"
+revng -C "$OUTPUT_DIRECTORY" project init --overwrite --no-initial-auto-analysis "$BINARY"
+revng -C "$OUTPUT_DIRECTORY" project analyze parse-binary -o /dev/null -- "${EXTRA_ARGUMENTS[@]}"
 
 # Remove all the functions we don't find relevant, then force-override the ABI
 # field of all the renaming prototypes because DWARF information is not always
@@ -40,19 +40,19 @@ python3 \
     "${OUTPUT_DIRECTORY}/reference_binary.yml"
 
 # Convert CABIFunctionDefinition to RawFunctionDefinition
-revng2 pipeline run-analysis convert-functions-to-raw \
+revng pipeline run-analysis convert-functions-to-raw \
     "${OUTPUT_DIRECTORY}/reference_binary.yml" \
     -o "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml"
 
 # Convert RawFunctionDefinition back to CABIFunctionDefinition
 echo "ABI: ${ABI_NAME}" > "${OUTPUT_DIRECTORY}/convert-to-cabi-configuration.yml"
-revng2 pipeline run-analysis convert-functions-to-cabi \
+revng pipeline run-analysis convert-functions-to-cabi \
     --configuration "${OUTPUT_DIRECTORY}/convert-to-cabi-configuration.yml" \
     "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
     -o "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml"
 
 # Back to RawFunctionDefinition again
-revng2 pipeline run-analysis convert-functions-to-raw \
+revng pipeline run-analysis convert-functions-to-raw \
     "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
     -o "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"
 

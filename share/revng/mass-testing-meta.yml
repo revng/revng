@@ -50,7 +50,6 @@ hooks:
     REVNG_TEST_PATH=$(command -v revng-test)
     TEMP_DIR=$(mktemp -d)
     ln -s "$REVNG_TEST_PATH" "$TEMP_DIR/revng"
-    ln -s "$REVNG_TEST_PATH" "$TEMP_DIR/revng2"
     export PATH="$TEMP_DIR:$PATH"
   post: |
     rm -rf "$TEMP_DIR"

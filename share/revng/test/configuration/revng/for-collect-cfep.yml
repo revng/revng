@@ -8,5 +8,5 @@ commands:
       - type: revng-qa.compiled-with-debug-info
         filter: for-collect-cfep
     command: |-
-      revng2 quick analyze "$INPUT" |
+      revng quick analyze "$INPUT" |
         FileCheck --ignore-case "${SOURCE}".yml.filecheck

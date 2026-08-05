@@ -17,12 +17,12 @@ Let's compile it:
 $ gcc example.c -o example -O2
 ```
 
-We run the [`parse-binary` analysis](../../references/analyses.md#parse-binary-analysis) using [`revng2 project analyze`](../../references/cli/revng2-project-analyze.md) to automatically collect all the loading information available in the ELF headers:
+We run the [`parse-binary` analysis](../../references/analyses.md#parse-binary-analysis) using [`revng project analyze`](../../references/cli/revng-project-analyze.md) to automatically collect all the loading information available in the ELF headers:
 
 ```{bash ignore="^.*(VirtualSize|FileSize):.*[0-9]+$"}
 $ mkdir project-dir
-$ revng2 -C project-dir project init example --no-initial-auto-analysis
-$ revng2 -C project-dir project analyze parse-binary -o /dev/null
+$ revng -C project-dir project init example --no-initial-auto-analysis
+$ revng -C project-dir project analyze parse-binary -o /dev/null
 $ grep -A5 'Segments:' project-dir/revng.yml
 Segments:
   - Binary:          "/Binaries/0"
@@ -35,8 +35,8 @@ Segments:
 However, the typical workflow does not require the user to manually specify what analyses to run, but there's a set of predefined analyses that should be run on a new project, the *initial autoanalyses*.
 
 ```bash
-$ revng2 -C project-dir project analyze initial-auto-analysis -o /dev/null
-$ revng2 -C project-dir project artifact emit-c-as-single-file \
+$ revng -C project-dir project analyze initial-auto-analysis -o /dev/null
+$ revng -C project-dir project artifact emit-c-as-single-file \
         | revng ptml \
         | grep -A2 -B1 -F ' main('
 _ABI(SystemV_x86_64)
@@ -48,10 +48,10 @@ generic64_t main(generic64_t argument_0) {
 The commands above are *stateful*, they build on top of each other storing intermediate results into the directory specified by the `-C` parameter.
 The first command runs the set of initial autoanalyses of `revng` and the last one produces the decompiled code.
 
-Alternatively, you can run the `initial-auto-analysis` *and* produce the artifact with a single command, without a persistent project, using [`revng2 quick`](../../references/cli/revng2-quick.md):
+Alternatively, you can run the `initial-auto-analysis` *and* produce the artifact with a single command, without a persistent project, using [`revng quick`](../../references/cli/revng-quick.md):
 
 ```bash
-$ revng2 quick artifact emit-c-as-single-file example \
+$ revng quick artifact emit-c-as-single-file example \
         | revng ptml \
         | grep -A2 -B1 -F ' main('
 _ABI(SystemV_x86_64)

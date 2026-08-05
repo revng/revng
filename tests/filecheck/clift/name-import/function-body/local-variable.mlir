@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng2 pipeline run-pipe import-descriptive-info %S/../model.yml <(tar -c --transform 's;.*;/binary;' %s) /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
+// RUN: %root/bin/revng pipeline run-pipe import-descriptive-info %S/../model.yml <(tar -c --transform 's;.*;/binary;' %s) /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
 
 !void = !clift.void
 !int32_t = !clift.int<signed 4>

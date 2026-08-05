@@ -2,73 +2,56 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import argparse
+import click
 
-from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.internal.cli.common import CommandRegistry
 from revng.internal.cli.support import file_wrapper
 
-from .log import set_verbose
 from .merge_dynamic import merge_dynamic
 
 
-class MergeDynamicCommand(Command):
-    def __init__(self):
-        super().__init__(
-            ("merge-dynamic",),
-            "Merge the dynamic portions of the translate ELF with the one from the host ELF",
-        )
+@click.command(
+    name="merge-dynamic",
+    help="Merge the dynamic portions of the translate ELF with the one from the host ELF",
+)
+@click.argument("to_extend", metavar="TO_EXTEND")
+@click.argument("source", metavar="SOURCE")
+@click.argument("output", metavar="[OUTPUT]", required=False)
+@click.option(
+    "--base",
+    metavar="ADDRESS",
+    default="0x400000",
+    show_default=True,
+    help="The base address where dynamic object have been loaded.",
+)
+@click.option(
+    "--merge-load-segments",
+    is_flag=True,
+    help="Merge the LOADed segments from the source ELF into the output ELF.",
+)
+def merge_dynamic_command(
+    to_extend: str,
+    source: str,
+    output: str | None,
+    base: str,
+    merge_load_segments: bool,
+) -> int:
+    base_address = int(base, base=0)
 
-    def register_arguments(self, parser: argparse.ArgumentParser):
-        parser.add_argument(
-            "to_extend",
-            metavar="TO_EXTEND",
-            help="The ELF to extend.",
+    with open(source, "rb") as source_file, open(to_extend, "rb") as to_extend_file, file_wrapper(
+        output, "wb"
+    ) as output_file:
+        retcode = merge_dynamic(
+            to_extend_file,
+            source_file,
+            output_file,
+            base=base_address,
+            merge_load_segments=merge_load_segments,
         )
-        parser.add_argument(
-            "source",
-            metavar="SOURCE",
-            help="The original ELF.",
-        )
-        parser.add_argument(
-            "output", metavar="OUTPUT", nargs="?", help="The output ELF (stdout if omitted)"
-        )
-        parser.add_argument(
-            "--verbose",
-            action="store_true",
-            help="Print debug information and warnings.",
-        )
-        parser.add_argument(
-            "--base",
-            metavar="ADDRESS",
-            default="0x400000",
-            help="The base address where dynamic object have been loaded.",
-        )
-        parser.add_argument(
-            "--merge-load-segments",
-            action="store_true",
-            help="Merge the LOADed segments from the source ELF into the output ELF.",
-        )
+        output_file.flush()
 
-    def run(self, options: Options) -> int:
-        args = options.parsed_args
-        set_verbose(args.verbose)
-
-        base = int(args.base, base=0)
-
-        with open(args.source, "rb") as source_file, open(
-            args.to_extend, "rb"
-        ) as to_extend_file, file_wrapper(args.output, "wb") as output_file:
-            retcode = merge_dynamic(
-                to_extend_file,
-                source_file,
-                output_file,
-                base=base,
-                merge_load_segments=args.merge_load_segments,
-            )
-            output_file.flush()
-
-        return retcode
+    return retcode
 
 
-def setup(commands_registry: CommandsRegistry):
-    commands_registry.register_command(MergeDynamicCommand())
+def setup(registry: CommandRegistry):
+    registry.register((), merge_dynamic_command)

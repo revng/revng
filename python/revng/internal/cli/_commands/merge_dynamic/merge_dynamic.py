@@ -12,7 +12,8 @@ from copy import copy
 from elftools.elf.constants import P_FLAGS
 from elftools.elf.enums import ENUM_RELOC_TYPE_ARM, ENUM_RELOC_TYPE_i386, ENUM_RELOC_TYPE_x64
 
-from .log import log
+from revng.internal.cli.common import cli_logger
+
 from .parsed_elf import ParsedElf
 from .util import file_size, serialize, set_executable
 
@@ -102,7 +103,7 @@ def merge_dynamic(
     ) or source_elf.segment_by_range(start_address, estimated_size)
 
     while matching_segment is not None:
-        log(
+        cli_logger.debug_log(
             f"Discarding {hex(start_address)} since overlaps the following segment:\n"
             f"  {matching_segment.header}"
         )
@@ -332,8 +333,10 @@ def merge_dynamic(
     new_segment_size = new_program_headers_offset + new_program_headers_size - new_dynstr_offset
 
     if new_segment_size > estimated_size:
-        log("Warning: the new segment for dynamic sections is larger than expected:")
-        log(f"Expected: {estimated_size}\n  Actual: {new_segment_size}")
+        cli_logger.debug_log(
+            "Warning: the new segment for dynamic sections is larger than expected:"
+        )
+        cli_logger.debug_log(f"Expected: {estimated_size}\n  Actual: {new_segment_size}")
 
     new_segment = source_elf.elf.structs.Elf_Phdr.parse(b"\x00" * segment_header_size)
     new_segment.p_type = "PT_LOAD"

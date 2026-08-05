@@ -1,37 +1,37 @@
-`revng2`
+`revng`
 ================
 
 NAME
 ----
 
-`revng2` - The rev.ng command line interface.
+`revng` - The rev.ng command line interface.
 
 SYNOPSIS
 --------
 
-    revng2 [OPTIONS] COMMAND [ARGS...]
+    revng [OPTIONS] COMMAND [ARGS...]
 
 DESCRIPTION
 -----------
 
-`revng2` is the top-level entry point of the rev.ng CLI. It groups its functionality into subcommand groups, from high-level porcelain down to low-level plumbing.
+`revng` is the top-level entry point of the rev.ng CLI. It groups its functionality into subcommand groups, from high-level porcelain down to low-level plumbing.
 
 COMMANDS
 --------
 
-[`project`](revng2-project.md)
+[`project`](revng-project.md)
 : Porcelain commands operating on a persistent project, i.e., a directory holding a `revng.yml` and the input binaries.
 
-[`quick`](revng2-quick.md)
+[`quick`](revng-quick.md)
 : One-shot commands operating directly on a binary, without a persistent project.
 
-[`pipeline`](revng2-pipeline.md)
+[`pipeline`](revng-pipeline.md)
 : Low-level, plumbing commands to run a single pipe or analysis in isolation.
 
 OPTIONS
 -------
 
-These options are accepted by `revng2` itself and, being group options, must appear before the subcommand (for example `revng2 -C DIR project artifact ...`).
+These options are accepted by `revng` itself and, being group options, must appear before the subcommand (for example `revng -C DIR project artifact ...`).
 
 `-C, --directory DIRECTORY`
 : Run the command as if it had been started in `DIRECTORY`. Defaults to the current directory.
@@ -45,4 +45,4 @@ These options are accepted by `revng2` itself and, being group options, must app
 SEE ALSO
 --------
 
-[`revng2-project`](revng2-project.md), [`revng2-quick`](revng2-quick.md), [`revng2-pipeline`](revng2-pipeline.md)
+[`revng-project`](revng-project.md), [`revng-quick`](revng-quick.md), [`revng-pipeline`](revng-pipeline.md)

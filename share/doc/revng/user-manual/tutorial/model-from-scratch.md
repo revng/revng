@@ -93,17 +93,17 @@ Note how here the type of the `MetaAddress` is not `Generic64` but `Code_x86_64`
 ### Step 3: Disassembly
 
 At this point, we provided rev.ng enough information to be able to show us the disassembly of our program.
-Let's produce the [`disassemble` artifact](../../references/artifacts.md#disassemble-artifact) using [`revng2 project artifact`](../../references/cli/revng2-project-artifact.md).
+Let's produce the [`disassemble` artifact](../../references/artifacts.md#disassemble-artifact) using [`revng project artifact`](../../references/cli/revng-project-artifact.md).
 
 ```bash
-$ revng2 project artifact disassemble | revng ptml
+$ revng project artifact disassemble | revng ptml
 function_0x400000_Code_x86_64:
   400000:    48 01 f7    add rdi, rsi
   400003:    48 89 f8    mov rax, rdi
   400006:    c3          ret
 ```
 
-The `revng2 project artifact disassemble` command emits, for each function, an assembly listing decorated using [PTML](../../references/ptml.md).
+The `revng project artifact disassemble` command emits, for each function, an assembly listing decorated using [PTML](../../references/ptml.md).
 <br />`revng ptml` renders the PTML as text.
 
 ### Step 4: Defining a function prototype
@@ -181,7 +181,7 @@ At this point, we have all the information we need to successfully decompile our
 To do so, we can ask rev.ng to produce the [`emit-c` artifact](../../references/artifacts.md#emit-c-artifact):
 
 ```bash
-$ revng2 project artifact emit-c | revng ptml
+$ revng project artifact emit-c | revng ptml
 _ABI(SystemV_x86_64)
 uint64_t function_0x400000_Code_x86_64(uint64_t argument_0, uint64_t argument_1) {
   return argument_0 + argument_1;
@@ -232,7 +232,7 @@ Here's what we get now if we try to decompile again, this time asking for the
 `Sum` function by name:
 
 ```bash
-$ revng2 project artifact emit-c Sum | revng ptml
+$ revng project artifact emit-c Sum | revng ptml
 _ABI(SystemV_x86_64)
 uint64_t Sum(uint64_t FirstAddend, uint64_t SecondAddend) {
   return FirstAddend + SecondAddend;

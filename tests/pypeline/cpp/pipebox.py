@@ -26,6 +26,6 @@ def initialize(argv: list[str] = []):
 def argv_hook(input_: list[str]):
     assert input_[2] in ("run-pipe", "run-analysis")
     if input_[2] == "run-pipe":
-        return ["revng2", "pipeline", "run-pipe-native", *input_[3:]]
+        return ["revng", "pipeline", "run-pipe-native", *input_[3:]]
     else:
-        return ["revng2", "pipeline", "run-analysis-native", *input_[3:]]
+        return ["revng", "pipeline", "run-analysis-native", *input_[3:]]

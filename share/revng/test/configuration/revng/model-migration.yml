@@ -30,7 +30,7 @@ commands:
     command: |-
       cd $$(temp -d);
       cp "${INPUT}/model.yml" revng.yml;
-      revng2 project analyze apply-diff -o /dev/null;
+      revng project analyze apply-diff -o /dev/null;
 
       while IFS=',' read -r MODEL_FIELD EXPECTED_VALUE; do
         if ! $$(grep -v '^#|^\s*$$' > /dev/null); then

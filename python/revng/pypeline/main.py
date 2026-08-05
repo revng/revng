@@ -1,9 +1,9 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
+
 from __future__ import annotations
 
-import importlib.util
 import os
 import shutil
 import sys
@@ -17,11 +17,10 @@ from click.shell_completion import get_completion_class
 from revng.pypeline.cli.context import ClickContext, ContextObject, pass_context
 from revng.pypeline.utils import PypelineException
 
-from . import initialize_pypeline
 from .cli.pipeline import pipeline
 from .cli.project import project
 from .cli.rss import rss
-from .cli.utils import EagerParsedPath, detect_autocomplete, get_root_command_name
+from .cli.utils import EagerParsedPath, detect_autocomplete, get_root_command_name, load_pipebox
 from .utils.logger import pypeline_logger
 
 
@@ -51,71 +50,11 @@ class WideHelpFormatter(click.HelpFormatter):
 click.Context.formatter_class = WideHelpFormatter
 
 
-def import_pipebox(module_path: str, is_autocomplete: bool) -> object:
-    """Import a module from a path. This is used to import the pipebox file.
-    Args:
-        env (dict[str, str]): The environment variables.
-        module_path (str): The path to the module.
-        is_autocomplete (bool): If True, do not raise an error if the pipebox
-            is not found, since when autocompleting the pipebox path might be
-            missing or incomplete.
-    """
-    # Absolute path to the module
-    module_abspath = Path(module_path).resolve()
-    if not module_abspath.exists():
-        # This is a small trick to allow generating the module auto-complete
-        # without having a pipebox file
-        if is_autocomplete:
-            return object()
-        pypeline_logger.log(
-            f'Pipebox file "{module_abspath}" does not exist. Either set it using the '
-            "PYPELINE_PIPEBOX env var, or pass the --pipebox option."
-        )
-        sys.exit(1)
-    # We guess that the module name is the file name without the extension
-    module_name: str = module_abspath.stem
-    # Dynamic import of the pipebox module
-    spec = importlib.util.spec_from_file_location(module_name, str(module_abspath))
-    if spec is None:
-        if is_autocomplete:
-            return object()
-        pypeline_logger.log(f'Could not load module "{module_name}" from "{module_abspath}"')
-        sys.exit(1)
-    module = importlib.util.module_from_spec(spec)
-    if spec.loader is None:
-        if is_autocomplete:
-            return object()
-        pypeline_logger.log(f'Could not load module "{module_name}" from "{module_abspath}"')
-        sys.exit(1)
-    # Execute the module to load it
-    spec.loader.exec_module(module)
-    # Initialize the pypeline as we just imported the pipebox
-    initialize_pypeline()
-    # If auto-completing also initialize the pipebox with empty arguments here
-    # instead of in the body of pype
-    if is_autocomplete:
-        call_pipebox_initialize(module, module_path, [])
-    return module
-
-
-def call_pipebox_initialize(pipebox, pipebox_path: Path | str, args: list[str]):
-    # Get its initialize function
-    pipebox_initialize = getattr(pipebox, "initialize", None)
-    if pipebox_initialize is None:
-        pypeline_logger.log(
-            f'Pipebox file "{pipebox_path!s}" does not have an "initialize" function.'
-            " This is required to setup the pypeline."
-        )
-        sys.exit(1)
-
-    # Call the initialize
-    pipebox_initialize(args)
-
-
 def parse_pipebox(path: str, ctx: ClickContext):
-    pipebox = import_pipebox(path, detect_autocomplete(ctx))
-    ctx.obj.pipebox = pipebox
-    return pipebox
+    ctx.obj.pipebox_path = Path(path)
+    if detect_autocomplete(ctx):
+        # When auto-completing we want to load the pipebox as early as possible
+        load_pipebox(ctx)
 
 
 def parse_base_directory(path: str, ctx: ClickContext):
@@ -164,6 +103,8 @@ def parse_base_directory(path: str, ctx: ClickContext):
 )
 @pass_context
 def pype(ctx: ClickContext, verbose: bool) -> None:
+    ctx.obj.verbose = verbose
+
     # Enable debug logging for pypeline if requested
     if verbose:
         pypeline_logger.debug = True
@@ -172,12 +113,9 @@ def pype(ctx: ClickContext, verbose: bool) -> None:
     if detect_autocomplete(ctx):
         return
 
-    # Initialize the pipebox
-    call_pipebox_initialize(ctx.obj.pipebox, ctx.obj.pipebox_path, ctx.obj.pipebox_args)
 
-
-pype.add_command(pipeline)
-pype.add_command(project)
+pype.add_command(pipeline)  # type: ignore
+pype.add_command(project)  # type: ignore
 pype.add_command(rss)
 
 
@@ -237,7 +175,7 @@ def autocomplete(ctx, shell):
     click.echo(completion.source())
 
 
-def main(args: Sequence[str]) -> None:
+def main(args: Sequence[str], obj_class=ContextObject) -> None:
     # Divide click's argument from pipebox's arguments
     if "--" in args:
         position = args.index("--")
@@ -251,7 +189,7 @@ def main(args: Sequence[str]) -> None:
     try:
         exit_code = pype.main(
             args=click_args,
-            obj=ContextObject.make(pipebox_args=pipebox_args),
+            obj=obj_class.make(pipebox_args=pipebox_args),
             standalone_mode=False,
         )
     except click.ClickException as e:

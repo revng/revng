@@ -2,44 +2,34 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-"""
-This is just a wrapper over `pype` that sets pipebox to the revng pipebox path.
-The path is computed relatively to this file, so this should work regardless of
-where revng is installed.
-"""
-
 import asyncio
 import os
-import shlex
-import signal
 import sys
 from pathlib import Path
-from typing import IO, Any, AsyncContextManager
+from typing import IO, AsyncContextManager
 
 import click
 import yaml
 
-from revng.internal.support import cache_directory
+from revng.internal.cli.common import CommandRegistry
 from revng.pypeline.analysis import Analysis
 from revng.pypeline.cli.backend import BackendFeature, backend_factory_for
 from revng.pypeline.cli.common_options import AllAnalysesOption, add_pipeline_config_options
 from revng.pypeline.cli.common_options import container_format_options, debug_option, full_help
 from revng.pypeline.cli.common_options import project_id_option, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
-from revng.pypeline.cli.pipeline import pipeline
-from revng.pypeline.cli.project import project
+from revng.pypeline.cli.project import parse_pipeline_path
 from revng.pypeline.cli.project.artifact import ArtifactGroup as ProjectArtifactGroup
 from revng.pypeline.cli.utils import EagerParsedPath, build_arg_objects, compute_objects
-from revng.pypeline.cli.utils import normalize_flag, sort_option_groups
-from revng.pypeline.cli.wrappers import WRAPPER_REGISTRY, WrappablePypeCommand, WrapperOption
-from revng.pypeline.cli.wrappers import exec_with_wrapper, exec_wrapper_if_needed
+from revng.pypeline.cli.utils import load_pipebox, load_pipeline, normalize_flag
+from revng.pypeline.cli.utils import sort_option_groups
+from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_with_wrapper
+from revng.pypeline.cli.wrappers import exec_wrapper_if_needed
 from revng.pypeline.container import ContainerDeclaration, ContainerFormat
-from revng.pypeline.main import pype, run
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
 from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration
-from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.local_provider import LocalStorageProviderFactory
 from revng.pypeline.storage.storage_provider import FileStorageEntry, LockType, StorageProvider
@@ -50,7 +40,7 @@ from revng.pypeline.task.requests import Requests
 from revng.pypeline.task.task import TaskArgumentAccess
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
-from revng.support import collect_files, get_root
+from revng.support import get_root
 
 
 def generate_model_with_binaries(binaries: list[Path]):
@@ -70,22 +60,17 @@ def generate_model_with_binaries(binaries: list[Path]):
 @click.option(
     "--pipeline",
     "pipeline",
-    type=EagerParsedPath(
-        name="pipeline",
-        parser=lambda path, _ctx: load_pipeline_yaml_file(path),
-    ),
+    type=EagerParsedPath(name="pipeline", parser=parse_pipeline_path),
     help='Path to the pipeline file. Defaults to the "PYPELINE_PIPELINE" environment if set',
-    default=Path(__file__).parent.parent / "pipeline.yml",
+    default=Path(__file__).parent.parent.parent / "pipeline.yml",
     envvar="PYPELINE_PIPELINE",
     show_default=True,
+    expose_value=False,
 )
 @pass_context
-def quick(
-    ctx: ClickContext,
-    pipeline: Pipeline,
-):
-    # Store the params so the subcommands can access them
-    ctx.obj.pipeline = pipeline
+def quick(ctx: ClickContext):
+    load_pipebox(ctx)
+    load_pipeline(ctx)
 
 
 def handle_analysis_argument(
@@ -401,40 +386,6 @@ def init(
     asyncio.run(async_part_of_command(storage_provider_context))
 
 
-class ValgrindWrapperOption(WrapperOption):
-    def generate_prefix(self, value: Any) -> list[str]:
-        suppressions = collect_files([get_root()], ["share", "revng"], "*.supp")
-        return ["valgrind", *(f"--suppressions={s}" for s in suppressions)]
-
-
-class WrapperWrapperOption(WrapperOption):
-    def __init__(self, name: str, help: str):  # noqa: A002
-        super().__init__(name, help, type_=str)
-
-    def generate_prefix(self, value: Any) -> list[str]:
-        return shlex.split(value)
-
-
-WRAPPER_REGISTRY.register_wrappers(
-    WrapperOption(
-        name="perf",
-        help="Run program(s) under perf (for use with hotspot).",
-        prefix=["perf", "record", "--call-graph", "dwarf", "--output=perf.data"],
-    ),
-    WrapperOption("heaptrack", help="Run program(s) under heaptrack.", prefix=["heaptrack"]),
-    WrapperOption("gdb", help="Run program(s) under gdb.", prefix=["gdb", "-q", "--args"]),
-    WrapperOption("lldb", help="Run program(s) under lldb.", prefix=["lldb", "--"]),
-    ValgrindWrapperOption("valgrind", help="Run program(s) under valgrind."),
-    WrapperOption(
-        "callgrind",
-        help="Run program(s) under callgrind.",
-        prefix=["valgrind", "--tool=callgrind"],
-    ),
-    WrapperOption("rr", help="Run program(s) under rr.", prefix=["rr"]),
-    WrapperWrapperOption("wrapper", help="Run program(s) with the specified wrapper."),
-)
-
-
 def _generate_load_arguments(ctx):
     native_libraries: list[Path] = ctx.obj.pipebox._native_libraries
     return [f"-load={p.resolve()!s}" for p in native_libraries]
@@ -566,41 +517,8 @@ def run_analysis_native() -> None:
     pass
 
 
-def patch_pype():
-    """
-    revng2 is based on `pype`, but we want to change some defaults to be revng specific,
-    and we want to add some commands.
-    """
-    # Replace the name (needed for autocompletion and usage)
-    pype.name = "revng2"
-    pype.add_command(quick)
-    # Replace the default for pipebox
-    for param in pype.params:
-        if param.name == "pipebox":
-            param.default = Path(__file__).parent.parent / "pipebox.py"
-
-    # Add `init` to project subcommand
-    project.add_command(init)
-    # Change the default for pipeline
-    for param in project.params:
-        if param.name == "pipeline":
-            param.default = Path(__file__).parent.parent / "pipeline.yml"
-        elif param.name == "cache_dir":
-            param.default = str(cache_directory())
-        elif param.name == "storage_provider":
-            param.envvar = ["REVNG_STORAGE_PROVIDER", param.envvar]
-
-    # Add native counterparts to the pipeline subcommand
-    pipeline.add_command(run_pipe_native)
-    pipeline.add_command(run_analysis_native)
-
-
-def main():
-    """Entry point for revng2."""
-    signal.signal(signal.SIGINT, lambda x, y: sys.exit(1))
-    patch_pype()
-    run()
-
-
-if __name__ == "__main__":
-    main()
+def setup(registry: CommandRegistry):
+    registry.register((), quick)
+    registry.register(("project",), init)
+    registry.register(("pipeline",), run_pipe_native)
+    registry.register(("pipeline",), run_analysis_native)

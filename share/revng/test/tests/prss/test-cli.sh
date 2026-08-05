@@ -16,7 +16,7 @@ start_rss_server
 
 PROJECT_ID=$(python -c 'from uuid import uuid4; print(str(uuid4()))')
 PROJECT_OPTS=(--project-id "$PROJECT_ID")
-CMD=(revng2 project --storage-provider "rss://127.0.0.1:$RSS_SERVER_PORT/?proto=http")
+CMD=(revng project --storage-provider "rss://127.0.0.1:$RSS_SERVER_PORT/?proto=http")
 
 # Actually run the commands
 "${CMD[@]}" init "${PROJECT_OPTS[@]}" "$INPUT_BINARY"

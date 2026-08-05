@@ -93,7 +93,7 @@ Legend:
 
 The order of the operations done by the pipeline can be found in `verify-abi-test-binaries.sh`. Let me elaborate a bit further on every command:
 
-### `revng2 project analyze import-binary`
+### `revng project analyze import-binary`
 
 The abi testing reference binary is imported into a model using the normal means. The code for generating this "pure" is located in the [revng-qa](https://github.com/revng/revng-qa) repository.
 
@@ -103,15 +103,15 @@ Because sometimes it's impossible to detect ABI correctly based on dwarf data al
 
 Let's call the model after this step a `reference_binary.yml`.
 
-### `revng2 pipeline run-analysis convert-functions-to-raw`
+### `revng pipeline run-analysis convert-functions-to-raw`
 
 This analysis converts every CABI function within the input model (`reference_binary.yml`) into its "raw" representation. The result is saved into (`downgraded_reference_binary.yml`)
 
-### `revng2 pipeline run-analysis convert-functions-to-cabi`
+### `revng pipeline run-analysis convert-functions-to-cabi`
 
 This pass tries to "upgrade" every "raw" function into its CABI representation knowing the ABI it uses. The result is written to `upgraded_downgraded_reference_binary.yml`.
 
-### `revng2 pipeline run-analysis convert-functions-to-raw`
+### `revng pipeline run-analysis convert-functions-to-raw`
 
 The same pass is run again to obtain one more set of "raw" functions. Those get written into `downgraded_upgraded_downgraded_reference_binary.yml`.
 

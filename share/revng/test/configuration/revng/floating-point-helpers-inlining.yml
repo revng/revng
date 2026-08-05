@@ -26,7 +26,7 @@ commands:
     command: |-
       PREFIXES=CHECK ;
       [ "$POINTER_SIZE" = "64" ] && PREFIXES=$$PREFIXES,CHECK-64 ;
-      revng2 quick artifact enforce-abi "$INPUT" --tar -- --debug-names |
+      revng quick artifact enforce-abi "$INPUT" --tar -- --debug-names |
         revng merge llvm |
         sed 's,@local_,@,g' |
         FileCheck --check-prefixes=$$PREFIXES "${SOURCE}".filecheck
@@ -39,7 +39,7 @@ commands:
     # The `sed` below strips the `local_` prefix for a coherent FileCheck file.
     command: |-
       DUMP="$$(temp)" ;
-      revng2 quick analyze --analyses=parse-binary,detect-abi "$INPUT"
+      revng quick analyze --analyses=parse-binary,detect-abi "$INPUT"
         -- --debug-names
         --detect-abi-dump-post-helpers-inlining="$$DUMP"
         > /dev/null ;

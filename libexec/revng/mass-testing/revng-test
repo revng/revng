@@ -21,22 +21,15 @@ SECTIONS_JSON="$TEST_OUTPUT_DIR/sections.json"
 dump-sections "$TEST_INPUT" > "$SECTIONS_JSON"
 echo "text_size: $(dump-sections --text-size "$TEST_INPUT")" >> "$TEST_OUTPUT_DIR/meta.yml"
 
-# Check if we're being used as `revng` or `revng2`, if so, find the next revng
-# executable to avoid an infinite loop.
+# Check if we're being used as `revng`, if so, find the next revng executable
+# to avoid an infinite loop.
 COMMAND_NAME="$(basename "${BASH_SOURCE[0]}")"
-if [[ "$COMMAND_NAME" =~ ^revng2?$ && \
+if [[ "$COMMAND_NAME" = "revng" && \
       "${BASH_SOURCE[0]}" = "$(command -v "$COMMAND_NAME")" ]]; then
     readarray -t REVNG_PATHS < <(which -a "$COMMAND_NAME")
     REVNG_PATH="${REVNG_PATHS[1]}"
-elif [[ "$COMMAND_NAME" = *revng2* ]]; then
-    REVNG_PATH=revng2
 else
     REVNG_PATH=revng
 fi
 
-COMMAND_NAME="$(basename "$REVNG_PATH")"
-if [[ "$COMMAND_NAME" = "revng" ]]; then
-    exec "$REVNG_PATH" "$@" -o /dev/null --trace >(exec gzip -7 -c > "$TEST_OUTPUT_DIR/trace.json.gz")
-else
-    exec "$REVNG_PATH" "$@" -o /dev/null -- --trace >(exec gzip -7 -c > "$TEST_OUTPUT_DIR/trace.json.gz")
-fi
+exec "$REVNG_PATH" "$@" -o /dev/null -- --trace >(exec gzip -7 -c > "$TEST_OUTPUT_DIR/trace.json.gz")

@@ -11,7 +11,7 @@ commands:
       - type: revng-qa.compiled-with-debug-info
         filter: for-runtime and for-comparison
     command: |-
-      revng2 quick artifact recompile-isolated --analyses=parse-binary,detect-abi "$INPUT" --tar |
+      revng quick artifact recompile-isolated --analyses=parse-binary,detect-abi "$INPUT" --tar |
         tar -x --to-stdout '/binary' > "$OUTPUT" 2>/dev/null;
       chmod +x "$$OUTPUT";
 

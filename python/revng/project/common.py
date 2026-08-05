@@ -40,12 +40,12 @@ class HTTPError(ProjectError):
 
 
 class CLIHelper:
-    """Mixin for classes that use the `revng2` command-line tool"""
+    """Mixin for classes that use the `revng` command-line tool"""
 
     def __init__(self, project_directory: Union[str, Path, None], executable_path: Optional[str]):
         # Handle the executable_path parameter, using `which` if it's missing
         if not executable_path:
-            _executable_path = shutil.which("revng2")
+            _executable_path = shutil.which("revng")
         else:
             _executable_path = executable_path
         assert _executable_path is not None
@@ -62,7 +62,7 @@ class CLIHelper:
         assert os.path.isdir(project_directory)
         self._project_directory = str(project_directory)
 
-        # We will be invoking `revng2 project` a bunch. This family of commands
+        # We will be invoking `revng project` a bunch. This family of commands
         # needs the file `${model_name}` to be present in the project
         # directory. Since the project directory might not contain a model,
         # touch one if missing.

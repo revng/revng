@@ -8,5 +8,5 @@ commands:
       - type: revng-qa.compiled-with-debug-info
         filter: for-import-types
     command: |-
-      revng2 quick analyze --analyses=parse-binary "$INPUT"
+      revng quick analyze --analyses=parse-binary "$INPUT"
           | revng model compare "${SOURCE}.model.yml";

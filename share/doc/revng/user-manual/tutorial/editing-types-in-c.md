@@ -35,13 +35,13 @@ We compile it *without* debug information, so that rev.ng has to recover the str
 
 ```bash
 $ gcc account.c -o account -O1 -fno-stack-protector
-$ revng2 project init account
+$ revng project init account
 ```
 
 Here is the decompiled `summary`:
 
 ```{bash ignore="struct_[0-9]+"}
-$ revng2 project artifact emit-c summary | revng ptml
+$ revng project artifact emit-c summary | revng ptml
 _ABI(SystemV_x86_64)
 generic64_t summary(struct_58 *argument_0) {
   return argument_0->offset_8 + (int32_t) argument_0->offset_0 + (int32_t) argument_0->offset_16;
@@ -55,13 +55,13 @@ rev.ng, thanks to the [`analyze-data-layout` analysis](../../references/analyses
 `struct_58` is a generated name; the number is an internal id that changes from run to run, so we read it back out of the decompiled code rather than hard-coding it:
 
 ```bash
-$ TYPE_ID=$(revng2 project artifact emit-c summary | revng ptml | grep -oE 'struct_[0-9]+' | sort -u | tr -dc 0-9)
+$ TYPE_ID=$(revng project artifact emit-c summary | revng ptml | grep -oE 'struct_[0-9]+' | sort -u | tr -dc 0-9)
 ```
 
 The [`emit-single-type-definition`](../../references/artifacts.md#emit-single-type-definition-artifact) artifact prints a single type as a C header:
 
 ```{bash ignore="struct_[0-9]+"}
-$ revng2 project artifact emit-single-type-definition /type-definition/${TYPE_ID}-StructDefinition
+$ revng project artifact emit-single-type-definition /type-definition/${TYPE_ID}-StructDefinition
 struct _PACKED _SIZE(40) struct_58 {
   generic32_t offset_0 _STARTS_AT(0);
   generic64_t offset_8 _STARTS_AT(8);
@@ -73,7 +73,7 @@ This is deliberately *not* the same C you get from the regular decompiled header
 That one is meant to be recompilable by an ordinary C compiler, so it spells the padding out as explicit fields:
 
 ```{bash ignore="struct_[0-9]+"}
-$ revng2 project artifact emit-type-and-global-header | revng ptml | grep -A6 "struct_${TYPE_ID} {"
+$ revng project artifact emit-type-and-global-header | revng ptml | grep -A6 "struct_${TYPE_ID} {"
 struct _PACKED _SIZE(40) struct_58 {
   generic32_t offset_0;
   uint8_t padding_at_4[4];
@@ -110,14 +110,14 @@ CCode: |
     int32_t flags _STARTS_AT(16);
   };
 EOF
-$ revng2 project analyze edit-c-type -o /dev/null --configuration edit.yml
+$ revng project analyze edit-c-type -o /dev/null --configuration edit.yml
 ```
 
 The names and types are now part of the model, so they show up everywhere the struct is used.
 Re-emitting `summary` makes the edit concrete: it takes an `account *` and reads `balance`, `id` and `flags` by name instead of the anonymous offsets.
 
 ```bash
-$ revng2 project artifact emit-c summary | revng ptml
+$ revng project artifact emit-c summary | revng ptml
 _ABI(SystemV_x86_64)
 generic64_t summary(account *argument_0) {
   return *(generic64_t *) &argument_0->balance + (int32_t) *(generic32_t *) &argument_0->id + (int32_t) *(generic32_t *) &argument_0->flags;

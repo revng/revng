@@ -2,15 +2,15 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from argparse import RawDescriptionHelpFormatter
 from pathlib import Path
 
-from revng.internal.cli.commands_registry import Command, CommandsRegistry
-from revng.internal.cli.commands_registry import Options as CLIOptions
+import click
+
+from revng.internal.cli.common import CommandRegistry, cli_logger
 from revng.internal.support import cache_directory, configuration
 from revng.support import log_error
 
-from .common import Options, fetch_debuginfo, log, logger
+from .common import Options, fetch_debuginfo
 
 
 def get_config(config_key: str) -> list[str] | None:
@@ -27,41 +27,37 @@ def get_config(config_key: str) -> list[str] | None:
     return result
 
 
+def _make_options() -> Options:
+    options = Options(output_dir=cache_directory())
+    if (config_elf_servers := get_config("dwarf")) is not None:
+        options.elf_servers = tuple(config_elf_servers)
+    if (config_pe_servers := get_config("pe")) is not None:
+        options.pe_servers = tuple(config_pe_servers)
+    return options
+
+
 # This registers the `revng model fetch-debuginfo` command, while `common.py`
 # file can be used as a standalone script the revng counterpart has
 # revng-specific defaults (e.g. cache directory location) set.
-class FetchDebugInfoCommand(Command):
-    def __init__(self):
-        super().__init__(("model", "fetch-debuginfo"), "Fetch Debugging Information.")
-        self.options = Options(output_dir=cache_directory())
-        if (config_elf_servers := get_config("dwarf")) is not None:
-            self.options.elf_servers = tuple(config_elf_servers)
-        if (config_pe_servers := get_config("pe")) is not None:
-            self.options.pe_servers = tuple(config_pe_servers)
+@click.command(name="fetch-debuginfo")
+@click.argument("input_", metavar="INPUT")
+def fetch_debug_info(input_: str) -> int:
+    """Fetches debugging symbols from the internet
 
-    def register_arguments(self, parser):
-        parser.formatter_class = RawDescriptionHelpFormatter
-        parser.description = """Fetches debugging symbols from the internet.
-Remote urls can be overridden via revng.yml
-"""
-        parser.add_argument("input", help="The input file.")
+    Remote urls can be overridden via revng.yml
+    """
+    if not Path(input_).exists():
+        log_error("Could not find " + input_)
+        return 1
 
-    def run(self, options: CLIOptions):
-        args = options.parsed_args
-        logger.verbose = args.verbose
-
-        if not Path(args.input).exists():
-            log_error("Could not find " + args.input)
-            return 1
-
-        result = fetch_debuginfo(args.input, self.options)
-        if result is None:
-            log("Result: No debug info found")
-            return 1
-        else:
-            log(f"Result: {result}")
-            return 0
+    result = fetch_debuginfo(input_, _make_options())
+    if result is None:
+        cli_logger.debug_log("Result: No debug info found")
+        return 1
+    else:
+        cli_logger.debug_log(f"Result: {result}")
+        return 0
 
 
-def setup(commands_registry: CommandsRegistry):
-    commands_registry.register_command(FetchDebugInfoCommand())
+def setup(registry: CommandRegistry):
+    registry.register(("model",), fetch_debug_info)

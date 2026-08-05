@@ -2,12 +2,10 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import argparse
-from typing import Optional
-
+import click
 import yaml
 
-from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.internal.cli.common import CommandRegistry
 from revng.internal.cli.support import extract_tar, file_wrapper, to_string, to_yaml
 
 
@@ -19,25 +17,22 @@ def auto_process(filename: str, raw: bytes) -> str:
         return to_string(filename, raw)
 
 
-class TarToYAMLCommand(Command):
-    def __init__(self):
-        super().__init__(("tar", "to-yaml"), "Turn a tar archive into YAML")
-
-    def register_arguments(self, parser: argparse.ArgumentParser):
-        parser.description = "Turn a tar archive into YAML"
-        parser.add_argument("input", nargs="?", help="Input file (stdin if omitted)")
-        parser.add_argument(
-            "-o", "--output", nargs="?", metavar="FILE", help="Output file (stdout if omitted)"
-        )
-
-    def run(self, options: Options) -> Optional[int]:
-        args = options.parsed_args
-        with file_wrapper(args.input, "rb") as input_file:
-            output = yaml.dump(extract_tar(input_file.read(), auto_process))
-        with file_wrapper(args.output, "w") as output_file:
-            output_file.write(output)
-        return 0
+@click.group(name="tar", help="Manipulate tar archives")
+def tar():
+    pass
 
 
-def setup(commands_registry: CommandsRegistry):
-    commands_registry.register_command(TarToYAMLCommand())
+@click.command(name="to-yaml", help="Turn a tar archive into YAML")
+@click.argument("input_", metavar="[INPUT]", required=False)
+@click.option("-o", "--output", metavar="FILE", help="Output file (stdout if omitted)")
+def tar_to_yaml(input_: str | None, output: str | None) -> int:
+    with file_wrapper(input_, "rb") as input_file:
+        result = yaml.dump(extract_tar(input_file.read(), auto_process))
+    with file_wrapper(output, "w") as output_file:
+        output_file.write(result)
+    return 0
+
+
+def setup(registry: CommandRegistry):
+    registry.register((), tar)
+    registry.register(("tar",), tar_to_yaml)

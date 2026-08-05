@@ -9,5 +9,5 @@ commands:
         filter: for-detect-abi
     suffix: /
     command: |-
-      revng2 quick analyze --analyses=parse-binary,detect-abi "$INPUT" -- --abi-enforcement-level=no |
+      revng quick analyze --analyses=parse-binary,detect-abi "$INPUT" -- --abi-enforcement-level=no |
         revng model compare "${SOURCE}.model.yml"

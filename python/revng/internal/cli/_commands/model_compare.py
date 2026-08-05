@@ -11,26 +11,21 @@
 #       and ignore "fragile" keys.
 # TODO: we need to use an optional schema to know what lists are actually sets
 
-import argparse
 import re
 import sys
 from collections import defaultdict
+from typing import Any, Dict
 
+import click
 import yaml
 from grandiso import find_motifs
 from networkx import DiGraph
 from networkx.algorithms.shortest_paths.unweighted import all_pairs_shortest_path_length
 
-from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.internal.cli.common import CommandRegistry, cli_logger
 from revng.internal.cli.support import file_wrapper
 
-args = None
-
 fragile_keys = {"ID"}
-
-
-def log(message: str) -> None:
-    sys.stderr.write(f"{message}\n")
 
 
 def is_reference(string):
@@ -62,12 +57,13 @@ class Tag:
 
 
 class YAMLGraph:
-    def __init__(self, root):
+    def __init__(self, root, exact: bool):
         self.graph = DiGraph()
-        self.node_map = {}
+        self.node_map: Dict[int, Any] = {}
         self.root = root
+        self.exact = exact
         self.visit_object(root)
-        self.node_colors = {}
+        self.node_colors: Dict[int, str] = {}
 
     def add_node(self, object_):
         object_id = id(object_)
@@ -93,7 +89,7 @@ class YAMLGraph:
         if object_type is list:
             for index, item in enumerate(object_):
                 self.visit_object(item)
-                if args.exact:
+                if self.exact:
                     self.add_edge(object_id, id(item), index)
                 else:
                     self.add_edge(object_id, id(item), "")
@@ -287,13 +283,13 @@ class YAMLGraph:
         success = len(result) > 0
         if not success and best_match[0] is not None:
             result = best_match
-            log(
+            cli_logger.log(
                 f"No match found, the best match covers {len(best_match[0])}"
                 + f" nodes out of {min(len(self.graph), len(other.graph))}."
             )
 
             if not color:
-                log("Re-run with --dump-graphs to see matched nodes.")
+                cli_logger.log("Re-run with --dump-graphs to see matched nodes.")
 
         if result and color:
             self.color_match(other, result[0])
@@ -303,10 +299,8 @@ class YAMLGraph:
 
 def selftest():
     # Test --exact
-    args.exact = True
-
     def test_equal(input_, reference):
-        return YAMLGraph(reference).is_equal(YAMLGraph(input_))
+        return YAMLGraph(reference, True).is_equal(YAMLGraph(input_, True))
 
     assert test_equal({}, {})
     assert test_equal(3, 3)
@@ -321,10 +315,8 @@ def selftest():
     assert not test_equal([1, 3, 2], [1, 2, 3])
 
     # Test approximate for inclusion
-    args.exact = False
-
     def test_subgraph(input_, reference):
-        return YAMLGraph(reference).is_subgraph(YAMLGraph(input_))
+        return YAMLGraph(reference, False).is_subgraph(YAMLGraph(input_, False))
 
     assert test_subgraph({}, {})
     assert not test_subgraph({}, {"a": 2})
@@ -360,60 +352,56 @@ def selftest():
     return 0
 
 
-class ModelCompareCommand(Command):
-    def __init__(self):
-        super().__init__(("model", "compare"), "Compare a YAML file against a reference")
+@click.command(name="compare", help="Compare a YAML file against a reference")
+@click.argument("reference", metavar="[REFERENCE]", required=False)
+@click.argument("input_", metavar="[INPUT]", required=False, default="-")
+@click.option(
+    "--exact",
+    is_flag=True,
+    help="Match exactly, containing the reference is not enough.",
+)
+@click.option("--not", "negate", is_flag=True, help="If it matches, return an error.")
+@click.option("--dump-graphs", is_flag=True, help="Dump INPUT.dot and REFERENCE.dot.")
+@click.option("--selftest", "run_selftest", is_flag=True, help="Run internal tests.")
+def model_compare(
+    reference: str | None,
+    input_: str,
+    exact: bool,
+    negate: bool,
+    dump_graphs: bool,
+    run_selftest: bool,
+) -> int:
+    if run_selftest:
+        return selftest()
 
-    def register_arguments(self, parser: argparse.ArgumentParser):
-        parser.add_argument("reference", metavar="REFERENCE", help="The reference file.")
-        parser.add_argument(
-            "input", metavar="INPUT", default="-", nargs="?", help="The input file."
-        )
-        parser.add_argument(
-            "--exact",
-            action="store_true",
-            help=("Match exactly, containing the reference is not enough."),
-        )
-        parser.add_argument("--not", action="store_true", help="If it matches, return an error.")
-        parser.add_argument(
-            "--dump-graphs", action="store_true", help="Dump INPUT.dot and REFERENCE.dot."
-        )
-        parser.add_argument("--selftest", action="store_true", help="Run internal tests.")
+    if reference is None:
+        raise click.UsageError("Missing argument 'REFERENCE'")
 
-    def run(self, options: Options) -> int:
-        global args
-        args = options.parsed_args
+    if reference == "-" and input_ in (None, "-"):
+        sys.stderr.write("Either reference or input can be stdin, not both\n")
+        return 1
 
-        if args.selftest:
-            return selftest()
+    with file_wrapper(reference, "r") as reference_file, file_wrapper(input_, "r") as input_file:
+        reference_data = yaml.safe_load(reference_file)
+        input_data = yaml.safe_load(input_file)
 
-        if args.reference in (None, "-") and args.input in (None, "-"):
-            sys.stderr.write("Either reference or input can be stdin, not both\n")
-            return 1
+    reference_graph = YAMLGraph(reference_data, exact)
+    input_graph = YAMLGraph(input_data, exact)
 
-        with file_wrapper(args.reference, "r") as reference_file, file_wrapper(
-            args.input, "r"
-        ) as input_file:
-            reference = yaml.safe_load(reference_file)
-            input_ = yaml.safe_load(input_file)
+    if exact:
+        result = reference_graph.is_equal(input_graph, dump_graphs)
+    else:
+        result = reference_graph.is_subgraph(input_graph, dump_graphs)
 
-        reference_graph = YAMLGraph(reference)
-        input_graph = YAMLGraph(input_)
+    if dump_graphs:
+        reference_graph.write(f"{reference}.dot")
+        input_graph.write(f"{input_}.dot")
 
-        if args.exact:
-            result = reference_graph.is_equal(input_graph, args.dump_graphs)
-        else:
-            result = reference_graph.is_subgraph(input_graph, args.dump_graphs)
+    if negate:
+        result = not result
 
-        if args.dump_graphs:
-            reference_graph.write(f"{args.reference}.dot")
-            input_graph.write(f"{args.input}.dot")
-
-        if args.__dict__["not"]:
-            result = not result
-
-        return 0 if result else 1
+    return 0 if result else 1
 
 
-def setup(commands_registry: CommandsRegistry):
-    commands_registry.register_command(ModelCompareCommand())
+def setup(registry: CommandRegistry):
+    registry.register(("model",), model_compare)

@@ -1,20 +1,20 @@
-`revng2-common`
+`revng-common`
 ================
 
 NAME
 ----
 
-`revng2-common` - Options and behaviors shared by several `revng2` commands.
+`revng-common` - Options and behaviors shared by several `revng` commands.
 
 DESCRIPTION
 -----------
 
-This page documents functionality shared by many `revng2` subcommands: [pipebox arguments](#pipebox-arguments), the [developer wrapper options](#developer-wrapper-options), the [`--debug`](#debug) mode, and the [project id and token](#project-id-and-token) options.
+This page documents functionality shared by many `revng` subcommands: [pipebox arguments](#pipebox-arguments), the [developer wrapper options](#developer-wrapper-options), the [`--debug`](#debug) mode, and the [project id and token](#project-id-and-token) options.
 
 PIPEBOX ARGUMENTS
 -----------------
 
-Every `revng2` command that runs the pipeline accepts a trailing `-- PIPEBOX ARGS...`. Everything after `--` is forwarded verbatim to the pipebox `initialize` function, that is, to the native pipeline library, which parses them as global options.
+Every `revng` command that runs the pipeline accepts a trailing `-- PIPEBOX ARGS...`. Everything after `--` is forwarded verbatim to the pipebox `initialize` function, that is, to the native pipeline library, which parses them as global options.
 
 These options are independent of the specific command; they mostly control the logging and the progress reporting of the underlying native execution. Pass `-- --help` to list every available option, including the full set of `--debug-log` loggers.
 
@@ -33,19 +33,19 @@ These options are independent of the specific command; they mostly control the l
 For example, show progress bars while decompiling:
 
 ```{bash notest}
-revng2 project artifact emit-c-as-single-file -- --progress
+revng project artifact emit-c-as-single-file -- --progress
 ```
 
 or enable a logger and write an execution trace:
 
 ```{bash notest}
-revng2 project analyze initial-auto-analysis -- --debug-log LOGGER --trace trace.json
+revng project analyze initial-auto-analysis -- --debug-log LOGGER --trace trace.json
 ```
 
 DEVELOPER WRAPPER OPTIONS
 -------------------------
 
-Several `revng2` subcommands accept the following developer wrapper options, which run the underlying process inside the corresponding tool:
+Several `revng` subcommands accept the following developer wrapper options, which run the underlying process inside the corresponding tool:
 
 `--perf`
 : Run the program(s) under perf (for use with hotspot).
@@ -74,12 +74,12 @@ Several `revng2` subcommands accept the following developer wrapper options, whi
 DEBUG
 -----
 
-Several `revng2` subcommands accept a `--debug DIR` option that records every pipeline step under `DIR`, so it can be inspected and re-run in isolation.
+Several `revng` subcommands accept a `--debug DIR` option that records every pipeline step under `DIR`, so it can be inspected and re-run in isolation.
 
 `--debug RUNNER_CONTEXT`
 : Run the command in debug mode, using the specified directory (created if missing). Where possible, pipes and analyses are run as subcommands with their input and output files stored under that directory, as described below.
 
-With `--debug DIR`, a directory where you can easily reproduce each step of the invocation is created. Each pipe and analysis is run as a separate [`revng2 pipeline run-pipe`](revng2-pipeline-run-pipe.md) / [`run-analysis`](revng2-pipeline-run-analysis.md) subcommand, and its inputs and outputs are recorded under `DIR`. `DIR` gets one numbered subdirectory per executed step, in execution order:
+With `--debug DIR`, a directory where you can easily reproduce each step of the invocation is created. Each pipe and analysis is run as a separate [`revng pipeline run-pipe`](revng-pipeline-run-pipe.md) / [`run-analysis`](revng-pipeline-run-analysis.md) subcommand, and its inputs and outputs are recorded under `DIR`. `DIR` gets one numbered subdirectory per executed step, in execution order:
 
 ```
 0000-import-files/
@@ -114,7 +114,7 @@ The `run` script forwards any extra arguments to the underlying `run-pipe`/`run-
 PROJECT ID AND TOKEN
 --------------------
 
-The `revng2 project` subcommands that talk to a storage provider (`init`, `analyze` and `artifact`) accept:
+The `revng project` subcommands that talk to a storage provider (`init`, `analyze` and `artifact`) accept:
 
 `--project-id TEXT`
 : Project id to use for the storage provider.
@@ -125,4 +125,4 @@ The `revng2 project` subcommands that talk to a storage provider (`init`, `analy
 SEE ALSO
 --------
 
-[`revng2`](revng2.md), [`revng2-project`](revng2-project.md), [`revng2-quick`](revng2-quick.md), [`revng2-pipeline`](revng2-pipeline.md)
+[`revng`](revng.md), [`revng-project`](revng-project.md), [`revng-quick`](revng-quick.md), [`revng-pipeline`](revng-pipeline.md)

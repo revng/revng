@@ -9,6 +9,6 @@ commands:
         filter: for-segment-references
     suffix: /
     command: |-
-      revng2 quick artifact cleanup-ir "$INPUT" -- --debug-names |
+      revng quick artifact cleanup-ir "$INPUT" -- --debug-names |
         revng opt -S |
         FileCheck ${SOURCE}.filecheck.ll

@@ -1,28 +1,28 @@
-`revng2-pipeline-run-pipe`
+`revng-pipeline-run-pipe`
 ================
 
 NAME
 ----
 
-`revng2 pipeline run-pipe` - Run a single pipe.
+`revng pipeline run-pipe` - Run a single pipe.
 
 SYNOPSIS
 --------
 
-    revng2 pipeline run-pipe PIPE MODEL [READ_INPUT...] [WRITE_OUTPUT...] [OPTIONS] [-- PIPEBOX ARGS...]
-    revng2 pipeline run-pipe-native PIPE [OPTIONS] -- NATIVE RUNNER ARGS...
+    revng pipeline run-pipe PIPE MODEL [READ_INPUT...] [WRITE_OUTPUT...] [OPTIONS] [-- PIPEBOX ARGS...]
+    revng pipeline run-pipe-native PIPE [OPTIONS] -- NATIVE RUNNER ARGS...
 
 DESCRIPTION
 -----------
 
-This command is a subcommand of [`revng2 pipeline`](revng2-pipeline.md).
+This command is a subcommand of [`revng pipeline`](revng-pipeline.md).
 
 Runs the single pipe `PIPE` in isolation, reading and writing container files on disk.
 Without arguments, it report the list of known pipes.
 
-This is a plumbing command meant for debugging and tooling; most users should use [`revng2 project`](revng2-project.md) or [`revng2 quick`](revng2-quick.md) instead.
+This is a plumbing command meant for debugging and tooling; most users should use [`revng project`](revng-project.md) or [`revng quick`](revng-quick.md) instead.
 
-`MODEL` is the path to the model file; then, following the pipe's signature, each read container takes an input file argument and each write container takes an output file argument. Run `revng2 pipeline run-pipe --help` to list the available pipes, and `revng2 pipeline run-pipe PIPE --help` to see its exact arguments.
+`MODEL` is the path to the model file; then, following the pipe's signature, each read container takes an input file argument and each write container takes an output file argument. Run `revng pipeline run-pipe --help` to list the available pipes, and `revng pipeline run-pipe PIPE --help` to see its exact arguments.
 
 OPTIONS
 -------
@@ -57,11 +57,11 @@ OPTIONS
 NATIVE VARIANT
 --------------
 
-`revng2 pipeline run-pipe-native PIPE` runs the same pipe through its native (C++) implementation, executing `libexec/revng/pypeline-run-pipe` directly without going through Python. Only pipes that have a native implementation are available.
+`revng pipeline run-pipe-native PIPE` runs the same pipe through its native (C++) implementation, executing `libexec/revng/pypeline-run-pipe` directly without going through Python. Only pipes that have a native implementation are available.
 
 It takes no explicit file arguments: pass the native runner's own arguments after `--`. Use it for minimal-overhead runs, or under a debugger or profiler.
 
-The Python variant supports the [developer wrapper options](revng2-common.md#developer-wrapper-options) and [pipebox arguments](revng2-common.md#pipebox-arguments).
+The Python variant supports the [developer wrapper options](revng-common.md#developer-wrapper-options) and [pipebox arguments](revng-common.md#pipebox-arguments).
 
 EXAMPLES
 --------
@@ -69,10 +69,10 @@ EXAMPLES
 Run the `lift` pipe on a model, reading the input binaries container and writing the LLVM root container:
 
 ```{bash notest}
-revng2 pipeline run-pipe lift revng.yml input.tar output.tar
+revng pipeline run-pipe lift revng.yml input.tar output.tar
 ```
 
 SEE ALSO
 --------
 
-[`revng2-pipeline`](revng2-pipeline.md), [`revng2-pipeline-run-analysis`](revng2-pipeline-run-analysis.md), [`revng2-project`](revng2-project.md)
+[`revng-pipeline`](revng-pipeline.md), [`revng-pipeline-run-analysis`](revng-pipeline-run-analysis.md), [`revng-project`](revng-project.md)

@@ -26,10 +26,7 @@ if str(new_path) not in sys.path:
 
 if __name__ == "__main__":
     name = os.path.basename(sys.argv[0])
-    assert name in ("revng", "revng2")
-    if name == "revng":
-        from revng.internal.cli.revng import main
-    else:
-        from revng.internal.cli.revng2 import main
+    assert name == "revng"
+    from revng.internal.cli.revng import main
 
     sys.exit(main())

@@ -14,21 +14,16 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Mapping
 
+import click
 import marko
 
-from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.internal.cli.common import CommandRegistry, cli_logger
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
-verbose = False
-
-
-def log(message):
-    if verbose:
-        sys.stderr.write(message + "\n")
 
 
 def run(working_directory: Path, arguments):
-    log(f"Running {shlex.join(arguments)}")
+    cli_logger.debug_log(f"Running {shlex.join(arguments)}")
     process = subprocess.run(
         arguments, cwd=working_directory, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
@@ -77,7 +72,9 @@ class PythonDoctest(Doctest):
             return
 
         self.script = f'"""{self.script}"""'
-        log(f"Running the following Python script:\n{textwrap.indent(self.script, '    ')}\n")
+        cli_logger.debug_log(
+            f"Running the following Python script:\n{textwrap.indent(self.script, '    ')}\n"
+        )
 
         script_path = working_directory / "run.py"
         script_path.write_text(self.script)
@@ -122,8 +119,12 @@ class BashDoctest(Doctest):
         expected_output_path = working_directory / "expected_output.log"
         expected_output_path.write_text(self.expected_output)
 
-        log(f"Running the following bash script:\n{textwrap.indent(self.script, '    ')}\n")
-        log(f"Expected output is:\n{textwrap.indent(self.expected_output, '    ')}\n")
+        cli_logger.debug_log(
+            f"Running the following bash script:\n{textwrap.indent(self.script, '    ')}\n"
+        )
+        cli_logger.debug_log(
+            f"Expected output is:\n{textwrap.indent(self.expected_output, '    ')}\n"
+        )
 
         run(
             working_directory,
@@ -207,7 +208,9 @@ class TypeScriptDoctest(Doctest):
             return
 
         self.script = self.script.strip() + "\n"
-        log(f"Running the following TypeScript script:\n{textwrap.indent(self.script, '    ')}")
+        cli_logger.debug_log(
+            f"Running the following TypeScript script:\n{textwrap.indent(self.script, '    ')}"
+        )
         script_path = working_directory / "run.ts"
         script_path.write_text(self.script)
         run(
@@ -266,7 +269,7 @@ def only(entries):
 
 
 def handle_file(path: Path):
-    log(f"Processing {str(path)}")
+    cli_logger.debug_log(f"Processing {str(path)}")
 
     handler_types = {
         "python": PythonDoctest,
@@ -288,14 +291,16 @@ def handle_file(path: Path):
         block.extra = block.extra.strip("{").strip("}")
 
         if "notest" in block.extra:
-            log(
+            cli_logger.debug_log(
                 f"Ignoring fenced code of type {block.lang}"
                 + f' due to `notest` in "{block.extra}"'
             )
             continue
 
         if "noorchestra" in block.extra:
-            log(f'Disabling orchestra environment due to `noorchestra` in "{block.extra}"')
+            cli_logger.debug_log(
+                f'Disabling orchestra environment due to `noorchestra` in "{block.extra}"'
+            )
             handlers["bash"].process(
                 "$ unset ORCHESTRA_DOTDIR;"
                 + " unset ORCHESTRA_ROOT;"
@@ -311,13 +316,13 @@ def handle_file(path: Path):
         match = re.match(r"title=([^ ]*\.[^ ]*)", block.extra)
         if match:
             append_to = match.groups()[0]
-            log(f"Appending to {append_to}")
+            cli_logger.debug_log(f"Appending to {append_to}")
             if text.endswith("\n"):
                 text = text[:-1]
             for line in text.split("\n"):
                 handlers["bash"].process("$ echo " + shlex.quote(line) + " >> " + append_to)
         elif block.lang == "diff":
-            log("Applying diff")
+            cli_logger.debug_log("Applying diff")
             handlers["bash"].process("""$ rm -f patch.patch""")
             for line in text.split("\n"):
                 handlers["bash"].process("$ echo " + shlex.quote(line) + " >> patch.patch")
@@ -325,7 +330,7 @@ def handle_file(path: Path):
             handlers["bash"].process("""$ rm patch.patch""")
 
         elif block.lang in handlers:
-            log(f"Handling {block.lang} snippet")
+            cli_logger.debug_log(f"Handling {block.lang} snippet")
             handlers[block.lang].process(text, block.extra)
 
     for language, handler in handlers.items():
@@ -335,23 +340,12 @@ def handle_file(path: Path):
             handler.run(Path(temporary_directory))
 
 
-class TestDocsCommand(Command):
-    def __init__(self):
-        super().__init__(("test-docs",), "Test mkdocs files")
-
-    def register_arguments(self, parser):
-        parser.add_argument("files", metavar="FILE", nargs="+", help="files to test.")
-        parser.add_argument("--verbose", action="store_true", help="enable verbose output.")
-
-    def run(self, options: Options):
-        args = options.parsed_args
-
-        global verbose
-        verbose = args.verbose
-
-        for path in args.files:
-            handle_file(Path(path))
+@click.command(name="test-docs", help="Test mkdocs files")
+@click.argument("files", metavar="FILE...", nargs=-1, required=True)
+def test_docs(files: tuple[str, ...]) -> None:
+    for path in files:
+        handle_file(Path(path))
 
 
-def setup(commands_registry: CommandsRegistry):
-    commands_registry.register_command(TestDocsCommand())
+def setup(registry: CommandRegistry):
+    registry.register((), test_docs)

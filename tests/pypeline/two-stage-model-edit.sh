@@ -56,7 +56,7 @@ cp revng.yml good-model.yml
 # Start the daemon in the background, backed by the on-disk project, and wait
 # until it answers.
 PORT="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
-revng2 project --storage-provider "local://?inline" daemon \
+revng project --storage-provider "local://?inline" daemon \
   --bind "127.0.0.1:$PORT" > "$WORKDIR/daemon.log" 2>&1 &
 DAEMON_PID=$!
 
@@ -77,7 +77,7 @@ export REVNG_STORAGE_PROVIDER="daemon://127.0.0.1:$PORT"
 ARTIFACT=emit-type-and-global-header
 
 # Baseline: the good model produces an artifact.
-revng2 project artifact "$ARTIFACT" > baseline.txt
+revng project artifact "$ARTIFACT" > baseline.txt
 
 # --- Stage 1: the first write leaves the model invalid ----------------------
 # Repoint the type reference at an id that does not exist: still valid YAML, but
@@ -85,7 +85,7 @@ revng2 project artifact "$ARTIFACT" > baseline.txt
 sed -E -i 's#(/TypeDefinitions/)[0-9]+(-)#\1999999999\2#g' revng.yml
 
 # The daemon must reject the invalid model, staying up.
-if revng2 project artifact "$ARTIFACT" > /dev/null 2>&1; then
+if revng project artifact "$ARTIFACT" > /dev/null 2>&1; then
   log "the daemon accepted an invalid model"
   exit 1
 fi
@@ -104,7 +104,7 @@ cp good-model.yml revng.yml
 
 # The artifact is produced again and matches the baseline: the invalid
 # intermediate neither corrupted the daemon nor changed the result.
-revng2 project artifact "$ARTIFACT" > after-valid.txt
+revng project artifact "$ARTIFACT" > after-valid.txt
 if ! diff -u baseline.txt after-valid.txt > /dev/null; then
   log "output changed after an invalid intermediate (daemon state damaged)"
   exit 1
