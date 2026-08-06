@@ -28,7 +28,6 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/FunctionTags.h"
@@ -132,8 +131,7 @@ public:
   /// keeps referring to their own addresses.
   void handleFunction(llvm::Function &F,
                       const efa::ControlFlowGraph &FM,
-                      llvm::ArrayRef<const efa::ControlFlowGraph *> Inlined,
-                      GeneratedCodeBasicInfo &GCBI) {
+                      llvm::ArrayRef<const efa::ControlFlowGraph *> Inlined) {
     const efa::ControlFlowGraph *CurrentCFG = &FM;
     BasicBlockID CurrentBB = BasicBlockID(FM.Entry());
     DILocation *DefaultDI = buildDI(FM.Entry(), CurrentBB, FM.Entry());
@@ -154,7 +152,7 @@ public:
       //   ```
       //
       // The following flag decides which approach is used for this basic block:
-      bool UseFallbackDebugLocation = !GCBI.isTranslated(BB);
+      bool UseFallbackDebugLocation = !isTranslated(BB);
 
       if (getType(BB) == BlockType::IndirectBranchDispatcherHelperBlock) {
         // These helper blocks are introduced to handle indirect jumps (for
@@ -218,8 +216,7 @@ static void attachTo(DIBuilder &DIB,
                      DIFile *File,
                      llvm::Function &LLVMFunction,
                      const efa::ControlFlowGraph &FM,
-                     llvm::ArrayRef<const efa::ControlFlowGraph *> Inlined,
-                     GeneratedCodeBasicInfo &GCBI) {
+                     llvm::ArrayRef<const efa::ControlFlowGraph *> Inlined) {
   // Skip functions with debug-info.
   if (LLVMFunction.getSubprogram())
     return;
@@ -235,7 +232,7 @@ static void attachTo(DIBuilder &DIB,
                                   LLVMFunction.getContext(),
                                   File,
                                   LLVMFunction.getName());
-  Builder.handleFunction(LLVMFunction, FM, Inlined, GCBI);
+  Builder.handleFunction(LLVMFunction, FM, Inlined);
 }
 
 namespace revng::pypeline::piperuns {
@@ -243,7 +240,6 @@ namespace revng::pypeline::piperuns {
 void AttachDebugInfo::runOnLLVMFunction(const model::Function &Function,
                                         llvm::Function &LLVMFunction) {
   llvm::Module &Module = *LLVMFunction.getParent();
-  GeneratedCodeBasicInfo GCBI(Binary, Module);
 
   DIBuilder DIB(Module);
   // This will be used for attaching the !dbg to instructions.
@@ -264,12 +260,7 @@ void AttachDebugInfo::runOnLLVMFunction(const model::Function &Function,
   for (const efa::ControlFlowGraph &Callee : Bundle.AlwaysInlineFunctions())
     Inlined.push_back(&Callee);
 
-  attachTo(DIB,
-           CU->getFile(),
-           LLVMFunction,
-           Bundle.MainFunction(),
-           Inlined,
-           GCBI);
+  attachTo(DIB, CU->getFile(), LLVMFunction, Bundle.MainFunction(), Inlined);
 
   // Until the inlining pipe runs, the module also carries the body of the
   // functions to inline into this one: they need locations of their own, or
@@ -286,8 +277,7 @@ void AttachDebugInfo::runOnLLVMFunction(const model::Function &Function,
              CU->getFile(),
              F,
              Bundle.AlwaysInlineFunctions().at(Entry),
-             {},
-             GCBI);
+             {});
   }
 }
 

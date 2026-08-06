@@ -18,7 +18,7 @@ public:
   /// \return the block \p I belongs to and the control-flow graph describing
   ///         it, or a pair of `nullptr` if there is no such block
   std::pair<const efa::ControlFlowGraph *, const efa::BasicBlock *>
-  findBlock(GeneratedCodeBasicInfo &GCBI, llvm::Instruction *I) const;
+  findBlock(llvm::Instruction *I) const;
 };
 
 #include "revng/EarlyFunctionAnalysis/Generated/Late/FunctionBundle.h"
