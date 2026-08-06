@@ -10,6 +10,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
@@ -147,8 +148,8 @@ makeStatementComment(mlir::Operation *Op,
   if (Op != nullptr)
     Addresses = clift::getStatementExpressionAddresses(Op);
   if (Addresses.empty()) {
-    return revng::createError("a comment is attached to a statement that "
-                              "cannot be identified by its addresses");
+    return revng::createError("the statement cannot be identified by its "
+                              "addresses");
   }
 
   std::string Body;
@@ -218,7 +219,14 @@ static llvm::Expected<model::GotoLabel>
 makeGotoLabelEdit(mlir::Operation *Op,
                   const std::optional<std::string> &NewName,
                   const AmbiguousLocations &Ambiguous) {
-  auto AssignLabel = mlir::dyn_cast_or_null<clift::AssignLabelOp>(Op);
+  // The labels closing a loop body and following a loop are emitted by the C
+  // backend, not lifted, so there is nothing in the model to rename.
+  if (Op == nullptr) {
+    return revng::createError("the label is synthesized by the C backend and "
+                              "has no counterpart in the model");
+  }
+
+  auto AssignLabel = mlir::dyn_cast<clift::AssignLabelOp>(Op);
   clift::MakeLabelOp Label = AssignLabel ? AssignLabel.getLabelOp() : nullptr;
   if (not Label
       or not pipeline::locationFromString(rr::GotoLabel, Label.getHandle())) {
@@ -259,9 +267,31 @@ struct StatementEdits {
 
 } // namespace
 
+static void reportDropped(llvm::Error Error,
+                          llvm::StringRef Annotation,
+                          StatementKind Kind) {
+  // The error has to be consumed whether or not the logger is enabled.
+  std::string Reason = consumeToString(std::move(Error));
+  revng_log(Log,
+            "Ignoring " << Annotation << " on " << describe(Kind) << ": "
+                        << Reason);
+}
+
+/// Names the directives a statement carries, for the message reporting them
+/// dropped.
+static llvm::StringRef describeDirectives(bool HasName, bool HasTypeName) {
+  if (HasName and HasTypeName)
+    return "`RENAME`/`RETYPE`";
+  return HasName ? "`RENAME`" : "`RETYPE`";
+}
+
 /// Classify a statement's leading comments and delegate each kind to its
 /// builder.
-static llvm::Expected<StatementEdits>
+///
+/// Each annotation is applied on its own: one that cannot be is dropped and
+/// reported (see reportDropped), leaving the others on the same statement, and
+/// on every other statement, unaffected.
+static StatementEdits
 computeStatementEdits(llvm::ArrayRef<std::string> LeadingComments,
                       mlir::Operation *Op,
                       StatementKind Kind,
@@ -286,29 +316,46 @@ computeStatementEdits(llvm::ArrayRef<std::string> LeadingComments,
 
   if (not PlainComments.empty()) {
     auto MaybeComment = makeStatementComment(Op, PlainComments);
-    if (not MaybeComment)
-      return MaybeComment.takeError();
-    Edits.Comment = std::move(*MaybeComment);
+    if (MaybeComment) {
+      Edits.Comment = std::move(*MaybeComment);
+    } else {
+      reportDropped(MaybeComment.takeError(),
+                    "the comment \"" + llvm::join(PlainComments, " ") + "\"",
+                    Kind);
+    }
   }
 
-  if (NewName.has_value() or NewTypeName.has_value()) {
-    if (Kind == StatementKind::Label) {
-      // A label has only a name; `RETYPE:` does not apply.
-      if (NewTypeName.has_value())
-        return revng::createError("`RETYPE` cannot be applied to a label");
+  // A label has only a name, so `RETYPE:` does not apply to it. Dropping the
+  // directive alone leaves a `RENAME:` on the same label working.
+  if (NewTypeName.has_value() and Kind == StatementKind::Label) {
+    reportDropped(revng::createError("`RETYPE` cannot be applied to a label"),
+                  "`RETYPE`",
+                  Kind);
+    NewTypeName.reset();
+  }
+
+  if (Kind == StatementKind::Label) {
+    if (NewName.has_value()) {
       auto MaybeLabel = makeGotoLabelEdit(Op, NewName, Ambiguous);
-      if (not MaybeLabel)
-        return MaybeLabel.takeError();
-      Edits.Label = std::move(*MaybeLabel);
-    } else {
-      auto MaybeVariable = makeLocalVariableEdit(Op,
-                                                 NewName,
-                                                 NewTypeName,
-                                                 ResolvedTypes,
-                                                 Ambiguous);
-      if (not MaybeVariable)
-        return MaybeVariable.takeError();
+      if (MaybeLabel) {
+        Edits.Label = std::move(*MaybeLabel);
+      } else {
+        reportDropped(MaybeLabel.takeError(), "`RENAME`", Kind);
+      }
+    }
+  } else if (NewName.has_value() or NewTypeName.has_value()) {
+    auto MaybeVariable = makeLocalVariableEdit(Op,
+                                               NewName,
+                                               NewTypeName,
+                                               ResolvedTypes,
+                                               Ambiguous);
+    if (MaybeVariable) {
       Edits.Variable = std::move(*MaybeVariable);
+    } else {
+      reportDropped(MaybeVariable.takeError(),
+                    describeDirectives(NewName.has_value(),
+                                       NewTypeName.has_value()),
+                    Kind);
     }
   }
 
@@ -403,7 +450,9 @@ llvm::Error EditCBody::run(Model &Model,
   }
 
   // Build the new comments, variable edits and label edits before touching the
-  // model, so that a failure leaves it untouched.
+  // model. Nothing below can fail any more, but keeping the two phases apart
+  // means the model is only ever written once the whole C has been accounted
+  // for.
   std::vector<model::StatementComment> NewComments;
   std::vector<model::LocalVariable> NewVariables;
   std::vector<model::GotoLabel> NewLabels;
@@ -413,22 +462,20 @@ llvm::Error EditCBody::run(Model &Model,
     if (Parsed.LeadingComments.empty())
       continue;
 
-    auto MaybeEdits = computeStatementEdits(Parsed.LeadingComments,
-                                            Decompiled.Op,
-                                            Decompiled.Kind,
-                                            MaybeParsed->ResolvedTypes,
-                                            Ambiguous);
-    if (not MaybeEdits)
-      return MaybeEdits.takeError();
+    StatementEdits Edits = computeStatementEdits(Parsed.LeadingComments,
+                                                 Decompiled.Op,
+                                                 Decompiled.Kind,
+                                                 MaybeParsed->ResolvedTypes,
+                                                 Ambiguous);
 
-    if (MaybeEdits->Comment.has_value()) {
-      MaybeEdits->Comment->Index() = NewComments.size();
-      NewComments.push_back(std::move(*MaybeEdits->Comment));
+    if (Edits.Comment.has_value()) {
+      Edits.Comment->Index() = NewComments.size();
+      NewComments.push_back(std::move(*Edits.Comment));
     }
-    if (MaybeEdits->Variable.has_value())
-      NewVariables.push_back(std::move(*MaybeEdits->Variable));
-    if (MaybeEdits->Label.has_value())
-      NewLabels.push_back(std::move(*MaybeEdits->Label));
+    if (Edits.Variable.has_value())
+      NewVariables.push_back(std::move(*Edits.Variable));
+    if (Edits.Label.has_value())
+      NewLabels.push_back(std::move(*Edits.Label));
   }
 
   // Replace the function's comments with the imported ones.

@@ -11,16 +11,33 @@ set -euo pipefail
 #
 # In `irreducible`, every directive is expected to land:
 #
-#   - `var_0`       the first local variable declaration -> RENAME + RETYPE;
-#   - `label_0`     the goto label                       -> RENAME;
+#   - `var_0`       the first local variable declaration -> RENAME + RETYPE
+#                                                          + a comment;
+#   - `label_0`     the goto label                       -> RENAME + a comment;
+#   - `goto label_0;` a jump                             -> a comment;
 #   - `var_2 = 0`   a plain assignment statement          -> a statement comment.
 #
-# Each is then checked to reach the model and, where the decompiler renders it,
-# the re-emitted code.
+# Each directive is then checked to reach the model and, where the decompiler
+# renders it, the re-emitted code.
+#
+# The rest covers the annotations that cannot be applied. Those are dropped and
+# reported on the `edit-c-body` logger, one at a time, leaving every other
+# annotation in the same function alone: `RENAME:` only applies to a local
+# variable declaration, so the one placed on the `var_2` assignment is dropped,
+# while the plain comment on that very same statement still lands.
 
 BINARY="$1"
 PROJECT="$2"
 FUNCTION="irreducible"
+
+# A `RENAME:` that cannot be applied, placed on an assignment.
+DROPPED_RENAME="not_a_declaration"
+
+# Comments on the statements that are located indirectly: a goto label, through
+# the statements jumping to it, and a jump, through its own branch instruction.
+LABEL_COMMENT="A comment on a goto label."
+GOTO_COMMENT="A comment on a goto."
+DECL_COMMENT="A comment on a local variable declaration."
 
 fail() {
   echo "edit-c-body: $1" >&2
@@ -81,6 +98,14 @@ make_configuration() {
   } > "$3"
 }
 
+# Run the analysis with the `edit-c-body` logger on, keeping its report of the
+# annotations that could not be applied.
+analyze() {
+  revng -C "$PROJECT" project analyze edit-c-body -o /dev/null \
+    -c "$1" -- --debug-log=edit-c-body 2>&1 \
+    | tee "$2"
+}
+
 mkdir -p "$PROJECT"
 revng -C "$PROJECT" project init --overwrite "$BINARY"
 
@@ -91,12 +116,16 @@ revng -C "$PROJECT" project artifact emit-c "$FUNCTION" | revng ptml > "$PROJECT
 insert_directives "$PROJECT/live.c" "$PROJECT/edited.c" \
   "var_0" "RENAME: renamed_local" \
   "var_0" "RETYPE: uint32_t" \
+  "var_0" "$DECL_COMMENT" \
   "label_0:" "RENAME: renamed_goto_label" \
+  "label_0:" "$LABEL_COMMENT" \
+  "goto label_0;" "$GOTO_COMMENT" \
+  "var_2 = 0" "RENAME: $DROPPED_RENAME" \
   "var_2 = 0" "A plain comment on a statement."
 
 make_configuration "$FUNCTION" "$PROJECT/edited.c" "$PROJECT/edit.yml"
 
-revng -C "$PROJECT" project analyze edit-c-body -o /dev/null -c "$PROJECT/edit.yml"
+analyze "$PROJECT/edit.yml" "$PROJECT/analyze.log"
 
 # The comment, both renames and the retype must reach the model. A rename-only
 # variable has no `Type`, so `renamed_local` carrying a 4-byte type (uint32_t)
@@ -114,10 +143,35 @@ assert_model "$FUNCTION" \
   '[.GotoLabels[] | select(.Name == "renamed_goto_label")] | length' 1 \
   "the goto label rename did not reach the model"
 
+# A goto label and a jump are located indirectly, so they take a comment too.
+# Only their arrival in the model is checked: statements lifted from the same
+# instruction share an address set, and the emitter is then free to render the
+# comment on any one of them.
+assert_model "$FUNCTION" \
+  "[.Comments[] | select(.Body == \"$LABEL_COMMENT\")] | length" 1 \
+  "the comment on the goto label did not reach the model"
+assert_model "$FUNCTION" \
+  "[.Comments[] | select(.Body == \"$GOTO_COMMENT\")] | length" 1 \
+  "the comment on the goto did not reach the model"
+
+# A declaration is located through the statements using the variable, exactly
+# like the `RENAME:` and the `RETYPE:` sitting on it, so all three apply at once.
+assert_model "$FUNCTION" \
+  "[.Comments[] | select(.Body == \"$DECL_COMMENT\")] | length" 1 \
+  "the comment on the local variable declaration did not reach the model"
+
+# The `RENAME:` on the assignment cannot be applied. It must be dropped rather
+# than abort the import, be reported on the logger, and leave the plain comment
+# on that same statement, asserted above, alone.
+grep -qF "Ignoring \`RENAME\` on an expression statement" "$PROJECT/analyze.log" \
+  || fail "a directive that cannot be applied was not reported on the logger"
+assert_model "$FUNCTION" \
+  "[.LocalVariables[] | select(.Name == \"$DROPPED_RENAME\")] | length" 0 \
+  "a directive that cannot be applied reached the model"
+
 # The renames and the comment round-trip back into the re-emitted code (a type
 # change is model-only and does not reach emit-c, so it is not checked here).
 REEMIT="$(revng -C "$PROJECT" project artifact emit-c "$FUNCTION" | revng ptml)"
 assert_reemitted "A plain comment on a statement."
 assert_reemitted "renamed_local"
 assert_reemitted "renamed_goto_label:"
-
