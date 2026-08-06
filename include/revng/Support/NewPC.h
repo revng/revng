@@ -89,3 +89,9 @@ llvm::CallInst *getLastNewPC(llvm::Instruction *TheInstruction);
 /// \return a pair of integers: the first element represents the PC and the
 ///         second the size of the instruction.
 std::pair<MetaAddress, uint64_t> getPC(llvm::Instruction *TheInstruction);
+
+/// Return the address of the instruction following \p TheInstruction.
+inline MetaAddress getNextPC(llvm::Instruction *TheInstruction) {
+  auto [PC, Size] = getPC(TheInstruction);
+  return PC + Size;
+}

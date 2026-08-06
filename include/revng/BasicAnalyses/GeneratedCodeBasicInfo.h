@@ -92,13 +92,6 @@ public:
     return getKillReason(T) != KillReason::NonKiller;
   }
 
-  /// Return the program counter of the next (i.e., fallthrough) instruction
-  /// of \p TheInstruction
-  MetaAddress getNextPC(llvm::Instruction *TheInstruction) const {
-    auto Pair = getPC(TheInstruction);
-    return Pair.first + Pair.second;
-  }
-
   llvm::BasicBlock *getCallReturnBlock(llvm::BasicBlock *BB) const {
     using namespace llvm;
     CallInst *Marker = getMarker(BB, FunctionCallMarker);
