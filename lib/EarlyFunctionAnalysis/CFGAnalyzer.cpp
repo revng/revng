@@ -135,14 +135,13 @@ streamFromOption(const opt<std::string> &Option) {
 }
 
 CFGAnalyzer::CFGAnalyzer(llvm::Module &M,
-                         GeneratedCodeBasicInfo &GCBI,
                          RootFunction &Root,
                          const CSVGlobals &Globals,
                          const TupleTree<model::Binary> &Binary,
                          FunctionSummaryOracle &Oracle) :
   M(M),
   Globals(Globals),
-  PCH(GCBI.programCounterHandler()),
+  PCH(ProgramCounterHandler::fromModule(Binary->Architecture(), &M)),
   Oracle(Oracle),
   Binary(Binary),
   PreCallHook(createCallMarkerType(M), "precall_hook", &M),

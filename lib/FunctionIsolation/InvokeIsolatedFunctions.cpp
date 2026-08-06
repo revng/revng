@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <memory>
+
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -10,13 +12,13 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/NewPC.h"
@@ -39,7 +41,7 @@ private:
   const Module *FunctionModule;
   LLVMContext &Context;
   class RootFunction Root;
-  GeneratedCodeBasicInfo GCBI;
+  std::unique_ptr<ProgramCounterHandler> PCH;
   FunctionMap Map;
 
 public:
@@ -52,7 +54,7 @@ public:
     FunctionModule(FunctionModule),
     Context(RootModule.getContext()),
     Root(RootModule),
-    GCBI(Binary, RootModule) {
+    PCH(ProgramCounterHandler::fromModule(Binary.Architecture(), &RootModule)) {
 
     for (const model::Function &Function : Binary.Functions()) {
       auto *F = FunctionModule->getFunction(llvmName(Function));
@@ -203,7 +205,7 @@ public:
 
 static void populateFunctionDispatcher(const model::Binary &Binary,
                                        llvm::Module &Module) {
-  GeneratedCodeBasicInfo GCBI(Binary, Module);
+  auto PCH = ProgramCounterHandler::fromModule(Binary.Architecture(), &Module);
 
   llvm::LLVMContext &Context = Module.getContext();
   std::optional DispatcherHelper = FunctionDispatcherHelper.get(Module);
@@ -244,10 +246,7 @@ static void populateFunctionDispatcher(const model::Binary &Binary,
 
   // Create switch
   Builder.SetInsertPoint(Dispatcher);
-  GCBI.programCounterHandler()->buildDispatcher(Targets,
-                                                Builder,
-                                                Unexpected,
-                                                {});
+  PCH->buildDispatcher(Targets, Builder, Unexpected, {});
 }
 
 static void createDynamicFunctionsBody(const model::Binary &Binary,

@@ -21,7 +21,6 @@
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
-#include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/NewPC.h"
@@ -47,8 +46,6 @@ class MDNode;
 class GeneratedCodeBasicInfo {
 private:
   const model::Binary &Binary;
-  llvm::Module &Module;
-  std::unique_ptr<ProgramCounterHandler> PCH;
   using PCToBlockMap = std::multimap<MetaAddress, llvm::BasicBlock *>;
 
 public:
@@ -116,14 +113,6 @@ public:
   bool isKiller(llvm::Instruction *T) const {
     revng_assert(T->isTerminator());
     return getKillReason(T) != KillReason::NonKiller;
-  }
-
-  const ProgramCounterHandler *programCounterHandler() {
-    if (not PCH) {
-      PCH = ProgramCounterHandler::fromModule(Binary.Architecture(), &Module);
-    }
-
-    return PCH.get();
   }
 
   /// Return the program counter of the next (i.e., fallthrough) instruction
