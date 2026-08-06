@@ -390,13 +390,6 @@ public:
   std::pair<MetaAddress, uint64_t>
   getPC(llvm::Instruction *TheInstruction) const;
 
-  // TODO: can this be replaced by the corresponding method in
-  // GeneratedCodeBasicInfo?
-  MetaAddress getNextPC(llvm::Instruction *TheInstruction) const {
-    auto Pair = getPC(TheInstruction);
-    return Pair.first + Pair.second;
-  }
-
   MaterializedValue readFromPointer(MetaAddress LoadAddress,
                                     unsigned LoadSize,
                                     bool IsLittleEndian);

@@ -223,7 +223,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
       }
     };
 
-    MetaAddress ReturnPC = GCBI.getNextPC(Terminator);
+    MetaAddress ReturnPC = getNextPC(Terminator);
     Visitor V(&BB, GCBI, Globals, ReturnPC, PCPtrTy);
     V.run(Terminator);
 
