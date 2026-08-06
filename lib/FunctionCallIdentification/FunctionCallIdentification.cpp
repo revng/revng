@@ -8,6 +8,7 @@
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/Lift/Helpers.h"
 #include "revng/Model/FunctionTags.h"
+#include "revng/Support/BlockType.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/NewPC.h"
@@ -38,6 +39,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   PointerType *Int8PtrTy = Type::getInt8PtrTy(C);
   auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
   auto *PCPtrTy = cast<PointerType>(Globals.pcReg()->getType());
+  bool HasDelaySlot = model::Architecture::hasDelaySlot(Architecture);
   std::initializer_list<Type *> FunctionArgsTy = {
     Int8PtrTy, Int8PtrTy, Int8PtrTy, PCPtrTy
   };
@@ -87,7 +89,6 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
 
     public:
       BasicBlock *BB = nullptr;
-      const GeneratedCodeBasicInfo &GCBI;
       const CSVGlobals &Globals;
       bool SaveRAFound;
       bool StorePCFound;
@@ -102,19 +103,18 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
 
     public:
       Visitor(BasicBlock *BB,
-              const GeneratedCodeBasicInfo &GCBI,
               const CSVGlobals &Globals,
+              bool HasDelaySlot,
               MetaAddress ReturnPC,
               PointerType *PCPtrTy) :
         BB(BB),
-        GCBI(GCBI),
         Globals(Globals),
         SaveRAFound(false),
         StorePCFound(false),
         LinkRegister(nullptr),
         ReturnPC(ReturnPC),
         LastPC(ReturnPC),
-        NewPCLeft(1 + GCBI.hasDelaySlot()),
+        NewPCLeft(1 + HasDelaySlot),
         PCPtrTy(PCPtrTy) {}
 
     public:
@@ -224,7 +224,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
     };
 
     MetaAddress ReturnPC = getNextPC(Terminator);
-    Visitor V(&BB, GCBI, Globals, ReturnPC, PCPtrTy);
+    Visitor V(&BB, Globals, HasDelaySlot, ReturnPC, PCPtrTy);
     V.run(Terminator);
 
     BasicBlock *ReturnBB = Root.getBlockAt(ReturnPC);

@@ -669,9 +669,10 @@ void CodeGenerator::translate(LibTcg &LibTcg,
 
   class RootFunction Root(*TheModule);
   CSVGlobals Globals(*Model, *TheModule);
-  GeneratedCodeBasicInfo GCBI(*Model, *TheModule);
   legacy::PassManager PostInstCombinePM;
-  PostInstCombinePM.add(new FunctionCallIdentification(GCBI, Root, Globals));
+  PostInstCombinePM.add(new FunctionCallIdentification(Root,
+                                                       Globals,
+                                                       Model->Architecture()));
   PostInstCombinePM.add(new PruneRetSuccessors(Root));
   PostInstCombinePM.add(createGlobalDCEPass());
   PostInstCombinePM.run(*TheModule);
