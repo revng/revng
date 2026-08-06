@@ -227,7 +227,6 @@ fromLLVMFunction(llvm::Function &F,
 // followed by a call to `postcall_hook` and a basic block terminating
 // instruction.
 RUAResults analyzeRegisterUsage(Function *F,
-                                const GeneratedCodeBasicInfo &GCBI,
                                 model::Architecture::Values Architecture,
                                 Function *PreCallSiteHook,
                                 Function *PostCallSiteHook,

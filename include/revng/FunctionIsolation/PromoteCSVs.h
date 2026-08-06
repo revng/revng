@@ -4,9 +4,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/PipeboxCommon/Helpers/PipeRuns/LLVMFunctionMixin.h"
 #include "revng/PipeboxCommon/LLVMContainer.h"
+#include "revng/PipeboxCommon/Model.h"
 
 namespace revng::pypeline::piperuns {
 

@@ -3,6 +3,7 @@
 //
 
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/Module.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/STLExtras.h"
