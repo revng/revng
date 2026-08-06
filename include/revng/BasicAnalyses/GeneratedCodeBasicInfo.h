@@ -234,15 +234,6 @@ public:
     return true;
   }
 
-  /// Return true if \p BB is the result of translating some code
-  ///
-  /// Return false if \p BB is a dispatcher-related basic block.
-  static bool isTranslated(const llvm::BasicBlock *BB) {
-    BlockType::Values Type = getType(BB);
-    return (Type == BlockType::TranslatedBlock
-            or Type == BlockType::JumpTargetBlock);
-  }
-
   /// Return the program counter of the next (i.e., fallthrough) instruction
   /// of \p TheInstruction
   MetaAddress getNextPC(llvm::Instruction *TheInstruction) const {
@@ -332,6 +323,6 @@ struct BlackListTrait<const GeneratedCodeBasicInfo &, llvm::BasicBlock *>
   : BlackListTraitBase<const GeneratedCodeBasicInfo &> {
   using BlackListTraitBase<const GeneratedCodeBasicInfo &>::BlackListTraitBase;
   bool isBlacklisted(llvm::BasicBlock *Value) const {
-    return !this->Obj.isTranslated(Value);
+    return !isTranslated(Value);
   }
 };

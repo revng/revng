@@ -89,8 +89,7 @@ bool PruneRetSuccessors::runOnModule(llvm::Module &M) {
   auto &FCI = getAnalysis<FunctionCallIdentification>();
 
   for (BasicBlock &BB : *GCBI.root()) {
-    if (not GCBI.isTranslated(&BB)
-        or BB.getTerminator()->getNumSuccessors() < 2)
+    if (not isTranslated(&BB) or BB.getTerminator()->getNumSuccessors() < 2)
       continue;
 
     auto Successors = getSuccessors(GCBI, &BB);

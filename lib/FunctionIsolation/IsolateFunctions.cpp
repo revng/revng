@@ -199,14 +199,12 @@ void printAddressListComparison(const LeftMap &ExpectedAddresses,
 class CallIsolatedFunction : public efa::CallHandler {
 private:
   revng::pypeline::piperuns::Isolate &IP;
-  GeneratedCodeBasicInfo &GCBI;
   const efa::ControlFlowGraph &FM;
 
 public:
   CallIsolatedFunction(revng::pypeline::piperuns::Isolate &IP,
-                       GeneratedCodeBasicInfo &GCBI,
                        const efa::ControlFlowGraph &FM) :
-    IP(IP), GCBI(GCBI), FM(FM) {}
+    IP(IP), FM(FM) {}
 
 public:
   void handleCall(MetaAddress CallerBlock,
@@ -244,7 +242,7 @@ private:
                   MetaAddress Callee,
                   llvm::Value *SymbolNamePointer) {
     // Identify caller block
-    const auto *Caller = FM.findBlock(GCBI, Builder.GetInsertBlock());
+    const auto *Caller = FM.findBlock(Builder.GetInsertBlock());
 
     // Identify call edge
     auto IsCallEdge = [](const UpcastablePointer<efa::FunctionEdgeBase> &E) {
@@ -348,7 +346,7 @@ void Isolate::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
   if (BasicBlock *AnyPC = Outlined.AnyPCCloned) {
     for (BasicBlock *AnyPCPredecessor : toVector(predecessors(AnyPC))) {
       // First of all, identify the basic block
-      const efa::BasicBlock *JumpBlock = FM.findBlock(*GCBI, AnyPCPredecessor);
+      const efa::BasicBlock *JumpBlock = FM.findBlock(AnyPCPredecessor);
 
       Instruction *T = AnyPCPredecessor->getTerminator();
       revng_assert(not cast<BranchInst>(T)->isConditional());
@@ -659,7 +657,7 @@ Function *Isolate::isolateFunction(const efa::ControlFlowGraph &FM) {
   IsolatedFunctionsMap[Entry] = F;
 
   // Outline the function (later on we'll steal its body and move it into F)
-  CallIsolatedFunction CallHandler(*this, *GCBI, FM);
+  CallIsolatedFunction CallHandler(*this, FM);
   FunctionOutliner Outliner(*ClonedModule, Binary, *GCBI);
   efa::OutlinedFunction Outlined = Outliner.outline(Entry, &CallHandler);
 

@@ -303,7 +303,7 @@ void EnforceABI::handleRegularFunctionCall(CallInst *Call) {
 
   // The call site can come from a function inlined into this one, in which
   // case it is described by that function, not by this one
-  auto &&[FM, CallerBlock] = Bundle.findBlock(GCBI, Call);
+  auto &&[FM, CallerBlock] = Bundle.findBlock(Call);
   revng_assert(CallerBlock != nullptr);
 
   // Find the CallEdge
