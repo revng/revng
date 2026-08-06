@@ -48,13 +48,6 @@ class GeneratedCodeBasicInfo {
 private:
   const model::Binary &Binary;
   llvm::Module &Module;
-  llvm::GlobalVariable *PC = nullptr;
-  llvm::GlobalVariable *SP = nullptr;
-  llvm::GlobalVariable *RA = nullptr;
-  unsigned PCRegSize = 0;
-  std::vector<llvm::GlobalVariable *> CSVs;
-  std::vector<llvm::GlobalVariable *> ABIRegisters;
-  std::set<llvm::GlobalVariable *> ABIRegistersSet;
   std::unique_ptr<ProgramCounterHandler> PCH;
   using PCToBlockMap = std::multimap<MetaAddress, llvm::BasicBlock *>;
 
@@ -125,40 +118,6 @@ public:
     return getKillReason(T) != KillReason::NonKiller;
   }
 
-  /// Return the CSV representing the stack pointer
-  llvm::GlobalVariable *spReg() const { return SP; }
-  /// Return the CSV representing the return address register
-  llvm::GlobalVariable *raReg() const { return RA; }
-
-  /// Check if \p GV is the stack pointer CSV
-  bool isSPReg(const llvm::GlobalVariable *GV) const {
-    revng_assert(SP != nullptr);
-    return GV == SP;
-  }
-
-  bool isSPReg(const llvm::Value *V) const {
-    if (auto *GV = llvm::dyn_cast<const llvm::GlobalVariable>(V))
-      return isSPReg(GV);
-    return false;
-  }
-
-  // TODO: this method should probably be deprecated
-  /// Return the CSV representing the program counter
-  llvm::GlobalVariable *pcReg() const { return PC; }
-
-  // TODO: this method should probably be deprecated
-  /// Check if \p GV is the program counter CSV
-  bool isPCReg(const llvm::GlobalVariable *GV) const {
-    revng_assert(PC != nullptr);
-    return GV == PC;
-  }
-
-  // TODO: this method should probably be deprecated
-  bool isServiceRegister(const llvm::Value *V) const {
-    auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(V);
-    return GV != nullptr and (isPCReg(GV) or isSPReg(GV));
-  }
-
   const ProgramCounterHandler *programCounterHandler() {
     if (not PCH) {
       PCH = ProgramCounterHandler::fromModule(Binary.Architecture(), &Module);
@@ -182,16 +141,6 @@ public:
     auto Fallthrough = FunctionCallArgument::Fallthrough;
     auto *FallthroughBA = cast<BlockAddress>(Call.getArgument(Fallthrough));
     return FallthroughBA->getBasicBlock();
-  }
-
-  const llvm::ArrayRef<llvm::GlobalVariable *> csvs() const { return CSVs; }
-
-  const std::vector<llvm::GlobalVariable *> &abiRegisters() const {
-    return ABIRegisters;
-  }
-
-  bool isABIRegister(llvm::GlobalVariable *CSV) const {
-    return ABIRegistersSet.contains(CSV);
   }
 
   MetaAddress fromPC(uint64_t PC) const {

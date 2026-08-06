@@ -667,9 +667,10 @@ void CodeGenerator::translate(LibTcg &LibTcg,
                "A phi has appeared in the dispatcher");
 
   class RootFunction Root(*TheModule);
+  CSVGlobals Globals(*Model, *TheModule);
   GeneratedCodeBasicInfo GCBI(*Model, *TheModule);
   legacy::PassManager PostInstCombinePM;
-  PostInstCombinePM.add(new FunctionCallIdentification(GCBI, Root));
+  PostInstCombinePM.add(new FunctionCallIdentification(GCBI, Root, Globals));
   PostInstCombinePM.add(new PruneRetSuccessors(Root));
   PostInstCombinePM.add(createGlobalDCEPass());
   PostInstCombinePM.run(*TheModule);

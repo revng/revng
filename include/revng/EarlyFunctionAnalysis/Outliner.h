@@ -15,8 +15,6 @@
 #include "revng/Support/OpaqueFunctionsPool.h"
 #include "revng/Support/UniqueValuePtr.h"
 
-class GeneratedCodeBasicInfo;
-
 namespace efa {
 
 class CallHandler;
@@ -79,8 +77,8 @@ public:
 class Outliner {
 private:
   llvm::Module &M;
-  GeneratedCodeBasicInfo &GCBI;
   RootFunction &RootF;
+  const CSVGlobals &Globals;
   FunctionSummaryOracle &Oracle;
 
   /// UnexpectedPCMarker is used to indicate that `unexpectedpc` basic
@@ -94,12 +92,12 @@ private:
 
 public:
   Outliner(llvm::Module &M,
-           GeneratedCodeBasicInfo &GCBI,
            RootFunction &RootF,
+           const CSVGlobals &Globals,
            FunctionSummaryOracle &Oracle) :
     M(M),
-    GCBI(GCBI),
     RootF(RootF),
+    Globals(Globals),
     Oracle(Oracle),
     UnexpectedPCMarker(initializeUnexpectedPCMarker(M)),
     OpaqueReturnAddress(&M, false),

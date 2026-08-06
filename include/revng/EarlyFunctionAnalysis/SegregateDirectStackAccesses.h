@@ -6,15 +6,19 @@
 
 #include "llvm/IR/PassManager.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+namespace llvm {
+class GlobalVariable;
+}
 
 class SegregateDirectStackAccessesPass
   : public llvm::PassInfoMixin<SegregateDirectStackAccessesPass> {
 private:
-  GeneratedCodeBasicInfo &GCBI;
+  llvm::GlobalVariable *StackPointer = nullptr;
 
 public:
-  SegregateDirectStackAccessesPass(GeneratedCodeBasicInfo &GCBI) : GCBI(GCBI) {}
+  explicit SegregateDirectStackAccessesPass(llvm::GlobalVariable
+                                              *StackPointer) :
+    StackPointer(StackPointer) {}
 
   llvm::PreservedAnalyses run(llvm::Function &F,
                               llvm::FunctionAnalysisManager &FAM);

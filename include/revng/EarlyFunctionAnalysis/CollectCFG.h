@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/BasicAnalyses/CSVGlobals.h"
 #include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/FunctionBundle.h"
@@ -27,6 +28,7 @@ private:
   CFGMap &Output;
 
   RootFunction Root;
+  CSVGlobals Globals;
   GeneratedCodeBasicInfo GCBI;
   efa::FunctionSummaryOracle Oracle;
   efa::CFGAnalyzer Analyzer;

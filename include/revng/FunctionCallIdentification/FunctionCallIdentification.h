@@ -10,6 +10,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/BasicAnalyses/CSVGlobals.h"
 #include "revng/BasicAnalyses/CustomCFG.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/BasicAnalyses/RootFunction.h"
@@ -31,10 +32,13 @@ public:
   static char ID;
   GeneratedCodeBasicInfo &GCBI;
   RootFunction &Root;
+  const CSVGlobals &Globals;
 
 public:
-  FunctionCallIdentification(GeneratedCodeBasicInfo &GCBI, RootFunction &Root) :
-    llvm::ModulePass(ID), GCBI(GCBI), Root(Root) {}
+  FunctionCallIdentification(GeneratedCodeBasicInfo &GCBI,
+                             RootFunction &Root,
+                             const CSVGlobals &Globals) :
+    llvm::ModulePass(ID), GCBI(GCBI), Root(Root), Globals(Globals) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();

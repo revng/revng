@@ -11,6 +11,8 @@
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/Model/FunctionAttribute.h"
 
+class CSVGlobals;
+
 namespace efa {
 
 using AttributesSet = MutableSet<model::FunctionAttribute::Values>;
@@ -164,21 +166,21 @@ public:
   /// related information available in it.
   static FunctionSummaryOracle
   importFullPrototypes(llvm::Module &M,
-                       GeneratedCodeBasicInfo &GCBI,
+                       const CSVGlobals &Globals,
                        const model::Binary &Binary);
 
   /// Create an oracle based on the binary, but when importing functions, only
   /// pull preserved registers and FSO from the prototype.
   static FunctionSummaryOracle
   importBasicPrototypeData(llvm::Module &M,
-                           GeneratedCodeBasicInfo &GCBI,
+                           const CSVGlobals &Globals,
                            const model::Binary &Binary);
 
   /// Create an oracle based on the binary, but when importing functions, only
   /// pull preserved registers from the prototype.
   static FunctionSummaryOracle
   importWithoutPrototypes(llvm::Module &M,
-                          GeneratedCodeBasicInfo &GCBI,
+                          const CSVGlobals &Globals,
                           const model::Binary &Binary);
 
 public:

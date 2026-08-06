@@ -8,7 +8,7 @@
 
 #include "llvm/Pass.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/BasicAnalyses/CSVGlobals.h"
 #include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/Support/IRHelper.h"
@@ -35,7 +35,7 @@ private:
   std::unique_ptr<llvm::Module> ClonedModule;
   LLVMFunctionContainer &Output;
   std::optional<RootFunction> RootF;
-  std::optional<GeneratedCodeBasicInfo> GCBI;
+  std::optional<CSVGlobals> Globals;
   std::vector<IsolatedFunction> IsolatedFunctions;
 
   /// How many output modules still need the body of each isolated function

@@ -12,6 +12,7 @@
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include "revng/ADT/Queue.h"
+#include "revng/BasicAnalyses/CSVGlobals.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
@@ -216,8 +217,8 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
         Pointer = CSV;
         PointeeType = CSV->getValueType();
       } else {
-        PointeeType = GCBI.spReg()->getValueType();
-        Pointer = Builder.CreateIntToPtr(Builder.createLoad(GCBI.spReg()),
+        PointeeType = Globals.spReg()->getValueType();
+        Pointer = Builder.CreateIntToPtr(Builder.createLoad(Globals.spReg()),
                                          PointeeType->getPointerTo());
       }
 
