@@ -12,7 +12,6 @@ revng_add_library_internal(
   IRAnnotators.cpp
   LibTcg.cpp
   Lift.cpp
-  LiftPipe.cpp
   LinkSupportPipe.cpp
   JumpTargetManager.cpp
   PostLiftVerifyPass.cpp

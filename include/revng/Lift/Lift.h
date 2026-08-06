@@ -157,18 +157,6 @@ inline Values fromName(llvm::StringRef Name) {
 
 } // namespace KillReason
 
-namespace revng::lift::internal {
-
-llvm::Error checkPrecondition(const model::Binary &Model);
-
-std::tuple<bool, std::map<MetaAddress, bool>>
-collectJumpTargets(const llvm::Module &);
-
-bool shouldInvalidateRoot(const std::map<MetaAddress, bool> &JumpTargets,
-                          const TupleTreeDiff<model::Binary> &Diff);
-
-} // namespace revng::lift::internal
-
 namespace revng::pypeline::piperuns {
 
 class Lift {
