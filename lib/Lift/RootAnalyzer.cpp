@@ -25,6 +25,7 @@
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/Model/ABI/Definition.h"
@@ -888,9 +889,10 @@ static MetaAddress::Features findCommonFeatures(Function *F) {
 
 void RootAnalyzer::cloneOptimizeAndHarvest(Function *TheFunction) {
   // Re-run the identification of function calls
+  RootFunction Root(*TheFunction->getParent());
   GeneratedCodeBasicInfo GCBI(*Model, *TheFunction->getParent());
   legacy::PassManager PM;
-  PM.add(new FunctionCallIdentification(GCBI));
+  PM.add(new FunctionCallIdentification(GCBI, Root));
   PM.run(TheModule);
 
   ValueToValueMapTy OldToNew;

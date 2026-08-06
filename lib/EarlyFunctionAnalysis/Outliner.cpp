@@ -270,11 +270,11 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
   OnceQueue<BasicBlock *> Queue;
   std::vector<BasicBlock *> BlocksToClone;
 
-  auto *AnyPCBB = GCBI.anyPC();
-  auto *UnexpectedPCBB = GCBI.unexpectedPC();
+  auto *AnyPCBB = RootF.anyPC();
+  auto *UnexpectedPCBB = RootF.unexpectedPC();
   Function *Root = AnyPCBB->getParent();
 
-  BasicBlock *EntryBlock = GCBI.getBlockAt(FunctionAddress);
+  BasicBlock *EntryBlock = RootF.getBlockAt(FunctionAddress);
   bool HasEntryBlock = EntryBlock != nullptr;
 
   if (HasEntryBlock)

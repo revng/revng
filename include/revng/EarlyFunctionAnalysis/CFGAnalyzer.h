@@ -93,6 +93,7 @@ private:
 public:
   CFGAnalyzer(llvm::Module &M,
               GeneratedCodeBasicInfo &GCBI,
+              RootFunction &Root,
               const TupleTree<model::Binary> &Binary,
               FunctionSummaryOracle &Oracle);
 

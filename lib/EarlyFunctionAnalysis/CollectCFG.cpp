@@ -85,11 +85,12 @@ CollectCFG::CollectCFG(const class Model &Model,
                        CFGMap &Output) :
   Model(Model),
   Output(Output),
+  Root(Input.getModule()),
   GCBI(*Model.get().get(), Input.getModule()),
   Oracle(FSO::importBasicPrototypeData(Input.getModule(),
                                        GCBI,
                                        *Model.get().get())),
-  Analyzer(Input.getModule(), GCBI, Model.get(), Oracle) {
+  Analyzer(Input.getModule(), GCBI, Root, Model.get(), Oracle) {
 }
 
 void CollectCFG::runOnFunction(const model::Function &Function) {

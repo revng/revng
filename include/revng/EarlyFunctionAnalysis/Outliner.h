@@ -8,6 +8,7 @@
 #include "llvm/Support/ModRef.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
 
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/EarlyFunctionAnalysis/TemporaryOpaqueFunction.h"
 #include "revng/Model/NamedTypedRegister.h"
@@ -79,6 +80,7 @@ class Outliner {
 private:
   llvm::Module &M;
   GeneratedCodeBasicInfo &GCBI;
+  RootFunction &RootF;
   FunctionSummaryOracle &Oracle;
 
   /// UnexpectedPCMarker is used to indicate that `unexpectedpc` basic
@@ -93,9 +95,11 @@ private:
 public:
   Outliner(llvm::Module &M,
            GeneratedCodeBasicInfo &GCBI,
+           RootFunction &RootF,
            FunctionSummaryOracle &Oracle) :
     M(M),
     GCBI(GCBI),
+    RootF(RootF),
     Oracle(Oracle),
     UnexpectedPCMarker(initializeUnexpectedPCMarker(M)),
     OpaqueReturnAddress(&M, false),

@@ -317,9 +317,10 @@ private:
 public:
   FunctionOutliner(llvm::Module &M,
                    const model::Binary &Binary,
+                   RootFunction &Root,
                    GeneratedCodeBasicInfo &GCBI) :
     Oracle(FSOracle::importWithoutPrototypes(M, GCBI, Binary)),
-    Outliner(M, GCBI, Oracle) {}
+    Outliner(M, GCBI, Root, Oracle) {}
 
 public:
   efa::OutlinedFunction outline(MetaAddress Entry,
@@ -336,7 +337,7 @@ void Isolate::handleUnexpectedPCCloned(efa::OutlinedFunction &Outlined) {
          It = UnexpectedPC->begin())
       It->eraseFromParent();
     revng_assert(UnexpectedPC->empty());
-    const DebugLoc &Dbg = GCBI->unexpectedPC()->getTerminator()->getDebugLoc();
+    const DebugLoc &Dbg = RootF->unexpectedPC()->getTerminator()->getDebugLoc();
     emitUnreachable(UnexpectedPC, "unexpectedPC", Dbg);
   }
 }
@@ -608,6 +609,7 @@ Isolate::Isolate(const class Model &Model,
 
   llvm::LLVMContext &Context = ClonedModule->getContext();
   IsolatedFunctionType = createFunctionType<void>(Context);
+  RootF.emplace(*ClonedModule);
   GCBI.emplace(*Model.get().get(), *ClonedModule);
 
   auto SimpleFunctionType = createFunctionType<void>(Context);
@@ -658,7 +660,7 @@ Function *Isolate::isolateFunction(const efa::ControlFlowGraph &FM) {
 
   // Outline the function (later on we'll steal its body and move it into F)
   CallIsolatedFunction CallHandler(*this, FM);
-  FunctionOutliner Outliner(*ClonedModule, Binary, *GCBI);
+  FunctionOutliner Outliner(*ClonedModule, Binary, *RootF, *GCBI);
   efa::OutlinedFunction Outlined = Outliner.outline(Entry, &CallHandler);
 
   handleUnexpectedPCCloned(Outlined);

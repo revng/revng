@@ -23,8 +23,6 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/BlockType.h"
-#include "revng/Support/FunctionCallMarker.h"
-#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/NewPC.h"
 
@@ -53,20 +51,12 @@ private:
   llvm::GlobalVariable *PC = nullptr;
   llvm::GlobalVariable *SP = nullptr;
   llvm::GlobalVariable *RA = nullptr;
-  llvm::BasicBlock *Dispatcher = nullptr;
-  llvm::BasicBlock *DispatcherFail = nullptr;
-  llvm::BasicBlock *AnyPC = nullptr;
-  llvm::BasicBlock *UnexpectedPC = nullptr;
-  std::map<MetaAddress, llvm::BasicBlock *> JumpTargets;
   unsigned PCRegSize = 0;
-  llvm::Function *RootFunction = nullptr;
   std::vector<llvm::GlobalVariable *> CSVs;
   std::vector<llvm::GlobalVariable *> ABIRegisters;
   std::set<llvm::GlobalVariable *> ABIRegistersSet;
-  llvm::Function *NewPC = nullptr;
   std::unique_ptr<ProgramCounterHandler> PCH;
   using PCToBlockMap = std::multimap<MetaAddress, llvm::BasicBlock *>;
-  bool RootParsed = false;
 
 public:
   GeneratedCodeBasicInfo(const model::Binary &Binary, llvm::Module &M);
@@ -177,63 +167,6 @@ public:
     return PCH.get();
   }
 
-  template<typename T>
-  ProgramCounterHandler::DispatcherInfo
-  buildDispatcher(T &Targets,
-                  revng::IRBuilder &Builder,
-                  llvm::BasicBlock *Default = nullptr) {
-    parseRoot();
-
-    ProgramCounterHandler::DispatcherTargets TargetsPairs;
-    TargetsPairs.reserve(Targets.size());
-    for (MetaAddress MA : Targets)
-      TargetsPairs.push_back({ MA, getBlockAt(MA) });
-
-    if (Default == nullptr)
-      Default = UnexpectedPC;
-
-    auto IBDHB = BlockType::IndirectBranchDispatcherHelperBlock;
-    return programCounterHandler()->buildDispatcher(TargetsPairs,
-                                                    Builder,
-                                                    Default,
-                                                    { IBDHB });
-  }
-
-  /// Return the basic block associated to \p PC
-  ///
-  /// Returns nullptr if the PC doesn't have a basic block (yet)
-  llvm::BasicBlock *getBlockAt(MetaAddress PC) {
-    parseRoot();
-
-    auto It = JumpTargets.find(PC);
-    if (It == JumpTargets.end())
-      return nullptr;
-
-    return It->second;
-  }
-
-  bool isJump(llvm::BasicBlock *BB) { return isJump(BB->getTerminator()); }
-
-  /// Return true if \p T represents a jump in the input assembly
-  ///
-  /// Return true if \p T targets include only dispatcher-related basic blocks
-  /// and jump targets.
-  bool isJump(llvm::Instruction *T) {
-    parseRoot();
-    revng_assert(T->getParent()->getParent() == RootFunction);
-    revng_assert(T != nullptr);
-    revng_assert(T->isTerminator());
-
-    for (llvm::BasicBlock *Successor : successors(T)) {
-      if (not(Successor->empty() or Successor == Dispatcher
-              or Successor == DispatcherFail or Successor == AnyPC
-              or Successor == UnexpectedPC or isJumpTarget(Successor)))
-        return false;
-    }
-
-    return true;
-  }
-
   /// Return the program counter of the next (i.e., fallthrough) instruction
   /// of \p TheInstruction
   MetaAddress getNextPC(llvm::Instruction *TheInstruction) const {
@@ -251,43 +184,6 @@ public:
     return FallthroughBA->getBasicBlock();
   }
 
-  auto getBlocksGeneratedByPC(MetaAddress PC) {
-    using namespace llvm;
-    BasicBlock *Entry = getBlockAt(PC);
-    revng_assert(isJumpTarget(Entry));
-    std::set<BasicBlock *> Result;
-
-    llvm::df_iterator_default_set<BasicBlock *> Visited;
-    for (BasicBlock *BB : llvm::depth_first_ext(Entry, Visited)) {
-      Result.insert(BB);
-
-      for (BasicBlock *Successor : successors(BB)) {
-        const auto IBDHB = BlockType::IndirectBranchDispatcherHelperBlock;
-        if (isJumpTarget(Successor)
-            or (not isTranslated(Successor) and getType(Successor) != IBDHB)) {
-          Visited.insert(Successor);
-        }
-      }
-    }
-
-    return Result;
-  }
-
-  llvm::BasicBlock *anyPC() {
-    parseRoot();
-    return AnyPC;
-  }
-
-  llvm::BasicBlock *unexpectedPC() {
-    parseRoot();
-    return UnexpectedPC;
-  }
-
-  llvm::BasicBlock *dispatcher() {
-    parseRoot();
-    return Dispatcher;
-  }
-
   const llvm::ArrayRef<llvm::GlobalVariable *> csvs() const { return CSVs; }
 
   const std::vector<llvm::GlobalVariable *> &abiRegisters() const {
@@ -302,20 +198,9 @@ public:
     return MetaAddress::fromPC(Binary.Architecture(), PC);
   }
 
-  llvm::Function *root() {
-    parseRoot();
-    return RootFunction;
-  }
-
-  llvm::SmallVector<std::pair<llvm::BasicBlock *, bool>, 4>
-  blocksByPCRange(MetaAddress Start, MetaAddress End);
-
   bool hasDelaySlot() const {
     return model::Architecture::hasDelaySlot(Binary.Architecture());
   }
-
-private:
-  void parseRoot();
 };
 
 template<>

@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/FunctionBundle.h"
 #include "revng/Pipebox/TupleTreeContainer.h"
@@ -25,6 +26,7 @@ private:
   const class Model &Model;
   CFGMap &Output;
 
+  RootFunction Root;
   GeneratedCodeBasicInfo GCBI;
   efa::FunctionSummaryOracle Oracle;
   efa::CFGAnalyzer Analyzer;

@@ -8,13 +8,14 @@
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/ADT/GenericGraph.h"
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/EarlyFunctionAnalysis/FunctionBundle.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Ranks/IRHelpers.h"
+#include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/NewPC.h"
 
@@ -142,11 +143,11 @@ FunctionBundle::findBlock(llvm::Instruction *I) const {
   return { &Main, Main.findBlock(I->getParent()) };
 }
 
-void ControlFlowGraph::serialize(GeneratedCodeBasicInfo &GCBI) const {
+void ControlFlowGraph::serialize(RootFunction &Root) const {
   using namespace llvm;
   using llvm::BasicBlock;
 
-  BasicBlock *BB = GCBI.getBlockAt(Entry());
+  BasicBlock *BB = Root.getBlockAt(Entry());
   LLVMContext &Context = getContext(BB);
   std::string Buffer;
   {
