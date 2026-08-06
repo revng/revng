@@ -10,6 +10,7 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/Queue.h"
+#include "revng/BasicAnalyses/CSVGlobals.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
 #include "revng/MFP/MFP.h"
@@ -61,6 +62,7 @@ private:
   llvm::Module &Module;
   Function &LLVMFunction;
   OpaqueFunctionsPool<StringRef> CSVInitializers;
+  CSVGlobals Globals;
   GeneratedCodeBasicInfo GCBI;
   model::Architecture::Values Architecture;
   const model::NamingConfiguration &Configuration;
@@ -73,6 +75,7 @@ public:
     Module(*LLVMFunction.getParent()),
     LLVMFunction(LLVMFunction),
     CSVInitializers(&Module, false),
+    Globals(Binary, Module),
     GCBI(Binary, Module),
     Architecture(Binary.Architecture()),
     Configuration(Binary.Configuration().Naming()) {}
@@ -102,7 +105,7 @@ private:
   /// A CSV that is neither an ABI register nor alive within \p F can only ever
   /// hold its opaque default value, so it needs no alloca/load/store.
   bool isDeadCSV(GlobalVariable *CSV, const DenseSet<GlobalVariable *> &Alive) {
-    return CSVs.contains(CSV) and not GCBI.isABIRegister(CSV)
+    return CSVs.contains(CSV) and not Globals.isABIRegister(CSV)
            and not Alive.contains(CSV);
   }
 };
@@ -115,11 +118,11 @@ void PromoteCSVs::run() {
 
   // Record existing initializers
   const auto &PCCSVs = GCBI.programCounterHandler()->pcCSVs();
-  const auto &R = llvm::concat<GlobalVariable *const>(GCBI.csvs(), PCCSVs);
+  const auto &R = llvm::concat<GlobalVariable *const>(Globals.csvs(), PCCSVs);
   SmallVector<GlobalVariable *> CSVsToSort{ R.begin(), R.end() };
   llvm::sort(CSVsToSort, CompareByName);
   for (GlobalVariable *CSV : CSVsToSort) {
-    if (GCBI.isSPReg(CSV))
+    if (Globals.isSPReg(CSV))
       continue;
 
     CSVs.insert(CSV);

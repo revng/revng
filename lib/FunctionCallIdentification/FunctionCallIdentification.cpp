@@ -37,7 +37,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   LLVMContext &C = M.getContext();
   PointerType *Int8PtrTy = Type::getInt8PtrTy(C);
   auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
-  auto *PCPtrTy = cast<PointerType>(GCBI.pcReg()->getType());
+  auto *PCPtrTy = cast<PointerType>(Globals.pcReg()->getType());
   std::initializer_list<Type *> FunctionArgsTy = {
     Int8PtrTy, Int8PtrTy, Int8PtrTy, PCPtrTy
   };
@@ -88,6 +88,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
     public:
       BasicBlock *BB = nullptr;
       const GeneratedCodeBasicInfo &GCBI;
+      const CSVGlobals &Globals;
       bool SaveRAFound;
       bool StorePCFound;
       Constant *LinkRegister = nullptr;
@@ -102,10 +103,12 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
     public:
       Visitor(BasicBlock *BB,
               const GeneratedCodeBasicInfo &GCBI,
+              const CSVGlobals &Globals,
               MetaAddress ReturnPC,
               PointerType *PCPtrTy) :
         BB(BB),
         GCBI(GCBI),
+        Globals(Globals),
         SaveRAFound(false),
         StorePCFound(false),
         LinkRegister(nullptr),
@@ -122,11 +125,11 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
             Value *Pointer = skipCasts(Store->getPointerOperand());
             auto *TargetCSV = dyn_cast<GlobalVariable>(Pointer);
 
-            if (GCBI.isPCReg(TargetCSV)) {
+            if (Globals.isPCReg(TargetCSV)) {
               if (TargetCSV != nullptr)
                 StorePCFound = true;
             } else if (TargetCSV != nullptr
-                       and not GCBI.isABIRegister(TargetCSV)) {
+                       and not Globals.isABIRegister(TargetCSV)) {
               // Ignore writes to non-ABI registers
             } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
               revng_assert(LastPC.isValid());
@@ -168,7 +171,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
                     if (auto *S = dyn_cast<StoreInst>(&I)) {
                       Value *Pointer = skipCasts(S->getPointerOperand());
                       auto *P = dyn_cast<GlobalVariable>(Pointer);
-                      if (P != nullptr && GCBI.isSPReg(P)) {
+                      if (P != nullptr && Globals.isSPReg(P)) {
                         LastStackPointer = Store->getPointerOperand();
                         break;
                       }
@@ -221,7 +224,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
     };
 
     MetaAddress ReturnPC = GCBI.getNextPC(Terminator);
-    Visitor V(&BB, GCBI, ReturnPC, PCPtrTy);
+    Visitor V(&BB, GCBI, Globals, ReturnPC, PCPtrTy);
     V.run(Terminator);
 
     BasicBlock *ReturnBB = Root.getBlockAt(ReturnPC);

@@ -28,7 +28,6 @@
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/Queue.h"
 #include "revng/ADT/ZipMapIterator.h"
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/AnalyzeRegisterUsage.h"
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
@@ -318,9 +317,9 @@ public:
   FunctionOutliner(llvm::Module &M,
                    const model::Binary &Binary,
                    RootFunction &Root,
-                   GeneratedCodeBasicInfo &GCBI) :
-    Oracle(FSOracle::importWithoutPrototypes(M, GCBI, Binary)),
-    Outliner(M, GCBI, Root, Oracle) {}
+                   const CSVGlobals &Globals) :
+    Oracle(FSOracle::importWithoutPrototypes(M, Globals, Binary)),
+    Outliner(M, Root, Globals, Oracle) {}
 
 public:
   efa::OutlinedFunction outline(MetaAddress Entry,
@@ -610,7 +609,7 @@ Isolate::Isolate(const class Model &Model,
   llvm::LLVMContext &Context = ClonedModule->getContext();
   IsolatedFunctionType = createFunctionType<void>(Context);
   RootF.emplace(*ClonedModule);
-  GCBI.emplace(*Model.get().get(), *ClonedModule);
+  Globals.emplace(*Model.get().get(), *ClonedModule);
 
   auto SimpleFunctionType = createFunctionType<void>(Context);
   FunctionDispatcher = FunctionDispatcherHelper
@@ -660,7 +659,7 @@ Function *Isolate::isolateFunction(const efa::ControlFlowGraph &FM) {
 
   // Outline the function (later on we'll steal its body and move it into F)
   CallIsolatedFunction CallHandler(*this, FM);
-  FunctionOutliner Outliner(*ClonedModule, Binary, *RootF, *GCBI);
+  FunctionOutliner Outliner(*ClonedModule, Binary, *RootF, *Globals);
   efa::OutlinedFunction Outlined = Outliner.outline(Entry, &CallHandler);
 
   handleUnexpectedPCCloned(Outlined);

@@ -6,6 +6,7 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/STLExtras.h"
+#include "revng/BasicAnalyses/CSVGlobals.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 
 static Logger Log("efa-import-model");
@@ -215,16 +216,16 @@ FunctionSummaryOracle::getExactCallSite(MetaAddress Entry,
 
 template<PrototypeImportLevel Level>
 FunctionSummaryOracle importImpl(llvm::Module &M,
-                                 GeneratedCodeBasicInfo &GCBI,
+                                 const CSVGlobals &Globals,
                                  const model::Binary &Binary) {
   using GV = llvm::GlobalVariable;
-  auto RegisterFilter = std::views::filter([SP = GCBI.spReg()](GV *CSV) {
+  auto RegisterFilter = std::views::filter([SP = Globals.spReg()](GV *CSV) {
     return CSV != nullptr && CSV != SP;
   });
   PrototypeImporter Importer{
     .Level = Level,
     .M = M,
-    .ABICSVs = GCBI.abiRegisters() | RegisterFilter
+    .ABICSVs = Globals.abiRegisters() | RegisterFilter
                | revng::to<std::set<llvm::GlobalVariable *>>()
   };
 
@@ -233,30 +234,30 @@ FunctionSummaryOracle importImpl(llvm::Module &M,
 
 FunctionSummaryOracle
 FunctionSummaryOracle::importFullPrototypes(llvm::Module &M,
-                                            GeneratedCodeBasicInfo &GCBI,
+                                            const CSVGlobals &Globals,
                                             const model::Binary &Binary) {
   revng_log(Log,
             "Importing from the model, while taking prototypes into the "
             "account");
-  return importImpl<PrototypeImportLevel::Full>(M, GCBI, Binary);
+  return importImpl<PrototypeImportLevel::Full>(M, Globals, Binary);
 }
 
 FunctionSummaryOracle
 FunctionSummaryOracle::importBasicPrototypeData(llvm::Module &M,
-                                                GeneratedCodeBasicInfo &GCBI,
+                                                const CSVGlobals &Globals,
                                                 const model::Binary &Binary) {
   revng_log(Log,
             "Importing from the model, but ignoring some of the prototype "
             "data");
-  return importImpl<PrototypeImportLevel::Partial>(M, GCBI, Binary);
+  return importImpl<PrototypeImportLevel::Partial>(M, Globals, Binary);
 }
 
 FunctionSummaryOracle
 FunctionSummaryOracle::importWithoutPrototypes(llvm::Module &M,
-                                               GeneratedCodeBasicInfo &GCBI,
+                                               const CSVGlobals &Globals,
                                                const model::Binary &Binary) {
   revng_log(Log, "Importing from the model, but ignoring prototypes");
-  return importImpl<PrototypeImportLevel::None>(M, GCBI, Binary);
+  return importImpl<PrototypeImportLevel::None>(M, Globals, Binary);
 }
 
 } // namespace efa

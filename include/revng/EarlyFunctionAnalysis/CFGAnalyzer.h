@@ -69,7 +69,7 @@ public:
 class CFGAnalyzer {
 private:
   llvm::Module &M;
-  GeneratedCodeBasicInfo &GCBI;
+  const CSVGlobals &Globals;
   const ProgramCounterHandler *PCH = nullptr;
   FunctionSummaryOracle &Oracle;
   const TupleTree<model::Binary> &Binary;
@@ -94,6 +94,7 @@ public:
   CFGAnalyzer(llvm::Module &M,
               GeneratedCodeBasicInfo &GCBI,
               RootFunction &Root,
+              const CSVGlobals &Globals,
               const TupleTree<model::Binary> &Binary,
               FunctionSummaryOracle &Oracle);
 

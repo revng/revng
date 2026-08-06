@@ -47,7 +47,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
 
     // Assumption: helpers do not leave the stack altered, thus we can save the
     // stack pointer and restore it back later.
-    auto *SP = Builder.createLoad(GCBI.spReg());
+    auto *SP = Builder.createLoad(StackPointer);
 
     auto *RetTy = cast<CallInst>(I)->getFunctionType()->getReturnType();
     auto *OriginalHelperMarker = OFPOriginalHelper.get(RetTy,
@@ -63,7 +63,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
       Clobberer.clobber(Builder, CSV);
 
     // Restore stack pointer back.
-    Builder.CreateStore(SP, GCBI.spReg());
+    Builder.CreateStore(SP, StackPointer);
 
     I->replaceAllUsesWith(NewHelper);
     I->eraseFromParent();
