@@ -12,7 +12,6 @@
 
 #include "revng/BasicAnalyses/CSVGlobals.h"
 #include "revng/BasicAnalyses/CustomCFG.h"
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/NewPC.h"
@@ -30,15 +29,18 @@
 class FunctionCallIdentification : public llvm::ModulePass {
 public:
   static char ID;
-  GeneratedCodeBasicInfo &GCBI;
   RootFunction &Root;
   const CSVGlobals &Globals;
+  model::Architecture::Values Architecture;
 
 public:
-  FunctionCallIdentification(GeneratedCodeBasicInfo &GCBI,
-                             RootFunction &Root,
-                             const CSVGlobals &Globals) :
-    llvm::ModulePass(ID), GCBI(GCBI), Root(Root), Globals(Globals) {}
+  FunctionCallIdentification(RootFunction &Root,
+                             const CSVGlobals &Globals,
+                             model::Architecture::Values Architecture) :
+    llvm::ModulePass(ID),
+    Root(Root),
+    Globals(Globals),
+    Architecture(Architecture) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();

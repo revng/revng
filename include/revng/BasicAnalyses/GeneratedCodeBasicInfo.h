@@ -105,10 +105,6 @@ public:
   MetaAddress fromPC(uint64_t PC) const {
     return MetaAddress::fromPC(Binary.Architecture(), PC);
   }
-
-  bool hasDelaySlot() const {
-    return model::Architecture::hasDelaySlot(Binary.Architecture());
-  }
 };
 
 template<>

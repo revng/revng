@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/DepthFirstIterator.h"
+
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/Debug.h"
