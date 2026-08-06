@@ -11,7 +11,9 @@
 
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddresses.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
+#include "revng/Lift/JumpTargetReason.h"
 #include "revng/Lift/Lift.h"
+#include "revng/Support/BlockType.h"
 #include "revng/Support/NewPC.h"
 
 using namespace llvm;
@@ -20,11 +22,8 @@ static Logger Log("functions-from-unused-addresses-collection");
 
 class CFFUAImpl {
 public:
-  CFFUAImpl(llvm::Module &M,
-            RootFunction &Root,
-            GeneratedCodeBasicInfo &GCBI,
-            model::Binary &Binary) :
-    M(M), Root(Root), GCBI(GCBI), Binary(Binary) {}
+  CFFUAImpl(llvm::Module &M, RootFunction &Root, model::Binary &Binary) :
+    M(M), Root(Root), Binary(Binary) {}
 
   void run(ControlFlowGraphCache &MDCache) {
     loadAllCFGs(MDCache);
@@ -62,14 +61,17 @@ private:
       if (Binary.Functions().tryGet(Entry) != nullptr)
         continue;
 
-      uint32_t Reasons = GCBI.getJTReasons(&BB);
-      bool IsSimpleLiteral = hasReason(Reasons, JTReason::SimpleLiteral);
-      bool IsUnusedGlobalData = hasReason(Reasons, JTReason::UnusedGlobalData);
-      bool IsDirectJump = hasReason(Reasons, JTReason::DirectJump);
-      bool IsMemoryStore = hasReason(Reasons, JTReason::MemoryStore);
-      bool IsPCStore = hasReason(Reasons, JTReason::PCStore);
-      bool IsReturnAddress = hasReason(Reasons, JTReason::ReturnAddress);
-      bool IsLoadAddress = hasReason(Reasons, JTReason::LoadAddress);
+      uint32_t Reasons = JumpTargetReason::getReasons(&BB);
+      bool IsSimpleLiteral = hasReason(Reasons,
+                                       JumpTargetReason::SimpleLiteral);
+      bool IsUnusedGlobalData = hasReason(Reasons,
+                                          JumpTargetReason::UnusedGlobalData);
+      bool IsDirectJump = hasReason(Reasons, JumpTargetReason::DirectJump);
+      bool IsMemoryStore = hasReason(Reasons, JumpTargetReason::MemoryStore);
+      bool IsPCStore = hasReason(Reasons, JumpTargetReason::PCStore);
+      bool IsReturnAddress = hasReason(Reasons,
+                                       JumpTargetReason::ReturnAddress);
+      bool IsLoadAddress = hasReason(Reasons, JumpTargetReason::LoadAddress);
       bool IsPartOfOtherCFG = UsedRanges.find(Entry) != UsedRanges.end();
 
       revng_log(Log,
@@ -121,16 +123,14 @@ private:
 private:
   llvm::Module &M;
   RootFunction &Root;
-  GeneratedCodeBasicInfo &GCBI;
   model::Binary &Binary;
   interval_set UsedRanges;
 };
 
 void collectFunctionsFromUnusedAddresses(llvm::Module &M,
                                          RootFunction &Root,
-                                         GeneratedCodeBasicInfo &GCBI,
                                          model::Binary &Binary,
                                          ControlFlowGraphCache &FMC) {
-  CFFUAImpl Impl(M, Root, GCBI, Binary);
+  CFFUAImpl Impl(M, Root, Binary);
   Impl.run(FMC);
 }

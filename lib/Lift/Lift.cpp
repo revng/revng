@@ -4,12 +4,13 @@
 
 #include "llvm/Transforms/IPO/StripSymbols.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Lift/JumpTargetReason.h"
 #include "revng/Lift/LibTcg.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/SimplePassManager.h"
 
@@ -86,6 +87,8 @@ struct llvm::yaml::CustomMappingTraits<JumpTargetMap> {
 
 static std::tuple<bool, std::map<MetaAddress, bool>>
 collectJumpTargets(const llvm::Module &Module) {
+  namespace JTR = JumpTargetReason;
+
   const llvm::Function *Root = Module.getFunction("root");
   std::optional NewPC = NewPCHelper.get(Module);
 
@@ -109,10 +112,10 @@ collectJumpTargets(const llvm::Module &Module) {
       bool DependsOnModelFunction = true;
       const llvm::Instruction
         *Terminator = Call.call()->getParent()->getTerminator();
-      if (Terminator->hasMetadata(JTReasonMDName)) {
-        uint32_t Reasons = GeneratedCodeBasicInfo::getJTReasons(Terminator);
+      if (Terminator->hasMetadata(JTR::MDName)) {
+        uint32_t Reasons = JTR::getReasons(Terminator);
         DependsOnModelFunction = hasReason(Reasons,
-                                           JTReason::DependsOnModelFunction);
+                                           JTR::DependsOnModelFunction);
       }
 
       JumpTargets.emplace(Address, DependsOnModelFunction);

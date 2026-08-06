@@ -65,29 +65,6 @@ public:
     return false;
   }
 
-  static uint32_t getJTReasons(const llvm::BasicBlock *BB) {
-    return getJTReasons(BB->getTerminator());
-  }
-
-  static uint32_t getJTReasons(const llvm::Instruction *T) {
-    using namespace llvm;
-
-    revng_assert(T->isTerminator());
-
-    uint32_t Result = 0;
-
-    const MDNode *Node = T->getMetadata(JTReasonMDName);
-    const auto *Tuple = cast_or_null<MDTuple>(Node);
-    revng_assert(Tuple != nullptr);
-
-    for (const Metadata *ReasonMD : Tuple->operands()) {
-      StringRef Text = cast<MDString>(ReasonMD)->getString();
-      Result |= static_cast<uint32_t>(JTReason::fromName(Text));
-    }
-
-    return Result;
-  }
-
   KillReason::Values getKillReason(llvm::BasicBlock *BB) const {
     return getKillReason(BB->getTerminator());
   }
