@@ -722,7 +722,7 @@ void IT::registerDirectJumps() {
     auto &&[Result, NextPC] = PCH->getUniqueJumpTarget(ExitBB);
     if (Result == NextJumpTarget::Unique and JumpTargets.isPC(NextPC)
         and not JumpTargets.hasJT(NextPC)) {
-      JumpTargets.registerJT(NextPC, JTReason::DirectJump);
+      JumpTargets.registerJT(NextPC, JumpTargetReason::DirectJump);
     }
   }
 

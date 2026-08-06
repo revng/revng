@@ -33,6 +33,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/InlineHelpers/InlineHelpers.h"
 #include "revng/InlineHelpers/LinkHelpersToInline.h"
+#include "revng/Lift/JumpTargetReason.h"
 #include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
@@ -1003,9 +1004,7 @@ DetectABI::computePreservedRegisters(const CSVSet &ClobberedRegisters) const {
 
 static Logger FunctionFromCalleesLog("functions-from-callees-collection");
 
-static void collectFunctionsFromCallees(Module &M,
-                                        GeneratedCodeBasicInfo &GCBI,
-                                        model::Binary &Binary) {
+static void collectFunctionsFromCallees(Module &M, model::Binary &Binary) {
   Function &Root = *M.getFunction("root");
 
   // Static symbols have already been registered during lifting phase. Now
@@ -1018,8 +1017,8 @@ static void collectFunctionsFromCallees(Module &M,
     if (Binary.Functions().contains(Entry))
       continue;
 
-    uint32_t Reasons = GCBI.getJTReasons(&BB);
-    bool IsCallee = hasReason(Reasons, JTReason::Callee);
+    uint32_t Reasons = JumpTargetReason::getReasons(&BB);
+    bool IsCallee = hasReason(Reasons, JumpTargetReason::Callee);
 
     if (IsCallee) {
       // Create the function
@@ -1179,9 +1178,9 @@ llvm::Error DetectABI::run(Model &Model,
     PM.run(Module);
   }
 
-  efa::collectFunctionsFromCallees(Module, GCBI, Binary);
+  efa::collectFunctionsFromCallees(Module, Binary);
   efa::runDetectABI(Module, Root, Globals, GCBI, FMC, TupleModel);
-  collectFunctionsFromUnusedAddresses(Module, Root, GCBI, Binary, FMC);
+  collectFunctionsFromUnusedAddresses(Module, Root, Binary, FMC);
   efa::runDetectABI(Module, Root, Globals, GCBI, FMC, TupleModel);
 
   return llvm::Error::success();

@@ -70,7 +70,6 @@ inline void eraseFromParent(llvm::Value *V) {
 }
 
 constexpr const char *FunctionEntryMDName = "revng.function.entry";
-constexpr const char *JTReasonMDName = "revng.jt.reasons";
 constexpr const char *ControlFlowGraphMDName = "revng.function.metadata";
 constexpr const char *ExplicitParenthesesMDName = "revng.explicit_parentheses";
 constexpr llvm::StringRef InlineHelpersSection = "revng_inline";

@@ -20,6 +20,7 @@
 #include "llvm/IR/PassManager.h"
 
 #include "revng/BasicAnalyses/MaterializedValue.h"
+#include "revng/Lift/JumpTargetReason.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
@@ -168,19 +169,20 @@ public:
   public:
     JumpTarget() : BB(nullptr), Reasons(0) {}
     JumpTarget(llvm::BasicBlock *BB) : BB(BB), Reasons(0) {}
-    JumpTarget(llvm::BasicBlock *BB, JTReason::Values Reason) :
+    JumpTarget(llvm::BasicBlock *BB, JumpTargetReason::Values Reason) :
       BB(BB), Reasons(static_cast<uint32_t>(Reason)) {}
 
     llvm::BasicBlock *head() const { return BB; }
-    bool hasReason(JTReason::Values Reason) const {
+    bool hasReason(JumpTargetReason::Values Reason) const {
       return (Reasons & static_cast<uint32_t>(Reason)) != 0;
     }
-    void setReason(JTReason::Values Reason) {
+    void setReason(JumpTargetReason::Values Reason) {
       Reasons |= static_cast<uint32_t>(Reason);
     }
     uint32_t getReasons() const { return Reasons; }
 
-    bool isOnlyReason(JTReason::Values Reason, JTReason::Values Ignore) const {
+    bool isOnlyReason(JumpTargetReason::Values Reason,
+                      JumpTargetReason::Values Ignore) const {
       return (hasReason(Reason)
               and (Reasons & ~static_cast<uint32_t>(Reason | Ignore)) == 0);
     }
@@ -188,11 +190,12 @@ public:
     std::vector<const char *> getReasonNames() const {
       std::vector<const char *> Result;
 
-      uint32_t LastReason = static_cast<uint32_t>(JTReason::LastReason);
+      uint32_t LastReason = static_cast<uint32_t>(JumpTargetReason::LastReason);
       for (unsigned Reason = 1; Reason <= LastReason; Reason <<= 1) {
-        JTReason::Values R = static_cast<JTReason::Values>(Reason);
+        JumpTargetReason::Values
+          R = static_cast<JumpTargetReason::Values>(Reason);
         if (hasReason(R))
-          Result.push_back(JTReason::getName(R));
+          Result.push_back(JumpTargetReason::getName(R));
       }
 
       return Result;
@@ -325,7 +328,7 @@ public:
   ///         created in the past or even a `BasicBlock` already containing the
   ///         translated code.  It might also return `nullptr` if the PC is not
   ///         valid or another error occurred.
-  llvm::BasicBlock *registerJT(MetaAddress PC, JTReason::Values Reason);
+  llvm::BasicBlock *registerJT(MetaAddress PC, JumpTargetReason::Values Reason);
 
   bool hasJT(MetaAddress PC) {
     revng_assert(PC.isValid());
@@ -340,7 +343,7 @@ public:
     return JumpTargets.at(Address);
   }
 
-  void registerJT(llvm::BasicBlock *BB, JTReason::Values Reason) {
+  void registerJT(llvm::BasicBlock *BB, JumpTargetReason::Values Reason) {
     registerJT(getBasicBlockAddress(&notNull(BB)), Reason);
   }
 
@@ -348,7 +351,7 @@ public:
   /// As registerJT, but only if the JT has already been registered
   ///
   /// \return true if the given PC did not already have such reason
-  bool markJT(MetaAddress PC, JTReason::Values Reason) {
+  bool markJT(MetaAddress PC, JumpTargetReason::Values Reason) {
     bool Result = false;
     revng_assert(PC.isValid());
 
@@ -437,7 +440,8 @@ public:
 
       if (PC.isValid()) {
         // Set as reason UnusedGlobalData and ensure it's not empty
-        llvm::BasicBlock *BB = registerJT(PC, JTReason::UnusedGlobalData);
+        llvm::BasicBlock *BB = registerJT(PC,
+                                          JumpTargetReason::UnusedGlobalData);
 
         // TODO: can this happen?
         revng_assert(BB != nullptr);
@@ -463,7 +467,7 @@ public:
     return fromPC(Constant->getLimitedValue());
   }
 
-  void createJTReasonMD() {
+  void createJumpTargetReasonMD() {
     using namespace llvm;
 
     Function *CallMarker = functionOrNull(FunctionCallMarker.get(TheModule));
@@ -474,8 +478,9 @@ public:
       for (User *U : CallMarker->users()) {
         if (CallInst *Call = dyn_cast<CallInst>(U)) {
           if (isa<BlockAddress>(Call->getOperand(0)))
-            registerJT(UnwrapBA(Call->getOperand(0)), JTReason::Callee);
-          registerJT(UnwrapBA(Call->getOperand(1)), JTReason::ReturnAddress);
+            registerJT(UnwrapBA(Call->getOperand(0)), JumpTargetReason::Callee);
+          registerJT(UnwrapBA(Call->getOperand(1)),
+                     JumpTargetReason::ReturnAddress);
         }
       }
     }
@@ -490,7 +495,7 @@ public:
       for (const char *ReasonName : JT.getReasonNames())
         Reasons.push_back(MDString::get(Context, ReasonName));
 
-      T->setMetadata("revng.jt.reasons", MDTuple::get(Context, Reasons));
+      T->setMetadata(JumpTargetReason::MDName, MDTuple::get(Context, Reasons));
     }
   }
 
