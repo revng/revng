@@ -20,6 +20,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
@@ -127,6 +128,7 @@ private:
 private:
   llvm::Module &M;
   llvm::LLVMContext &Context;
+  RootFunction &Root;
   GeneratedCodeBasicInfo &GCBI;
   ControlFlowGraphCache &FMC;
   TupleTree<model::Binary> &Binary;
@@ -138,6 +140,7 @@ private:
 
 public:
   DetectABI(llvm::Module &M,
+            RootFunction &Root,
             GeneratedCodeBasicInfo &GCBI,
             ControlFlowGraphCache &FMC,
             TupleTree<model::Binary> &Binary,
@@ -145,6 +148,7 @@ public:
             CFGAnalyzer &Analyzer) :
     M(M),
     Context(M.getContext()),
+    Root(Root),
     GCBI(GCBI),
     FMC(FMC),
     Binary(Binary),
@@ -232,7 +236,7 @@ void DetectABI::computeApproximateCallGraph() {
 
   // Create an over-approximated call graph
   for (const auto &Function : Binary->Functions()) {
-    auto *Entry = GCBI.getBlockAt(Function.Entry());
+    auto *Entry = Root.getBlockAt(Function.Entry());
     BasicBlockNode Node{ Function.Entry() };
     BasicBlockNode *GraphNode = ApproximateCallGraph.addNode(Node);
     BasicBlockNodeMap[Entry] = GraphNode;
@@ -240,7 +244,7 @@ void DetectABI::computeApproximateCallGraph() {
 
   for (const auto &Function : Binary->Functions()) {
     llvm::SmallSet<BasicBlock *, 8> Visited;
-    auto *Entry = GCBI.getBlockAt(Function.Entry());
+    auto *Entry = Root.getBlockAt(Function.Entry());
     revng_assert(Entry != nullptr);
 
     BasicBlockNode *StartNode = BasicBlockNodeMap[Entry];
@@ -512,7 +516,8 @@ void DetectABI::analyzeABI() {
       LoggerIndent Indent(Log);
       // The prototype of the function we analyzed has changed, reanalyze
       // callers
-      auto &FunctionNode = BasicBlockNodeMap[GCBI.getBlockAt(Function.Entry())];
+      auto *EntryBlock = Root.getBlockAt(Function.Entry());
+      auto &FunctionNode = BasicBlockNodeMap[EntryBlock];
       for (auto &CallerNode : FunctionNode->predecessors()) {
         if (CallerNode->Address.isValid()) {
           revng_log(Log, CallerNode->Address.toString());
@@ -830,7 +835,7 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
     //  - don't write stack pointer
     //  - don't write to callee arguments
     //  - every store instruction writes to registers (not memory)
-    llvm::BasicBlock *BB = GCBI.getBlockAt(Block.ID().start());
+    llvm::BasicBlock *BB = Root.getBlockAt(Block.ID().start());
 
     GlobalVariable *StackPointer = GCBI.spReg();
 
@@ -1133,13 +1138,14 @@ Changes DetectABI::runAnalyses(MetaAddress EntryAddress,
 }
 
 static void runDetectABI(Module &M,
+                         RootFunction &Root,
                          GeneratedCodeBasicInfo &GCBI,
                          ControlFlowGraphCache &FMC,
                          TupleTree<model::Binary> &Binary) {
   using FSOracle = FunctionSummaryOracle;
   FSOracle Oracle = FSOracle::importFullPrototypes(M, GCBI, *Binary);
-  CFGAnalyzer Analyzer(M, GCBI, Binary, Oracle);
-  DetectABI ABIDetector(M, GCBI, FMC, Binary, Oracle, Analyzer);
+  CFGAnalyzer Analyzer(M, GCBI, Root, Binary, Oracle);
+  DetectABI ABIDetector(M, Root, GCBI, FMC, Binary, Oracle, Analyzer);
   ABIDetector.run();
 }
 
@@ -1155,6 +1161,7 @@ llvm::Error DetectABI::run(Model &Model,
   TupleTree<model::Binary> &TupleModel = Model.get();
   model::Binary &Binary = *TupleModel;
 
+  RootFunction Root(Module);
   GeneratedCodeBasicInfo GCBI(Binary, Module);
   ControlFlowGraphCache FMC;
 
@@ -1167,9 +1174,9 @@ llvm::Error DetectABI::run(Model &Model,
   }
 
   efa::collectFunctionsFromCallees(Module, GCBI, Binary);
-  efa::runDetectABI(Module, GCBI, FMC, TupleModel);
-  collectFunctionsFromUnusedAddresses(Module, GCBI, Binary, FMC);
-  efa::runDetectABI(Module, GCBI, FMC, TupleModel);
+  efa::runDetectABI(Module, Root, GCBI, FMC, TupleModel);
+  collectFunctionsFromUnusedAddresses(Module, Root, GCBI, Binary, FMC);
+  efa::runDetectABI(Module, Root, GCBI, FMC, TupleModel);
 
   return llvm::Error::success();
 }

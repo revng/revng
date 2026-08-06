@@ -11,6 +11,7 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
@@ -37,6 +38,7 @@ private:
   Module &RootModule;
   const Module *FunctionModule;
   LLVMContext &Context;
+  class RootFunction Root;
   GeneratedCodeBasicInfo GCBI;
   FunctionMap Map;
 
@@ -49,6 +51,7 @@ public:
     RootModule(RootModule),
     FunctionModule(FunctionModule),
     Context(RootModule.getContext()),
+    Root(RootModule),
     GCBI(Binary, RootModule) {
 
     for (const model::Function &Function : Binary.Functions()) {
@@ -77,7 +80,7 @@ public:
                                                        &RootFunction,
                                                        nullptr);
 
-    BranchInst::Create(GCBI.dispatcher(), InvokeReturnBlock);
+    BranchInst::Create(Root.dispatcher(), InvokeReturnBlock);
 
     return InvokeReturnBlock;
   }
@@ -118,7 +121,7 @@ public:
 
   void run() {
     // Get the unexpectedpc block of the root function
-    BasicBlock *UnexpectedPC = GCBI.unexpectedPC();
+    BasicBlock *UnexpectedPC = Root.unexpectedPC();
 
     // Instantiate the basic block structure that handles the control flow after
     // an invoke

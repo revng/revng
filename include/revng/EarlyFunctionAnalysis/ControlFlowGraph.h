@@ -13,7 +13,7 @@
 namespace llvm {
 class BasicBlock;
 }
-class GeneratedCodeBasicInfo;
+class RootFunction;
 
 #include "revng/EarlyFunctionAnalysis/Generated/Early/ControlFlowGraph.h"
 
@@ -28,7 +28,7 @@ public:
 public:
   const efa::BasicBlock *findBlock(llvm::BasicBlock *BB) const;
 
-  void serialize(GeneratedCodeBasicInfo &GCBI) const;
+  void serialize(RootFunction &Root) const;
 
 public:
   bool verify(const model::Binary &Binary) const debug_function;

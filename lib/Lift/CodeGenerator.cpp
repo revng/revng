@@ -52,6 +52,7 @@
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/ADT/Queue.h"
 #include "revng/ADT/STLExtras.h"
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Lift/Helpers.h"
@@ -665,10 +666,11 @@ void CodeGenerator::translate(LibTcg &LibTcg,
   revng_assert(Phis.begin() == Phis.end(),
                "A phi has appeared in the dispatcher");
 
+  class RootFunction Root(*TheModule);
   GeneratedCodeBasicInfo GCBI(*Model, *TheModule);
   legacy::PassManager PostInstCombinePM;
-  PostInstCombinePM.add(new FunctionCallIdentification(GCBI));
-  PostInstCombinePM.add(new PruneRetSuccessors(GCBI));
+  PostInstCombinePM.add(new FunctionCallIdentification(GCBI, Root));
+  PostInstCombinePM.add(new PruneRetSuccessors(Root));
   PostInstCombinePM.add(createGlobalDCEPass());
   PostInstCombinePM.run(*TheModule);
 

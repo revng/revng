@@ -7,6 +7,7 @@ revng_add_analyses_library_internal(
   EmptyNewPC.cpp
   RemoveDbgMetadata.cpp
   GeneratedCodeBasicInfo.cpp
+  RootFunction.cpp
   MaterializedValue.cpp
   RemoveNewPCCalls.cpp
   RemoveHelperCalls.cpp

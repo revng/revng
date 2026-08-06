@@ -25,9 +25,6 @@ GeneratedCodeBasicInfo::GeneratedCodeBasicInfo(const model::Binary &Binary,
                                                llvm::Module &M) :
   Binary(Binary), Module(M) {
 
-  RootFunction = M.getFunction("root");
-  NewPC = functionOrNull(NewPCHelper.get(M));
-
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 
   using namespace model::Architecture;
@@ -51,103 +48,4 @@ GeneratedCodeBasicInfo::GeneratedCodeBasicInfo(const model::Binary &Binary,
     CSVs.push_back(&CSV);
 
   revng_log(PassesLog, "Ending GeneratedCodeBasicInfo");
-}
-
-void GeneratedCodeBasicInfo::parseRoot() {
-  revng_assert(RootFunction != nullptr);
-  revng_assert(not RootFunction->isDeclaration());
-
-  if (RootParsed)
-    return;
-  RootParsed = true;
-
-  for (BasicBlock &BB : *RootFunction) {
-    if (!BB.empty()) {
-      switch (getType(&BB)) {
-      case BlockType::RootDispatcherBlock:
-        revng_assert(Dispatcher == nullptr);
-        Dispatcher = &BB;
-        break;
-
-      case BlockType::DispatcherFailureBlock:
-        revng_assert(DispatcherFail == nullptr);
-        DispatcherFail = &BB;
-        break;
-
-      case BlockType::AnyPCBlock:
-        revng_assert(AnyPC == nullptr);
-        AnyPC = &BB;
-        break;
-
-      case BlockType::UnexpectedPCBlock:
-        revng_assert(UnexpectedPC == nullptr);
-        UnexpectedPC = &BB;
-        break;
-
-      case BlockType::JumpTargetBlock: {
-        std::optional Call = NewPCHelper.getCall(&*BB.begin());
-        revng_assert(Call.has_value());
-        JumpTargets[addressFromNewPC(*Call)] = &BB;
-        break;
-      }
-      case BlockType::RootDispatcherHelperBlock:
-      case BlockType::IndirectBranchDispatcherHelperBlock:
-      case BlockType::EntryPoint:
-      case BlockType::ExternalJumpsHandlerBlock:
-      case BlockType::TranslatedBlock:
-        // Nothing to do here
-        break;
-      }
-    }
-  }
-}
-
-SmallVector<std::pair<BasicBlock *, bool>, 4>
-GeneratedCodeBasicInfo::blocksByPCRange(MetaAddress Start, MetaAddress End) {
-  SmallVector<std::pair<BasicBlock *, bool>, 4> Result;
-
-  BasicBlock *StartBB = getBlockAt(Start);
-
-  df_iterator_default_set<BasicBlock *> Visited;
-  for (BasicBlock *BB : depth_first_ext(StartBB, Visited)) {
-    // Detect if this basic block is a boundary
-    enum {
-      Unknown,
-      Yes,
-      No
-    } IsBoundary = Unknown;
-
-    auto SuccBegin = succ_begin(BB);
-    auto SuccEnd = succ_end(BB);
-    if (SuccBegin == SuccEnd) {
-      // This basic blocks ends with an `UnreachableInst`
-      IsBoundary = Yes;
-    } else {
-      for (BasicBlock *Successor : make_range(SuccBegin, SuccEnd)) {
-
-        // Ignore unexpectedpc
-        if (getType(Successor) == BlockType::UnexpectedPCBlock)
-          continue;
-
-        auto SuccessorMA = getBasicBlockAddress(Successor);
-        if (not isPartOfRootDispatcher(Successor)
-            and (SuccessorMA.isInvalid()
-                 or (SuccessorMA.address() >= Start.address()
-                     and SuccessorMA.address() < End.address()))) {
-          revng_assert(IsBoundary != Yes);
-          IsBoundary = No;
-        } else {
-          revng_assert(IsBoundary != No);
-          IsBoundary = Yes;
-          Visited.insert(Successor);
-        }
-      }
-    }
-
-    revng_assert(IsBoundary != Unknown);
-
-    Result.emplace_back(BB, IsBoundary == Yes);
-  }
-
-  return Result;
 }

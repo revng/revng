@@ -12,6 +12,7 @@
 
 #include "revng/BasicAnalyses/CustomCFG.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/NewPC.h"
 
@@ -29,10 +30,11 @@ class FunctionCallIdentification : public llvm::ModulePass {
 public:
   static char ID;
   GeneratedCodeBasicInfo &GCBI;
+  RootFunction &Root;
 
 public:
-  FunctionCallIdentification(GeneratedCodeBasicInfo &GCBI) :
-    llvm::ModulePass(ID), GCBI(GCBI) {}
+  FunctionCallIdentification(GeneratedCodeBasicInfo &GCBI, RootFunction &Root) :
+    llvm::ModulePass(ID), GCBI(GCBI), Root(Root) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
