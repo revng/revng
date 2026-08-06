@@ -23,7 +23,7 @@ using namespace llvm;
 
 GeneratedCodeBasicInfo::GeneratedCodeBasicInfo(const model::Binary &Binary,
                                                llvm::Module &M) :
-  Binary(Binary), Module(M) {
+  Binary(Binary) {
 
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
   revng_log(PassesLog, "Ending GeneratedCodeBasicInfo");

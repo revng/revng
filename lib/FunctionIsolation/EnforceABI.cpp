@@ -5,6 +5,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <memory>
+
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/CFG.h"
@@ -22,7 +24,6 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/LazySmallBitVector.h"
 #include "revng/ADT/SmallMap.h"
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
@@ -30,6 +31,7 @@
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Support/BlockType.h"
@@ -51,7 +53,7 @@ private:
   const model::Function &ModelFunction;
   llvm::Function &OldFunction;
   const revng::pypeline::CFGMap &CFGMap;
-  GeneratedCodeBasicInfo GCBI;
+  std::unique_ptr<ProgramCounterHandler> PCH;
 
   std::map<Function *, Function *> OldToNew;
   std::vector<Function *> OldFunctions;
@@ -68,7 +70,7 @@ public:
     ModelFunction(ModelFunction),
     OldFunction(OldFunction),
     CFGMap(CFGMap),
-    GCBI(Binary, M),
+    PCH(ProgramCounterHandler::fromModule(Binary.Architecture(), &M)),
     Initializers(&M) {}
 
   ~EnforceABI() = default;
@@ -363,7 +365,7 @@ void EnforceABI::handleRegularFunctionCall(CallInst *Call) {
   NewCall->setAttributes(Call->getAttributes());
 
   // Set PC to the expected value
-  GCBI.programCounterHandler()->setPC(Builder, CallerBlock->ID().start());
+  PCH->setPC(Builder, CallerBlock->ID().start());
 
   // Drop the original call
   eraseFromParent(Call);
@@ -399,7 +401,7 @@ CallInst *EnforceABI::generateCall(revng::IRBuilder &Builder,
   if (IsIndirect) {
     // Create a new `indirect_placeholder` function with the specific function
     // type we need
-    Value *PC = GCBI.programCounterHandler()->loadJumpablePC(Builder);
+    Value *PC = PCH->loadJumpablePC(Builder);
     auto &&[ReturnType, Arguments] = getLLVMReturnTypeAndArguments(&M,
                                                                    Registers);
     auto *NewType = FunctionType::get(ReturnType, Arguments, false);

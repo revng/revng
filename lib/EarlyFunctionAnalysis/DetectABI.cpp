@@ -1149,7 +1149,7 @@ static void runDetectABI(Module &M,
                          TupleTree<model::Binary> &Binary) {
   using FSOracle = FunctionSummaryOracle;
   FSOracle Oracle = FSOracle::importFullPrototypes(M, Globals, *Binary);
-  CFGAnalyzer Analyzer(M, GCBI, Root, Globals, Binary, Oracle);
+  CFGAnalyzer Analyzer(M, Root, Globals, Binary, Oracle);
   DetectABI ABIDetector(M, Root, Globals, GCBI, FMC, Binary, Oracle, Analyzer);
   ABIDetector.run();
 }

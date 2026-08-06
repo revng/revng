@@ -4,18 +4,19 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <memory>
+
 #include "llvm/ADT/SmallVector.h"
 
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/EarlyFunctionAnalysis/TemporaryOpaqueFunction.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 
-class GeneratedCodeBasicInfo;
-class ProgramCounterHandler;
 class FunctionSummaryOracle;
 
 namespace llvm {
@@ -70,7 +71,7 @@ class CFGAnalyzer {
 private:
   llvm::Module &M;
   const CSVGlobals &Globals;
-  const ProgramCounterHandler *PCH = nullptr;
+  std::unique_ptr<ProgramCounterHandler> PCH;
   FunctionSummaryOracle &Oracle;
   const TupleTree<model::Binary> &Binary;
 
@@ -92,7 +93,6 @@ private:
 
 public:
   CFGAnalyzer(llvm::Module &M,
-              GeneratedCodeBasicInfo &GCBI,
               RootFunction &Root,
               const CSVGlobals &Globals,
               const TupleTree<model::Binary> &Binary,

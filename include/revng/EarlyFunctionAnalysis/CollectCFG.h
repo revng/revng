@@ -11,6 +11,7 @@
 #include "revng/Pipebox/TupleTreeContainer.h"
 #include "revng/PipeboxCommon/Common.h"
 #include "revng/PipeboxCommon/LLVMContainer.h"
+#include "revng/PipeboxCommon/Model.h"
 
 namespace revng::pypeline {
 
@@ -29,7 +30,6 @@ private:
 
   RootFunction Root;
   CSVGlobals Globals;
-  GeneratedCodeBasicInfo GCBI;
   efa::FunctionSummaryOracle Oracle;
   efa::CFGAnalyzer Analyzer;
 

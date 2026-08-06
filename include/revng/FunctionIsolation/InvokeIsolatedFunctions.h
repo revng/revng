@@ -5,6 +5,7 @@
 //
 
 #include "revng/PipeboxCommon/LLVMContainer.h"
+#include "revng/PipeboxCommon/Model.h"
 
 namespace revng::pypeline::piperuns {
 
