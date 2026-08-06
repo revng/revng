@@ -7,8 +7,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-
 /// Inline every `revng_inline` helper at its call site in the `Isolated`
 /// functions, where the critical arguments are constant at the call site. Does
 /// not link helper bodies (use `LinkHelpersToInlinePass` first) and does not

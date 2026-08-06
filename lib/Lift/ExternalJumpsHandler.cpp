@@ -17,7 +17,6 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRBuilder.h"

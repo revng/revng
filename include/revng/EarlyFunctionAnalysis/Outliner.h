@@ -11,6 +11,7 @@
 #include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/EarlyFunctionAnalysis/TemporaryOpaqueFunction.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/NamedTypedRegister.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 #include "revng/Support/UniqueValuePtr.h"

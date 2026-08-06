@@ -384,8 +384,7 @@ public:
   /// Return the basic block handling a jump to an unexpected PC
   llvm::BasicBlock *unexpectedPC() const { return UnexpectedPC; }
 
-  // TODO: can this be replaced by the corresponding method in
-  // GeneratedCodeBasicInfo?
+  // TODO: can this be replaced by the corresponding free IR helper?
   /// Get the PC associated and the size of the original instruction
   std::pair<MetaAddress, uint64_t>
   getPC(llvm::Instruction *TheInstruction) const;

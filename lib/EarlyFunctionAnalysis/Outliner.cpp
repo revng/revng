@@ -18,6 +18,7 @@
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/Lift/Helpers.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Support/BlockType.h"
 #include "revng/Support/EmitAbort.h"
 #include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/IRBuilder.h"

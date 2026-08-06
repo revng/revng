@@ -491,7 +491,7 @@ CSVsUsageMap PromoteCSVs::getUsedCSVs(ArrayRef<CallInst *> CallsRange) {
   //
   // There are three types of calls: calls to helpers tagged by CSAA, calls to
   // isolated functions and other calls that do not touch CPU state. For the
-  // former, we ask GCBI to extract the information from metadata. For the
+  // former, we extract the information from metadata. For the
   // latter, we use a monotone framework to compute the set of read/written
   // registers by the callee.  Note that the former is more accurate thanks to
   // CSAA being call-site sensitive.
