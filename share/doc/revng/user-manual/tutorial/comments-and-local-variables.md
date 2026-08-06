@@ -72,6 +72,27 @@ A comment placed at the end of a line, after the code, is ignored.
 
 Everything else has to stay as it was: `edit-c-body` does not change the structure of the code, rename functions or edit type definitions (as explained in [Editing types in C](editing-types-in-c.md), that is what [`edit-c-type`](editing-types-in-c.md) is for).
 
+!!! warning "Not every statement can be annotated"
+
+    A comment is located through the machine instructions of the statement it is attached to (see [Under the hood](#under-the-hood) below), so a statement that has no instructions of its own cannot carry one.
+    In the code rev.ng emits today, a comment before any of these is dropped:
+
+    * a `switch` case label, i.e. `case <value>:` or `default:` (the `switch` itself takes comments, since it is located through its condition);
+    * a label rev.ng synthesizes to leave a loop or to start its next iteration, that is, one that a `break` or a `continue` jumps to. A `// RENAME:` on one of these is dropped too, for the same reason;
+    * a jump -- a `break`, `continue`, `break_to`, `continue_to` or `goto` -- lifted from the same branch instruction as another jump of the same function. The branch closing a loop lifts to both a `break` and a `continue`, which then share one address, so rather than emit your comment on the wrong one of the pair rev.ng does not take it at all.
+
+    Every other jump is located by the branch instruction it was lifted from and takes a comment, and so does an ordinary `goto` label, which also takes a `// RENAME:`.
+
+    Be aware, though, that two statements lifted from one machine instruction share its address, and a comment on either is then emitted on whichever rev.ng picks.
+    A `goto` and the label it jumps to, for instance, can come out this way.
+
+    None of this fails the analysis: every other annotation is applied and `edit-c-body` exits successfully, so a dropped annotation is otherwise silent.
+    To see which annotations were dropped and why, enable the `edit-c-body` logger by passing it through to the analysis:
+
+    ```
+    revng project analyze edit-c-body -o /dev/null -c edit.yml -- --debug-log="edit-c-body"
+    ```
+
 Let's take the C we just emitted and annotate it, commenting the `if` and giving the local variable a name and a type:
 
 ```c title="resolve.c"
