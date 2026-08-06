@@ -65,33 +65,6 @@ public:
     return false;
   }
 
-  KillReason::Values getKillReason(llvm::BasicBlock *BB) const {
-    return getKillReason(BB->getTerminator());
-  }
-
-  KillReason::Values getKillReason(llvm::Instruction *T) const {
-    using namespace llvm;
-
-    revng_assert(T->isTerminator());
-
-    auto *NoReturnMD = T->getMetadata("noreturn");
-    if (auto *NoreturnTuple = dyn_cast_or_null<MDTuple>(NoReturnMD)) {
-      QuickMetadata QMD(getContext(T));
-      return KillReason::fromName(QMD.extract<StringRef>(NoreturnTuple, 0));
-    }
-
-    return KillReason::NonKiller;
-  }
-
-  bool isKiller(llvm::BasicBlock *BB) const {
-    return isKiller(BB->getTerminator());
-  }
-
-  bool isKiller(llvm::Instruction *T) const {
-    revng_assert(T->isTerminator());
-    return getKillReason(T) != KillReason::NonKiller;
-  }
-
   llvm::BasicBlock *getCallReturnBlock(llvm::BasicBlock *BB) const {
     using namespace llvm;
     CallInst *Marker = getMarker(BB, FunctionCallMarker);
