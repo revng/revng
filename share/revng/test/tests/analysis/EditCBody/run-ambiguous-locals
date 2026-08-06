@@ -7,8 +7,8 @@ set -euo pipefail
 
 # Both locals of `ambiguous` are read only by the same call, so they share the
 # address set rev.ng identifies a local variable by and cannot be told apart.
-# Renaming either must be rejected rather than applied to whichever of them the
-# decompiler happens to reach first. `var_0` is that first one, so rejecting it
+# Renaming either must be dropped rather than applied to whichever of them the
+# decompiler happens to reach first. `var_0` is that first one, so dropping it
 # too is what keeps a model entry from ever being written for a set naming more
 # than one variable.
 
@@ -79,13 +79,13 @@ insert_directive "$PROJECT/live.c" "$PROJECT/edited.c" \
 
 make_configuration "$FUNCTION" "$PROJECT/edited.c" "$PROJECT/edit.yml"
 
-if ERROR="$(revng -C "$PROJECT" project analyze edit-c-body -o /dev/null \
-              -c "$PROJECT/edit.yml" 2>&1)"; then
-  fail "renaming a local variable sharing its addresses was not rejected"
-fi
-grep -qF "\`var_0\` shares its addresses" <<< "$ERROR" \
-  || fail "unexpected rejection message: $ERROR"
+revng -C "$PROJECT" project analyze edit-c-body -o /dev/null \
+  -c "$PROJECT/edit.yml" -- --debug-log=edit-c-body 2>&1 \
+  | tee "$PROJECT/analyze.log"
 
-# A rejected edit must leave the model alone.
+grep -qF 'shares its addresses' "$PROJECT/analyze.log" \
+  || fail "renaming a local variable sharing its addresses was not reported"
+
+# A dropped edit must leave the model alone.
 assert_model "$FUNCTION" '.LocalVariables // [] | length' 0 \
-  "a rejected edit still wrote to the model"
+  "a dropped edit still wrote to the model"

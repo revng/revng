@@ -8,6 +8,9 @@
 #include <vector>
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+
+#include "revng/Support/Assert.h"
 
 namespace mlir {
 class Operation;
@@ -33,6 +36,44 @@ enum class StatementKind {
   Case,
   Default,
 };
+
+/// A description of a statement kind, article included, as used in the messages
+/// reporting the annotations that could not be applied.
+inline llvm::StringRef describe(StatementKind Kind) {
+  switch (Kind) {
+  case StatementKind::LocalVariableDeclaration:
+    return "a local variable declaration";
+  case StatementKind::Expression:
+    return "an expression statement";
+  case StatementKind::Return:
+    return "a `return` statement";
+  case StatementKind::If:
+    return "an `if` statement";
+  case StatementKind::While:
+    return "a `while` statement";
+  case StatementKind::DoWhile:
+    return "a `do`/`while` statement";
+  case StatementKind::For:
+    return "a `for` statement";
+  case StatementKind::Switch:
+    return "a `switch` statement";
+  case StatementKind::Goto:
+    // One kind covers `goto`, `break_to` and `continue_to`: the latter two are
+    // macros for `goto`, so the C parse cannot tell them apart either.
+    return "a jump statement";
+  case StatementKind::Break:
+    return "a `break` statement";
+  case StatementKind::Continue:
+    return "a `continue` statement";
+  case StatementKind::Label:
+    return "a label";
+  case StatementKind::Case:
+    return "a `case` label";
+  case StatementKind::Default:
+    return "a `default` label";
+  }
+  revng_abort("Invalid StatementKind");
+}
 
 /// A statement of the user's C code, in the flattened pre-order walk.
 struct CStatement {
