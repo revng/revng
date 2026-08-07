@@ -62,7 +62,7 @@ def insert_before(anchor, *directives):
 
 insert_before("var_0", "// RENAME: renamed_local", "// RETYPE: uint32_t")
 insert_before("label_0:", "// RENAME: renamed_goto_label")
-insert_before("var_2 = 0UL", "// A plain comment on a statement.")
+insert_before("var_2 = 0", "// A plain comment on a statement.")
 
 open(sys.argv[2], "w").write("\n".join(lines) + "\n")
 PYEOF
