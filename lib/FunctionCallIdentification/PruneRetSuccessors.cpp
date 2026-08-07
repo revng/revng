@@ -6,6 +6,7 @@
 
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 

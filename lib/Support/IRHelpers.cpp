@@ -31,6 +31,7 @@
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Support/StringOperations.h"
 #include "revng/Support/Tag.h"
 

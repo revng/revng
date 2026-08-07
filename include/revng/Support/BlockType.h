@@ -6,6 +6,7 @@
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 
 inline const char *BlockTypeMDName = "revng.block.type";
 

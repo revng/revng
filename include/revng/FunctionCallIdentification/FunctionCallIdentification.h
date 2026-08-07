@@ -13,6 +13,7 @@
 #include "revng/BasicAnalyses/CustomCFG.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 
 /// Identify function call instructions
 ///

@@ -42,6 +42,7 @@
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 
 using namespace llvm;

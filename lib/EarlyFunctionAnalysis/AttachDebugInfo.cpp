@@ -37,6 +37,7 @@
 #include "revng/Ranks/Ranks.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 

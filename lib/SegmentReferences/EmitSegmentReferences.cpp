@@ -10,6 +10,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/SegmentReferences/EmitSegmentReferences.h"
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 

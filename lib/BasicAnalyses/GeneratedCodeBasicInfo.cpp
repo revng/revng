@@ -17,6 +17,7 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 

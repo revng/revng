@@ -19,6 +19,7 @@
 #include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Support/SimplePassManager.h"
 #include "revng/Support/Statistics.h"
 

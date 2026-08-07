@@ -17,6 +17,7 @@
 #include "revng/Model/NameBuilder.h"
 #include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 

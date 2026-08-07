@@ -16,6 +16,7 @@
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Ranks/IRHelpers.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 

@@ -28,6 +28,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Support/RandomAccessIterator.h"
 #include "revng/Support/Range.h"
 

@@ -25,6 +25,7 @@
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 
 // Forward declarations
 namespace llvm {

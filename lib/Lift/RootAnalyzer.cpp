@@ -30,6 +30,7 @@
 #include "revng/Model/ABI/Definition.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 #include "revng/Support/Statistics.h"
 #include "revng/TypeShrinking/BitLiveness.h"

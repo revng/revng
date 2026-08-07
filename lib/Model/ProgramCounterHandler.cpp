@@ -11,6 +11,7 @@
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/NewPC.h"
 
 // This name corresponds to a function in `early-linked`.
 RegisterIRHelper SetMetaAddressHelper("set_PlainMetaAddress");

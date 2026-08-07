@@ -16,6 +16,7 @@
 #include "revng/Ranks/Ranks.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress/IntervalContainers.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Yield/HexDump.h"
 
 using namespace llvm;

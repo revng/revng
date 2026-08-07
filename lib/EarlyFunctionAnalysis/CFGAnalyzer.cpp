@@ -40,6 +40,7 @@
 #include "revng/Support/Generator.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
 // This name is not present after `lift`.

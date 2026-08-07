@@ -29,6 +29,7 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/MetaAddressRange.h"
+#include "revng/Support/NewPC.h"
 
 // Forward declarations
 namespace llvm {
