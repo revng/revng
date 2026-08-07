@@ -601,6 +601,10 @@ OutlinedFunction Outliner::outline(const MetaAddress &Entry,
 
   FunctionFixer.restore();
 
+  // Everything we gathered, including the code of the functions we inlined,
+  // is now part of the control-flow graph of `Entry`
+  setNewPCOwner(Result.Function.get(), Entry);
+
   // Fix `unexpectedpc` of the callees to inline
   for (auto &I : instructions(Result.Function.get())) {
     if (CallInst *Call = getCallTo(&I, UnexpectedPCMarker.get())) {

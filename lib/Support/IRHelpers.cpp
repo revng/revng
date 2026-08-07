@@ -15,6 +15,7 @@
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
@@ -168,6 +169,13 @@ std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
   uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(InstructionSize));
   revng_assert(Size != 0);
   return { PC, Size };
+}
+
+void setNewPCOwner(Function *F, const MetaAddress &Owner) {
+  Constant *Value = Owner.toValue(F->getParent());
+  for (Instruction &I : instructions(F))
+    if (CallInst *NewPCCall = getCallTo(&I, "newpc"))
+      NewPCCall->setArgOperand(NewPCArguments::OwnerFunction, Value);
 }
 
 /// Boring code to get the text of the metadata with the specified kind

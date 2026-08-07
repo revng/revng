@@ -387,12 +387,15 @@ IT::InstructionTranslator(class LibTcg &LibTcg,
   // * isJT (-1: unknown, 0: no, 1: yes)
   // * inlining index
   // * pointer to the disassembled instruction
+  // * entry of the function owning the block, in string form. Code becomes
+  //   part of a function only once it is outlined, so this is invalid here
   // * all the local variables used by this instruction
   auto *NewPCMarkerTy = FT::get(Type::getVoidTy(Context),
                                 { Type::getInt8PtrTy(Context),
                                   Type::getInt64Ty(Context),
                                   Type::getInt32Ty(Context),
                                   Type::getInt32Ty(Context),
+                                  Type::getInt8PtrTy(Context),
                                   Type::getInt8PtrTy(Context) },
                                 true);
   NewPCMarker = createIRHelper("newpc",
@@ -485,11 +488,14 @@ CallInst *IT::emitNewPCCall(revng::IRBuilder &Builder,
                             uint64_t Size) const {
   PointerType *Int8PtrTy = getStringPtrType(TheModule.getContext());
   auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
+  // The owner is filled in by the outliner: in root, code does not belong to
+  // any function yet
   std::vector<Value *> Args = { BasicBlockID(PC).toValue(&TheModule),
                                 Builder.getInt64(Size),
                                 Builder.getInt32(-1),
                                 Builder.getInt32(0),
-                                Int8NullPtr };
+                                Int8NullPtr,
+                                MetaAddress::invalid().toValue(&TheModule) };
 
   // Insert a call to NewPCMarker capturing all the currently live temporaries
   // which might be alive across an instruction boundary. This prevents SROA

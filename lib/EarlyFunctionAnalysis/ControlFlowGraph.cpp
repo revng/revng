@@ -126,11 +126,17 @@ const efa::BasicBlock *ControlFlowGraph::findBlock(GeneratedCodeBasicInfo &GCBI,
 std::pair<const efa::ControlFlowGraph *, const efa::BasicBlock *>
 FunctionBundle::findBlock(GeneratedCodeBasicInfo &GCBI,
                           llvm::Instruction *I) const {
+  // The location names the function owning the block, which is the one the
+  // code was inlined from. Searching for the block instead would be ambiguous,
+  // since two functions can share code.
   if (auto MaybeLocation = getLocation(I)) {
-    BasicBlockID ID = MaybeLocation->parent().back();
-    for (const efa::ControlFlowGraph &CFG : AlwaysInlineFunctions())
+    auto [Owner] = MaybeLocation->at(revng::ranks::Function);
+    if (Owner != MainFunction().Entry()) {
+      const efa::ControlFlowGraph &CFG = AlwaysInlineFunctions().at(Owner);
+      BasicBlockID ID = MaybeLocation->parent().back();
       if (auto It = CFG.Blocks().find(ID); It != CFG.Blocks().end())
         return { &CFG, &*It };
+    }
   }
 
   const efa::ControlFlowGraph &Main = MainFunction();

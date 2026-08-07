@@ -46,16 +46,19 @@ static bool isTrue(const llvm::Value *V) {
   return getLimitedValue(V) != 0;
 }
 
-/// \return the control-flow graph \p ID is a basic block of, if any
+/// \return the control-flow graph whose entry is \p Owner, if any
+///
+/// Looking the block up instead would be ambiguous: two functions can share
+/// code, so the same block can appear in more than one control-flow graph.
 static const efa::ControlFlowGraph *
 findOwner(const efa::ControlFlowGraph &FM,
           llvm::ArrayRef<const efa::ControlFlowGraph *> Inlined,
-          const BasicBlockID &ID) {
-  if (FM.Blocks().contains(ID))
+          const MetaAddress &Owner) {
+  if (FM.Entry() == Owner)
     return &FM;
 
   for (const efa::ControlFlowGraph *Candidate : Inlined)
-    if (Candidate->Blocks().contains(ID))
+    if (Candidate->Entry() == Owner)
       return Candidate;
 
   return nullptr;
@@ -179,7 +182,13 @@ public:
           BasicBlockID Address = blockIDFromNewPC(Call);
 
           if (isTrue(Call->getArgOperand(NewPCArguments::IsJumpTarget))) {
-            if (auto *Owner = findOwner(FM, Inlined, Address)) {
+            const efa::ControlFlowGraph
+              *Owner = findOwner(FM, Inlined, ownerFromNewPC(Call));
+            revng_assert(Owner != nullptr,
+                         "`newpc` refers to a function that is not part of "
+                         "this bundle");
+
+            if (Owner->Blocks().contains(Address)) {
               CurrentCFG = Owner;
               CurrentBB = Address;
               revng_assert(CurrentBB.isValid());

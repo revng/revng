@@ -42,7 +42,9 @@ enum {
   InstructionID,
   InstructionSize,
   IsJumpTarget,
+  InliningIndex,
   DissassembledInstruction,
+  OwnerFunction,
   FirstLocalVariable
 };
 } // namespace NewPCArguments
@@ -1129,6 +1131,23 @@ inline MetaAddress addressFromNewPC(const llvm::CallBase *Call) {
 inline MetaAddress addressFromNewPC(const llvm::Instruction *I) {
   return addressFromNewPC(llvm::cast<llvm::CallBase>(I));
 }
+
+/// \return the entry of the function whose control-flow graph owns the block
+///         \p Call belongs to, or an invalid `MetaAddress` in the root
+///         function, where code has not been attributed to a function yet
+inline MetaAddress ownerFromNewPC(const llvm::CallBase *Call) {
+  revng_assert(isCallTo(Call, "newpc"));
+  using namespace NewPCArguments;
+  return MetaAddress::fromValue(Call->getArgOperand(OwnerFunction));
+}
+
+inline MetaAddress ownerFromNewPC(const llvm::Instruction *I) {
+  return ownerFromNewPC(llvm::cast<llvm::CallBase>(I));
+}
+
+/// Record in each `newpc` of \p F that its block belongs to the control-flow
+/// graph of \p Owner
+void setNewPCOwner(llvm::Function *F, const MetaAddress &Owner);
 
 inline BasicBlockID getBasicBlockID(const llvm::BasicBlock *BB) {
   using namespace llvm;
