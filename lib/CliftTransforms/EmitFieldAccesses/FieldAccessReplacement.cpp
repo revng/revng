@@ -225,6 +225,14 @@ Replacement Replacement::make(unsigned PointerBitWidth,
 
 bool Replacement::replace(ExpressionOpInterface PointerToReplace,
                           const PointerArithmetic &Arithmetic) const {
+  auto IsZeroOffsetArrayAccess = [](const FieldAccessInfo &Access) {
+    return Access.TheKind == FieldAccessInfo::Kind::Array
+           and Access.Index.Variables.empty() and Access.Index.Constant == 0;
+  };
+
+  if (std::ranges::all_of(FieldAccesses, IsZeroOffsetArrayAccess))
+    return false;
+
   mlir::Type PointerToReplaceType = PointerToReplace->getResult(0).getType();
 
   // We need the `PointerSize` in order to generate the `ImmediateOp`s used to
