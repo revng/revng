@@ -43,6 +43,9 @@ static bool assignTypePunnedConstraint(mlir::Value Ptr, mlir::Value Value) {
   if (not clift::unwrapped_isa<ValueType>(DstType))
     return false;
 
+  if (not isModifiableType(DstType))
+    return false;
+
   return SrcType != DstType
          and getObjectSize(SrcType) == getObjectSizeOrZero(DstType);
 }
