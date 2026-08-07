@@ -108,12 +108,26 @@ public:
   }
 
   cppcoro::generator<IRHelperCall<Argument>> callers() const {
-    for (llvm::CallBase *Call : ::callers(F))
-      co_yield IRHelperCall<Argument>(Call);
+    return allCallers(F);
   }
 
   cppcoro::generator<IRHelperCall<Argument>>
   callersIn(llvm::Function *Container) const {
+    return allCallersIn(F, Container);
+  }
+
+private:
+  // These take everything they need as an argument so that the coroutine frame
+  // holds a copy of it: an `IRHelperFunction` is usually a temporary, and a
+  // coroutine capturing `this` would outlive it.
+  static cppcoro::generator<IRHelperCall<Argument>>
+  allCallers(llvm::Function *F) {
+    for (llvm::CallBase *Call : ::callers(F))
+      co_yield IRHelperCall<Argument>(Call);
+  }
+
+  static cppcoro::generator<IRHelperCall<Argument>>
+  allCallersIn(llvm::Function *F, llvm::Function *Container) {
     for (llvm::CallBase *Call : ::callersIn(F, Container))
       co_yield IRHelperCall<Argument>(Call);
   }

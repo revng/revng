@@ -183,13 +183,11 @@ OutlinedFunction CFGAnalyzer::outline(const MetaAddress &Entry) {
       Call->getParent()->splitBasicBlock(Call);
 
   // Make sure we start a new block for each jump target
-  auto IsJumpTarget = [](llvm::CallBase *Call) {
-    auto IsJumpTarget = NewPCArguments::IsJumpTarget;
-    return getLimitedValue(&*Call->getArgOperand(IsJumpTarget)) == 1;
-  };
-  for (llvm::CallBase *Call : callers(getIRHelper("newpc", M)))
-    if (IsJumpTarget(Call) and not IsFirst(Call))
-      Call->getParent()->splitBasicBlock(Call);
+  std::optional NewPC = NewPCHelper.get(M);
+  revng_assert(NewPC.has_value());
+  for (IRHelperCall<NewPCArgument> Call : NewPC->callers())
+    if (startsBasicBlock(Call) and not IsFirst(Call.call()))
+      Call.call()->getParent()->splitBasicBlock(Call.call());
 
   return Result;
 }
@@ -582,9 +580,9 @@ void CFGAnalyzer::materializePCValues(llvm::Function *F,
                                       revng::IRBuilder &Builder) {
   for (llvm::BasicBlock &BB : *F) {
     for (llvm::Instruction &I : BB) {
-      if (llvm::CallInst *Call = getCallTo(&I, "newpc")) {
-        MetaAddress NewPC = blockIDFromNewPC(Call).start();
-        Builder.SetInsertPoint(Call);
+      if (std::optional Call = NewPCHelper.getCall(&I)) {
+        MetaAddress NewPC = blockIDFromNewPC(*Call).start();
+        Builder.SetInsertPoint(Call->call());
         PCH->setPC(Builder, NewPC);
       }
     }
@@ -1054,7 +1052,7 @@ FunctionSummary CFGAnalyzer::analyze(const MetaAddress &Entry) {
     // Ensure there are not calls to newpc. If there were, it'd be a bug not to
     // have a CFG
     auto IsCallToNewPC = [](Instruction &I) -> bool {
-      return isCallTo(&I, "newpc");
+      return NewPCHelper.getCall(&I).has_value();
     };
     revng_assert(none_of(instructions(OutlinedFunction.Function.get()),
                          IsCallToNewPC));

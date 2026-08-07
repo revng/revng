@@ -496,7 +496,7 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
           return BailOut;
         }
 
-      } else if (CallInst *NewPCCall = getCallTo(&I, "newpc")) {
+      } else if (std::optional NewPCCall = NewPCHelper.getCall(&I)) {
         //
         // We reached a call to newpc
         //
@@ -508,7 +508,7 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
         }
 
         // Obtain the current PC and fill in all the missing fields
-        PMA.set(addressFromNewPC(NewPCCall));
+        PMA.set(addressFromNewPC(*NewPCCall));
 
         // Compute the final MetaAddress on this path and ensure it's the same
         // as previous ones

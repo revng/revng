@@ -316,9 +316,11 @@ RootAnalyzer::MetaAddressSet RootAnalyzer::inflateValueMaterializerWhitelist() {
   VisitSet.insert(JTM.dispatcher());
 
   // TODO: OriginalInstructionAddresses is not reliable, we should drop it
-  for (User *NewPCUser : getIRHelper("newpc", TheModule)->users()) {
-    auto *I = cast<Instruction>(NewPCUser);
-    auto WhitelistedMA = addressFromNewPC(I);
+  std::optional NewPCFunction = NewPCHelper.get(TheModule);
+  revng_assert(NewPCFunction.has_value());
+  for (IRHelperCall<NewPCArgument> NewPCCall : NewPCFunction->callers()) {
+    auto *I = NewPCCall.call();
+    MetaAddress WhitelistedMA = addressFromNewPC(NewPCCall);
     if (WhitelistedMA.isValid()) {
       if (JTM.isInValueMaterializerPCWhitelist(WhitelistedMA)) {
         BasicBlock *BB = I->getParent();
@@ -866,8 +868,9 @@ void JTM2::collectValuesStoredIntoMemory(Function *F,
 static MetaAddress::Features findCommonFeatures(Function *F) {
   bool First = true;
   MetaAddress::Features Result;
-  for (CallBase *NewPCCall :
-       callersIn(getIRHelper("newpc", *F->getParent()), F)) {
+  std::optional NewPC = NewPCHelper.get(*F->getParent());
+  revng_assert(NewPC.has_value());
+  for (IRHelperCall<NewPCArgument> NewPCCall : NewPC->callersIn(F)) {
     MetaAddress Address = addressFromNewPC(NewPCCall);
 
     if (First) {
@@ -916,10 +919,11 @@ void RootAnalyzer::cloneOptimizeAndHarvest(Function *TheFunction) {
 
   // Replace calls to newpc with stores to the PC
   SmallVector<CallBase *, 16> ToErase;
-  for (CallBase *Call :
-       callersIn(getIRHelper("newpc", TheModule), OptimizedFunction)) {
+  std::optional NewPC = NewPCHelper.get(TheModule);
+  revng_assert(NewPC.has_value());
+  for (IRHelperCall<NewPCArgument> Call : NewPC->callersIn(OptimizedFunction)) {
     JTM.programCounterHandler()->expandNewPC(Call);
-    ToErase.push_back(Call);
+    ToErase.push_back(Call.call());
   }
 
   for (CallBase *Call : ToErase)

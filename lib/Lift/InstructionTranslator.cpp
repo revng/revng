@@ -35,7 +35,6 @@
 #include "InstructionTranslator.h"
 
 // This name is not present after `remove-newpc-calls`.
-RegisterIRHelper NewPCHelper("newpc");
 
 using namespace llvm;
 
@@ -399,10 +398,11 @@ IT::InstructionTranslator(class LibTcg &LibTcg,
                                   Type::getInt8PtrTy(Context),
                                   Type::getInt8PtrTy(Context) },
                                 true);
-  NewPCMarker = createIRHelper("newpc",
-                               TheModule,
-                               NewPCMarkerTy,
-                               GlobalValue::ExternalLinkage);
+  NewPCMarker = NewPCHelper
+                  .create(TheModule,
+                          NewPCMarkerTy,
+                          GlobalValue::ExternalLinkage)
+                  .function();
   FunctionTags::Marker.addTo(NewPCMarker);
   NewPCMarker->addFnAttr(Attribute::WillReturn);
   NewPCMarker->addFnAttr(Attribute::NoUnwind);
@@ -418,9 +418,10 @@ void IT::finalizeNewPCMarkers() {
     auto *Call = cast<CallInst>(U);
 
     // Report the instruction on the coverage CSV
-    using namespace NewPCArguments;
-    MetaAddress PC = addressFromNewPC(Call);
-    uint64_t Size = getLimitedValue(Call->getArgOperand(InstructionSize));
+    IRHelperCall<NewPCArgument> NewPCCall(Call);
+    MetaAddress PC = addressFromNewPC(NewPCCall);
+    auto *Argument = NewPCCall.getArgument(NewPCArgument::InstructionSize);
+    uint64_t Size = getLimitedValue(Argument);
     bool IsJT = JumpTargets.isJumpTarget(PC);
 
     // We already finished discovering new code to translate, so we can remove

@@ -8,6 +8,7 @@
 
 #include "revng/BasicAnalyses/RemoveNewPCCalls.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 
 llvm::PreservedAnalyses
 RemoveNewPCCallsPass::run(llvm::Function &F,
@@ -15,7 +16,7 @@ RemoveNewPCCallsPass::run(llvm::Function &F,
   llvm::SmallVector<llvm::Instruction *, 16> ToErase;
   for (auto &BB : F) {
     for (auto &I : BB)
-      if (isCallTo(&I, "newpc"))
+      if (NewPCHelper.getCall(&I).has_value())
         ToErase.push_back(&I);
   }
 

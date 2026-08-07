@@ -105,10 +105,9 @@ public:
     store(Builder, TypeCSV, NewPC.type());
   }
 
-  void expandNewPC(llvm::CallBase *Call) const {
-    revng_assert(isCallTo(Call, "newpc"));
+  void expandNewPC(IRHelperCall<NewPCArgument> Call) const {
     MetaAddress Address = addressFromNewPC(Call);
-    revng::IRBuilder Builder(Call);
+    revng::IRBuilder Builder(Call.call());
     setPC(Builder, Address);
   }
 

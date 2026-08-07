@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <concepts>
 #include <utility>
 
 #include "llvm/IR/BasicBlock.h"
@@ -11,11 +12,11 @@
 #include "llvm/IR/Instructions.h"
 
 #include "revng/Support/BasicBlockID.h"
-#include "revng/Support/IRHelpers.h"
+#include "revng/Support/IRHelper.h"
 #include "revng/Support/MetaAddress.h"
 
-namespace NewPCArguments {
-enum {
+/// The arguments of `newpc`
+enum class NewPCArgument {
   InstructionID,
   InstructionSize,
   IsJumpTarget,
@@ -24,70 +25,62 @@ enum {
   OwnerFunction,
   FirstLocalVariable
 };
-} // namespace NewPCArguments
 
-inline MetaAddress getBasicBlockJumpTarget(llvm::BasicBlock *BB) {
-  using namespace llvm;
+/// Marks the beginning of the code translated from an instruction
+inline IRHelper<NewPCArgument> NewPCHelper("newpc");
 
-  Instruction *I = BB->getFirstNonPHI();
-  if (I == nullptr)
-    return MetaAddress::invalid();
+/// A call to `newpc`, reached either through a mutable or through a constant
+/// instruction
+template<typename T>
+concept NewPCCall = std::same_as<T, IRHelperCall<NewPCArgument>>
+                    or std::same_as<T, ConstIRHelperCall<NewPCArgument>>;
 
-  if (llvm::CallInst *Call = getCallTo(I, "newpc")) {
-    if (getLimitedValue(Call->getOperand(2)) == 1) {
-      return MetaAddress::fromValue(Call->getOperand(0));
-    }
-  }
-
-  return MetaAddress::invalid();
-}
-
-inline BasicBlockID blockIDFromNewPC(const llvm::CallBase *Call) {
-  revng_assert(isCallTo(Call, "newpc"));
-  using namespace NewPCArguments;
-  auto *Argument = Call->getArgOperand(InstructionID);
+inline BasicBlockID blockIDFromNewPC(NewPCCall auto Call) {
+  auto *Argument = Call.getArgument(NewPCArgument::InstructionID);
   return BasicBlockID::fromValue(Argument);
 }
 
-inline BasicBlockID blockIDFromNewPC(const llvm::Instruction *I) {
-  return blockIDFromNewPC(llvm::cast<llvm::CallBase>(I));
-}
-
-inline MetaAddress addressFromNewPC(const llvm::CallBase *Call) {
+inline MetaAddress addressFromNewPC(NewPCCall auto Call) {
   return blockIDFromNewPC(Call).notInlinedAddress();
-}
-inline MetaAddress addressFromNewPC(const llvm::Instruction *I) {
-  return addressFromNewPC(llvm::cast<llvm::CallBase>(I));
 }
 
 /// \return the entry of the function whose control-flow graph owns the block
 ///         \p Call belongs to, or an invalid `MetaAddress` in the root
 ///         function, where code has not been attributed to a function yet
-inline MetaAddress ownerFromNewPC(const llvm::CallBase *Call) {
-  revng_assert(isCallTo(Call, "newpc"));
-  using namespace NewPCArguments;
-  return MetaAddress::fromValue(Call->getArgOperand(OwnerFunction));
+inline MetaAddress ownerFromNewPC(NewPCCall auto Call) {
+  return MetaAddress::fromValue(Call.getArgument(NewPCArgument::OwnerFunction));
 }
 
-inline MetaAddress ownerFromNewPC(const llvm::Instruction *I) {
-  return ownerFromNewPC(llvm::cast<llvm::CallBase>(I));
+/// \return whether the instruction \p Call marks is the first of a basic block
+inline bool startsBasicBlock(NewPCCall auto Call) {
+  return getLimitedValue(Call.getArgument(NewPCArgument::IsJumpTarget)) == 1;
 }
 
 /// Record in each `newpc` of \p F that its block belongs to the control-flow
 /// graph of \p Owner
 void setNewPCOwner(llvm::Function *F, const MetaAddress &Owner);
 
-inline BasicBlockID getBasicBlockID(const llvm::BasicBlock *BB) {
-  using namespace llvm;
+inline MetaAddress getBasicBlockJumpTarget(llvm::BasicBlock *BB) {
+  llvm::Instruction *I = BB->getFirstNonPHI();
+  if (I == nullptr)
+    return MetaAddress::invalid();
 
+  if (std::optional Call = NewPCHelper.getCall(I))
+    if (startsBasicBlock(*Call))
+      return blockIDFromNewPC(*Call).start();
+
+  return MetaAddress::invalid();
+}
+
+inline BasicBlockID getBasicBlockID(const llvm::BasicBlock *BB) {
   revng_assert(BB != nullptr);
 
-  const Instruction *I = BB->getFirstNonPHI();
+  const llvm::Instruction *I = BB->getFirstNonPHI();
   if (I == nullptr)
     return BasicBlockID::invalid();
 
-  if (const llvm::CallInst *Call = getCallTo(I, "newpc"))
-    return blockIDFromNewPC(Call);
+  if (std::optional Call = NewPCHelper.getCall(I))
+    return blockIDFromNewPC(*Call);
 
   return BasicBlockID::invalid();
 }

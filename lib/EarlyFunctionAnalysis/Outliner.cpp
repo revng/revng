@@ -529,12 +529,11 @@ private:
     revng_assert(FunctionAddress.isValid());
 
     for (llvm::Instruction &I : llvm::instructions(F)) {
-      if (auto *NewPCCall = getCallTo(&I, "newpc")) {
-        using namespace NewPCArguments;
-        Value *Argument = NewPCCall->getArgOperand(InstructionID);
-        auto OldID = BasicBlockID::fromValue(Argument);
+      if (std::optional NewPCCall = NewPCHelper.getCall(&I)) {
+        BasicBlockID OldID = blockIDFromNewPC(*NewPCCall);
         BasicBlockID NewID(OldID.start(), InliningIndex);
-        NewPCCall->setArgOperand(InstructionID, NewID.toValue(F->getParent()));
+        NewPCCall->setArgument(NewPCArgument::InstructionID,
+                               NewID.toValue(F->getParent()));
       }
     }
   }

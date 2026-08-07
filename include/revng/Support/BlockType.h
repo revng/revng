@@ -134,11 +134,9 @@ inline BlockType::Values getType(const llvm::Instruction *T) {
 
   if (MD == nullptr) {
     const Instruction *First = &*T->getParent()->begin();
-    if (const CallInst *Call = getCallTo(First, "newpc")) {
-      auto *Argument = Call->getArgOperand(NewPCArguments::IsJumpTarget);
-      if (getLimitedValue(Argument) == 1)
+    if (std::optional Call = NewPCHelper.getCall(First))
+      if (startsBasicBlock(*Call))
         return BlockType::JumpTargetBlock;
-    }
 
     return BlockType::TranslatedBlock;
   }

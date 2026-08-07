@@ -130,10 +130,10 @@ CallInst *getLastNewPC(Instruction *TheInstruction) {
     // Go through the instructions looking for calls to newpc
     bool Stop = false;
     for (; not Stop and I != End; I++) {
-      if (CallInst *Marker = getCallTo(&*I, "newpc")) {
+      if (std::optional Marker = NewPCHelper.getCall(&*I)) {
         if (Result != nullptr)
           return nullptr;
-        Result = Marker;
+        Result = cast<CallInst>(Marker->call());
         Stop = true;
       }
     }
@@ -165,9 +165,12 @@ std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
   if (NewPCCall == nullptr)
     return { MetaAddress::invalid(), 0 };
 
-  MetaAddress PC = blockIDFromNewPC(NewPCCall).start();
-  using namespace NewPCArguments;
-  uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(InstructionSize));
+  std::optional Call = NewPCHelper.getCall(NewPCCall);
+  revng_assert(Call.has_value());
+
+  MetaAddress PC = blockIDFromNewPC(*Call).start();
+  auto *Argument = Call->getArgument(NewPCArgument::InstructionSize);
+  uint64_t Size = getLimitedValue(Argument);
   revng_assert(Size != 0);
   return { PC, Size };
 }
@@ -175,8 +178,8 @@ std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
 void setNewPCOwner(Function *F, const MetaAddress &Owner) {
   Constant *Value = Owner.toValue(F->getParent());
   for (Instruction &I : instructions(F))
-    if (CallInst *NewPCCall = getCallTo(&I, "newpc"))
-      NewPCCall->setArgOperand(NewPCArguments::OwnerFunction, Value);
+    if (std::optional NewPCCall = NewPCHelper.getCall(&I))
+      NewPCCall->setArgument(NewPCArgument::OwnerFunction, Value);
 }
 
 /// Boring code to get the text of the metadata with the specified kind

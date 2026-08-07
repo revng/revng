@@ -185,12 +185,13 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
             }
           } else if (auto *Call = dyn_cast<CallInst>(&I)) {
             auto *Callee = getCalledFunction(Call);
-            if (Callee != nullptr && Callee->getName() == "newpc") {
+            if (std::optional NewPCCall = NewPCHelper.getCall(&I)) {
               revng_assert(NewPCLeft > 0);
 
-              Value *PCOperand = Call->getOperand(0);
-              auto ProgramCounter = MetaAddress::fromValue(PCOperand);
-              uint64_t InstructionSize = getLimitedValue(Call->getOperand(1));
+              MetaAddress ProgramCounter = addressFromNewPC(*NewPCCall);
+              auto SizeArgument = NewPCArgument::InstructionSize;
+              auto *Size = NewPCCall->getArgument(SizeArgument);
+              uint64_t InstructionSize = getLimitedValue(Size);
 
               // Check that, w.r.t. to the last newpc, we're looking at the
               // immediately preceding instruction, if not fail.

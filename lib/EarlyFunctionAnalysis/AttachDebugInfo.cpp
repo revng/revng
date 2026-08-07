@@ -43,10 +43,6 @@ using namespace llvm;
 
 static Logger Log("attach-debug-info");
 
-static bool isTrue(const llvm::Value *V) {
-  return getLimitedValue(V) != 0;
-}
-
 /// \return the control-flow graph whose entry is \p Owner, if any
 ///
 /// Looking the block up instead would be ambiguous: two functions can share
@@ -179,12 +175,12 @@ public:
       }
 
       for (auto &I : *BB) {
-        if (auto *Call = getCallTo(&I, "newpc")) {
-          BasicBlockID Address = blockIDFromNewPC(Call);
+        if (std::optional Call = NewPCHelper.getCall(&I)) {
+          BasicBlockID Address = blockIDFromNewPC(*Call);
 
-          if (isTrue(Call->getArgOperand(NewPCArguments::IsJumpTarget))) {
+          if (startsBasicBlock(*Call)) {
             const efa::ControlFlowGraph
-              *Owner = findOwner(FM, Inlined, ownerFromNewPC(Call));
+              *Owner = findOwner(FM, Inlined, ownerFromNewPC(*Call));
             revng_assert(Owner != nullptr,
                          "`newpc` refers to a function that is not part of "
                          "this bundle");

@@ -9,6 +9,7 @@
 
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/NewPC.h"
 
 #include "PostLiftVerifyPass.h"
 
@@ -82,7 +83,8 @@ bool PostLiftVerifyPass::runOnModule(Module &M) {
         if (Callee != nullptr)
           CalleeName = Callee->getName();
 
-        Good = (CalleeName == "newpc" or CalleeName == "jump_to_symbol"
+        Good = (NewPCHelper.getCall(&I).has_value()
+                or CalleeName == "jump_to_symbol"
                 or CalleeName.startswith("helper_")
                 or CalleeName == "function_call"
                 or CalleeName == "helper_initialize_env"

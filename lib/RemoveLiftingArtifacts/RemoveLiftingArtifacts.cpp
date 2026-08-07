@@ -11,6 +11,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/RemoveLiftingArtifacts/RemoveLiftingArtifacts.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 
@@ -25,7 +26,7 @@ static void removeCallsToArtifacts(Function &F) {
           // TODO: we also remove calls to set_PlainMetaAddress since emitting C
           //       structs is currently unsupported by the backend. We should
           //       eventually find a better solution.
-          if (Callee->getName() == "newpc"
+          if (NewPCHelper.getCall(C).has_value()
               or Callee->getName() == "set_PlainMetaAddress"
               or FunctionTags::Exceptional.isTagOf(Callee)) {
             ToErase.push_back(C);

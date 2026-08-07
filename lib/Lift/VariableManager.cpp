@@ -36,6 +36,7 @@
 #include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 
 // This name corresponds to a function in `early-linked`.
 RegisterIRHelper SetRegisterMarker("set_register");
@@ -657,7 +658,7 @@ void VariableManager::closeTranslationBlock() {
   // spurious phis.
   // TODO: alternatively, we could write an analysis that does this only if
   //       the Alloca is read uninitialized on at least one path
-  revng_assert(isCallTo(TranslationBlockStart, "newpc"));
+  revng_assert(NewPCHelper.getCall(TranslationBlockStart).has_value());
   Instruction *InsertionPoint = TranslationBlockStart->getNextNode();
   revng::IRBuilder Builder(InsertionPoint);
   for (auto &&[_, Alloca] : TBTemporaries) {

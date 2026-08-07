@@ -26,7 +26,8 @@ GeneratedCodeBasicInfo::GeneratedCodeBasicInfo(const model::Binary &Binary,
   Binary(Binary), Module(M) {
 
   RootFunction = M.getFunction("root");
-  NewPC = getIRHelper("newpc", M);
+  std::optional NewPCHandle = NewPCHelper.get(M);
+  NewPC = NewPCHandle.has_value() ? NewPCHandle->function() : nullptr;
 
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 
@@ -85,9 +86,9 @@ void GeneratedCodeBasicInfo::parseRoot() {
         break;
 
       case BlockType::JumpTargetBlock: {
-        auto *Call = cast<CallInst>(&*BB.begin());
-        revng_assert(getCalledFunction(Call) == NewPC);
-        JumpTargets[addressFromNewPC(Call)] = &BB;
+        std::optional Call = NewPCHelper.getCall(&*BB.begin());
+        revng_assert(Call.has_value());
+        JumpTargets[addressFromNewPC(*Call)] = &BB;
         break;
       }
       case BlockType::RootDispatcherHelperBlock:

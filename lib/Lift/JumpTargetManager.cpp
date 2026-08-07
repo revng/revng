@@ -674,7 +674,7 @@ void JumpTargetManager::registerInstruction(MetaAddress PC,
 // TODO: this is a candidate for BFSVisit
 std::pair<MetaAddress, uint64_t>
 JumpTargetManager::getPC(Instruction *TheInstruction) const {
-  CallInst *NewPCCall = nullptr;
+  std::optional<IRHelperCall<NewPCArgument>> NewPCCall;
   llvm::DenseSet<BasicBlock *> Visited;
   std::queue<BasicBlock::reverse_iterator> WorkList;
   if (TheInstruction->getIterator() == TheInstruction->getParent()->begin())
@@ -690,23 +690,18 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
 
     // Go through the instructions looking for calls to newpc
     for (; I != End; I++) {
-      if (auto Marker = dyn_cast<CallInst>(&*I)) {
-        // TODO: comparing strings is not very elegant
-        auto *Callee = getCalledFunction(Marker);
-        if (Callee != nullptr and Callee->getName() == "newpc") {
+      if (std::optional Marker = NewPCHelper.getCall(&*I)) {
+        // We found two distinct newpc leading to the requested instruction
+        if (NewPCCall.has_value())
+          return { MetaAddress::invalid(), 0 };
 
-          // We found two distinct newpc leading to the requested instruction
-          if (NewPCCall != nullptr)
-            return { MetaAddress::invalid(), 0 };
-
-          NewPCCall = Marker;
-          break;
-        }
+        NewPCCall = Marker;
+        break;
       }
     }
 
     // If we haven't find a newpc call yet, continue exploration backward
-    if (NewPCCall == nullptr) {
+    if (not NewPCCall.has_value()) {
       // If one of the predecessors is the dispatcher, don't explore any further
       for (BasicBlock *Predecessor : predecessors(BB)) {
         // Assert we didn't reach the almighty dispatcher
@@ -724,12 +719,12 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
   }
 
   // Couldn't find the current PC
-  if (NewPCCall == nullptr)
+  if (not NewPCCall.has_value())
     return { MetaAddress::invalid(), 0 };
 
-  using namespace NewPCArguments;
-  MetaAddress PC = addressFromNewPC(NewPCCall);
-  uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(InstructionSize));
+  MetaAddress PC = addressFromNewPC(*NewPCCall);
+  auto *Argument = NewPCCall->getArgument(NewPCArgument::InstructionSize);
+  uint64_t Size = getLimitedValue(Argument);
   revng_assert(Size != 0);
   return { PC, Size };
 }
@@ -776,8 +771,8 @@ public:
 private:
   MetaAddress getPC(BasicBlock *BB) {
     if (!BB->empty()) {
-      if (auto *Call = getCallTo(&*BB->begin(), "newpc"))
-        return addressFromNewPC(Call);
+      if (std::optional Call = NewPCHelper.getCall(&*BB->begin()))
+        return addressFromNewPC(*Call);
     }
 
     return MetaAddress::invalid();
@@ -921,8 +916,8 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
     while (!BB->empty()) {
       Instruction *I = &*(--BB->end());
 
-      if (CallInst *Call = getCallTo(I, "newpc")) {
-        OriginalInstructionAddresses.erase(addressFromNewPC(Call));
+      if (std::optional Call = NewPCHelper.getCall(I)) {
+        OriginalInstructionAddresses.erase(addressFromNewPC(*Call));
       }
       eraseInstruction(I);
     }
@@ -1231,10 +1226,10 @@ bool JumpTargetManager::hasPredecessors(BasicBlock *BB) const {
 
 CallInst *JumpTargetManager::getJumpTarget(BasicBlock *Target) {
   for (BasicBlock *BB : inverse_depth_first(Target)) {
-    if (auto *Call = dyn_cast<CallInst>(&*BB->begin())) {
-      auto MA = addressFromNewPC(Call);
+    if (std::optional Call = NewPCHelper.getCall(&*BB->begin())) {
+      MetaAddress MA = addressFromNewPC(*Call);
       if (MA.isValid() and isJumpTarget(MA))
-        return Call;
+        return cast<CallInst>(Call->call());
     }
   }
 
@@ -1277,16 +1272,16 @@ void JumpTargetManager::harvest() {
     // Update the third argument of newpc calls (isJT, i.e., is this instruction
     // a jump target?)
     revng::IRBuilder Builder(Context);
-    Function *NewPCFunction = getIRHelper("newpc", TheModule);
-    if (NewPCFunction != nullptr) {
-      for (User *U : NewPCFunction->users()) {
-        auto *Call = cast<CallInst>(U);
-        if (Call->getParent() != nullptr) {
+    std::optional NewPCFunction = NewPCHelper.get(TheModule);
+    if (NewPCFunction.has_value()) {
+      for (IRHelperCall<NewPCArgument> Call : NewPCFunction->callers()) {
+        if (Call.call()->getParent() != nullptr) {
           // Report the instruction on
           // the coverage CSV
           MetaAddress PC = addressFromNewPC(Call);
           bool IsJT = isJumpTarget(PC);
-          Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
+          Call.setArgument(NewPCArgument::IsJumpTarget,
+                           Builder.getInt32(static_cast<uint32_t>(IsJT)));
         }
       }
     }
