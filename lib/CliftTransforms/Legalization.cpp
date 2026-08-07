@@ -281,9 +281,10 @@ struct ArithmeticPromotionPattern : mlir::OpRewritePattern<OpT> {
                                       clift::ExpressionOpInterface Op,
                                       llvm::ArrayRef<unsigned> Indices) const {
     mlir::OpResult Result = Op->getOpResult(0);
+    auto OldType = Result.getType();
 
-    auto OldType = clift::getUnderlyingIntegerType(Result.getType());
-    if (not OldType or OldType.getSize() >= IntType.getSize())
+    auto OldIntType = clift::getUnderlyingIntegerType(OldType);
+    if (not OldIntType or OldIntType.getSize() >= IntType.getSize())
       return mlir::failure();
 
     modifyResultType(Rewriter, Op, IntType);
