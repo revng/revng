@@ -470,9 +470,12 @@ public:
 
 /// The flags Clang is run with. Every comment is kept, not only the
 /// documentation ones, because the directives are written as plain comments.
+/// Warnings are off: only errors are collected and reported, so a warning would
+/// reach the user as unattributed noise on the analysis' standard error.
 std::vector<std::string> getCompileFlags() {
   std::vector<std::string> Flags = revng::getClangCompileFlags();
   Flags.push_back("-fparse-all-comments");
+  Flags.push_back("-w");
   return Flags;
 }
 
