@@ -138,7 +138,7 @@ std::string renderTypeProbes(llvm::ArrayRef<std::string> TypeNames) {
 /// A synthetic `void __revng_retype_N(<type>);` carries the N-th type name as
 /// its single parameter. Resolve it to a model type, paired with the name as
 /// written so the caller can key it by that. Nothing when \p Probe is not one
-/// of the probes, or names no type of the list.
+/// of the probes, names no type of the list, or names one that did not resolve.
 std::optional<std::pair<std::string, model::UpcastableType>>
 resolveTypeProbe(const clang::FunctionDecl &Probe,
                  clang::ASTContext &Context,
@@ -154,13 +154,24 @@ resolveTypeProbe(const clang::FunctionDecl &Probe,
   if (Probe.getNumParams() != 1)
     return std::nullopt;
 
-  std::vector<std::string> Ignored;
+  std::vector<std::string> Errors;
   clang::QualType Argument = Probe.getParamDecl(0)->getOriginalType();
   model::UpcastableType Resolved = revng::qualTypeToModel(Argument,
                                                           Binary,
                                                           Context,
-                                                          Ignored,
+                                                          Errors,
                                                           "edit-c-body:");
+
+  // A named type the model does not know is reported here and still wrapped in
+  // whatever it was written under, so `struct nope *` comes back as a pointer
+  // to nothing. Only a type that resolved whole is worth keeping.
+  if (not Errors.empty()) {
+    revng_log(Log,
+              "Could not resolve `" << TypeNames[Index]
+                                    << "`: " << llvm::join(Errors, "; "));
+    return std::nullopt;
+  }
+
   return std::pair(TypeNames[Index], std::move(Resolved));
 }
 
