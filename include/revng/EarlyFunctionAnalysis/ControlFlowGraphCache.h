@@ -9,6 +9,7 @@
 #include "llvm/Pass.h"
 
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/FunctionBundle.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Ranks/IRHelpers.h"
@@ -60,21 +61,22 @@ class BasicControlFlowGraphCache {
   using Function = typename Traits::Function;
   using CallInst = typename Traits::CallInst;
 
-  std::map<MetaAddress, TupleTree<efa::ControlFlowGraph>> Deserialized;
+  std::map<MetaAddress, TupleTree<efa::FunctionBundle>> Deserialized;
 
 public:
   BasicControlFlowGraphCache() {}
 
 public:
-  void set(TupleTree<efa::ControlFlowGraph> &&New) {
-    Deserialized[New->Entry()] = std::move(New);
+  void set(TupleTree<efa::FunctionBundle> &&New) {
+    MetaAddress Entry = New->MainFunction().Entry();
+    Deserialized[Entry] = std::move(New);
   }
 
 public:
   const efa::ControlFlowGraph &getControlFlowGraph(const MetaAddress &Address) {
     auto It = Deserialized.find(Address);
     revng_assert(It != Deserialized.end());
-    return *It->second.get();
+    return It->second->MainFunction();
   }
 
   const efa::ControlFlowGraph &getControlFlowGraph(const Function Function) {

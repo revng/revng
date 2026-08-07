@@ -11,9 +11,12 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/FunctionBundle.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Ranks/IRHelpers.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 
@@ -119,6 +122,26 @@ const efa::BasicBlock *ControlFlowGraph::findBlock(GeneratedCodeBasicInfo &GCBI,
   }
 
   return &*It;
+}
+
+std::pair<const efa::ControlFlowGraph *, const efa::BasicBlock *>
+FunctionBundle::findBlock(GeneratedCodeBasicInfo &GCBI,
+                          llvm::Instruction *I) const {
+  // The location names the function owning the block, which is the one the
+  // code was inlined from. Searching for the block instead would be ambiguous,
+  // since two functions can share code.
+  if (auto MaybeLocation = getLocation(I)) {
+    auto [Owner] = MaybeLocation->at(revng::ranks::Function);
+    if (Owner != MainFunction().Entry()) {
+      const efa::ControlFlowGraph &CFG = AlwaysInlineFunctions().at(Owner);
+      BasicBlockID ID = MaybeLocation->parent().back();
+      if (auto It = CFG.Blocks().find(ID); It != CFG.Blocks().end())
+        return { &CFG, &*It };
+    }
+  }
+
+  const efa::ControlFlowGraph &Main = MainFunction();
+  return { &Main, Main.findBlock(GCBI, I->getParent()) };
 }
 
 void ControlFlowGraph::serialize(GeneratedCodeBasicInfo &GCBI) const {

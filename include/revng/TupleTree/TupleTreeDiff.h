@@ -59,6 +59,10 @@ struct TupleTreeEntries {};
 template<typename T>
 using AllowedTupleTreeTypes = typename TupleTreeEntries<T>::Types;
 
+/// The types a path component can be, i.e. the key of a container
+template<typename T>
+using AllowedContainerKeys = typename TupleTreeEntries<T>::ContainerKeys;
+
 template<typename T>
 concept TupleTreeRootLike = StrictSpecializationOf<AllowedTupleTreeTypes<T>,
                                                    std::variant>;
@@ -187,6 +191,13 @@ public:
   }
 
 public:
+  /// \return the paths of everything this diff affects
+  ///
+  /// Adding or removing an element of a container affects both the container
+  /// and the element, so both paths are reported. Whoever reads an element by
+  /// key, or asks whether it is there, only depends on the latter.
+  std::set<std::string> paths() const;
+
   void dump(llvm::raw_ostream &OutputStream) const;
 
   void dump() const {
@@ -413,6 +424,57 @@ private:
 template<TupleTreeRootLike M>
 TupleTreeDiff<M> diff(const M &LHS, const M &RHS) {
   return tupletreediff::detail::Diff<M>().diff(LHS, RHS);
+}
+
+//
+// TupleTreeDiff::paths
+//
+
+/// Append \p Key to \p Path
+template<TupleTreeRootLike T, size_t Index = 0>
+inline void appendKey(const AllowedContainerKeys<T> &Key, TupleTreePath &Path) {
+  using Keys = AllowedContainerKeys<T>;
+  if constexpr (Index < std::variant_size_v<Keys>) {
+    using Candidate = std::variant_alternative_t<Index, Keys>;
+    if (const Candidate *Value = std::get_if<Candidate>(&Key))
+      Path.push_back(*Value);
+    else
+      appendKey<T, Index + 1>(Key, Path);
+  }
+}
+
+/// \return the path of the element \p C adds to or removes from a container,
+///         or `std::nullopt` if \p C changes something else
+template<TupleTreeRootLike T>
+inline std::optional<TupleTreePath> elementPath(const Change<T> &C) {
+  // Adding or removing an element of a container is the only change with a
+  // single side: replacing a field carries both the old and the new value.
+  if (C.Old.has_value() == C.New.has_value())
+    return std::nullopt;
+
+  const AllowedTupleTreeTypes<T> &Element = C.New.has_value() ? *C.New : *C.Old;
+  std::optional Key = TupleTreeEntries<T>::keyOf(Element);
+  if (not Key.has_value())
+    return std::nullopt;
+
+  TupleTreePath Result = C.Path;
+  appendKey<T>(*Key, Result);
+
+  return Result;
+}
+
+template<TupleTreeRootLike T>
+inline std::set<std::string> TupleTreeDiff<T>::paths() const {
+  std::set<std::string> Result;
+
+  for (const Change &C : Changes) {
+    Result.insert(pathAsString<T>(C.Path).value());
+
+    if (std::optional<TupleTreePath> Element = elementPath(C))
+      Result.insert(pathAsString<T>(*Element).value());
+  }
+
+  return Result;
 }
 
 //

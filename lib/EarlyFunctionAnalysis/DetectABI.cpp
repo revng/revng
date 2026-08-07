@@ -39,9 +39,11 @@
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/CommonOptions.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 
 using namespace llvm;
@@ -249,7 +251,7 @@ void DetectABI::computeApproximateCallGraph() {
       BasicBlock *Current = Worklist.pop_back_val();
       Visited.insert(Current);
 
-      if (hasMarker(Current, "function_call")) {
+      if (hasMarker(Current, FunctionCallMarker)) {
         // If not an indirect call, add the node to the CG
         if (BasicBlock *Callee = getFunctionCallCallee(Current)) {
           BasicBlockNode *GraphNode = nullptr;
@@ -344,10 +346,11 @@ void DetectABI::preliminaryFunctionAnalysis() {
 
     // Serialize CFG in the ControlFlowGraphCache
     {
-      TupleTree<efa::ControlFlowGraph> New;
-      New->Entry() = EntryNode->Address;
-      New->Blocks() = AnalysisResult.CFG;
-      New->simplify(*Binary);
+      TupleTree<efa::FunctionBundle> New;
+      efa::ControlFlowGraph &Main = New->MainFunction();
+      Main.Entry() = EntryNode->Address;
+      Main.Blocks() = AnalysisResult.CFG;
+      Main.simplify(*Binary);
       FMC.set(std::move(New));
     }
 
@@ -390,7 +393,7 @@ void DetectABI::preliminaryFunctionAnalysis() {
           MetaAddress CallerPC = Caller->Address;
           const auto &CallerSummary = Oracle.getLocalFunction(CallerPC);
           using namespace model::FunctionAttribute;
-          if (CallerSummary.Attributes.contains(AlwaysInline))
+          if (CallerSummary.Attributes.contains(HasOneBrokenReturn))
             InlineFunctionWorklist.insert(Caller);
 
           if (Binary->Functions().at(CallerPC).Prototype().isEmpty()) {
@@ -669,6 +672,23 @@ void DetectABI::applyABIDeductions() {
   }
 }
 
+/// \return whether \p CFG is a single basic block calling a dynamic function
+///
+/// That is what a PLT stub looks like: it exists only to reach the dynamic
+/// function, so inlining it lets its callers call that function directly.
+static bool isDynamicFunctionStub(const SortedVector<efa::BasicBlock> &CFG) {
+  if (CFG.size() != 1)
+    return false;
+
+  for (const auto &Edge : CFG.begin()->Successors()) {
+    const auto *Call = llvm::dyn_cast<efa::CallEdge>(Edge.get());
+    if (Call != nullptr and not Call->DynamicFunction().empty())
+      return true;
+  }
+
+  return false;
+}
+
 void DetectABI::recordRegisters(const efa::CSVSet &CSVs, auto Inserter) {
   for (auto *CSV : CSVs) {
     auto Reg = model::Register::fromCSVName(CSV->getName(),
@@ -693,6 +713,9 @@ void DetectABI::finalizeModel() {
 
     // Replace function attributes
     Function.Attributes() = Summary.Attributes;
+
+    if (isDynamicFunctionStub(Summary.CFG))
+      Function.Attributes().insert(FunctionAttribute::AlwaysInline);
 
     auto &&[Prototype, NewType] = Binary->makeRawFunctionDefinition();
     Prototype.Architecture() = getCodeArchitecture(EntryPC);

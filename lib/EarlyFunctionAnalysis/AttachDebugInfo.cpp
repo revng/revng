@@ -32,17 +32,33 @@
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/FunctionTags.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Ranks/Location.h"
 #include "revng/Ranks/Ranks.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 
 static Logger Log("attach-debug-info");
 
-static bool isTrue(const llvm::Value *V) {
-  return getLimitedValue(V) != 0;
+/// \return the control-flow graph whose entry is \p Owner, if any
+///
+/// Looking the block up instead would be ambiguous: two functions can share
+/// code, so the same block can appear in more than one control-flow graph.
+static const efa::ControlFlowGraph *
+findOwner(const efa::ControlFlowGraph &FM,
+          llvm::ArrayRef<const efa::ControlFlowGraph *> Inlined,
+          const MetaAddress &Owner) {
+  if (FM.Entry() == Owner)
+    return &FM;
+
+  for (const efa::ControlFlowGraph *Candidate : Inlined)
+    if (Candidate->Entry() == Owner)
+      return Candidate;
+
+  return nullptr;
 }
 
 class DebugInformationBuilder {
@@ -109,9 +125,16 @@ private:
   }
 
 public:
+  /// Attach the debug locations to \p F
+  ///
+  /// \p FM describes \p F itself, while \p Inlined describes the functions
+  /// whose body might have been inlined into it. The code coming from those
+  /// keeps referring to their own addresses.
   void handleFunction(llvm::Function &F,
-                      efa::ControlFlowGraph &FM,
+                      const efa::ControlFlowGraph &FM,
+                      llvm::ArrayRef<const efa::ControlFlowGraph *> Inlined,
                       GeneratedCodeBasicInfo &GCBI) {
+    const efa::ControlFlowGraph *CurrentCFG = &FM;
     BasicBlockID CurrentBB = BasicBlockID(FM.Entry());
     DILocation *DefaultDI = buildDI(FM.Entry(), CurrentBB, FM.Entry());
     DILocation *CurrentDI = DefaultDI;
@@ -152,22 +175,30 @@ public:
       }
 
       for (auto &I : *BB) {
-        if (auto *Call = getCallTo(&I, "newpc")) {
-          BasicBlockID Address = blockIDFromNewPC(Call);
+        if (std::optional Call = NewPCHelper.getCall(&I)) {
+          BasicBlockID Address = blockIDFromNewPC(*Call);
 
-          if (isTrue(Call->getArgOperand(NewPCArguments::IsJumpTarget))) {
-            const auto &CFG = FM.Blocks();
-            if (CFG.contains(Address)) {
+          if (startsBasicBlock(*Call)) {
+            const efa::ControlFlowGraph
+              *Owner = findOwner(FM, Inlined, ownerFromNewPC(*Call));
+            revng_assert(Owner != nullptr,
+                         "`newpc` refers to a function that is not part of "
+                         "this bundle");
+
+            if (Owner->Blocks().contains(Address)) {
+              CurrentCFG = Owner;
               CurrentBB = Address;
               revng_assert(CurrentBB.isValid());
 
             } else {
-              revng_assert(CFG.at(CurrentBB).contains(Address));
+              revng_assert(CurrentCFG->Blocks()
+                             .at(CurrentBB)
+                             .contains(Address));
             }
           }
 
           revng_assert(Address.inliningIndex() == CurrentBB.inliningIndex());
-          CurrentDI = buildDI(FM.Entry(), CurrentBB, Address.start());
+          CurrentDI = buildDI(CurrentCFG->Entry(), CurrentBB, Address.start());
 
           if (llvm::Error Error = isDebugLocationInvalid(CurrentDI))
             revng_abort(revng::unwrapError(std::move(Error)).c_str());
@@ -178,6 +209,34 @@ public:
     }
   }
 };
+
+/// Give \p LLVMFunction, described by \p FM, a debug location per instruction
+///
+/// \p Inlined describes the functions whose body might have been inlined into
+/// it.
+static void attachTo(DIBuilder &DIB,
+                     DIFile *File,
+                     llvm::Function &LLVMFunction,
+                     const efa::ControlFlowGraph &FM,
+                     llvm::ArrayRef<const efa::ControlFlowGraph *> Inlined,
+                     GeneratedCodeBasicInfo &GCBI) {
+  // Skip functions with debug-info.
+  if (LLVMFunction.getSubprogram())
+    return;
+
+  // Skip declarations
+  revng_assert(not LLVMFunction.isDeclaration());
+
+  revng_log(Log,
+            "Metadata for Function " << LLVMFunction.getName() << ":"
+                                     << FM.Entry().toString());
+
+  DebugInformationBuilder Builder(DIB,
+                                  LLVMFunction.getContext(),
+                                  File,
+                                  LLVMFunction.getName());
+  Builder.handleFunction(LLVMFunction, FM, Inlined, GCBI);
+}
 
 namespace revng::pypeline::piperuns {
 
@@ -199,24 +258,37 @@ void AttachDebugInfo::runOnLLVMFunction(const model::Function &Function,
                                             0 // RV
   );
 
-  // Skip functions with debug-info.
-  if (LLVMFunction.getSubprogram())
-    return;
+  const auto &Bundle = *CFG.getElement(ObjectID(Function.Entry()));
 
-  // Skip declarations
-  revng_assert(not LLVMFunction.isDeclaration());
+  llvm::SmallVector<const efa::ControlFlowGraph *> Inlined;
+  for (const efa::ControlFlowGraph &Callee : Bundle.AlwaysInlineFunctions())
+    Inlined.push_back(&Callee);
 
-  auto FM = *CFG.getElement(ObjectID(Function.Entry()));
-  revng_log(Log,
-            "Metadata for Function " << LLVMFunction.getName() << ":"
-                                     << FM.Entry().toString());
+  attachTo(DIB,
+           CU->getFile(),
+           LLVMFunction,
+           Bundle.MainFunction(),
+           Inlined,
+           GCBI);
 
-  LLVMContext &Context = LLVMFunction.getParent()->getContext();
-  DebugInformationBuilder Builder(DIB,
-                                  Context,
-                                  CU->getFile(),
-                                  LLVMFunction.getName());
-  Builder.handleFunction(LLVMFunction, FM, GCBI);
+  // Until the inlining pipe runs, the module also carries the body of the
+  // functions to inline into this one: they need locations of their own, or
+  // the code resulting from inlining them would have none.
+  for (llvm::Function &F : Module.functions()) {
+    if (&F == &LLVMFunction or F.isDeclaration())
+      continue;
+
+    if (not FunctionTags::Isolated.isTagOf(&F))
+      continue;
+
+    MetaAddress Entry = getMetaAddressOfIsolatedFunction(F);
+    attachTo(DIB,
+             CU->getFile(),
+             F,
+             Bundle.AlwaysInlineFunctions().at(Entry),
+             {},
+             GCBI);
+  }
 }
 
 } // namespace revng::pypeline::piperuns

@@ -7,6 +7,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/PromoteStackPointer/CleanupStackSizeMarkersPass.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
+#include "revng/PromoteStackPointer/Markers.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -25,7 +26,8 @@ bool CleanupStackSizeMarkersPass::runOnModule(Module &M) {
     FunctionsToDelete.push_back(&F);
   }
 
-  if (auto *SSACS = getIRHelper("stack_size_at_call_site", M)) {
+  if (std::optional Helper = StackSizeAtCallSite.get(M)) {
+    auto *SSACS = Helper->function();
     for (User *U : SSACS->users()) {
       auto *Call = cast<CallInst>(U);
       CallsToDelete.push_back(Call);

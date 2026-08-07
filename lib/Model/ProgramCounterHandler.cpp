@@ -11,9 +11,11 @@
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/IRHelper.h"
+#include "revng/Support/NewPC.h"
 
 // This name corresponds to a function in `early-linked`.
-RegisterIRHelper SetMetaAddressHelper("set_PlainMetaAddress");
+IRHelper<> SetMetaAddressHelper("set_PlainMetaAddress");
 
 using namespace llvm;
 using PCH = ProgramCounterHandler;
@@ -395,7 +397,7 @@ static void setPlainMetaAddressImpl(revng::IRBuilder &Builder,
   GlobalVariable *Global = M->getGlobalVariable(GlobalName);
   revng_assert(Global != nullptr);
 
-  Function *MAConstuctor = getIRHelper("set_PlainMetaAddress", *M);
+  Function *MAConstuctor = functionOrNull(SetMetaAddressHelper.get(*M));
   auto WriteArguments = MemoryEffects::argMemOnly(ModRefInfo::Mod);
   MAConstuctor->setMemoryEffects(WriteArguments);
   MAConstuctor->addFnAttr(Attribute::WillReturn);
@@ -495,7 +497,7 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
           return BailOut;
         }
 
-      } else if (CallInst *NewPCCall = getCallTo(&I, "newpc")) {
+      } else if (std::optional NewPCCall = NewPCHelper.getCall(&I)) {
         //
         // We reached a call to newpc
         //
@@ -507,7 +509,7 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
         }
 
         // Obtain the current PC and fill in all the missing fields
-        PMA.set(addressFromNewPC(NewPCCall));
+        PMA.set(addressFromNewPC(*NewPCCall));
 
         // Compute the final MetaAddress on this path and ensure it's the same
         // as previous ones

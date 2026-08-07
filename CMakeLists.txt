@@ -182,8 +182,9 @@ set(SUPPORT_MODULES_CONFIGS "normal;trace")
 set(SUPPORT_MODULES_CONFIG_normal "")
 set(SUPPORT_MODULES_CONFIG_trace "-DTRACE")
 
-# A set of llvm modules that contain all the known helpers.
-set(HELPER_MODULE_LIST, "")
+# The llvm modules whose functions can end up inlined in the decompiled code.
+# Their names are the ones the C backend has to stay away from.
+set(MODULES_TO_INLINE "")
 
 foreach(
   ARCH
@@ -206,7 +207,6 @@ foreach(
   add_custom_target("early-linked-module-${OUTPUT}" ALL
                     DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
   add_dependencies(revng-all-binaries "early-linked-module-${OUTPUT}")
-  list(APPEND HELPER_MODULE_LIST "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
 
   # Enable the support for C exceptions to avoid optimizations that break
   # exception support when linking a module with isolated functions
@@ -224,7 +224,6 @@ foreach(
     add_custom_target("support-module-${OUTPUT}" ALL
                       DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
     add_dependencies(revng-all-binaries "support-module-${OUTPUT}")
-    list(APPEND HELPER_MODULE_LIST "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
   endforeach()
 
   # Annotate `libtcg-helpers-*.bc`. This loads the `libtcg-helpers` bitcode
@@ -251,6 +250,10 @@ foreach(
   #   bodies.
   # * `fix-helpers` rewrites helper bodies to access CSVs via the env pointer,
   #   switching on env-relative offsets.
+  # * `function-attrs` infers the memory effects of each helper. It has to run
+  #   after `fix-helpers`, which introduces accesses to the CSVs. Helpers that
+  #   end up as `memory(none)` (e.g. `bit_parity`, which only reads a constant
+  #   lookup table) become dead code when their result is unused.
   # * `detect-uninlinable-helpers` excludes not viable helpers from inlining.
 
   # Only the x86 softfloat helpers iterate over the vector-register lanes with
@@ -270,7 +273,7 @@ foreach(
     COMMAND
       ./bin/revng opt -mark-inline-helpers-up-to -sroa -instsimplify
       -cpu-loop-exit -analyze-helper-arguments ${EXTRA_HELPER_PASSES}
-      -fix-helpers -fix-helpers-architecture="${ARCH}" -dce
+      -fix-helpers -fix-helpers-architecture="${ARCH}" -function-attrs -dce
       -detect-uninlinable-helpers "${LIBTCG_HELPERS}" -o
       "${LIBTCG_HELPERS_FULL}")
   add_custom_target("annotated-libtcg-helpers-${ARCH}" ALL
@@ -294,10 +297,6 @@ foreach(
               "${PROCESS_HELPER_MODULE_OUTPUT}")
     add_custom_target("annotated-libtcg-helpers-${OPT_NAME}-${ARCH}" ALL
                       DEPENDS "${PROCESS_HELPER_MODULE_OUTPUT}")
-    list(APPEND HELPER_MODULE_LIST "${PROCESS_HELPER_MODULE_OUTPUT}")
-    set(HELPER_MODULE_LIST
-        "${HELPER_MODULE_LIST}"
-        PARENT_SCOPE)
   endfunction()
 
   # Produce to-inline version of helpers. In this version the bitcode file only
@@ -314,6 +313,9 @@ foreach(
     instsimplify
     simplifycfg
     strip-dead-debug-info)
+
+  list(APPEND MODULES_TO_INLINE
+       "${CMAKE_BINARY_DIR}/share/revng/libtcg-helpers-to-inline-${ARCH}.bc")
 
   # Produce declarations-only version of helpers. In this version of the bitcode
   # file all the helper functions have been turned into declarations and all
@@ -434,9 +436,9 @@ add_custom_target(mkdocs ALL DEPENDS share/doc/revng/html/404.html)
 add_custom_command(
   OUTPUT "${CMAKE_BINARY_DIR}/share/revng/helper-list.csv"
   COMMAND
-    ${CMAKE_SOURCE_DIR}/scripts/extract-helper-names.sh ${HELPER_MODULE_LIST} >
+    ${CMAKE_SOURCE_DIR}/scripts/extract-helper-names.sh ${MODULES_TO_INLINE} >
     "${CMAKE_BINARY_DIR}/share/revng/helper-list.csv"
-  DEPENDS copy_share ${HELPER_MODULE_LIST})
+  DEPENDS copy_share ${MODULES_TO_INLINE})
 add_custom_target(helper-list ALL
                   DEPENDS "${CMAKE_BINARY_DIR}/share/revng/helper-list.csv")
 

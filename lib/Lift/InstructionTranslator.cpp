@@ -28,13 +28,13 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Support/RandomAccessIterator.h"
 #include "revng/Support/Range.h"
 
 #include "InstructionTranslator.h"
 
 // This name is not present after `remove-newpc-calls`.
-RegisterIRHelper NewPCHelper("newpc");
 
 using namespace llvm;
 
@@ -385,20 +385,20 @@ IT::InstructionTranslator(class LibTcg &LibTcg,
   // * BasicBlockID of the instruction in string form
   // * instruction size
   // * isJT (-1: unknown, 0: no, 1: yes)
-  // * inlining index
-  // * pointer to the disassembled instruction
+  // * entry of the function owning the block, in string form. Code becomes
+  //   part of a function only once it is outlined, so this is invalid here
   // * all the local variables used by this instruction
   auto *NewPCMarkerTy = FT::get(Type::getVoidTy(Context),
                                 { Type::getInt8PtrTy(Context),
                                   Type::getInt64Ty(Context),
                                   Type::getInt32Ty(Context),
-                                  Type::getInt32Ty(Context),
                                   Type::getInt8PtrTy(Context) },
                                 true);
-  NewPCMarker = createIRHelper("newpc",
-                               TheModule,
-                               NewPCMarkerTy,
-                               GlobalValue::ExternalLinkage);
+  NewPCMarker = NewPCHelper
+                  .create(TheModule,
+                          NewPCMarkerTy,
+                          GlobalValue::ExternalLinkage)
+                  .function();
   FunctionTags::Marker.addTo(NewPCMarker);
   NewPCMarker->addFnAttr(Attribute::WillReturn);
   NewPCMarker->addFnAttr(Attribute::NoUnwind);
@@ -414,9 +414,10 @@ void IT::finalizeNewPCMarkers() {
     auto *Call = cast<CallInst>(U);
 
     // Report the instruction on the coverage CSV
-    using namespace NewPCArguments;
-    MetaAddress PC = addressFromNewPC(Call);
-    uint64_t Size = getLimitedValue(Call->getArgOperand(InstructionSize));
+    IRHelperCall<NewPCArgument> NewPCCall(Call);
+    MetaAddress PC = addressFromNewPC(NewPCCall);
+    auto *Argument = NewPCCall.getArgument(NewPCArgument::InstructionSize);
+    uint64_t Size = getLimitedValue(Argument);
     bool IsJT = JumpTargets.isJumpTarget(PC);
 
     // We already finished discovering new code to translate, so we can remove
@@ -483,13 +484,12 @@ SmallSet<unsigned, 1> IT::preprocess(const LibTcgTranslationBlock &TB) {
 CallInst *IT::emitNewPCCall(revng::IRBuilder &Builder,
                             MetaAddress PC,
                             uint64_t Size) const {
-  PointerType *Int8PtrTy = getStringPtrType(TheModule.getContext());
-  auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
+  // The owner is filled in by the outliner: in root, code does not belong to
+  // any function yet
   std::vector<Value *> Args = { BasicBlockID(PC).toValue(&TheModule),
                                 Builder.getInt64(Size),
                                 Builder.getInt32(-1),
-                                Builder.getInt32(0),
-                                Int8NullPtr };
+                                MetaAddress::invalid().toValue(&TheModule) };
 
   // Insert a call to NewPCMarker capturing all the currently live temporaries
   // which might be alive across an instruction boundary. This prevents SROA

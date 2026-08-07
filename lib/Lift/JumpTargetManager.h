@@ -25,10 +25,12 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Model/RawBinaryView.h"
+#include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/MetaAddressRange.h"
+#include "revng/Support/NewPC.h"
 
 // Forward declarations
 namespace llvm {
@@ -464,7 +466,7 @@ public:
   void createJTReasonMD() {
     using namespace llvm;
 
-    Function *CallMarker = getIRHelper("function_call", TheModule);
+    Function *CallMarker = functionOrNull(FunctionCallMarker.get(TheModule));
     if (CallMarker != nullptr) {
       auto UnwrapBA = [](Value *V) {
         return cast<BlockAddress>(V)->getBasicBlock();

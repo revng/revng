@@ -21,14 +21,7 @@ public:
   ModelDiff() = default;
   ModelDiff(TupleTreeDiff<model::Binary> Diff) : Diff(Diff) {}
 
-  std::set<revng::pypeline::ModelPath> paths() const {
-    std::set<revng::pypeline::ModelPath> Result;
-    for (auto &Entry : Diff.Changes) {
-      auto MaybePath = pathAsString<model::Binary>(Entry.Path);
-      Result.insert(MaybePath.value());
-    }
-    return Result;
-  }
+  std::set<revng::pypeline::ModelPath> paths() const { return Diff.paths(); }
 
   size_t size() const { return Diff.Changes.size(); }
 

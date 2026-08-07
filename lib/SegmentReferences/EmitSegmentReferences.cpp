@@ -10,6 +10,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/SegmentReferences/EmitSegmentReferences.h"
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 
@@ -44,14 +45,12 @@ public:
   void run(Function &F) {
     for (BasicBlock *BB : ReversePostOrderTraversal(&F)) {
       for (Instruction &I : *BB) {
-        if (auto *NewPCCall = getCallTo(&I, "newpc")) {
+        if (std::optional NewPCCall = NewPCHelper.getCall(&I)) {
 
           // Keep track of the last PC we saw. Since we proceed in RPOT, this
           // should be the address dominating all the instructions we're going
           // to visit.
-          using namespace NewPCArguments;
-          Value *Argument = NewPCCall->getArgOperand(InstructionID);
-          CurrentAddress = BasicBlockID::fromValue(Argument).start();
+          CurrentAddress = blockIDFromNewPC(*NewPCCall).start();
           CurrentAddress = CurrentAddress.toGeneric();
 
         } else if (CurrentAddress.isValid()) {

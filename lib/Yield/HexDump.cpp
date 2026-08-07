@@ -16,6 +16,7 @@
 #include "revng/Ranks/Ranks.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress/IntervalContainers.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Yield/HexDump.h"
 
 using namespace llvm;
@@ -61,18 +62,23 @@ static void outputHexDump(const model::Binary &Binary,
 
   for (const Function *F : Functions) {
     MetaAddress Address = getMetaAddressOfIsolatedFunction(*F);
-    const efa::ControlFlowGraph &Metadata = *CFG.getElement(ObjectID(Address));
+    const efa::FunctionBundle &Bundle = *CFG.getElement(ObjectID(Address));
+    const efa::ControlFlowGraph &Metadata = Bundle.MainFunction();
     MetaAddress EntryAddress = Metadata.Entry();
 
     for (const Instruction &I : llvm::instructions(F)) {
-      if (auto *Call = getCallTo(&I, "newpc")) {
+      if (std::optional Call = NewPCHelper.getCall(&I)) {
         const BasicBlock *JumpTarget = getJumpTargetBlock(I.getParent());
         revng_assert(JumpTarget != nullptr);
-        auto BasicBlockID = blockIDFromNewPC(JumpTarget->getFirstNonPHI());
+        std::optional JumpTargetCall = NewPCHelper
+                                         .getCall(JumpTarget->getFirstNonPHI());
+        revng_assert(JumpTargetCall.has_value());
+        auto BasicBlockID = blockIDFromNewPC(*JumpTargetCall);
 
-        MetaAddress Address = MetaAddress::fromValue(Call->getArgOperand(0));
+        MetaAddress Address = addressFromNewPC(*Call);
 
-        auto *SizeValue = dyn_cast<ConstantInt>(Call->getArgOperand(1));
+        auto *SizeArgument = Call->getArgument(NewPCArgument::InstructionSize);
+        auto *SizeValue = dyn_cast<ConstantInt>(SizeArgument);
 
         uint64_t Size = SizeValue->getZExtValue();
         MetaAddress Begin = Address.toGeneric();

@@ -178,15 +178,21 @@ struct SimplifySwitchPass : public llvm::ModulePass {
 private:
   const model::Binary &Binary;
   RawBinaryView &BinaryView;
+  const MetaAddress &Entry;
 
 public:
   static inline char ID = 0;
 
-  SimplifySwitchPass(const model::Binary &Binary, RawBinaryView &BinaryView) :
-    llvm::ModulePass(ID), Binary(Binary), BinaryView(BinaryView) {}
+  SimplifySwitchPass(const model::Binary &Binary,
+                     RawBinaryView &BinaryView,
+                     const MetaAddress &Entry) :
+    llvm::ModulePass(ID),
+    Binary(Binary),
+    BinaryView(BinaryView),
+    Entry(Entry) {}
 
   bool runOnModule(llvm::Module &M) override {
-    llvm::Function &Function = getUniqueIsolatedFunction(M);
+    llvm::Function &Function = getUniqueIsolatedFunction(M, Entry);
     // TODO: LazyValueInfo could be instantiated manually and that would save
     //       us from using an LLVM pass, however the nesting of dependencies is
     //       substantial so for now it's an LLVM pass.
@@ -226,11 +232,12 @@ SimplifySwitch::SimplifySwitch(const class Model &Model,
   ModuleContainer(ModuleContainer),
   Binary(*Model.get().get()),
   BinaryView(makeBinaryView(Model, BinariesContainer)) {
-  PM.add(new SimplifySwitchPass(Binary, BinaryView));
+  PM.add(new SimplifySwitchPass(Binary, BinaryView, Entry));
 };
 
 void SimplifySwitch::runOnFunction(const model::Function &Function) {
-  llvm::Module &Module = ModuleContainer.getModule(ObjectID(Function.Entry()));
+  Entry = Function.Entry();
+  llvm::Module &Module = ModuleContainer.getModule(ObjectID(Entry));
   PM.run(Module);
 }
 

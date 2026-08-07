@@ -709,6 +709,10 @@ clift::importFunctionDeclaration(mlir::ModuleOp Module,
       Result.setAlwaysInlineAttr(Builder.getUnitAttr());
       break;
 
+    case model::FunctionAttribute::HasOneBrokenReturn:
+      Result.setHasOneBrokenReturnAttr(Builder.getUnitAttr());
+      break;
+
     default:
       revng_abort("Unsupported `model::FunctionAttribute`");
     }

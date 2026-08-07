@@ -11,6 +11,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/IRHelper.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -24,11 +25,11 @@ static std::string kebabToSnake(llvm::StringRef KebabString) {
 }
 
 // This name is not present in the emitted C.
-static RegisterIRHelper
+static IRHelper<>
   ScopeCloserMarker(kebabToSnake(FunctionTags::ScopeCloserMarker.name().str()));
 
 // This name is not present in the emitted C.
-static RegisterIRHelper
+static IRHelper<>
   GotoBlockMarker(kebabToSnake(FunctionTags::GotoBlockMarker.name().str()));
 
 // Helper function which set the attributes for the created function
@@ -60,10 +61,7 @@ static Function *getOrCreateScopeCloserFunction(Module *M) {
     auto *FT = FunctionType::get(Type::getVoidTy(getContext(M)),
                                  { BlockAddressTy },
                                  false);
-    Result = cast<Function>(getOrInsertIRHelper(kebabToSnake(Tag.name()),
-                                                *M,
-                                                FT)
-                              .getCallee());
+    Result = ScopeCloserMarker.getOrCreate(*M, FT).function();
     setFunctionAttributes(Result, Tag);
   }
   revng_assert(Result != nullptr);
@@ -77,10 +75,7 @@ static Function *getOrCreateGotoBlockFunction(Module *M) {
   // Create the `GotoBlockMarker` function if it doesn't exists
   if (not Result) {
     auto *FT = FunctionType::get(Type::getVoidTy(getContext(M)), {}, false);
-    Result = cast<Function>(getOrInsertIRHelper(kebabToSnake(Tag.name()),
-                                                *M,
-                                                FT)
-                              .getCallee());
+    Result = GotoBlockMarker.getOrCreate(*M, FT).function();
     setFunctionAttributes(Result, Tag);
   }
   revng_assert(Result != nullptr);

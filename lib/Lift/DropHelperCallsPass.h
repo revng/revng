@@ -11,6 +11,7 @@
 #include "llvm/IR/PassManager.h"
 
 #include "revng/Model/FunctionTags.h"
+#include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -139,7 +140,7 @@ DropHelperCallsPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
 
       if (auto *Call = getCallToHelper(&I)) {
         auto *Callee = cast<Function>(skipCasts(Call->getCalledOperand()));
-        if (Callee->getName() == AbortFunctionName)
+        if (Callee == functionOrNull(AbortHelper.get(*F.getParent())))
           continue;
 
         Builder.SetInsertPoint(Call);

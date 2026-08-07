@@ -6,11 +6,13 @@
 //
 
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
+#include "revng/Lift/Helpers.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionCallMarker.h"
+#include "revng/Support/NewPC.h"
 
 // This name is not present after `isolate`.
-RegisterIRHelper FunctionCallMarker("function_call");
 
 using namespace llvm;
 
@@ -41,8 +43,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   };
   using FT = FunctionType;
   auto *Ty = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
-  FunctionCallee Callee = getOrInsertIRHelper("function_call", M, Ty);
-  FunctionCall = cast<Function>(Callee.getCallee());
+  FunctionCall = FunctionCallMarker.getOrCreate(M, Ty).function();
   FunctionTags::Marker.addTo(FunctionCall);
 
   // Initialize the function, if necessary
@@ -64,7 +65,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
     Instruction *Terminator = BB.getTerminator();
 
     if (Terminator != nullptr) {
-      if (CallInst *Call = getMarker(Terminator, "function_call")) {
+      if (CallInst *Call = getMarker(Terminator, FunctionCallMarker)) {
         auto Address = MetaAddress::fromValue(Call->getOperand(2));
         FallthroughAddresses.insert(Address);
         continue;
@@ -184,12 +185,13 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
             }
           } else if (auto *Call = dyn_cast<CallInst>(&I)) {
             auto *Callee = getCalledFunction(Call);
-            if (Callee != nullptr && Callee->getName() == "newpc") {
+            if (std::optional NewPCCall = NewPCHelper.getCall(&I)) {
               revng_assert(NewPCLeft > 0);
 
-              Value *PCOperand = Call->getOperand(0);
-              auto ProgramCounter = MetaAddress::fromValue(PCOperand);
-              uint64_t InstructionSize = getLimitedValue(Call->getOperand(1));
+              MetaAddress ProgramCounter = addressFromNewPC(*NewPCCall);
+              auto SizeArgument = NewPCArgument::InstructionSize;
+              auto *Size = NewPCCall->getArgument(SizeArgument);
+              uint64_t InstructionSize = getLimitedValue(Size);
 
               // Check that, w.r.t. to the last newpc, we're looking at the
               // immediately preceding instruction, if not fail.
@@ -281,7 +283,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
       if (It != Terminator->getParent()->begin()) {
         auto PrevIt = It;
         PrevIt--;
-        if (isCallTo(&*PrevIt, "exitTB"))
+        if (ExitTBMarker.getCall(&*PrevIt).has_value())
           It = PrevIt;
       }
 
@@ -309,7 +311,7 @@ void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
     CustomCFGNode *Node = FilteredCFG.getNode(&BB);
 
     // Is this a function call?
-    if (CallInst *Call = getMarker(&BB, "function_call")) {
+    if (CallInst *Call = getMarker(&BB, FunctionCallMarker)) {
 
       Value *SecondArgument = Call->getArgOperand(1);
       auto *Fallthrough = cast<BlockAddress>(SecondArgument)->getBasicBlock();

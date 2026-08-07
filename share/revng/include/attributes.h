@@ -16,6 +16,7 @@
 // Custom attributes
 #define _STACK _CUSTOM_ATTRIBUTE(stack)
 #define _CAN_CONTAIN_CODE _CUSTOM_ATTRIBUTE(can_contain_code)
+#define _HAS_ONE_BROKEN_RETURN _CUSTOM_ATTRIBUTE(has_one_broken_return)
 
 // Custom attributes with an argument
 #define _REG(x) _CUSTOM_ANNOTATION(reg, x)

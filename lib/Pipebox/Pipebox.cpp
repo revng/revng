@@ -23,6 +23,7 @@
 #include "revng/EditCBody/EditCBodyAnalysis.h"
 #include "revng/EditCType/EditCTypeAnalysis.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
+#include "revng/FunctionIsolation/InlineAlwaysInlineFunctions.h"
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
@@ -110,6 +111,7 @@ REGISTER(FunctionPipeRun, EmitStringConstants);
 REGISTER(FunctionPipeRun, EnforceABI);
 REGISTER(FunctionPipeRun, ImportDescriptiveFunctionInfo);
 REGISTER(FunctionPipeRun, ImportFunctionDataModel);
+REGISTER(FunctionPipeRun, InlineAlwaysInlineFunctions);
 REGISTER(FunctionPipeRun, InjectStackSizeProbesAtCallSites);
 REGISTER(FunctionPipeRun, Isolate);
 REGISTER(FunctionPipeRun, ProcessAssembly);

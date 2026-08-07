@@ -12,6 +12,7 @@
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddresses.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Lift/Lift.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 

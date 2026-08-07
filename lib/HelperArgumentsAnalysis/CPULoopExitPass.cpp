@@ -11,6 +11,7 @@
 #include "llvm/IR/Value.h"
 
 #include "revng/HelperArgumentsAnalysis/CPULoopExitPass.h"
+#include "revng/Lift/Helpers.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -74,10 +75,11 @@ bool CPULoopExitPass::runOnModule(llvm::Module &M) {
   if (CpuLoopExitRestore != nullptr) {
     Type *FirstArgumentType = CpuLoopExitRestore->getArg(0)->getType();
     Type *Void = Type::getVoidTy(Context);
-    auto CpuLoopExitCallee = M.getOrInsertFunction("cpu_loop_exit",
-                                                   Void,
-                                                   FirstArgumentType);
-    auto *CpuLoopExit = cast<Function>(CpuLoopExitCallee.getCallee());
+    auto *CpuLoopExitType = FunctionType::get(Void,
+                                              { FirstArgumentType },
+                                              false);
+    auto *CpuLoopExit = CPULoopExitHelper.getOrCreate(M, CpuLoopExitType)
+                          .function();
     SmallVector<Value *, 8> ToErase;
     for (User *U : CpuLoopExitRestore->users()) {
       auto *Call = cast<CallInst>(U);
@@ -93,7 +95,7 @@ bool CPULoopExitPass::runOnModule(llvm::Module &M) {
     }
   }
 
-  Function *CpuLoopExit = M.getFunction("cpu_loop_exit");
+  Function *CpuLoopExit = functionOrNull(CPULoopExitHelper.get(M));
   // Nothing to do here
   if (CpuLoopExit == nullptr)
     return false;

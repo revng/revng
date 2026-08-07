@@ -21,29 +21,27 @@ namespace revng::lift::internal {
 std::tuple<bool, std::map<MetaAddress, bool>>
 collectJumpTargets(const llvm::Module &Module) {
   const Function *Root = Module.getFunction("root");
-  const Function *NewPC = getIRHelper("newpc", Module);
+  std::optional NewPC = NewPCHelper.get(Module);
 
   if (Root == nullptr)
     return { false, {} };
 
-  if (NewPC == nullptr)
+  if (not NewPC.has_value())
     return { true, {} };
 
   // Collect all jump targets by inspecting calls to newpc and record whether it
   // was found after adding entry addresses of functions
   std::map<MetaAddress, bool> JumpTargets;
-  for (const CallBase *Call : callers(NewPC)) {
-    bool IsJumpTarget = getLimitedValue(Call->getArgOperand(2)) == 1;
-
-    if (IsJumpTarget) {
-      auto Address = MetaAddress::fromValue(Call->getArgOperand(0));
+  for (IRHelperCall<NewPCArgument> Call : NewPC->callers()) {
+    if (startsBasicBlock(Call)) {
+      MetaAddress Address = addressFromNewPC(Call);
 
       // Detect if this jump targets has been discovered *after* recording the
       // entry addresses of functions
 
       // Be conservative and assume it is, in absence of information
       bool DependsOnModelFunction = true;
-      const Instruction *Terminator = Call->getParent()->getTerminator();
+      const Instruction *Terminator = Call.call()->getParent()->getTerminator();
       if (Terminator->hasMetadata(JTReasonMDName)) {
         uint32_t Reasons = GeneratedCodeBasicInfo::getJTReasons(Terminator);
         DependsOnModelFunction = hasReason(Reasons,

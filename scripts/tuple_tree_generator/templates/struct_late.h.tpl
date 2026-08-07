@@ -204,6 +204,13 @@ using AllTypes = std::variant<
 /**- endfor **/
 >;
 
+/// The types a path component can be, i.e. the key of a container
+using AllContainerKeys = std::variant<
+/** for name in container_elements.values()|unique|sort **/
+/*= name =*//** if not loop.last **/,/** endif **/
+/**- endfor **/
+>;
+
 class ConstVisitorBase {
 public:
   virtual ~ConstVisitorBase() = default;
@@ -274,6 +281,11 @@ struct TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/> {
 template<>
 struct TupleTreeEntries</*= struct | user_fullname =*/> {
   using Types = /*= namespace =*/::AllTypes;
+  using ContainerKeys = /*= namespace =*/::AllContainerKeys;
+
+  /// \return the key of \p Element, or `std::nullopt` if it cannot be an
+  ///         element of a container
+  static std::optional<ContainerKeys> keyOf(const Types &Element);
 };
 
 extern template void

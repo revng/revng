@@ -24,13 +24,13 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/PromoteStackPointer/Markers.h"
 #include "revng/PromoteStackPointer/PromoteStackPointer.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRBuilder.h"
 
 // This name is not present after `promote-stack-pointer`.
-RegisterIRHelper UndefinedLocalSPMarker("revng_undefined_local_sp");
 
 using namespace llvm;
 
@@ -129,8 +129,7 @@ void PromoteStackPointer::runOnLLVMFunction(const model::Function &Function,
   Module *M = LLVMFunction.getParent();
   LLVMContext &Context = M->getContext();
   Type *SPType = GlobalSP->getValueType();
-  auto ILSPCallee = getOrInsertIRHelper("revng_undefined_local_sp", *M, SPType);
-  llvm::Function *InitLocalSP = cast<llvm::Function>(ILSPCallee.getCallee());
+  auto *InitLocalSP = UndefinedLocalSPMarker.getOrCreate(*M, SPType).function();
   InitLocalSP->addFnAttr(Attribute::NoUnwind);
   InitLocalSP->addFnAttr(Attribute::WillReturn);
   InitLocalSP->setOnlyReadsMemory();

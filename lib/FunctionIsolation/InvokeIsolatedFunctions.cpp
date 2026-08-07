@@ -13,9 +13,12 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
+#include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 
@@ -200,8 +203,9 @@ static void populateFunctionDispatcher(const model::Binary &Binary,
   GeneratedCodeBasicInfo GCBI(Binary, Module);
 
   llvm::LLVMContext &Context = Module.getContext();
-  llvm::Function *FunctionDispatcher = getIRHelper("function_dispatcher",
-                                                   Module);
+  std::optional DispatcherHelper = FunctionDispatcherHelper.get(Module);
+  revng_assert(DispatcherHelper.has_value());
+  llvm::Function *FunctionDispatcher = DispatcherHelper->function();
   BasicBlock *Dispatcher = BasicBlock::Create(Context,
                                               "function_dispatcher",
                                               FunctionDispatcher,

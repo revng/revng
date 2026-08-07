@@ -8,13 +8,15 @@
 #include "llvm/ADT/SmallVector.h"
 
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
+#include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 
 static bool isCallToAbort(const llvm::Instruction *I) {
   const llvm::Function *Callee = getCallee(I);
-  return Callee and (Callee->getName() == AbortFunctionName);
+  return Callee
+         and Callee == functionOrNull(AbortHelper.get(*Callee->getParent()));
 }
 
 llvm::PreservedAnalyses

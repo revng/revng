@@ -11,6 +11,7 @@
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 
 inline llvm::IntegerType *getCSVType(llvm::GlobalVariable *CSV) {
   using namespace llvm;
@@ -104,10 +105,9 @@ public:
     store(Builder, TypeCSV, NewPC.type());
   }
 
-  void expandNewPC(llvm::CallBase *Call) const {
-    revng_assert(isCallTo(Call, "newpc"));
+  void expandNewPC(IRHelperCall<NewPCArgument> Call) const {
     MetaAddress Address = addressFromNewPC(Call);
-    revng::IRBuilder Builder(Call);
+    revng::IRBuilder Builder(Call.call());
     setPC(Builder, Address);
   }
 

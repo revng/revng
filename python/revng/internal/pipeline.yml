@@ -113,7 +113,7 @@ analysis-lists:
       The initial auto analysis that should be run to automatically detect functions and types
 
 branches:
-  files-imported:
+  lift:
     tasks:
       - pipe: import-files
         arguments: [binaries-container]
@@ -134,10 +134,6 @@ branches:
               prototypes are imported.
               We currently support DWARF and CodeView (`.pdb`) debug info.
             containers: [binaries-container]
-
-  lift:
-    from: files-imported
-    tasks:
       - pipe: lift
         arguments: [binaries-container, llvm-root]
       - pipe: emit-segment-references
@@ -185,8 +181,9 @@ branches:
             description: |-
               This artifact is an archive containing one YAML file for each
               function.
-              Each document contains information about the control-flow graph of
-              each function.
+              Each document contains the control-flow graph of a function, plus
+              the control-flow graph of each of the functions that need to be
+              inlined into it.
             container: cfg-map
             category: debug
 
@@ -197,6 +194,8 @@ branches:
         arguments: [cfg-map, llvm-root, llvm-functions]
       - pipe: attach-debug-info
         arguments: [cfg-map, llvm-functions]
+      - pipe: inline-always-inline-functions
+        arguments: [llvm-functions]
       - savepoint: isolate
         containers: [llvm-functions]
         artifacts:
@@ -211,7 +210,7 @@ branches:
             category: debug
             filename: isolated.bc
 
-  enforce-abi:
+  segregate-stack-accesses:
     from: isolate
     tasks:
       - pipe: enforce-abi
@@ -270,10 +269,6 @@ branches:
             container: llvm-functions
             category: debug
             filename: abi_enforced.bc
-
-  detect-stack-size:
-    from: enforce-abi
-    tasks:
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
@@ -354,10 +349,6 @@ branches:
               This analysis, for each function, identifies the size of the stack
               frame and the amount of stack used to pass arguments.
             containers: [llvm-functions]
-
-  segregate-stack-accesses:
-    from: detect-stack-size
-    tasks:
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
@@ -501,7 +492,7 @@ branches:
             category: debug
             filename: pre_backend_clift.mlir.bc
 
-  decompiled:
+  single-file:
     from: clift-functions
     tasks:
       - pipe: emit-c
@@ -523,6 +514,23 @@ branches:
         analyses:
           - analysis: llm-rename
             containers: [decompile-c]
+      - pipe: emit-c-as-single-file
+        arguments: [decompile-c, decompiled-single-file]
+      - savepoint: emit-c-as-single-file
+        containers: [decompiled-single-file]
+        artifacts:
+          - name: emit-c-as-single-file
+            description: |-
+              This artifact is a single PTML file representing the decompiled C
+              code of the whole program, including the body of all of program's
+              functions. (Clift backend)
+            container: decompiled-single-file
+            category: user
+            filename: binary_decompiled.c
+            defined_locations:
+              - function
+            preferred_artifacts:
+              - emit-type-and-global-header
 
   helpers:
     from: clift-functions
@@ -544,28 +552,7 @@ branches:
               - helper-struct-type
               - helper-struct-field
 
-  single-file:
-    from: decompiled
-    tasks:
-      - pipe: emit-c-as-single-file
-        arguments: [decompile-c, decompiled-single-file]
-      - savepoint: emit-c-as-single-file
-        containers: [decompiled-single-file]
-        artifacts:
-          - name: emit-c-as-single-file
-            description: |-
-              This artifact is a single PTML file representing the decompiled C
-              code of the whole program, including the body of all of program's
-              functions. (Clift backend)
-            container: decompiled-single-file
-            category: user
-            filename: binary_decompiled.c
-            defined_locations:
-              - function
-            preferred_artifacts:
-              - emit-type-and-global-header
-
-  tagless-decompiled:
+  tagless-single-file:
     from: clift-functions
     tasks:
       - pipe: emit-c
@@ -584,10 +571,6 @@ branches:
               - function
             preferred_artifacts:
               - emit-type-and-global-header
-
-  tagless-single-file:
-    from: tagless-decompiled
-    tasks:
       - pipe: emit-c-as-single-file
         arguments: [tagless-decompile-c, tagless-decompiled-single-file]
         configuration:

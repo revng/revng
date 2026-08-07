@@ -45,13 +45,13 @@
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/Register.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/SimplePassManager.h"
 
 // This name is not present after `enforce-abi`.
-RegisterIRHelper FDispatcher("function_dispatcher");
 
 using namespace llvm;
 
@@ -613,10 +613,11 @@ Isolate::Isolate(const class Model &Model,
   GCBI.emplace(*Model.get().get(), *ClonedModule);
 
   auto SimpleFunctionType = createFunctionType<void>(Context);
-  FunctionDispatcher = createIRHelper("function_dispatcher",
-                                      *ClonedModule,
-                                      SimpleFunctionType,
-                                      GlobalValue::ExternalLinkage);
+  FunctionDispatcher = FunctionDispatcherHelper
+                         .create(*ClonedModule,
+                                 SimpleFunctionType,
+                                 GlobalValue::ExternalLinkage)
+                         .function();
   FunctionTags::FunctionDispatcher.addTo(FunctionDispatcher);
 
   //
@@ -640,19 +641,22 @@ Isolate::Isolate(const class Model &Model,
   }
 }
 
-void Isolate::runOnFunction(const model::Function &TheFunction) {
-  const MetaAddress Entry = TheFunction.Entry();
+Function *Isolate::isolateFunction(const efa::ControlFlowGraph &FM) {
+  const MetaAddress Entry = FM.Entry();
   revng_assert(Entry.isValid());
-  const efa::ControlFlowGraph &FM = *CFG.getElement(ObjectID(Entry));
 
   // Get or create the llvm::Function
   Function *F = getLocalFunction(Entry);
+  revng_assert(F != nullptr);
+
+  // Another caller might have inlined this function already
+  if (not F->isDeclaration())
+    return F;
 
   // Decorate the function as appropriate
   F->addFnAttr(Attribute::NullPointerIsValid);
   F->addFnAttr(Attribute::NoMerge);
   IsolatedFunctionsMap[Entry] = F;
-  revng_assert(F != nullptr);
 
   // Outline the function (later on we'll steal its body and move it into F)
   CallIsolatedFunction CallHandler(*this, *GCBI, FM);
@@ -670,8 +674,31 @@ void Isolate::runOnFunction(const model::Function &TheFunction) {
   // Steal the function body and let the outlined function be destroyed
   moveBlocksInto(*Outlined.Function, *F);
 
+  return F;
+}
+
+void Isolate::runOnFunction(const model::Function &TheFunction) {
+  const MetaAddress Entry = TheFunction.Entry();
+  revng_assert(Entry.isValid());
+  const efa::FunctionBundle &Bundle = *CFG.getElement(ObjectID(Entry));
+
+  IsolatedFunction Result;
+  Result.Address = Entry;
+  Result.Function = isolateFunction(Bundle.MainFunction());
+  ++PendingUses[Result.Function];
+
+  // Emit the body of the functions to inline next to the caller: a later pipe
+  // will take care of the inlining proper. `MinimalModuleCloner` only
+  // preserves the body of the callees tagged as `KeepPostIsolation`.
+  for (const efa::ControlFlowGraph &Callee : Bundle.AlwaysInlineFunctions()) {
+    Function *Inlinee = isolateFunction(Callee);
+    FunctionTags::KeepPostIsolation.addTo(Inlinee);
+    Result.Inlinees.push_back(Inlinee);
+    ++PendingUses[Inlinee];
+  }
+
   // Store the isolated function for later splitting
-  IsolatedFunctions.push_back({ TheFunction.Entry(), F });
+  IsolatedFunctions.push_back(std::move(Result));
 }
 
 Function *Isolate::getLocalFunction(const MetaAddress &Entry) {
@@ -704,7 +731,7 @@ void Isolate::splitIsolatedFunctionsToOutput() {
 
   MinimalModuleCloner Cloner(Binary, *ClonedModule);
 
-  for (auto &[Address, Function] : IsolatedFunctions) {
+  for (auto &[Address, Function, Inlinees] : IsolatedFunctions) {
     T.advance(Address.toString(), true);
 
     auto IsolatedModule = Cloner.cloneModule(*Function);
@@ -729,10 +756,19 @@ void Isolate::splitIsolatedFunctionsToOutput() {
     }
     Output.assign(ObjectID(Address), std::move(IsolatedModule));
 
-    // Since we saved the function to the output, delete its body in
-    // ClonedModule to save memory
-    deleteOnlyBody(*Function);
+    // Since we saved the function to the output, delete in ClonedModule the
+    // bodies no other module needs, to save memory
+    releaseBody(Function);
+    for (llvm::Function *Inlinee : Inlinees)
+      releaseBody(Inlinee);
   }
+}
+
+void Isolate::releaseBody(llvm::Function *F) {
+  unsigned &Count = PendingUses.at(F);
+  revng_assert(Count > 0);
+  if (--Count == 0)
+    deleteOnlyBody(*F);
 }
 
 Isolate::~Isolate() {

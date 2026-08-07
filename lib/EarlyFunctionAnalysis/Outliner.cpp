@@ -15,10 +15,14 @@
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
+#include "revng/Lift/Helpers.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Support/EmitAbort.h"
+#include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 
 using namespace llvm;
@@ -175,7 +179,7 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
     BasicBlock *CalleeBlock = getFunctionCallCallee(T);
 
     using namespace model::FunctionAttribute;
-    bool IsMarkedInline = Summary->Attributes.contains(AlwaysInline);
+    bool IsMarkedInline = Summary->Attributes.contains(HasOneBrokenReturn);
     bool IsCallingTheCaller = CallerFunction == Callee;
     bool IsBanned = FunctionsMap.isBanned(Callee);
     IsInline = IsMarkedInline and not IsCallingTheCaller and not IsBanned;
@@ -286,13 +290,13 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
     BasicBlock *Current = Queue.pop();
     BlocksToClone.emplace_back(Current);
 
-    if (auto *FunctionCall = getMarker(Current, "function_call")) {
+    if (auto *FunctionCall = getMarker(Current, FunctionCallMarker)) {
       // Compute callee
       MetaAddress PCCallee = MetaAddress::invalid();
       if (auto *Next = getFunctionCallCallee(Current))
         PCCallee = getBasicBlockAddress(Next);
 
-      CallInst *JumpToSymbol = getMarker(Current, "jump_to_symbol");
+      CallInst *JumpToSymbol = getMarker(Current, JumpToSymbolMarker);
       auto &&[Summary, IsTailCall] = getCallSiteInfo(FunctionAddress,
                                                      FunctionCall->getParent(),
                                                      FunctionCall,
@@ -339,7 +343,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
   //
   std::map<llvm::CallInst *, MetaAddress> CallToCallee;
   for (const auto &BB : BlocksToExtract) {
-    if (CallInst *FunctionCall = getMarker(BB, "function_call")) {
+    if (CallInst *FunctionCall = getMarker(BB, FunctionCallMarker)) {
       auto *Term = BB->getTerminator();
 
       // If the function callee is null, we are dealing with an indirect call
@@ -349,7 +353,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
 
       CallToCallee[FunctionCall] = PCCallee;
 
-      CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
+      CallInst *JumpToSymbol = getMarker(BB, JumpToSymbolMarker);
       auto &&[CalleeSummary, IsTailCall] = getCallSiteInfo(FunctionAddress,
                                                            BB,
                                                            FunctionCall,
@@ -419,10 +423,10 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
   // Integrate function callee
   for (auto &BB : *OutlinedFunction.Function) {
     MetaAddress Callee;
-    CallInst *FunctionCall = getMarker(&BB, "function_call");
+    CallInst *FunctionCall = getMarker(&BB, FunctionCallMarker);
     if (FunctionCall != nullptr)
       Callee = CallToCallee.at(FunctionCall);
-    CallInst *JumpToSymbol = getMarker(&BB, "jump_to_symbol");
+    CallInst *JumpToSymbol = getMarker(&BB, JumpToSymbolMarker);
     // TODO: we don't integrate the call if it's a tail call (JumpToSymbol but
     //       no FunctionCall). Is this OK?
     if (FunctionCall != nullptr) {
@@ -474,7 +478,7 @@ void Outliner::createAnyPCHooks(CallHandler *TheCallHandler,
 
     using CPN = ConstantPointerNull;
     Value *SymbolName = CPN::get(Type::getInt8PtrTy(Context));
-    CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
+    CallInst *JumpToSymbol = getMarker(BB, JumpToSymbolMarker);
 
     auto &&[Summary, _] = getCallSiteInfo(OutlinedFunction->Address,
                                           BB,
@@ -527,12 +531,11 @@ private:
     revng_assert(FunctionAddress.isValid());
 
     for (llvm::Instruction &I : llvm::instructions(F)) {
-      if (auto *NewPCCall = getCallTo(&I, "newpc")) {
-        using namespace NewPCArguments;
-        Value *Argument = NewPCCall->getArgOperand(InstructionID);
-        auto OldID = BasicBlockID::fromValue(Argument);
+      if (std::optional NewPCCall = NewPCHelper.getCall(&I)) {
+        BasicBlockID OldID = blockIDFromNewPC(*NewPCCall);
         BasicBlockID NewID(OldID.start(), InliningIndex);
-        NewPCCall->setArgOperand(InstructionID, NewID.toValue(F->getParent()));
+        NewPCCall->setArgument(NewPCArgument::InstructionID,
+                               NewID.toValue(F->getParent()));
       }
     }
   }
@@ -599,6 +602,10 @@ OutlinedFunction Outliner::outline(const MetaAddress &Entry,
   }
 
   FunctionFixer.restore();
+
+  // Everything we gathered, including the code of the functions we inlined,
+  // is now part of the control-flow graph of `Entry`
+  setNewPCOwner(Result.Function.get(), Entry);
 
   // Fix `unexpectedpc` of the callees to inline
   for (auto &I : instructions(Result.Function.get())) {

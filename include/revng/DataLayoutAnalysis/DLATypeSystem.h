@@ -285,6 +285,17 @@ public:
   using NodeUniquePtr = std::unique_ptr<LayoutTypeSystemNode>;
   using NeighborIterator = LayoutTypeSystemNode::NeighborIterator;
 
+  /// Orders nodes by ID. Nodes are bump-allocated, so ordering them by address
+  /// would make the iteration order depend on the allocator.
+  struct NodeComparison {
+    bool operator()(const LayoutTypeSystemNode *LHS,
+                    const LayoutTypeSystemNode *RHS) const {
+      return LHS->ID < RHS->ID;
+    }
+  };
+
+  using NodeSet = std::set<LayoutTypeSystemNode *, NodeComparison>;
+
   LayoutTypeSystem() : DebugPrinter(new TSDebugPrinter) {}
 
   ~LayoutTypeSystem() {
@@ -391,7 +402,7 @@ private:
 
   // Holds all the LayoutTypeSystemNode
   llvm::BumpPtrAllocator NodeAllocator = {};
-  std::set<LayoutTypeSystemNode *> Layouts = {};
+  NodeSet Layouts = {};
 
   // Holds the link tags, so that they can be deduplicated and referred to using
   // TypeLinkTag * in the links inside LayoutTypeSystemNode
@@ -571,7 +582,7 @@ struct llvm::GraphTraits<const dla::LayoutTypeSystem *>
   : public llvm::GraphTraits<const dla::LayoutTypeSystemNode *> {
 
 public:
-  using nodes_iterator = std::set<dla::LayoutTypeSystemNode *>::iterator;
+  using nodes_iterator = dla::LayoutTypeSystem::NodeSet::iterator;
 
   static NodeRef getEntryNode(const dla::LayoutTypeSystem *) { return nullptr; }
 
@@ -593,7 +604,7 @@ struct llvm::GraphTraits<dla::LayoutTypeSystem *>
   : public llvm::GraphTraits<dla::LayoutTypeSystemNode *> {
 
 public:
-  using nodes_iterator = std::set<dla::LayoutTypeSystemNode *>::iterator;
+  using nodes_iterator = dla::LayoutTypeSystem::NodeSet::iterator;
 
   static NodeRef getEntryNode(const dla::LayoutTypeSystem *) { return nullptr; }
 

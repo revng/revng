@@ -21,11 +21,12 @@
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/IRHelper.h"
 
 #include "ExternalJumpsHandler.h"
 
 // This name corresponds to a function in `early-linked`.
-RegisterIRHelper IsExecutableHelper("is_executable");
+IRHelper<> IsExecutableHelper("is_executable");
 
 using namespace llvm;
 using std::string;
@@ -290,7 +291,9 @@ void ExternalJumpsHandler::createExternalJumpsHandler() {
     BasicBlock *IsNotExecutable = DispatcherFail;
     buildExecutableSegmentsList();
 
-    Function *IsExecutableFunction = getIRHelper("is_executable", TheModule);
+    std::optional Helper = IsExecutableHelper.get(TheModule);
+    revng_assert(Helper.has_value());
+    Function *IsExecutableFunction = Helper->function();
     revng::IRBuilder Builder(ExternalJumpHandler);
     Value *PC = PCH->loadJumpablePC(Builder);
     Value *IsExecutableResult = Builder.CreateCall(IsExecutableFunction,

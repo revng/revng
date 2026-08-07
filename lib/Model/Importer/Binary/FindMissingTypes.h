@@ -195,9 +195,11 @@ void findMissingTypes(LDDTree &Dependencies,
     DynamicFunction.Prototype() = TheTypeCopier
                                     .copyTypeInto(MaybeFunction->Prototype);
 
-    // Copy all the Attributes except for `Inline`.
+    // Copy all the Attributes except for the inlining-related ones, which
+    // dynamic functions cannot have.
     for (auto &Attribute : MaybeFunction->Attributes)
-      if (Attribute != model::FunctionAttribute::AlwaysInline)
+      if (Attribute != model::FunctionAttribute::AlwaysInline
+          and Attribute != model::FunctionAttribute::HasOneBrokenReturn)
         DynamicFunction.Attributes().insert(Attribute);
   }
 

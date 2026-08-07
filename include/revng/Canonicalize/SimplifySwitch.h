@@ -22,6 +22,10 @@ private:
   LLVMFunctionContainer &ModuleContainer;
   const model::Binary &Binary;
   RawBinaryView BinaryView;
+
+  /// The entry of the function `PM` is about to run on
+  MetaAddress Entry = MetaAddress::invalid();
+
   llvm::legacy::PassManager PM;
 
 public:

@@ -5,15 +5,14 @@
 //
 
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
-#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/FunctionBundle.h"
 #include "revng/Pipebox/TupleTreeContainer.h"
 #include "revng/PipeboxCommon/Common.h"
 #include "revng/PipeboxCommon/LLVMContainer.h"
 
 namespace revng::pypeline {
 
-class CFGMap
-  : public TupleTreeContainer<efa::ControlFlowGraph, Kinds::Function> {
+class CFGMap : public TupleTreeContainer<efa::FunctionBundle, Kinds::Function> {
 public:
   static constexpr llvm::StringRef Name = "CFGMap";
   static constexpr llvm::StringRef Compression = "zstd;level=1";
@@ -54,6 +53,13 @@ public:
              LLVMRootContainer &Input,
              CFGMap &Output);
   void runOnFunction(const model::Function &TheFunction);
+
+private:
+  efa::ControlFlowGraph analyzeFunction(const MetaAddress &Entry);
+
+  /// Record in \p Bundle the control-flow graph of each `AlwaysInline`
+  /// function reachable from its main function through `AlwaysInline` calls
+  void collectAlwaysInlineFunctions(efa::FunctionBundle &Bundle);
 };
 
 } // namespace piperuns

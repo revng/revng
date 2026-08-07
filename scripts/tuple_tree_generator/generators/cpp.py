@@ -157,8 +157,36 @@ class CppGenerator:
 
         return definitions
 
+    def _key_type(self, definition):
+        """The type `KeyedObjectTraits` uses as the key of `definition`"""
+        if isinstance(definition, UpcastableDefinition):
+            # A polymorphic element is keyed on what it points to
+            return f"{self.user_fullname(definition.base)}::Key"
+
+        key_fields = getattr(definition, "key_fields", None)
+        if not key_fields:
+            # The element is the key of itself
+            return self._cpp_type(definition)
+        if len(key_fields) == 1:
+            return self._cpp_type(key_fields[0].resolved_type)
+        return f"{self.user_fullname(definition)}::Key"
+
+    def _container_elements(self):
+        """Each type that can be an element of a container, with the type of its
+        key. A change adding to or removing from a container carries one of the
+        former, and a path component is one of the latter."""
+        result = {}
+        for struct in self.schema.struct_definitions():
+            for field in struct.fields:
+                if isinstance(field, SequenceStructField):
+                    result[self._cpp_type(field.resolved_element_type)] = self._key_type(
+                        field.resolved_element_type
+                    )
+        return result
+
     def _emit_late_type_definitions(self):
         all_known_types = set()
+        container_elements = self._container_elements()
 
         for struct in self.schema.struct_definitions():
             all_known_types.add(self.user_fullname(struct))
@@ -182,6 +210,7 @@ class CppGenerator:
                     root_type=self.schema.root_type,
                     namespace=self.generated_namespace,
                     all_types=all_known_types,
+                    container_elements=container_elements,
                     base_namespace=self.base_namespace,
                     emit_tracking=self.emit_tracking,
                 )
@@ -209,6 +238,7 @@ class CppGenerator:
                         schema=self.schema,
                         root_type=self.schema.root_type,
                         base_namespace=self.base_namespace,
+                        container_elements=self._container_elements(),
                         emit_tracking=self.emit_tracking,
                     )
                     + "\n"

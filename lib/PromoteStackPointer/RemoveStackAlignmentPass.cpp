@@ -11,6 +11,7 @@
 #include "llvm/Support/MathExtras.h"
 
 #include "revng/Model/FunctionTags.h"
+#include "revng/PromoteStackPointer/Markers.h"
 #include "revng/PromoteStackPointer/RemoveStackAlignmentPass.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
@@ -47,7 +48,7 @@ bool RemoveStackAlignmentPass::runOnModule(Module &Module) {
   if (FunctionTags::Isolated.functions(&Module).empty())
     return false;
 
-  auto *InitFunction = getIRHelper("revng_undefined_local_sp", Module);
+  auto *InitFunction = functionOrNull(UndefinedLocalSPMarker.get(Module));
   if (InitFunction == nullptr)
     return false;
 

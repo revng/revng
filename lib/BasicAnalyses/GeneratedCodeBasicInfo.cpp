@@ -17,6 +17,7 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/NewPC.h"
 
 using namespace llvm;
 
@@ -25,7 +26,7 @@ GeneratedCodeBasicInfo::GeneratedCodeBasicInfo(const model::Binary &Binary,
   Binary(Binary), Module(M) {
 
   RootFunction = M.getFunction("root");
-  NewPC = getIRHelper("newpc", M);
+  NewPC = functionOrNull(NewPCHelper.get(M));
 
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 
@@ -84,9 +85,9 @@ void GeneratedCodeBasicInfo::parseRoot() {
         break;
 
       case BlockType::JumpTargetBlock: {
-        auto *Call = cast<CallInst>(&*BB.begin());
-        revng_assert(getCalledFunction(Call) == NewPC);
-        JumpTargets[addressFromNewPC(Call)] = &BB;
+        std::optional Call = NewPCHelper.getCall(&*BB.begin());
+        revng_assert(Call.has_value());
+        JumpTargets[addressFromNewPC(*Call)] = &BB;
         break;
       }
       case BlockType::RootDispatcherHelperBlock:

@@ -54,6 +54,7 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
+#include "revng/Lift/Helpers.h"
 #include "revng/Lift/VariableManager.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/FunctionTags.h"
@@ -64,7 +65,9 @@
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/IRHelper.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/SimplePassManager.h"
 
@@ -72,9 +75,6 @@
 #include "ExternalJumpsHandler.h"
 #include "InstructionTranslator.h"
 #include "JumpTargetManager.h"
-
-RegisterIRHelper CPULoopExitHelper("cpu_loop_exit");
-RegisterIRHelper InitializeEnvHelper("helper_initialize_env");
 
 using namespace llvm;
 
@@ -634,7 +634,8 @@ void CodeGenerator::translate(LibTcg &LibTcg,
   // helper_initialize_env function from the helpers, because the declaration
   // imported before with importHelperFunctionDeclaration() only has
   // stub types and injecting the CallInst earlier would break
-  if (Function *InitEnv = getIRHelper("helper_initialize_env", *TheModule)) {
+  if (std::optional InitEnvHelper = InitializeEnvHelper.get(*TheModule)) {
+    Function *InitEnv = InitEnvHelper->function();
     revng_assert(not InitEnv->getFunctionType()->isVarArg());
     revng_assert(InitEnv->getFunctionType()->getNumParams() == 1);
     auto *CPUStateType = InitEnv->getFunctionType()->getParamType(0);

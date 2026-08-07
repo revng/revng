@@ -30,21 +30,41 @@
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeType.h"
+#include "revng/EarlyFunctionAnalysis/IndirectBranchInfo.h"
 #include "revng/EarlyFunctionAnalysis/IndirectBranchInfoPrinterPass.h"
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/BasicBlockID.h"
+#include "revng/Support/EmitAbort.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/NewPC.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
 // This name is not present after `lift`.
-RegisterIRHelper IBIMarker("indirect_branch_info");
 
 using namespace llvm;
+
+using BranchArgument = efa::IndirectBranchInfoArgument;
+constexpr unsigned CallerBlockIDIndex = index(BranchArgument::CallerBlockID);
+constexpr unsigned CalledSymbolIndex = index(BranchArgument::CalledSymbol);
+constexpr unsigned
+  JumpsToReturnAddressIndex = index(BranchArgument::JumpsToReturnAddress);
+constexpr unsigned
+  StackPointerOffsetIndex = index(BranchArgument::StackPointerOffset);
+constexpr unsigned
+  ReturnValuePreservedIndex = index(BranchArgument::ReturnValuePreserved);
+constexpr unsigned
+  FirstPreservedRegisterIndex = index(BranchArgument::FirstPreservedRegister);
+constexpr unsigned CallerBlockID = CallerBlockIDIndex;
+constexpr unsigned CalledSymbol = CalledSymbolIndex;
+constexpr unsigned JumpsToReturnAddress = JumpsToReturnAddressIndex;
+constexpr unsigned StackPointerOffset = StackPointerOffsetIndex;
+constexpr unsigned ReturnValuePreserved = ReturnValuePreservedIndex;
+constexpr unsigned FirstPreservedRegister = FirstPreservedRegisterIndex;
 using namespace llvm::cl;
 
 static opt<std::string> AAWriterPath("aa-writer",
@@ -86,16 +106,6 @@ makeIndirectEdge(efa::FunctionEdgeType::Values Type) {
 };
 
 namespace efa {
-
-/// Indexes for arguments of indirect_branch_info
-enum {
-  CallerBlockIDIndex,
-  CalledSymbolIndex,
-  JumpsToReturnAddressIndex,
-  StackPointerOffsetIndex,
-  ReturnValuePreservedIndex,
-  PreservedRegistersIndex
-};
 
 static efa::BasicBlock &
 blockFromIndirectBranchInfo(CallBase *CI, SortedVector<efa::BasicBlock> &CFG) {
@@ -181,13 +191,11 @@ OutlinedFunction CFGAnalyzer::outline(const MetaAddress &Entry) {
       Call->getParent()->splitBasicBlock(Call);
 
   // Make sure we start a new block for each jump target
-  auto IsJumpTarget = [](llvm::CallBase *Call) {
-    auto IsJumpTarget = NewPCArguments::IsJumpTarget;
-    return getLimitedValue(&*Call->getArgOperand(IsJumpTarget)) == 1;
-  };
-  for (llvm::CallBase *Call : callers(getIRHelper("newpc", M)))
-    if (IsJumpTarget(Call) and not IsFirst(Call))
-      Call->getParent()->splitBasicBlock(Call);
+  std::optional NewPC = NewPCHelper.get(M);
+  revng_assert(NewPC.has_value());
+  for (IRHelperCall<NewPCArgument> Call : NewPC->callers())
+    if (startsBasicBlock(Call) and not IsFirst(Call.call()))
+      Call.call()->getParent()->splitBasicBlock(Call.call());
 
   return Result;
 }
@@ -440,7 +448,7 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *Outlined) {
   auto *IntTy = GCBI.spReg()->getValueType();
   Type *I8Ptr = Type::getInt8PtrTy(Context);
   SmallVector<Type *, 16> ArgTypes;
-  ArgTypes.resize(PreservedRegistersIndex);
+  ArgTypes.resize(FirstPreservedRegisterIndex);
   ArgTypes[CallerBlockIDIndex] = I8Ptr;
   ArgTypes[CalledSymbolIndex] = I8Ptr;
   ArgTypes[JumpsToReturnAddressIndex] = Initial.ReturnPC->getType();
@@ -450,10 +458,8 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *Outlined) {
     ArgTypes.emplace_back(CSV->getValueType());
 
   auto *FTy = llvm::FunctionType::get(IntTy, ArgTypes, false);
-  auto *IBI = createIRHelper("indirect_branch_info",
-                             M,
-                             FTy,
-                             GlobalValue::ExternalLinkage);
+  auto *IBI = IndirectBranchInfo.create(M, FTy, GlobalValue::ExternalLinkage)
+                .function();
   Outlined->IndirectBranchInfoMarker = UniqueValuePtr<Function>(IBI);
   Outlined->IndirectBranchInfoMarker->addFnAttr(Attribute::NoUnwind);
   Outlined->IndirectBranchInfoMarker->addFnAttr(Attribute::NoReturn);
@@ -490,7 +496,7 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *Outlined) {
 
     // Prepare the arguments for the indirect_branch_info probe call
     SmallVector<Value *, 16> ArgValues;
-    ArgValues.resize(PreservedRegistersIndex);
+    ArgValues.resize(FirstPreservedRegisterIndex);
 
     // Record the MetaAddress of the caller
     auto NewPCID = getBasicBlockID(getJumpTargetBlock(Term->getParent()));
@@ -580,9 +586,9 @@ void CFGAnalyzer::materializePCValues(llvm::Function *F,
                                       revng::IRBuilder &Builder) {
   for (llvm::BasicBlock &BB : *F) {
     for (llvm::Instruction &I : BB) {
-      if (llvm::CallInst *Call = getCallTo(&I, "newpc")) {
-        MetaAddress NewPC = blockIDFromNewPC(Call).start();
-        Builder.SetInsertPoint(Call);
+      if (std::optional Call = NewPCHelper.getCall(&I)) {
+        MetaAddress NewPC = blockIDFromNewPC(*Call).start();
+        Builder.SetInsertPoint(Call->call());
         PCH->setPC(Builder, NewPC);
       }
     }
@@ -678,10 +684,10 @@ public:
 public:
   void recordClobberedRegisters(llvm::CallBase *CI) {
     using namespace llvm;
-    for (unsigned I = PreservedRegistersIndex; I < CI->arg_size(); ++I) {
+    for (unsigned I = FirstPreservedRegisterIndex; I < CI->arg_size(); ++I) {
       auto *Register = dyn_cast<ConstantInt>(CI->getArgOperand(I));
       if (Register == nullptr or Register->getZExtValue() != 0)
-        ClobberedRegs.insert(ABICSVs[I - PreservedRegistersIndex]);
+        ClobberedRegs.insert(ABICSVs[I - FirstPreservedRegisterIndex]);
     }
   }
 
@@ -1000,7 +1006,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
     // Do nothing
   } else if (FoundBrokenReturn && BrokenReturnCount == 1
              && NoReturnCount == 0) {
-    Attributes.insert(model::FunctionAttribute::AlwaysInline);
+    Attributes.insert(model::FunctionAttribute::HasOneBrokenReturn);
   } else {
     Attributes.insert(model::FunctionAttribute::NoReturn);
   }
@@ -1052,7 +1058,7 @@ FunctionSummary CFGAnalyzer::analyze(const MetaAddress &Entry) {
     // Ensure there are not calls to newpc. If there were, it'd be a bug not to
     // have a CFG
     auto IsCallToNewPC = [](Instruction &I) -> bool {
-      return isCallTo(&I, "newpc");
+      return NewPCHelper.getCall(&I).has_value();
     };
     revng_assert(none_of(instructions(OutlinedFunction.Function.get()),
                          IsCallToNewPC));

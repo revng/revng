@@ -23,8 +23,10 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/BlockType.h"
+#include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/NewPC.h"
 
 // Forward declarations
 namespace llvm {
@@ -250,9 +252,11 @@ public:
 
   llvm::BasicBlock *getCallReturnBlock(llvm::BasicBlock *BB) const {
     using namespace llvm;
-    CallInst *FunctionCallMarker = getMarker(BB, "function_call");
-    revng_assert(FunctionCallMarker != nullptr);
-    auto *FallthroughBA = cast<BlockAddress>(FunctionCallMarker->getOperand(1));
+    CallInst *Marker = getMarker(BB, FunctionCallMarker);
+    revng_assert(Marker != nullptr);
+    IRHelperCall<FunctionCallArgument> Call(Marker);
+    auto Fallthrough = FunctionCallArgument::Fallthrough;
+    auto *FallthroughBA = cast<BlockAddress>(Call.getArgument(Fallthrough));
     return FallthroughBA->getBasicBlock();
   }
 

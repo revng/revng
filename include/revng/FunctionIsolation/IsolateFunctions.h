@@ -10,17 +10,34 @@
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
+#include "revng/Support/IRHelper.h"
+
+/// The function every indirect call is routed through
+inline IRHelper<> FunctionDispatcherHelper("function_dispatcher");
 
 namespace revng::pypeline::piperuns {
 
 class Isolate {
+private:
+  /// A function to emit in the output, along with the `AlwaysInline` callees
+  /// whose body has been emitted next to it so that a later pipe can inline
+  /// them
+  struct IsolatedFunction {
+    MetaAddress Address;
+    llvm::Function *Function = nullptr;
+    llvm::SmallVector<llvm::Function *, 2> Inlinees;
+  };
+
 private:
   const model::Binary &Binary;
   const CFGMap &CFG;
   std::unique_ptr<llvm::Module> ClonedModule;
   LLVMFunctionContainer &Output;
   std::optional<GeneratedCodeBasicInfo> GCBI;
-  std::vector<std::tuple<MetaAddress, llvm::Function *>> IsolatedFunctions;
+  std::vector<IsolatedFunction> IsolatedFunctions;
+
+  /// How many output modules still need the body of each isolated function
+  std::map<llvm::Function *, unsigned> PendingUses;
 
   llvm::FunctionType *IsolatedFunctionType = nullptr;
   llvm::Function *FunctionDispatcher = nullptr;
@@ -61,6 +78,15 @@ public:
   llvm::Function *dispatcher() const { return FunctionDispatcher; }
 
 private:
+  /// Turn the function described by \p FM into an isolated `llvm::Function`
+  ///
+  /// If it has already been isolated, e.g. because it is inlined into more
+  /// than one caller, the existing one is returned as is.
+  llvm::Function *isolateFunction(const efa::ControlFlowGraph &FM);
+
+  /// Drop the body of \p F if no output module needs it anymore
+  void releaseBody(llvm::Function *F);
+
   void splitIsolatedFunctionsToOutput();
 
   void handleUnexpectedPCCloned(efa::OutlinedFunction &Outlined);

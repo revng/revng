@@ -8,6 +8,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
+#include "revng/PromoteStackPointer/Markers.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
@@ -65,7 +66,8 @@ InstrumentStackAccesses::findStackAccesses(Function &F) {
     for (Instruction &I : BB) {
 
       // Is this the call to revng_undefined_local_sp?
-      if (auto *Call = getCallTo(&I, "revng_undefined_local_sp")) {
+      if (std::optional Marker = UndefinedLocalSPMarker.getCall(&I)) {
+        auto *Call = llvm::cast<llvm::CallInst>(Marker->call());
         revng_log(Log,
                   "Found call to revng_undefined_local_sp: " << getName(Call));
 

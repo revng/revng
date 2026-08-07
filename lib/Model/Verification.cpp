@@ -312,8 +312,13 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
   for (auto &Attribute : Attributes()) {
     if (not model::FunctionAttribute::isValid(Attribute))
       return VH.fail("Every dynamic function attribute must be valid.", *this);
+    // Inlining requires a body, which dynamic functions do not have
     if (Attribute == model::FunctionAttribute::AlwaysInline)
       return VH.fail("Dynamic function cannot have `AlwaysInline` attribute",
+                     *this);
+    if (Attribute == model::FunctionAttribute::HasOneBrokenReturn)
+      return VH.fail("Dynamic function cannot have `HasOneBrokenReturn` "
+                     "attribute",
                      *this);
   }
 

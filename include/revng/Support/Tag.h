@@ -216,6 +216,7 @@ inline void TagsSet::insert(const Tag &Target) {
 extern Tag UniquedByMetadata;
 extern Tag UniquedByPrototype;
 extern Tag Isolated;
+extern Tag Helper;
 
 } // namespace FunctionTags
 

@@ -309,9 +309,13 @@ static std::weak_ordering operator<=>(const NeighborIterator &LHS,
                                       const NeighborIterator &RHS) {
   const auto &[LHSSucc, LHSTag] = *LHS;
   const auto &[RHSSucc, RHSTag] = *RHS;
-  if (auto Cmp = LHSSucc <=> RHSSucc; Cmp != 0)
+  if (auto Cmp = LHSSucc->ID <=> RHSSucc->ID; Cmp != 0)
     return Cmp;
-  return LHSTag <=> RHSTag;
+
+  if (nullptr == LHSTag or nullptr == RHSTag)
+    return LHSTag <=> RHSTag;
+
+  return *LHSTag <=> *RHSTag;
 }
 
 static llvm::SmallPtrSet<LayoutTypeSystemNode *, 8>

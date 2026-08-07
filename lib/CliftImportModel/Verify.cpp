@@ -444,6 +444,21 @@ private:
       ++AttributeCount;
     }
 
+    if (Op->hasAttr("has_one_broken_return")) {
+      if (Attributes == nullptr)
+        return error() << "`_HAS_ONE_BROKEN_RETURN` is attached to a function "
+                          "that does not support attributes. See '"
+                       << Op.getHandle() << "'";
+
+      using model::FunctionAttribute::HasOneBrokenReturn;
+      if (not Attributes->contains(HasOneBrokenReturn))
+        return error() << "`_HAS_ONE_BROKEN_RETURN` is attached to a function "
+                          "that does not have it in the model. See '"
+                       << Op.getHandle() << "'";
+
+      ++AttributeCount;
+    }
+
     if (Attributes and AttributeCount != Attributes->size()) {
       return error() << "Attached function attribute count ('" << AttributeCount
                      << "') does not match the model value ('"
