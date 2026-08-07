@@ -2,7 +2,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "llvm/ADT/ArrayRef.h"
@@ -92,18 +94,18 @@ bool startsOwnLine(StringRef Buffer, unsigned Begin) {
 }
 
 //
-// RETYPE type resolution
+// Type name resolution
 //
 
 /// Prefix shared by the synthetic probe declarations (`__revng_retype_<index>`)
-/// used to resolve the types named by `RETYPE:` directives during the parse.
-constexpr llvm::StringRef RetypeProbePrefix = "__revng_retype_";
+/// used to resolve the C type names into model types during the parse.
+constexpr llvm::StringRef TypeProbePrefix = "__revng_retype_";
 
 /// Collect the type named by each `RETYPE:` directive in the code, in order of
 /// first appearance and without duplicates. This runs before Clang, so the
-/// types can be turned into synthetic typedefs and resolved during the parse.
-/// A superset of the directives the analysis later acts on is fine: extra
-/// entries are simply never looked up.
+/// types can be turned into synthetic declarations and resolved during the
+/// parse. A superset of the directives the analysis later acts on is fine:
+/// extra entries are simply never looked up.
 std::vector<std::string> collectRetypeStrings(StringRef CCode) {
   std::vector<std::string> Result;
   llvm::SmallVector<StringRef> Lines;
@@ -119,14 +121,47 @@ std::vector<std::string> collectRetypeStrings(StringRef CCode) {
   return Result;
 }
 
-/// Render `void __revng_retype_<index>(<type>);`. A function parameter is a
-/// C type-name position, so the type is written verbatim, whatever its shape
-/// (arrays, pointers to arrays, ...); no declarator surgery is needed. The
-/// parameter's un-decayed type is read back after parsing.
-std::string makeRetypeProbe(StringRef TypeString, size_t Index) {
-  return (llvm::Twine("void ") + RetypeProbePrefix + llvm::Twine(Index) + "("
-          + TypeString.trim() + ");\n")
-    .str();
+/// Render `void __revng_retype_<index>(<type>);` for each name. A function
+/// parameter is a C type-name position, so the type is written verbatim,
+/// whatever its shape (arrays, pointers to arrays, ...); no declarator surgery
+/// is needed. The parameter's un-decayed type is read back after parsing.
+std::string renderTypeProbes(llvm::ArrayRef<std::string> TypeNames) {
+  std::string Result;
+  for (size_t Index = 0; Index < TypeNames.size(); ++Index) {
+    Result += (llvm::Twine("void ") + TypeProbePrefix + llvm::Twine(Index) + "("
+               + StringRef(TypeNames[Index]).trim() + ");\n")
+                .str();
+  }
+  return Result;
+}
+
+/// A synthetic `void __revng_retype_N(<type>);` carries the N-th type name as
+/// its single parameter. Resolve it to a model type, paired with the name as
+/// written so the caller can key it by that. Nothing when \p Probe is not one
+/// of the probes, or names no type of the list.
+std::optional<std::pair<std::string, model::UpcastableType>>
+resolveTypeProbe(const clang::FunctionDecl &Probe,
+                 clang::ASTContext &Context,
+                 const model::Binary &Binary,
+                 llvm::ArrayRef<std::string> TypeNames) {
+  StringRef Name = Probe.getName();
+  if (not Name.consume_front(TypeProbePrefix))
+    return std::nullopt;
+
+  unsigned Index = 0;
+  if (Name.getAsInteger(10, Index) or Index >= TypeNames.size())
+    return std::nullopt;
+  if (Probe.getNumParams() != 1)
+    return std::nullopt;
+
+  std::vector<std::string> Ignored;
+  clang::QualType Argument = Probe.getParamDecl(0)->getOriginalType();
+  model::UpcastableType Resolved = revng::qualTypeToModel(Argument,
+                                                          Binary,
+                                                          Context,
+                                                          Ignored,
+                                                          "edit-c-body:");
+  return std::pair(TypeNames[Index], std::move(Resolved));
 }
 
 //
@@ -135,7 +170,7 @@ std::string makeRetypeProbe(StringRef TypeString, size_t Index) {
 
 struct ParseOutput {
   std::vector<CStatement> Statements;
-  std::map<std::string, model::UpcastableType> ResolvedTypes;
+  ResolvedTypeMap ResolvedTypes;
   std::string Error;
 };
 
@@ -146,14 +181,14 @@ class ParseConsumer : public clang::ASTConsumer {
 private:
   ParseOutput &Output;
   const model::Binary &Binary;
-  llvm::ArrayRef<std::string> RetypeStrings;
+  llvm::ArrayRef<std::string> TypeNames;
   clang::SourceManager *Sources = nullptr;
 
 public:
   ParseConsumer(ParseOutput &Output,
                 const model::Binary &Binary,
-                llvm::ArrayRef<std::string> RetypeStrings) :
-    Output(Output), Binary(Binary), RetypeStrings(RetypeStrings) {}
+                llvm::ArrayRef<std::string> TypeNames) :
+    Output(Output), Binary(Binary), TypeNames(TypeNames) {}
 
   void HandleTranslationUnit(clang::ASTContext &Context) override {
     Sources = &Context.getSourceManager();
@@ -167,8 +202,10 @@ public:
         continue;
 
       if (Function->getIdentifier()
-          and Function->getName().starts_with(RetypeProbePrefix)) {
-        resolveRetype(*Function, Context);
+          and Function->getName().starts_with(TypeProbePrefix)) {
+        auto Resolved = resolveTypeProbe(*Function, Context, Binary, TypeNames);
+        if (Resolved.has_value())
+          Output.ResolvedTypes.insert(std::move(*Resolved));
         continue;
       }
 
@@ -195,31 +232,6 @@ public:
   }
 
 private:
-  /// A synthetic `void __revng_retype_N(<type>);` carries the type named by the
-  /// N-th `RETYPE:` directive as its single parameter. Resolve it to a model
-  /// type, keyed by the directive text so the analysis can look it up.
-  void resolveRetype(const clang::FunctionDecl &Probe,
-                     clang::ASTContext &Context) {
-    StringRef Name = Probe.getName();
-    if (not Name.consume_front(RetypeProbePrefix))
-      return;
-
-    unsigned Index = 0;
-    if (Name.getAsInteger(10, Index) or Index >= RetypeStrings.size())
-      return;
-    if (Probe.getNumParams() != 1)
-      return;
-
-    std::vector<std::string> Ignored;
-    clang::QualType Argument = Probe.getParamDecl(0)->getOriginalType();
-    model::UpcastableType Resolved = revng::qualTypeToModel(Argument,
-                                                            Binary,
-                                                            Context,
-                                                            Ignored,
-                                                            "edit-c-body:");
-    Output.ResolvedTypes[RetypeStrings[Index]] = std::move(Resolved);
-  }
-
   void push(StatementKind Kind, const clang::Stmt *Statement) {
     auto BeginLocation = Sources->getExpansionLoc(Statement->getBeginLoc());
     unsigned Offset = Sources->getFileOffset(BeginLocation);
@@ -369,17 +381,17 @@ public:
 class ParseAction : public clang::ASTFrontendAction {
   ParseOutput &Output;
   const model::Binary &Binary;
-  llvm::ArrayRef<std::string> RetypeStrings;
+  llvm::ArrayRef<std::string> TypeNames;
 
 public:
   ParseAction(ParseOutput &Output,
               const model::Binary &Binary,
-              llvm::ArrayRef<std::string> RetypeStrings) :
-    Output(Output), Binary(Binary), RetypeStrings(RetypeStrings) {}
+              llvm::ArrayRef<std::string> TypeNames) :
+    Output(Output), Binary(Binary), TypeNames(TypeNames) {}
 
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &, StringRef) override {
-    return std::make_unique<ParseConsumer>(Output, Binary, RetypeStrings);
+    return std::make_unique<ParseConsumer>(Output, Binary, TypeNames);
   }
 
   bool BeginInvocation(clang::CompilerInstance &CompilerInstance) override {
@@ -390,7 +402,104 @@ public:
   }
 };
 
+/// Consumer that only resolves the synthetic type probes, for a translation
+/// unit that holds nothing else.
+class TypeProbeConsumer : public clang::ASTConsumer {
+private:
+  ResolvedTypeMap &Output;
+  const model::Binary &Binary;
+  llvm::ArrayRef<std::string> TypeNames;
+
+public:
+  TypeProbeConsumer(ResolvedTypeMap &Output,
+                    const model::Binary &Binary,
+                    llvm::ArrayRef<std::string> TypeNames) :
+    Output(Output), Binary(Binary), TypeNames(TypeNames) {}
+
+  void HandleTranslationUnit(clang::ASTContext &Context) override {
+    for (const clang::Decl *Declaration :
+         Context.getTranslationUnitDecl()->decls()) {
+      auto *Function = clang::dyn_cast<clang::FunctionDecl>(Declaration);
+      if (Function == nullptr or not Function->getIdentifier())
+        continue;
+      if (not Function->getName().starts_with(TypeProbePrefix))
+        continue;
+
+      auto Resolved = resolveTypeProbe(*Function, Context, Binary, TypeNames);
+      if (Resolved.has_value())
+        Output.insert(std::move(*Resolved));
+    }
+  }
+};
+
+class TypeProbeAction : public clang::ASTFrontendAction {
+  ResolvedTypeMap &Output;
+  std::string &Error;
+  const model::Binary &Binary;
+  llvm::ArrayRef<std::string> TypeNames;
+
+public:
+  TypeProbeAction(ResolvedTypeMap &Output,
+                  std::string &Error,
+                  const model::Binary &Binary,
+                  llvm::ArrayRef<std::string> TypeNames) :
+    Output(Output), Error(Error), Binary(Binary), TypeNames(TypeNames) {}
+
+  std::unique_ptr<clang::ASTConsumer>
+  CreateASTConsumer(clang::CompilerInstance &, StringRef) override {
+    return std::make_unique<TypeProbeConsumer>(Output, Binary, TypeNames);
+  }
+
+  bool BeginInvocation(clang::CompilerInstance &CompilerInstance) override {
+    CompilerInstance.getDiagnostics().setClient(new DiagnosticCollector(Error),
+                                                /*ShouldOwnClient=*/true);
+    return true;
+  }
+};
+
+/// The flags Clang is run with. Every comment is kept, not only the
+/// documentation ones, because the directives are written as plain comments.
+std::vector<std::string> getCompileFlags() {
+  std::vector<std::string> Flags = revng::getClangCompileFlags();
+  Flags.push_back("-fparse-all-comments");
+  return Flags;
+}
+
 } // namespace
+
+llvm::Expected<ResolvedTypeMap>
+revng::editcbody::resolveTypeNames(StringRef HeaderPath,
+                                   llvm::ArrayRef<std::string> TypeNames,
+                                   const model::Binary &Binary) {
+  ResolvedTypeMap Result;
+  if (TypeNames.empty())
+    return Result;
+
+  std::string Input = ("#include \"" + HeaderPath + "\"\n"
+                       + renderTypeProbes(TypeNames))
+                        .str();
+  revng_log(Log, "Resolving types:\n" << Input << "\n");
+
+  std::string Error;
+  static constexpr StringRef InputFileName = "revng-types.c";
+  auto Action = std::make_unique<TypeProbeAction>(Result,
+                                                  Error,
+                                                  Binary,
+                                                  TypeNames);
+  if (not clang::tooling::runToolOnCodeWithArgs(std::move(Action),
+                                                Input,
+                                                getCompileFlags(),
+                                                InputFileName))
+    return revng::createError("Unable to run clang");
+
+  // A name that does not denote a type produces a diagnostic and no entry.
+  // That is reported to the user one directive at a time by the caller, which
+  // knows which directive named it, so the diagnostics are not an error here.
+  if (not Error.empty())
+    revng_log(Log, "Clang reported:\n" << Error << "\n");
+
+  return Result;
+}
 
 llvm::Expected<ParsedFunction>
 revng::editcbody::parseUserFunction(StringRef HeaderPath,
@@ -399,24 +508,18 @@ revng::editcbody::parseUserFunction(StringRef HeaderPath,
   // Prepend a synthetic probe declaration per `RETYPE:` directive, so Clang
   // resolves the types named in the comments in the same parse as the function
   // body.
-  std::vector<std::string> RetypeStrings = collectRetypeStrings(CCode);
-  std::string Probes;
-  for (size_t I = 0; I < RetypeStrings.size(); ++I)
-    Probes += makeRetypeProbe(RetypeStrings[I], I);
-
-  std::string Input = ("#include \"" + HeaderPath + "\"\n" + Probes + CCode)
+  std::vector<std::string> TypeNames = collectRetypeStrings(CCode);
+  std::string Input = ("#include \"" + HeaderPath + "\"\n"
+                       + renderTypeProbes(TypeNames) + CCode)
                         .str();
   revng_log(Log, "Parsing:\n" << Input << "\n");
 
   ParseOutput Output;
   static constexpr StringRef InputFileName = "revng-input.c";
-  auto Action = std::make_unique<ParseAction>(Output, Binary, RetypeStrings);
-  // edit-c-body needs every comment, not only the documentation ones.
-  std::vector<std::string> Flags = revng::getClangCompileFlags();
-  Flags.push_back("-fparse-all-comments");
+  auto Action = std::make_unique<ParseAction>(Output, Binary, TypeNames);
   if (not clang::tooling::runToolOnCodeWithArgs(std::move(Action),
                                                 Input,
-                                                Flags,
+                                                getCompileFlags(),
                                                 InputFileName))
     return revng::createError("Unable to run clang");
 
