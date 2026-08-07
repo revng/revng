@@ -34,6 +34,7 @@
 
 #include "ClangParse.h"
 #include "CliftFlatten.h"
+#include "ModelEdits.h"
 #include "Statements.h"
 
 using namespace llvm;
@@ -42,97 +43,6 @@ using namespace revng::editcbody;
 static Logger Log("edit-c-body");
 
 namespace rr = revng::ranks;
-
-/// The model type resolved for each `RETYPE:` directive, keyed by its text.
-using ResolvedTypeMap = std::map<std::string, model::UpcastableType>;
-
-//
-// Header assembly
-//
-
-/// Write, to a temporary file, the type/global header and the helper header, so
-/// that a single decompiled function definition can be parsed by Clang. Both
-/// are the tagless headers the pipeline already produced, so nothing is
-/// re-emitted here.
-static llvm::Expected<TemporaryFile>
-writeHeader(const revng::pypeline::PTMLCContainer &TypeAndGlobalHeader,
-            const revng::pypeline::PTMLCContainer &HelperHeader) {
-  ObjectID Root = ObjectID::root();
-  if (not TypeAndGlobalHeader.contains(Root) or not HelperHeader.contains(Root))
-    return revng::createError("the decompiler headers have not been produced");
-
-  auto MaybeFile = TemporaryFile::make("import-comments-header", "h");
-  if (not MaybeFile)
-    return revng::createError("Could not create a temporary header file");
-
-  std::error_code ErrorCode;
-  llvm::raw_fd_ostream Output(MaybeFile->path(), ErrorCode);
-  if (ErrorCode)
-    return revng::createError("Could not open the temporary header file");
-
-  Output << TypeAndGlobalHeader.getMemoryBuffer(Root)->getBuffer();
-  Output << "\n";
-  Output << HelperHeader.getMemoryBuffer(Root)->getBuffer();
-  Output.flush();
-
-  return std::move(*MaybeFile);
-}
-
-//
-// Location ambiguity
-//
-
-namespace {
-
-/// The address sets that identify more than one local variable, or more than
-/// one goto label, of a function.
-///
-/// Both are identified by the addresses of the instructions using them, so two
-/// of them sharing a set cannot be told apart: a model entry located there is
-/// picked up by whichever of them comes first (see
-/// \ref model::Function::findByLocation), no matter which one it was meant
-/// for.
-struct AmbiguousLocations {
-  std::set<SortedVector<MetaAddress>> Variables;
-  std::set<SortedVector<MetaAddress>> Labels;
-};
-
-} // namespace
-
-/// Collect the address sets appearing more than once in \p Locations. An empty
-/// set identifies nothing to begin with and is reported on its own, so it never
-/// counts as ambiguous.
-static std::set<SortedVector<MetaAddress>>
-findDuplicates(llvm::ArrayRef<SortedVector<MetaAddress>> Locations) {
-  std::set<SortedVector<MetaAddress>> Seen;
-  std::set<SortedVector<MetaAddress>> Duplicates;
-
-  for (const SortedVector<MetaAddress> &Location : Locations)
-    if (not Location.empty() and not Seen.insert(Location).second)
-      Duplicates.insert(Location);
-
-  return Duplicates;
-}
-
-/// Gather the address sets that cannot be attributed to a single local variable
-/// or a single goto label of \p Function.
-static AmbiguousLocations
-collectAmbiguousLocations(clift::FunctionOp Function) {
-  std::vector<SortedVector<MetaAddress>> Variables;
-  Function.walk([&](clift::LocalVariableOp Op) {
-    // The stack frame variable is identified by its handle, not by addresses.
-    if (pipeline::locationFromString(rr::LocalVariable, Op.getHandle()))
-      Variables.push_back(clift::getUserAddressSet(Op.getResult()));
-  });
-
-  std::vector<SortedVector<MetaAddress>> Labels;
-  Function.walk([&](clift::MakeLabelOp Op) {
-    if (pipeline::locationFromString(rr::GotoLabel, Op.getHandle()))
-      Labels.push_back(clift::getUserAddressSet(Op.getResult()));
-  });
-
-  return { findDuplicates(Variables), findDuplicates(Labels) };
-}
 
 //
 // Annotation building
@@ -166,59 +76,28 @@ makeStatementComment(mlir::Operation *Op,
   return Comment;
 }
 
-/// A `RENAME:`/`RETYPE:` directive renames and/or retypes a local variable,
-/// located by the addresses of the instructions that use it. It can only be
-/// applied to a local variable declaration.
+/// A `RENAME:`/`RETYPE:` directive renames and/or retypes a local variable. It
+/// can only be applied to a local variable declaration.
 static llvm::Expected<model::LocalVariable>
-makeLocalVariableEdit(mlir::Operation *Op,
-                      const std::optional<std::string> &NewName,
-                      const std::optional<std::string> &NewTypeName,
-                      const ResolvedTypeMap &ResolvedTypes,
-                      const AmbiguousLocations &Ambiguous) {
-  auto LocalVariable = mlir::dyn_cast_or_null<clift::LocalVariableOp>(Op);
-  if (not LocalVariable
-      or not pipeline::locationFromString(rr::LocalVariable,
-                                          LocalVariable.getHandle())) {
-    return revng::createError("`RENAME`/`RETYPE` can only be applied to a "
-                              "local variable declaration");
-  }
-
-  SortedVector<MetaAddress> Location = clift::getUserAddressSet(LocalVariable);
-  if (Location.empty()) {
-    return revng::createError("the local variable cannot be identified by "
-                              "its addresses");
-  }
-
-  if (Ambiguous.Variables.contains(Location)) {
-    std::string Name = LocalVariable.getName().str();
-    return revng::createError("`" + Name + "` shares its addresses ("
-                              + addressesToString(Location)
-                              + ") with another local variable, so it cannot "
-                                "be edited: rev.ng identifies a local variable "
-                                "by the addresses of the instructions using "
-                                "it");
-  }
-
-  model::LocalVariable Variable;
-  Variable.Name() = NewName.has_value() ? *NewName :
-                                          LocalVariable.getName().str();
-  if (NewTypeName.has_value()) {
-    auto Iterator = ResolvedTypes.find(*NewTypeName);
-    if (Iterator == ResolvedTypes.end() or Iterator->second.isEmpty())
-      return revng::createError("unknown type in `RETYPE`: " + *NewTypeName);
-    Variable.Type() = Iterator->second.copy();
-  }
-  Variable.Location() = std::move(Location);
-  return Variable;
+makeLocalVariableEditAt(mlir::Operation *Op,
+                        const std::optional<std::string> &NewName,
+                        const std::optional<std::string> &NewTypeName,
+                        const ResolvedTypeMap &ResolvedTypes,
+                        const AmbiguousLocations &Ambiguous) {
+  auto Variable = mlir::dyn_cast_or_null<clift::LocalVariableOp>(Op);
+  return makeLocalVariableEdit(Variable,
+                               NewName,
+                               NewTypeName,
+                               ResolvedTypes,
+                               Ambiguous);
 }
 
-/// A `RENAME:` directive on a label renames it. The `GotoLabel` is located by
-/// the addresses of the instructions that use the label. It can only be applied
-/// to a label statement.
+/// A `RENAME:` directive on a label renames it. It can only be applied to a
+/// label statement.
 static llvm::Expected<model::GotoLabel>
-makeGotoLabelEdit(mlir::Operation *Op,
-                  const std::optional<std::string> &NewName,
-                  const AmbiguousLocations &Ambiguous) {
+makeGotoLabelEditAt(mlir::Operation *Op,
+                    const std::optional<std::string> &NewName,
+                    const AmbiguousLocations &Ambiguous) {
   // The labels closing a loop body and following a loop are emitted by the C
   // backend, not lifted, so there is nothing in the model to rename.
   if (Op == nullptr) {
@@ -228,31 +107,10 @@ makeGotoLabelEdit(mlir::Operation *Op,
 
   auto AssignLabel = mlir::dyn_cast<clift::AssignLabelOp>(Op);
   clift::MakeLabelOp Label = AssignLabel ? AssignLabel.getLabelOp() : nullptr;
-  if (not Label
-      or not pipeline::locationFromString(rr::GotoLabel, Label.getHandle())) {
+  if (not Label)
     return revng::createError("`RENAME` can only be applied to a goto label");
-  }
 
-  SortedVector<MetaAddress> Location = //
-    clift::getUserAddressSet(AssignLabel.getLabel());
-  if (Location.empty()) {
-    return revng::createError("the label cannot be identified by its "
-                              "addresses");
-  }
-
-  if (Ambiguous.Labels.contains(Location)) {
-    std::string Name = Label.getName().str();
-    return revng::createError("`" + Name + "` shares its addresses ("
-                              + addressesToString(Location)
-                              + ") with another goto label, so it cannot be "
-                                "edited: rev.ng identifies a goto label by the "
-                                "addresses of the instructions using it");
-  }
-
-  model::GotoLabel Result;
-  Result.Name() = NewName.has_value() ? *NewName : Label.getName().str();
-  Result.Location() = std::move(Location);
-  return Result;
+  return makeGotoLabelEdit(Label, NewName, Ambiguous);
 }
 
 namespace {
@@ -336,7 +194,7 @@ computeStatementEdits(llvm::ArrayRef<std::string> LeadingComments,
 
   if (Kind == StatementKind::Label) {
     if (NewName.has_value()) {
-      auto MaybeLabel = makeGotoLabelEdit(Op, NewName, Ambiguous);
+      auto MaybeLabel = makeGotoLabelEditAt(Op, NewName, Ambiguous);
       if (MaybeLabel) {
         Edits.Label = std::move(*MaybeLabel);
       } else {
@@ -344,11 +202,11 @@ computeStatementEdits(llvm::ArrayRef<std::string> LeadingComments,
       }
     }
   } else if (NewName.has_value() or NewTypeName.has_value()) {
-    auto MaybeVariable = makeLocalVariableEdit(Op,
-                                               NewName,
-                                               NewTypeName,
-                                               ResolvedTypes,
-                                               Ambiguous);
+    auto MaybeVariable = makeLocalVariableEditAt(Op,
+                                                 NewName,
+                                                 NewTypeName,
+                                                 ResolvedTypes,
+                                                 Ambiguous);
     if (MaybeVariable) {
       Edits.Variable = std::move(*MaybeVariable);
     } else {
