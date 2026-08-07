@@ -447,6 +447,8 @@ branches:
             container: clift-functions
             category: debug
             filename: clifter_unoptimized.mlir.bc
+      - pipe: import-function-data-model
+        arguments: [clift-functions]
       - pipe: pure-mlir-passes-pipe
         arguments: [clift-functions]
         configuration:
@@ -465,17 +467,6 @@ branches:
             - tighten-variable-scopes
             - hoist-variable-initializers
             - promote-break-continue
-        artifacts:
-          - name: clift-optimized
-            container: clift-functions
-            category: debug
-            filename: clift_optimized.mlir.bc
-      - pipe: import-function-data-model
-        arguments: [clift-functions]
-      - pipe: pure-mlir-passes-pipe
-        arguments: [clift-functions]
-        configuration:
-          passes:
             - c-legalization
             - elide-implicit-casts
             - deduce-immediate-radices
