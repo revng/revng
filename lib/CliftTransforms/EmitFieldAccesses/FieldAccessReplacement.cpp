@@ -225,8 +225,6 @@ Replacement Replacement::make(unsigned PointerBitWidth,
 
 bool Replacement::replace(ExpressionOpInterface PointerToReplace,
                           const PointerArithmetic &Arithmetic) const {
-  bool PropagatedThroughIndirection = false;
-
   mlir::Type PointerToReplaceType = PointerToReplace->getResult(0).getType();
 
   // We need the `PointerSize` in order to generate the `ImmediateOp`s used to
@@ -422,6 +420,8 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
     }
     return Value;
   };
+
+  bool PropagatedThroughIndirection = false;
 
   // Replace all the `Use`s of `PointerToReplace`, handling `IndirectionOp`s
   // specially: instead of giving them the "type-erased" `CurrentValue` (through
