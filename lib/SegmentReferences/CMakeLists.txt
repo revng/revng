@@ -3,8 +3,13 @@
 #
 
 revng_add_analyses_library_internal(
-  revngSegmentReferences DetectCStrings.cpp EmitFunctionPointers.cpp
-  EmitSegmentReferences.cpp EmitStringConstants.cpp SegmentUsesEnumerator.cpp)
+  revngSegmentReferences
+  DetectCStrings.cpp
+  EmitFunctionPointers.cpp
+  EmitSegmentReferences.cpp
+  EmitStringConstants.cpp
+  SegmentUsesEnumerator.cpp
+  StringConstants.cpp)
 
 target_link_libraries(revngSegmentReferences revngSupport revngModel revngABI
                       ${LLVM_LIBRARIES})
