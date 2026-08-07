@@ -8,6 +8,7 @@
 #include "revng/Model/RawBinaryView.h"
 #include "revng/SegmentReferences/EmitStringConstants.h"
 #include "revng/SegmentReferences/SegmentUsesEnumerator.h"
+#include "revng/SegmentReferences/StringConstants.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/Unicode.h"
@@ -108,27 +109,6 @@ static SmallVector<TypeAtOffset> typesAt(const model::Binary &Model,
   return Result;
 }
 
-/// \return 1 for uint8_t const[], 2 for uint16_t const [], 0 otherwise.
-static unsigned getConstCharArrayElementSize(const model::Type *Type) {
-  Type = Type->skipConstAndTypedefs();
-
-  const model::ArrayType *Array = Type->getArray();
-  if (Array == nullptr)
-    return 0;
-
-  const model::Type &ElementType = Array->getArrayElement();
-  const model::PrimitiveType *PrimitiveType = ElementType.getPrimitive();
-  if (not ElementType.IsConst() or PrimitiveType == nullptr
-      or PrimitiveType->PrimitiveKind() != model::PrimitiveKind::Unsigned) {
-    return 0;
-  }
-
-  if (PrimitiveType->Size() != 1 and PrimitiveType->Size() != 2)
-    return 0;
-
-  return PrimitiveType->Size();
-}
-
 class EmitStringConstants {
 private:
   const model::Binary &Binary;
@@ -187,7 +167,7 @@ void EmitStringConstants::run(llvm::Module &M, llvm::Function *LimitTo) {
 llvm::StringRef
 EmitStringConstants::getStringOfTypeAt(const MetaAddress &Address,
                                        const TypeAtOffset &Type) {
-  unsigned CharSize = getConstCharArrayElementSize(Type.Type);
+  unsigned CharSize = getConstCharArrayElementSize(*Type.Type);
   if (CharSize == 0) {
     revng_log(Log, "Ignoring unsuitable type: " << Type.Type->toDebugString());
     return {};
@@ -203,28 +183,12 @@ EmitStringConstants::getStringOfTypeAt(const MetaAddress &Address,
 
   // This is a char array! Let's now extract the data.
   uint64_t ByteCount = Type.Type->size().value() - Type.Offset;
-  auto MaybeData = BinaryView.getByAddress(Address, ByteCount);
-  if (not MaybeData.has_value()) {
-    revng_log(Log, "Couldn't get the data");
+  UnicodeCStringView String = readString(BinaryView,
+                                         Address,
+                                         ByteCount,
+                                         CharSize);
+  if (not String.isValid())
     return {};
-  }
-
-  auto String = UnicodeCStringView::getPrintable(*MaybeData);
-
-  if (not String.isValid()) {
-    revng_log(Log, "No printable string found");
-    return {};
-  }
-
-  if (String.charSize() != CharSize) {
-    revng_log(Log, "Unexpected char size for the string");
-    return {};
-  }
-
-  if (String.data().size() != MaybeData->size()) {
-    revng_log(Log, "String length does not match");
-    return {};
-  }
 
   return String.data();
 }
