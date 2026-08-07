@@ -8,16 +8,18 @@
 
 #include "revng/Support/ManagedStaticRegistry.h"
 
-struct IRHelper {
+/// The name of a helper, as recorded in the registry
+///
+/// \note this is an implementation detail of `IRHelper`, which is how helpers
+///       are meant to be declared and reached.
+struct IRHelperName {
 public:
   std::string Name;
-
-  // TODO: pull the prototype inside
 
 public:
   const std::string &key() const { return Name; }
 };
-using RegisterIRHelper = RegisterManagedStaticImpl<IRHelper>;
+using RegisterIRHelper = RegisterManagedStaticImpl<IRHelperName>;
 
 namespace detail {
 inline void assertIRHelperWasRegistered(llvm::StringRef Name) {
