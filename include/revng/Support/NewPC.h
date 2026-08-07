@@ -4,7 +4,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <concepts>
 #include <utility>
 
 #include "llvm/IR/BasicBlock.h"
@@ -20,8 +19,6 @@ enum class NewPCArgument {
   InstructionID,
   InstructionSize,
   IsJumpTarget,
-  InliningIndex,
-  DissassembledInstruction,
   OwnerFunction,
   FirstLocalVariable
 };
@@ -29,30 +26,24 @@ enum class NewPCArgument {
 /// Marks the beginning of the code translated from an instruction
 inline IRHelper<NewPCArgument> NewPCHelper("newpc");
 
-/// A call to `newpc`, reached either through a mutable or through a constant
-/// instruction
-template<typename T>
-concept NewPCCall = std::same_as<T, IRHelperCall<NewPCArgument>>
-                    or std::same_as<T, ConstIRHelperCall<NewPCArgument>>;
-
-inline BasicBlockID blockIDFromNewPC(NewPCCall auto Call) {
+inline BasicBlockID blockIDFromNewPC(ConstIRHelperCall<NewPCArgument> Call) {
   auto *Argument = Call.getArgument(NewPCArgument::InstructionID);
   return BasicBlockID::fromValue(Argument);
 }
 
-inline MetaAddress addressFromNewPC(NewPCCall auto Call) {
+inline MetaAddress addressFromNewPC(ConstIRHelperCall<NewPCArgument> Call) {
   return blockIDFromNewPC(Call).notInlinedAddress();
 }
 
 /// \return the entry of the function whose control-flow graph owns the block
 ///         \p Call belongs to, or an invalid `MetaAddress` in the root
 ///         function, where code has not been attributed to a function yet
-inline MetaAddress ownerFromNewPC(NewPCCall auto Call) {
+inline MetaAddress ownerFromNewPC(ConstIRHelperCall<NewPCArgument> Call) {
   return MetaAddress::fromValue(Call.getArgument(NewPCArgument::OwnerFunction));
 }
 
 /// \return whether the instruction \p Call marks is the first of a basic block
-inline bool startsBasicBlock(NewPCCall auto Call) {
+inline bool startsBasicBlock(ConstIRHelperCall<NewPCArgument> Call) {
   return getLimitedValue(Call.getArgument(NewPCArgument::IsJumpTarget)) == 1;
 }
 

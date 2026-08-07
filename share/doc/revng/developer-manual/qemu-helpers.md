@@ -478,15 +478,15 @@ $ revng opt -strip-debug -S module.bc \
     | sed -n '/^"bb.0x400000:Code_x86_64":/,/^$/p' \
     | pretty
 "bb.0x400000:Code_x86_64":
-  call void (ptr, i64, i32, i32, ptr, ptr, ...) @newpc(ptr nonnull @"revng.const.0x400000:Code_x86_64", i64 2, i32 1, i32 0, ptr null, ptr nonnull @"revng.const.:Invalid")
+  call void (ptr, i64, i32, ptr, ...) @newpc(ptr nonnull @"revng.const.0x400000:Code_x86_64", i64 2, i32 1, ptr nonnull @"revng.const.:Invalid")
   %5 = load i64, ptr @_rdi, align 8
   %6 = and i64 %5, u0xffffffff
   store i64 %6, ptr @_rax, align 8
-  call void (ptr, i64, i32, i32, ptr, ptr, ...) @newpc(ptr nonnull @"revng.const.0x400002:Code_x86_64", i64 3, i32 0, i32 0, ptr null, ptr nonnull @"revng.const.:Invalid")
+  call void (ptr, i64, i32, ptr, ...) @newpc(ptr nonnull @"revng.const.0x400002:Code_x86_64", i64 3, i32 0, ptr nonnull @"revng.const.:Invalid")
   %7 = load i64, ptr @_rsi, align 8
   call void @helper_divb_AL(ptr nonnull inttoptr (i64 u0x27c0 to ptr), i64 %7)
   store i1 false, ptr @cpu_loop_exiting, align 1
-  call void (ptr, i64, i32, i32, ptr, ptr, ...) @newpc(ptr nonnull @"revng.const.0x400005:Code_x86_64", i64 1, i32 0, i32 0, ptr null, ptr nonnull @"revng.const.:Invalid")
+  call void (ptr, i64, i32, ptr, ...) @newpc(ptr nonnull @"revng.const.0x400005:Code_x86_64", i64 1, i32 0, ptr nonnull @"revng.const.:Invalid")
   %8 = load i64, ptr @_rsp, align 8
   %9 = inttoptr i64 %8 to ptr
   %10 = load i64, ptr %9, align 1

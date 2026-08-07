@@ -385,8 +385,6 @@ IT::InstructionTranslator(class LibTcg &LibTcg,
   // * BasicBlockID of the instruction in string form
   // * instruction size
   // * isJT (-1: unknown, 0: no, 1: yes)
-  // * inlining index
-  // * pointer to the disassembled instruction
   // * entry of the function owning the block, in string form. Code becomes
   //   part of a function only once it is outlined, so this is invalid here
   // * all the local variables used by this instruction
@@ -394,8 +392,6 @@ IT::InstructionTranslator(class LibTcg &LibTcg,
                                 { Type::getInt8PtrTy(Context),
                                   Type::getInt64Ty(Context),
                                   Type::getInt32Ty(Context),
-                                  Type::getInt32Ty(Context),
-                                  Type::getInt8PtrTy(Context),
                                   Type::getInt8PtrTy(Context) },
                                 true);
   NewPCMarker = NewPCHelper
@@ -488,15 +484,11 @@ SmallSet<unsigned, 1> IT::preprocess(const LibTcgTranslationBlock &TB) {
 CallInst *IT::emitNewPCCall(revng::IRBuilder &Builder,
                             MetaAddress PC,
                             uint64_t Size) const {
-  PointerType *Int8PtrTy = getStringPtrType(TheModule.getContext());
-  auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
   // The owner is filled in by the outliner: in root, code does not belong to
   // any function yet
   std::vector<Value *> Args = { BasicBlockID(PC).toValue(&TheModule),
                                 Builder.getInt64(Size),
                                 Builder.getInt32(-1),
-                                Builder.getInt32(0),
-                                Int8NullPtr,
                                 MetaAddress::invalid().toValue(&TheModule) };
 
   // Insert a call to NewPCMarker capturing all the currently live temporaries
