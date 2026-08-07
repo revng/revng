@@ -30,6 +30,7 @@
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeType.h"
+#include "revng/EarlyFunctionAnalysis/IndirectBranchInfo.h"
 #include "revng/EarlyFunctionAnalysis/IndirectBranchInfoPrinterPass.h"
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
@@ -44,9 +45,26 @@
 #include "revng/Support/TemporaryLLVMOption.h"
 
 // This name is not present after `lift`.
-RegisterIRHelper IBIMarker("indirect_branch_info");
 
 using namespace llvm;
+
+using BranchArgument = efa::IndirectBranchInfoArgument;
+constexpr unsigned CallerBlockIDIndex = index(BranchArgument::CallerBlockID);
+constexpr unsigned CalledSymbolIndex = index(BranchArgument::CalledSymbol);
+constexpr unsigned
+  JumpsToReturnAddressIndex = index(BranchArgument::JumpsToReturnAddress);
+constexpr unsigned
+  StackPointerOffsetIndex = index(BranchArgument::StackPointerOffset);
+constexpr unsigned
+  ReturnValuePreservedIndex = index(BranchArgument::ReturnValuePreserved);
+constexpr unsigned
+  FirstPreservedRegisterIndex = index(BranchArgument::FirstPreservedRegister);
+constexpr unsigned CallerBlockID = CallerBlockIDIndex;
+constexpr unsigned CalledSymbol = CalledSymbolIndex;
+constexpr unsigned JumpsToReturnAddress = JumpsToReturnAddressIndex;
+constexpr unsigned StackPointerOffset = StackPointerOffsetIndex;
+constexpr unsigned ReturnValuePreserved = ReturnValuePreservedIndex;
+constexpr unsigned FirstPreservedRegister = FirstPreservedRegisterIndex;
 using namespace llvm::cl;
 
 static opt<std::string> AAWriterPath("aa-writer",
@@ -88,16 +106,6 @@ makeIndirectEdge(efa::FunctionEdgeType::Values Type) {
 };
 
 namespace efa {
-
-/// Indexes for arguments of indirect_branch_info
-enum {
-  CallerBlockIDIndex,
-  CalledSymbolIndex,
-  JumpsToReturnAddressIndex,
-  StackPointerOffsetIndex,
-  ReturnValuePreservedIndex,
-  PreservedRegistersIndex
-};
 
 static efa::BasicBlock &
 blockFromIndirectBranchInfo(CallBase *CI, SortedVector<efa::BasicBlock> &CFG) {
@@ -440,7 +448,7 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *Outlined) {
   auto *IntTy = GCBI.spReg()->getValueType();
   Type *I8Ptr = Type::getInt8PtrTy(Context);
   SmallVector<Type *, 16> ArgTypes;
-  ArgTypes.resize(PreservedRegistersIndex);
+  ArgTypes.resize(FirstPreservedRegisterIndex);
   ArgTypes[CallerBlockIDIndex] = I8Ptr;
   ArgTypes[CalledSymbolIndex] = I8Ptr;
   ArgTypes[JumpsToReturnAddressIndex] = Initial.ReturnPC->getType();
@@ -450,10 +458,8 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *Outlined) {
     ArgTypes.emplace_back(CSV->getValueType());
 
   auto *FTy = llvm::FunctionType::get(IntTy, ArgTypes, false);
-  auto *IBI = createIRHelper("indirect_branch_info",
-                             M,
-                             FTy,
-                             GlobalValue::ExternalLinkage);
+  auto *IBI = IndirectBranchInfo.create(M, FTy, GlobalValue::ExternalLinkage)
+                .function();
   Outlined->IndirectBranchInfoMarker = UniqueValuePtr<Function>(IBI);
   Outlined->IndirectBranchInfoMarker->addFnAttr(Attribute::NoUnwind);
   Outlined->IndirectBranchInfoMarker->addFnAttr(Attribute::NoReturn);
@@ -490,7 +496,7 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *Outlined) {
 
     // Prepare the arguments for the indirect_branch_info probe call
     SmallVector<Value *, 16> ArgValues;
-    ArgValues.resize(PreservedRegistersIndex);
+    ArgValues.resize(FirstPreservedRegisterIndex);
 
     // Record the MetaAddress of the caller
     auto NewPCID = getBasicBlockID(getJumpTargetBlock(Term->getParent()));
@@ -678,10 +684,10 @@ public:
 public:
   void recordClobberedRegisters(llvm::CallBase *CI) {
     using namespace llvm;
-    for (unsigned I = PreservedRegistersIndex; I < CI->arg_size(); ++I) {
+    for (unsigned I = FirstPreservedRegisterIndex; I < CI->arg_size(); ++I) {
       auto *Register = dyn_cast<ConstantInt>(CI->getArgOperand(I));
       if (Register == nullptr or Register->getZExtValue() != 0)
-        ClobberedRegs.insert(ABICSVs[I - PreservedRegistersIndex]);
+        ClobberedRegs.insert(ABICSVs[I - FirstPreservedRegisterIndex]);
     }
   }
 

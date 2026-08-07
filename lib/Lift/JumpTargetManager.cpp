@@ -14,9 +14,11 @@
 #include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+#include "revng/Lift/Helpers.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/EmitAbort.h"
+#include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/NewPC.h"
@@ -28,10 +30,8 @@
 #include "SubGraph.h"
 
 // This name is not present after `lift`.
-RegisterIRHelper JumpToSymbolMarker("jump_to_symbol");
 
 // This name is not present after `lift`.
-RegisterIRHelper ExitTBMarker("exitTB");
 
 using namespace llvm;
 
@@ -131,16 +131,17 @@ bool TDBP::pinMaterializedValues(Function &F) {
   Module *M = F.getParent();
 
   // Lazily create the `jump_to_symbol` marker
-  auto *Marker = getIRHelper("jump_to_symbol", *M);
-  if (Marker == nullptr) {
+  std::optional MarkerHelper = JumpToSymbolMarker.get(*M);
+  llvm::Function *Marker = nullptr;
+  if (MarkerHelper.has_value()) {
+    Marker = MarkerHelper->function();
+  } else {
     LLVMContext &C = M->getContext();
     auto *FT = FunctionType::get(Type::getVoidTy(C),
                                  { Type::getInt8PtrTy(C) },
                                  false);
-    Marker = createIRHelper("jump_to_symbol",
-                            *M,
-                            FT,
-                            GlobalValue::ExternalLinkage);
+    Marker = JumpToSymbolMarker.create(*M, FT, GlobalValue::ExternalLinkage)
+               .function();
     FunctionTags::Marker.addTo(Marker);
   }
 
@@ -510,10 +511,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                              { Type::getInt32Ty(Context) },
                                              false);
 
-  FunctionCallee ExitCallee = getOrInsertIRHelper("exitTB",
-                                                  TheModule,
-                                                  ExitTBTy);
-  ExitTB = cast<Function>(ExitCallee.getCallee());
+  ExitTB = ExitTBMarker.getOrCreate(TheModule, ExitTBTy).function();
   FunctionTags::Marker.addTo(ExitTB);
 
   prepareDispatcher();
@@ -793,7 +791,7 @@ void JumpTargetManager::fixPostHelperPC() {
     for (Instruction &I : BB) {
       if (auto *Call = getCallToHelper(&I)) {
         auto *Callee = cast<Function>(skipCasts(Call->getCalledOperand()));
-        if (Callee->getName() == AbortFunctionName)
+        if (Callee == functionOrNull(AbortHelper.get(TheModule)))
           continue;
 
         auto Written = std::move(getCSVUsedByHelperCall(Call).Written);
@@ -1116,7 +1114,8 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm,
   // * otherwise: the successor is the callee
   if (NewForm == CFGForm::NoFunctionCalls
       || OldForm == CFGForm::NoFunctionCalls) {
-    if (auto *FunctionCall = getIRHelper("function_call", TheModule)) {
+    if (auto *FunctionCall = functionOrNull(FunctionCallMarker
+                                              .get(TheModule))) {
       for (User *U : FunctionCall->users()) {
         auto *Call = cast<CallInst>(U);
 

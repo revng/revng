@@ -28,6 +28,7 @@
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/Model/ABI/Definition.h"
+#include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/NewPC.h"
@@ -356,7 +357,7 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
   // purposes.
   llvm::DenseSet<BasicBlock *> Callees;
   llvm::DenseMap<Use *, BasicBlock *> Undo;
-  auto *FunctionCall = getIRHelper("function_call", TheModule);
+  auto *FunctionCall = functionOrNull(FunctionCallMarker.get(TheModule));
   if (FunctionCall) {
     for (CallBase *Call : callers(FunctionCall)) {
       auto *T = Call->getParent()->getTerminator();

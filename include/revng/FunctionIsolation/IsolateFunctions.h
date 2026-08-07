@@ -10,6 +10,10 @@
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
+#include "revng/Support/IRHelper.h"
+
+/// The function every indirect call is routed through
+inline IRHelper<> FunctionDispatcherHelper("function_dispatcher");
 
 namespace revng::pypeline::piperuns {
 

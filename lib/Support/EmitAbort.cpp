@@ -10,8 +10,6 @@
 
 using namespace llvm;
 
-static RegisterIRHelper AbortHelper(AbortFunctionName.str());
-
 template<bool ShouldTerminateTheBlock>
 static CallInst &emitMessageImpl(revng::IRBuilder &Builder,
                                  const Twine &Message,
@@ -19,10 +17,10 @@ static CallInst &emitMessageImpl(revng::IRBuilder &Builder,
   // Create the function if there's not already one.
   Module *M = getModule(Builder.GetInsertBlock());
   auto *FT = createFunctionType<void, const uint8_t *>(M->getContext());
-  auto Callee = getOrInsertIRHelper(AbortFunctionName, *M, FT);
 
-  // Ensure it's marked as a helper.
-  Function *F = cast<Function>(Callee.getCallee());
+  // Create the function if there's not already one, and ensure it's marked as
+  // a helper
+  Function *F = AbortHelper.getOrCreate(*M, FT).function();
   if (not FunctionTags::Helper.isTagOf(F))
     FunctionTags::Helper.addTo(F);
 
@@ -30,7 +28,7 @@ static CallInst &emitMessageImpl(revng::IRBuilder &Builder,
                                          Builder.getCurrentDebugLocation();
 
   // Create the call.
-  auto *NewCall = Builder.CreateCall(Callee, getUniqueString(M, Message.str()));
+  auto *NewCall = Builder.CreateCall(F, getUniqueString(M, Message.str()));
   NewCall->setDebugLoc(DebugLocation);
 
   if constexpr (ShouldTerminateTheBlock) {

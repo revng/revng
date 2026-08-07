@@ -26,6 +26,7 @@
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
+#include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
@@ -96,7 +97,7 @@ private:
 static Logger EnforceABILog("enforce-abi");
 
 void EnforceABI::run() {
-  FunctionDispatcher = getIRHelper("function_dispatcher", M);
+  FunctionDispatcher = functionOrNull(FunctionDispatcherHelper.get(M));
 
   if (FunctionDispatcher != nullptr)
     OldFunctions.push_back(FunctionDispatcher);

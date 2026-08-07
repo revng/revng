@@ -52,7 +52,6 @@
 #include "revng/Support/SimplePassManager.h"
 
 // This name is not present after `enforce-abi`.
-RegisterIRHelper FDispatcher("function_dispatcher");
 
 using namespace llvm;
 
@@ -614,10 +613,11 @@ Isolate::Isolate(const class Model &Model,
   GCBI.emplace(*Model.get().get(), *ClonedModule);
 
   auto SimpleFunctionType = createFunctionType<void>(Context);
-  FunctionDispatcher = createIRHelper("function_dispatcher",
-                                      *ClonedModule,
-                                      SimpleFunctionType,
-                                      GlobalValue::ExternalLinkage);
+  FunctionDispatcher = FunctionDispatcherHelper
+                         .create(*ClonedModule,
+                                 SimpleFunctionType,
+                                 GlobalValue::ExternalLinkage)
+                         .function();
   FunctionTags::FunctionDispatcher.addTo(FunctionDispatcher);
 
   //

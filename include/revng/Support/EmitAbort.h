@@ -10,9 +10,13 @@
 #include "llvm/IR/Instructions.h"
 
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/IRHelper.h"
 
 // This name corresponds to a function in `early-linked`.
 inline constexpr llvm::StringRef AbortFunctionName = "revng_abort";
+
+/// Reports that the program reached a state revng cannot represent
+inline IRHelper<> AbortHelper(AbortFunctionName);
 
 /// Emit a call to `revng_abort` reporting \p Message, then terminate the basic
 /// block with an `unreachable`

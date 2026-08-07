@@ -23,6 +23,7 @@
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
+#include "revng/PromoteStackPointer/Markers.h"
 #include "revng/PromoteStackPointer/SegregateStackAccesses.h"
 #include "revng/Support/EmitAbort.h"
 #include "revng/Support/Generator.h"
@@ -895,8 +896,8 @@ public:
     ModelFunction(ModelFunction),
     M(*LLVMFunction.getParent()),
     LLVMFunction(LLVMFunction),
-    SSACS(getIRHelper("stack_size_at_call_site", M)),
-    InitLocalSP(getIRHelper("revng_undefined_local_sp", M)),
+    SSACS(functionOrNull(StackSizeAtCallSite.get(M))),
+    InitLocalSP(functionOrNull(UndefinedLocalSPMarker.get(M))),
     CallInstructionPushSize(getCallPushSize(Binary)),
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(),
                                                      Binary.Architecture())),

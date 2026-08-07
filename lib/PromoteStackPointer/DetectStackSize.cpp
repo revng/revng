@@ -13,6 +13,7 @@
 #include "revng/Model/VerifyHelper.h"
 #include "revng/PromoteStackPointer/DetectStackSize.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
+#include "revng/PromoteStackPointer/Markers.h"
 #include "revng/Support/Debug.h"
 
 #include "Helpers.h"
@@ -201,7 +202,7 @@ void DetectStackSize::collectStackBounds(Function &F) {
             // offset
             setBound(LowerBound, Call->getArgOperand(1));
             setBound(UpperBound, Call->getArgOperand(2));
-          } else if (CalledFunction->getName() == "stack_size_at_call_site") {
+          } else if (StackSizeAtCallSite.getCall(&I).has_value()) {
             revng_log(Log, "Considering call site " << getName(Call));
             auto &NewCallSite = FSI.CallSites.emplace_back();
 

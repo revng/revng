@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
@@ -145,26 +146,30 @@ inline llvm::CallInst *getMarker(llvm::Instruction *T, llvm::Function *Marker) {
   return nullptr;
 }
 
-inline llvm::CallInst *getMarker(llvm::Instruction *I,
-                                 llvm::StringRef MarkerName) {
-  return getMarker(I, getIRHelper(MarkerName, *getModule(I)));
+template<typename Argument>
+inline llvm::CallInst *
+getMarker(llvm::Instruction *I, const IRHelper<Argument> &Marker) {
+  return getMarker(I, functionOrNull(Marker.get(*getModule(I))));
 }
 
-inline llvm::CallInst *getMarker(llvm::BasicBlock *BB,
-                                 llvm::StringRef MarkerName) {
-  return getMarker(BB->getTerminator(), MarkerName);
+template<typename Argument>
+inline llvm::CallInst *
+getMarker(llvm::BasicBlock *BB, const IRHelper<Argument> &Marker) {
+  return getMarker(BB->getTerminator(), Marker);
 }
 
 inline llvm::CallInst *getMarker(llvm::BasicBlock *BB, llvm::Function *Marker) {
   return getMarker(BB->getTerminator(), Marker);
 }
 
-inline bool hasMarker(llvm::Instruction *T, llvm::StringRef MarkerName) {
-  return getMarker(T, MarkerName);
+template<typename Argument>
+inline bool hasMarker(llvm::Instruction *T, const IRHelper<Argument> &Marker) {
+  return getMarker(T, Marker);
 }
 
-inline bool hasMarker(llvm::BasicBlock *BB, llvm::StringRef MarkerName) {
-  return getMarker(BB->getTerminator(), MarkerName);
+template<typename Argument>
+inline bool hasMarker(llvm::BasicBlock *BB, const IRHelper<Argument> &Marker) {
+  return getMarker(BB->getTerminator(), Marker);
 }
 
 inline bool hasMarker(llvm::Instruction *T, llvm::Function *Marker) {
@@ -177,8 +182,10 @@ inline bool hasMarker(llvm::BasicBlock *BB, llvm::Function *Marker) {
 
 /// Return the callee basic block given a function_call marker.
 inline llvm::BasicBlock *getFunctionCallCallee(llvm::Instruction *T) {
-  if (auto *Call = getMarker(T, "function_call")) {
-    if (auto *Callee = llvm::dyn_cast<llvm::BlockAddress>(Call->getOperand(0)))
+  if (auto *Call = getMarker(T, FunctionCallMarker)) {
+    IRHelperCall<FunctionCallArgument> Marker(Call);
+    auto *Argument = Marker.getArgument(FunctionCallArgument::Callee);
+    if (auto *Callee = llvm::dyn_cast<llvm::BlockAddress>(Argument))
       return Callee->getBasicBlock();
   }
 
@@ -191,9 +198,10 @@ inline llvm::BasicBlock *getFunctionCallCallee(llvm::BasicBlock *BB) {
 
 /// Return the fall-through basic block given a function_call marker.
 inline llvm::BasicBlock *getFallthrough(llvm::Instruction *T) {
-  if (auto *Call = getMarker(T, "function_call")) {
-    auto *Fallthrough = llvm::cast<llvm::BlockAddress>(Call->getOperand(1));
-    return Fallthrough->getBasicBlock();
+  if (auto *Call = getMarker(T, FunctionCallMarker)) {
+    IRHelperCall<FunctionCallArgument> Marker(Call);
+    auto *Argument = Marker.getArgument(FunctionCallArgument::Fallthrough);
+    return llvm::cast<llvm::BlockAddress>(Argument)->getBasicBlock();
   }
 
   return nullptr;

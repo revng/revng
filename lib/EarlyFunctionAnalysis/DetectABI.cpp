@@ -39,6 +39,7 @@
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/CommonOptions.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
@@ -250,7 +251,7 @@ void DetectABI::computeApproximateCallGraph() {
       BasicBlock *Current = Worklist.pop_back_val();
       Visited.insert(Current);
 
-      if (hasMarker(Current, "function_call")) {
+      if (hasMarker(Current, FunctionCallMarker)) {
         // If not an indirect call, add the node to the CG
         if (BasicBlock *Callee = getFunctionCallCallee(Current)) {
           BasicBlockNode *GraphNode = nullptr;

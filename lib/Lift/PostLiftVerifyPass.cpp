@@ -7,8 +7,11 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ModuleSlotTracker.h"
 
+#include "revng/Lift/Helpers.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/EmitAbort.h"
+#include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/NewPC.h"
 
 #include "PostLiftVerifyPass.h"
@@ -84,11 +87,11 @@ bool PostLiftVerifyPass::runOnModule(Module &M) {
           CalleeName = Callee->getName();
 
         Good = (NewPCHelper.getCall(&I).has_value()
-                or CalleeName == "jump_to_symbol"
+                or JumpToSymbolMarker.getCall(&I).has_value()
                 or CalleeName.startswith("helper_")
-                or CalleeName == "function_call"
-                or CalleeName == "helper_initialize_env"
-                or CalleeName == "revng_abort");
+                or FunctionCallMarker.getCall(&I).has_value()
+                or InitializeEnvHelper.getCall(&I).has_value()
+                or AbortHelper.getCall(&I).has_value());
 
         Good = Good or FunctionTags::SegmentGlobalGetter.isTagOf(Callee);
 

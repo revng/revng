@@ -15,8 +15,10 @@
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
+#include "revng/Lift/Helpers.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Support/EmitAbort.h"
+#include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
@@ -288,13 +290,13 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
     BasicBlock *Current = Queue.pop();
     BlocksToClone.emplace_back(Current);
 
-    if (auto *FunctionCall = getMarker(Current, "function_call")) {
+    if (auto *FunctionCall = getMarker(Current, FunctionCallMarker)) {
       // Compute callee
       MetaAddress PCCallee = MetaAddress::invalid();
       if (auto *Next = getFunctionCallCallee(Current))
         PCCallee = getBasicBlockAddress(Next);
 
-      CallInst *JumpToSymbol = getMarker(Current, "jump_to_symbol");
+      CallInst *JumpToSymbol = getMarker(Current, JumpToSymbolMarker);
       auto &&[Summary, IsTailCall] = getCallSiteInfo(FunctionAddress,
                                                      FunctionCall->getParent(),
                                                      FunctionCall,
@@ -341,7 +343,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
   //
   std::map<llvm::CallInst *, MetaAddress> CallToCallee;
   for (const auto &BB : BlocksToExtract) {
-    if (CallInst *FunctionCall = getMarker(BB, "function_call")) {
+    if (CallInst *FunctionCall = getMarker(BB, FunctionCallMarker)) {
       auto *Term = BB->getTerminator();
 
       // If the function callee is null, we are dealing with an indirect call
@@ -351,7 +353,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
 
       CallToCallee[FunctionCall] = PCCallee;
 
-      CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
+      CallInst *JumpToSymbol = getMarker(BB, JumpToSymbolMarker);
       auto &&[CalleeSummary, IsTailCall] = getCallSiteInfo(FunctionAddress,
                                                            BB,
                                                            FunctionCall,
@@ -421,10 +423,10 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
   // Integrate function callee
   for (auto &BB : *OutlinedFunction.Function) {
     MetaAddress Callee;
-    CallInst *FunctionCall = getMarker(&BB, "function_call");
+    CallInst *FunctionCall = getMarker(&BB, FunctionCallMarker);
     if (FunctionCall != nullptr)
       Callee = CallToCallee.at(FunctionCall);
-    CallInst *JumpToSymbol = getMarker(&BB, "jump_to_symbol");
+    CallInst *JumpToSymbol = getMarker(&BB, JumpToSymbolMarker);
     // TODO: we don't integrate the call if it's a tail call (JumpToSymbol but
     //       no FunctionCall). Is this OK?
     if (FunctionCall != nullptr) {
@@ -476,7 +478,7 @@ void Outliner::createAnyPCHooks(CallHandler *TheCallHandler,
 
     using CPN = ConstantPointerNull;
     Value *SymbolName = CPN::get(Type::getInt8PtrTy(Context));
-    CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
+    CallInst *JumpToSymbol = getMarker(BB, JumpToSymbolMarker);
 
     auto &&[Summary, _] = getCallSiteInfo(OutlinedFunction->Address,
                                           BB,

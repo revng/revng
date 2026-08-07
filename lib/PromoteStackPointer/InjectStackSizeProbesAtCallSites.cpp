@@ -5,10 +5,10 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSites.h"
+#include "revng/PromoteStackPointer/Markers.h"
 #include "revng/Support/IRBuilder.h"
 
 // This name is not present after `CleanupStackSizeMarkers`.
-RegisterIRHelper StackSizeAtCallSite("stack_size_at_call_site");
 
 using namespace llvm;
 
@@ -26,10 +26,8 @@ void InjectStackSizeProbesAtCallSites::runOnFunction(const model::Function
 
   // Create marker for recording stack height at each call site
   auto *SSACSType = llvm::FunctionType::get(B.getVoidTy(), { SPType }, false);
-  auto SSACS = getOrInsertIRHelper("stack_size_at_call_site",
-                                   Module,
-                                   SSACSType);
-  auto *F = cast<llvm::Function>(SSACS.getCallee());
+  auto *SSACS = StackSizeAtCallSite.getOrCreate(Module, SSACSType).function();
+  auto *F = SSACS;
   F->addFnAttr(Attribute::NoUnwind);
   F->addFnAttr(Attribute::WillReturn);
   F->addFnAttr(Attribute::NoMerge);

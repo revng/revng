@@ -6,12 +6,13 @@
 //
 
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
+#include "revng/Lift/Helpers.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/NewPC.h"
 
 // This name is not present after `isolate`.
-RegisterIRHelper FunctionCallMarker("function_call");
 
 using namespace llvm;
 
@@ -42,8 +43,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   };
   using FT = FunctionType;
   auto *Ty = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
-  FunctionCallee Callee = getOrInsertIRHelper("function_call", M, Ty);
-  FunctionCall = cast<Function>(Callee.getCallee());
+  FunctionCall = FunctionCallMarker.getOrCreate(M, Ty).function();
   FunctionTags::Marker.addTo(FunctionCall);
 
   // Initialize the function, if necessary
@@ -65,7 +65,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
     Instruction *Terminator = BB.getTerminator();
 
     if (Terminator != nullptr) {
-      if (CallInst *Call = getMarker(Terminator, "function_call")) {
+      if (CallInst *Call = getMarker(Terminator, FunctionCallMarker)) {
         auto Address = MetaAddress::fromValue(Call->getOperand(2));
         FallthroughAddresses.insert(Address);
         continue;
@@ -283,7 +283,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
       if (It != Terminator->getParent()->begin()) {
         auto PrevIt = It;
         PrevIt--;
-        if (isCallTo(&*PrevIt, "exitTB"))
+        if (ExitTBMarker.getCall(&*PrevIt).has_value())
           It = PrevIt;
       }
 
@@ -311,7 +311,7 @@ void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
     CustomCFGNode *Node = FilteredCFG.getNode(&BB);
 
     // Is this a function call?
-    if (CallInst *Call = getMarker(&BB, "function_call")) {
+    if (CallInst *Call = getMarker(&BB, FunctionCallMarker)) {
 
       Value *SecondArgument = Call->getArgOperand(1);
       auto *Fallthrough = cast<BlockAddress>(SecondArgument)->getBasicBlock();

@@ -11,6 +11,7 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/IndirectBranchInfo.h"
 #include "revng/EarlyFunctionAnalysis/IndirectBranchInfoPrinterPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
@@ -21,9 +22,9 @@ using IBIPP = IndirectBranchInfoPrinterPass;
 PreservedAnalyses IBIPP::run(Function &F, FunctionAnalysisManager &FAM) {
   auto &M = *F.getParent();
 
-  for (auto *Call : callers(getIRHelper("indirect_branch_info", M)))
-    if (Call->getParent()->getParent() == &F)
-      serialize(Call);
+  if (std::optional IBI = efa::IndirectBranchInfo.get(M))
+    for (auto Call : IBI->callersIn(&F))
+      serialize(Call.call());
 
   return PreservedAnalyses::all();
 }

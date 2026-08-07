@@ -18,10 +18,8 @@
 #include "JumpTargetManager.h"
 #include "ValueMaterializerPass.h"
 
-static constexpr const char *AVIMarkerName = "revng_avi";
-
 // This name is not present after `lift`.
-RegisterIRHelper AVIMarker(AVIMarkerName);
+IRHelper<> AVIMarker("revng_avi");
 
 using namespace llvm;
 
@@ -87,7 +85,7 @@ PreservedAnalyses ValueMaterializerPass::run(Function &F,
   demoteOrToAdd(F);
 
   // Early exit in case nothing was marked
-  Function *Marker = getIRHelper(AVIMarkerName, *F.getParent());
+  Function *Marker = functionOrNull(AVIMarker.get(*F.getParent()));
   if (Marker == nullptr)
     return PreservedAnalyses::all();
 
@@ -170,8 +168,7 @@ llvm::Function *ValueMaterializerPass::createMarker(llvm::Module &M) {
   using namespace llvm;
   LLVMContext &C = M.getContext();
   auto *Type = FunctionType::get(FunctionType::getVoidTy(C), {}, true);
-  FunctionCallee Callee = getOrInsertIRHelper(AVIMarkerName, M, Type);
-  auto *Marker = cast<Function>(Callee.getCallee());
+  auto *Marker = AVIMarker.getOrCreate(M, Type).function();
   Marker->setOnlyAccessesInaccessibleMemory();
   return Marker;
 }

@@ -26,8 +26,7 @@ GeneratedCodeBasicInfo::GeneratedCodeBasicInfo(const model::Binary &Binary,
   Binary(Binary), Module(M) {
 
   RootFunction = M.getFunction("root");
-  std::optional NewPCHandle = NewPCHelper.get(M);
-  NewPC = NewPCHandle.has_value() ? NewPCHandle->function() : nullptr;
+  NewPC = functionOrNull(NewPCHelper.get(M));
 
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 

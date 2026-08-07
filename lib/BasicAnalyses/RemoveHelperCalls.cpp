@@ -15,7 +15,8 @@
 
 static bool isCallToAbort(const llvm::Instruction *I) {
   const llvm::Function *Callee = getCallee(I);
-  return Callee and (Callee->getName() == AbortFunctionName);
+  return Callee
+         and Callee == functionOrNull(AbortHelper.get(*Callee->getParent()));
 }
 
 llvm::PreservedAnalyses

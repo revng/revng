@@ -133,6 +133,13 @@ private:
   }
 };
 
+/// \return the function \p Helper wraps, or `nullptr` if it holds nothing
+template<typename Argument>
+inline llvm::Function *
+functionOrNull(const std::optional<IRHelperFunction<Argument>> &Helper) {
+  return Helper.has_value() ? Helper->function() : nullptr;
+}
+
 /// The name of a helper
 ///
 /// Declaring one registers its name, so that no two helpers can share it.
@@ -177,6 +184,14 @@ public:
   IRHelperFunction<Argument> getOrCreate(llvm::Module &M,
                                          llvm::FunctionType *Type) const {
     llvm::FunctionCallee Callee = M.getOrInsertFunction(Name, Type);
+    auto *F = llvm::cast<llvm::Function>(Callee.getCallee());
+    return IRHelperFunction<Argument>(F);
+  }
+
+  /// Create a helper taking no argument and returning \p ReturnType
+  IRHelperFunction<Argument> getOrCreate(llvm::Module &M,
+                                         llvm::Type *ReturnType) const {
+    llvm::FunctionCallee Callee = M.getOrInsertFunction(Name, ReturnType);
     auto *F = llvm::cast<llvm::Function>(Callee.getCallee());
     return IRHelperFunction<Argument>(F);
   }

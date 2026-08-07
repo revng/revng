@@ -11,10 +11,11 @@
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/IRHelper.h"
 #include "revng/Support/NewPC.h"
 
 // This name corresponds to a function in `early-linked`.
-RegisterIRHelper SetMetaAddressHelper("set_PlainMetaAddress");
+IRHelper<> SetMetaAddressHelper("set_PlainMetaAddress");
 
 using namespace llvm;
 using PCH = ProgramCounterHandler;
@@ -396,7 +397,7 @@ static void setPlainMetaAddressImpl(revng::IRBuilder &Builder,
   GlobalVariable *Global = M->getGlobalVariable(GlobalName);
   revng_assert(Global != nullptr);
 
-  Function *MAConstuctor = getIRHelper("set_PlainMetaAddress", *M);
+  Function *MAConstuctor = functionOrNull(SetMetaAddressHelper.get(*M));
   auto WriteArguments = MemoryEffects::argMemOnly(ModRefInfo::Mod);
   MAConstuctor->setMemoryEffects(WriteArguments);
   MAConstuctor->addFnAttr(Attribute::WillReturn);
