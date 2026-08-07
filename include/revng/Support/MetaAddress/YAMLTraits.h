@@ -20,6 +20,10 @@ struct llvm::yaml::ScalarTraits<MetaAddress> {
 
   static StringRef input(llvm::StringRef Scalar, void *, MetaAddress &Value) {
     Value = MetaAddress::fromString(Scalar);
+
+    if (Value.isInvalid() and Scalar != MetaAddress::invalid().toString())
+      return "not a MetaAddress";
+
     return StringRef();
   }
 

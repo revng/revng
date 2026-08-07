@@ -100,7 +100,12 @@ MetaAddress::toIdentifier(model::Architecture::Values Architecture) const {
 }
 
 MetaAddress MetaAddress::fromString(StringRef Text) {
-  revng_assert(Text.size() > Separator.size());
+  // Too short to hold an address and its type, or the spelling of an invalid
+  // address. Text this size reaches here out of a YAML document a user wrote,
+  // so it is rejected like any other text that does not parse.
+  if (Text.size() <= Separator.size())
+    return MetaAddress::invalid();
+
   if (Text.take_front(Separator.size()) == Separator)
     if (Text.drop_front(Separator.size()) == "Invalid")
       return MetaAddress::invalid();
