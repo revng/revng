@@ -273,7 +273,16 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
     return true;
 
   revng_assert(FD);
-  revng_assert(AnalysisOption == EditCTypeOption::EditFunctionPrototype);
+
+  // A function declaration carries the attributes of a function's prototype,
+  // so it only means something at a `/function/...` location. Anywhere else
+  // the same signature is written as a typedef (see VisitTypedefDecl).
+  if (AnalysisOption != EditCTypeOption::EditFunctionPrototype) {
+    Errors.emplace_back("edit-c-type failed: a function declaration only "
+                        "applies to a `/function/...` location; write the "
+                        "signature as a typedef instead.\n");
+    return false;
+  }
 
   std::optional ABI = parseStringAnnotation<"_ABI">(*FD, Errors);
   if (not ABI.has_value() or ABI->empty()) {
@@ -881,7 +890,13 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
 }
 
 bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
-  revng_assert(AnalysisOption != EditCTypeOption::EditFunctionPrototype);
+  // A struct at a `/function/...` location describes the multi-register return
+  // value of a raw function; a union describes nothing there.
+  if (AnalysisOption == EditCTypeOption::EditFunctionPrototype) {
+    Errors.emplace_back("edit-c-type failed: editing a function prototype "
+                        "requires a function declaration, not a union.\n");
+    return false;
+  }
 
   const RecordDecl *Definition = RD->getDefinition();
   if (Definition == nullptr) {
@@ -983,7 +998,11 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   if (not comesFromInternalFile(D))
     return true;
 
-  revng_assert(AnalysisOption != EditCTypeOption::EditFunctionPrototype);
+  if (AnalysisOption == EditCTypeOption::EditFunctionPrototype) {
+    Errors.emplace_back("edit-c-type failed: editing a function prototype "
+                        "requires a function declaration, not an enum.\n");
+    return false;
+  }
 
   if (not D->hasAttr<PackedAttr>()) {
     Errors.emplace_back("edit-c-type failed: Enums must be `_PACKED`.\n");
