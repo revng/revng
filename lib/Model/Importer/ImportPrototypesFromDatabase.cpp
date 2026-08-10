@@ -278,6 +278,7 @@ public:
              << LibraryParamIndex << R"(
           AND s.Name IN ()"
              << SymbolPlaceholders << R"()
+        ORDER BY s.SymbolID
       )";
     }
 
@@ -294,10 +295,26 @@ public:
     };
 
     std::vector<SymbolInfo> Symbols;
+    std::map<std::string, size_t> SymbolIndices;
     using llvm::StringRef;
     for (auto [Name, OriginalID, Body] :
          SymbolsStatement.execute<StringRef, int64_t, StringRef>()) {
       bool HasType = OriginalID >= 0 and OriginalIDToKind.count(OriginalID) > 0;
+
+      // A library can export the same name more than once, since the database
+      // keys on the name alone and glibc ships one symbol per version, such as
+      // `exp@GLIBC_2.2.5` next to `exp@GLIBC_2.29`. The model has room for a
+      // single entry per name, so keep the first one carrying a prototype.
+      auto [Iterator, Inserted] = SymbolIndices.try_emplace(Name.str(),
+                                                            Symbols.size());
+      if (not Inserted) {
+        SymbolInfo &Existing = Symbols[Iterator->second];
+        revng_log(Log, "Ignoring a further definition of " << Name);
+        if (HasType and not Existing.HasType)
+          Existing = { Name.str(), OriginalID, HasType, Body.str() };
+        continue;
+      }
+
       Symbols.push_back({ Name.str(), OriginalID, HasType, Body.str() });
     }
 
