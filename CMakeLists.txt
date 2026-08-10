@@ -442,9 +442,11 @@ add_custom_command(
     "${CMAKE_SOURCE_DIR}/python/revng/internal/cli/_commands/process_docs_yaml/artifacts.md.tpl"
     < "${CMAKE_SOURCE_DIR}/python/revng/internal/pipeline.yml" >
     share/doc/revng/references/artifacts.md
+  # The output lands inside `docs_dir`, so drop the previous one first or mkdocs
+  # copies it into the new one, one nesting level per build.
+  COMMAND rm -rf "${HTML_DOCS_PATH}"
   COMMAND env NO_MKDOCS_2_WARNING=1 ${MKDOCS} build --quiet --strict --site-dir
           mkdocs-output
-  COMMAND rm -rf "${HTML_DOCS_PATH}"
   COMMAND mv -T mkdocs-output "${HTML_DOCS_PATH}"
   COMMENT "Generating mkdocs")
 add_custom_target(mkdocs ALL DEPENDS share/doc/revng/html/404.html)
