@@ -11,6 +11,7 @@
 #include "revng/CliftPipes/EmitC.h"
 #include "revng/CliftPipes/EmitCAsDirectory.h"
 #include "revng/CliftPipes/EmitCAsSingleFile.h"
+#include "revng/CliftPipes/EmitStrings.h"
 #include "revng/CliftPipes/Headers.h"
 #include "revng/CliftPipes/ImportDataModel.h"
 #include "revng/CliftPipes/ImportDescriptiveInfo.h"
@@ -109,6 +110,7 @@ REGISTER(FunctionPipeRun, CollectCFG);
 REGISTER(FunctionPipeRun, EmitC);
 REGISTER(FunctionPipeRun, EmitFunctionPointers);
 REGISTER(FunctionPipeRun, EmitStringConstants);
+REGISTER(FunctionPipeRun, EmitStrings);
 REGISTER(FunctionPipeRun, EnforceABI);
 REGISTER(FunctionPipeRun, ImportDescriptiveFunctionInfo);
 REGISTER(FunctionPipeRun, ImportFunctionDataModel);
