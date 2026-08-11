@@ -537,7 +537,8 @@ public:
 
 private:
   constexpr explicit MetaAddress(Tombstone) :
-    PlainMetaAddress{ .Address = 1 } {}
+    PlainMetaAddress{ .Epoch = 0, .AddressSpace = 0, .Type = 0, .Address = 1 } {
+  }
 
   /// @}
 
