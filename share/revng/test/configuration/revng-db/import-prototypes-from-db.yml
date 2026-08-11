@@ -23,4 +23,4 @@ commands:
     command: |-
       revng pipeline run-analysis import-prototypes-from-db "$INPUT"
         | revng model opt -verify
-        | FileCheck "${SOURCE}"
+        | FileCheck "${COMMAND_ROOT}/${SOURCE}"

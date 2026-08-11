@@ -31,10 +31,7 @@ function(revng_register_library NAME EXPORT_NAME)
   add_dependencies(revng-all-binaries "${NAME}")
   target_include_directories("${NAME}" INTERFACE $<INSTALL_INTERFACE:include/>)
   prepend_target_property("${NAME}" BUILD_RPATH
-                          "\$ORIGIN:\$ORIGIN/revng/analyses" ":")
-  if(NOT "${CMAKE_INSTALL_RPATH}" STREQUAL "")
-    append_target_property("${NAME}" BUILD_RPATH "${CMAKE_INSTALL_RPATH}" ":")
-  endif()
+                          "${CMAKE_BINARY_DIR}/lib:${CMAKE_BINARY_DIR}/lib/revng/analyses" ":")
 
   set_target_properties("${NAME}" PROPERTIES LIBRARY_OUTPUT_DIRECTORY
                                              "${CMAKE_BINARY_DIR}/lib")
@@ -61,10 +58,7 @@ macro(revng_add_analyses_library NAME EXPORT_NAME)
   add_library("${NAME}" SHARED ${ARGN})
   add_dependencies(revng-all-binaries "${NAME}")
   target_include_directories("${NAME}" INTERFACE $<INSTALL_INTERFACE:include/>)
-  prepend_target_property("${NAME}" BUILD_RPATH "\$ORIGIN/../../:\$ORIGIN" ":")
-  if(NOT "${CMAKE_INSTALL_RPATH}" STREQUAL "")
-    append_target_property("${NAME}" BUILD_RPATH "${CMAKE_INSTALL_RPATH}" ":")
-  endif()
+  prepend_target_property("${NAME}" BUILD_RPATH "${CMAKE_BINARY_DIR}/lib:${CMAKE_BINARY_DIR}/lib/revng/analyses" ":")
 
   set_target_properties(
     "${NAME}" PROPERTIES LIBRARY_OUTPUT_DIRECTORY
@@ -100,18 +94,21 @@ macro(revng_add_executable_internal NAME TARGET_PATH)
 
   add_executable("${NAME}" ${ARGN})
   append_target_property("${NAME}" "LINK_FLAGS" "-pie" " ")
+  # Export the executable's global symbols (e.g. the
+  # PipeboxCommon::Helpers::*::Registry inline singletons) so plugins
+  # loaded via LLVM's -load= dlopen end up writing into and reading
+  # from the same Registry instance the executable owns.
+  append_target_property("${NAME}" "LINK_FLAGS" "-rdynamic" " ")
 
   add_dependencies(revng-all-binaries "${NAME}")
 
+  # WIP: drop RELATIVE_TO_ROOT
   # Set BUILD_RPATH
   prepend_target_property(
     "${NAME}"
     BUILD_RPATH
-    "\$ORIGIN/${RELATIVE_TO_ROOT}lib/:\$ORIGIN/${RELATIVE_TO_ROOT}lib/revng/analyses/"
+    "${CMAKE_BINARY_DIR}/lib:${CMAKE_BINARY_DIR}/lib/revng/analyses"
     ":")
-  if(NOT "${CMAKE_INSTALL_RPATH}" STREQUAL "")
-    append_target_property("${NAME}" BUILD_RPATH "${CMAKE_INSTALL_RPATH}" ":")
-  endif()
 
   # Build in the desired directory
   set_target_properties(

@@ -11,5 +11,5 @@ python -m pip install \
        --no-build-isolation \
        --ignore-installed \
        --no-deps \
-       --root "$DESTDIR" \
-       "$1"
+       --prefix "." --root "${DESTDIR:-}$1" \
+       "$2"

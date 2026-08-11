@@ -17,5 +17,5 @@ commands:
       - type: source
         filter: db-invariants
     command: |-
-      sqlite3 -cmd ".open \"file:$SOURCES_ROOT/share/revng/prototypes.sqlite?immutable=1\"" < "$INPUT"
+      sqlite3 -cmd ".open \"file:$$(revng internal find-path share/revng/prototypes.sqlite)?immutable=1\"" < "$INPUT"
         | FileCheck "$INPUT"

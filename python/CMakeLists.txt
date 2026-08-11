@@ -38,11 +38,13 @@ function(python_module)
       OUTPUT_VARIABLE MODULE_INIT_CONTENTS)
     file(
       WRITE
-      "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${PYTHON_MODULE_MODULE_INIT}"
+      "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${PYTHON_MODULE_MODULE_INIT}"
       "${MODULE_INIT_CONTENTS}")
+    # Stage the same init into PYTHON_INSTALL_PATH so the staging tree
+    # is importable before pip install runs (mixins.py needs this).
     file(
       WRITE
-      "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${PYTHON_MODULE_MODULE_INIT}"
+      "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${PYTHON_MODULE_MODULE_INIT}"
       "${MODULE_INIT_CONTENTS}")
     list(
       APPEND
@@ -54,10 +56,14 @@ function(python_module)
   foreach(MODULE_FILE ${PYTHON_MODULE_MODULE_FILES})
     configure_file(
       "${MODULE_FILE}"
-      "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${MODULE_FILE}" COPYONLY)
+      "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${MODULE_FILE}"
+      COPYONLY)
+    # Stage source files into PYTHON_INSTALL_PATH alongside the
+    # generated ones; otherwise mixins.py (which runs against this
+    # staging tree before pip install) sees an incomplete package.
     configure_file(
       "${MODULE_FILE}"
-      "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${MODULE_FILE}"
+      "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${MODULE_FILE}"
       COPYONLY)
     list(
       APPEND "WHEEL_FILES_${PYTHON_MODULE_WHEEL}"
@@ -107,6 +113,8 @@ endfunction()
 #
 # Wheel generation
 #
+add_custom_target(install-all-wheels ALL)
+
 function(python_wheel)
   set(options)
   set(oneValueArgs NAME PYPROJECT README)
@@ -150,9 +158,30 @@ function(python_wheel)
   )
   install(FILES "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
           DESTINATION "${CMAKE_INSTALL_PREFIX}/share/python")
-  install(
-    CODE "execute_process(COMMAND \"${CMAKE_CURRENT_SOURCE_DIR}/wheel-install.sh\" \
-\"${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}\")")
+
+  add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/.${PYTHON_WHEEL_NAME}-installed"
+    COMMAND
+      python -m pip install --quiet --compile --no-index --no-build-isolation
+      --ignore-installed --no-deps --prefix "${CMAKE_BINARY_DIR}"
+      "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
+    COMMAND touch "${CMAKE_BINARY_DIR}/.${PYTHON_WHEEL_NAME}-installed"
+    # pip and the sibling unzip-dist-info step both write into the same
+    # dist-info directory; without an explicit ordering the unzip's
+    # `rm -r .../${WHEEL_NAME}-*.dist-info` can race with pip's
+    # temporary files (`INSTALLERxxxx.tmp`) and blow the install up.
+    DEPENDS "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
+            "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${DISTINFO_NAME}/RECORD")
+
+  add_custom_target(
+    "install-${PYTHON_WHEEL_NAME}-wheel"
+    DEPENDS "${CMAKE_BINARY_DIR}/.${PYTHON_WHEEL_NAME}-installed")
+  add_dependencies(install-all-wheels "install-${PYTHON_WHEEL_NAME}-wheel")
+
+  list(APPEND "PYTHON_WHEELS" "${PYTHON_WHEEL_NAME}")
+  set("PYTHON_WHEELS"
+      "${PYTHON_WHEELS}"
+      PARENT_SCOPE)
 endfunction()
 
 #
@@ -260,12 +289,12 @@ add_custom_command(
 add_custom_command(
   COMMAND
     env "PYTHONPATH=${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}"
-    "${CMAKE_SOURCE_DIR}/scripts/generate-project-mixins.sh"
+    bash "${CMAKE_SOURCE_DIR}/scripts/generate-project-mixins.sh"
     "${CMAKE_SOURCE_DIR}/python/revng/project/model/mixins.py.tpl"
     "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/model/mixins.py"
   OUTPUT
     "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/model/mixins.py"
-  DEPENDS revng-all-binaries
+  DEPENDS revng-all-binaries _pipebox
           "${CMAKE_SOURCE_DIR}/scripts/generate-project-mixins.py"
           "${CMAKE_SOURCE_DIR}/scripts/generate-project-mixins.sh"
           "${CMAKE_SOURCE_DIR}/python/revng/project/model/mixins.py.tpl"
@@ -273,7 +302,7 @@ add_custom_command(
 
 add_custom_command(
   COMMAND
-    "${CMAKE_SOURCE_DIR}/scripts/jsonschema_to_py.sh"
+    bash "${CMAKE_SOURCE_DIR}/scripts/jsonschema_to_py.sh"
     "${CMAKE_SOURCE_DIR}/python/revng/pypeline/pipeline-description-schema.yml"
     "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/pipeline_description.py"
     "PipelineDescription"
@@ -341,6 +370,7 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/hard_purge.py
     revng/internal/cli/_commands/process_docs_yaml/__init__.py
     revng/internal/cli/_commands/tar_to_yaml.py
+    revng/internal/cli/_commands/find_path.py
     revng/internal/cli/_commands/test_docs/__init__.py
     revng/internal/cli/_commands/test_docs/doctest_runner.py
     revng/internal/cli/_commands/groups.py
@@ -494,12 +524,12 @@ set(REVNG_PYPELINE_MODULE_FILES
 add_custom_command(
   COMMAND
     cp -a
-    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/support/buffered_reader.py"
+    "${CMAKE_SOURCE_DIR}/python/revng/support/buffered_reader.py"
     "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/pypeline/utils/buffered_reader.py"
   OUTPUT
     "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/pypeline/utils/buffered_reader.py"
   DEPENDS
-    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/support/buffered_reader.py"
+    "${CMAKE_SOURCE_DIR}/python/revng/support/buffered_reader.py"
 )
 
 python_module(
@@ -525,7 +555,7 @@ configure_file(
 llvm_map_components_to_libnames(LLVM_LIBRARIES Support Core)
 
 set(CPP_MODULE_NAME _pipebox)
-add_library("${CPP_MODULE_NAME}" MODULE
+add_library("${CPP_MODULE_NAME}" SHARED
             "${CMAKE_SOURCE_DIR}/lib/PipeboxCommon/Python/_pipebox.cpp")
 set_target_properties(
   "${CPP_MODULE_NAME}"
@@ -556,3 +586,34 @@ python_wheel(NAME revng_internal PYPROJECT revng/internal/pyproject.toml README
              revng/internal/README.md)
 python_wheel(NAME pypeline PYPROJECT revng/pypeline/pyproject.toml README
              revng/pypeline/README.md)
+
+#
+# Copy all wheel files
+#
+
+install(
+  DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}"
+  USE_SOURCE_PERMISSIONS)
+install(
+  DIRECTORY "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_PATH}"
+  USE_SOURCE_PERMISSIONS)
+
+# install(TARGETS) so CMake rewrites the RPATH at install time.
+# The install(DIRECTORY) above copies the whole revng/ tree (including this
+# .so) but does NOT fix up RPATHs.  This install(TARGETS) overwrites the
+# broken copy with one that has the correct RPATH.
+install(
+  TARGETS "${CPP_MODULE_NAME}"
+  LIBRARY
+    DESTINATION
+      "${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_PATH}/revng/internal")
+
+foreach(WHEEL_NAME ${PYTHON_WHEELS})
+  install(
+    DIRECTORY
+      "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${WHEEL_NAME}-${PYTHON_WHL_VERSION}.dist-info"
+    DESTINATION "${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_PATH}"
+    USE_SOURCE_PERMISSIONS)
+endforeach()

@@ -24,7 +24,7 @@ commands:
         filter: for-runtime and cross-compiler
     suffix: /
     command: |-
-      ( grep RUN $SOURCE || true ) | sed 's|/\* RUN-\(.*\): \(.*\) \*/|\1,\2|' | while IFS=',' read -r NAME ARGUMENTS; do
+      ( grep RUN "${COMMAND_ROOT}/${SOURCE}" || true ) | sed 's|/\* RUN-\(.*\): \(.*\) \*/|\1,\2|' | while IFS=',' read -r NAME ARGUMENTS; do
           qemu-$QEMU_NAME $INPUT $$ARGUMENTS > $OUTPUT/$$NAME.stdout || true;
       done
 
@@ -37,7 +37,7 @@ commands:
         filter: for-runtime and !aarch64
     suffix: /
     command: |-
-      ( grep RUN $SOURCE || true ) | sed 's|/\* RUN-\(.*\): \(.*\) \*/|\1,\2|' | while IFS=',' read -r NAME ARGUMENTS; do
+      ( grep RUN "${COMMAND_ROOT}/${SOURCE}" || true ) | sed 's|/\* RUN-\(.*\): \(.*\) \*/|\1,\2|' | while IFS=',' read -r NAME ARGUMENTS; do
         $INPUT $$ARGUMENTS 2>/dev/null > $OUTPUT/$$NAME.stdout || true;
       done
 

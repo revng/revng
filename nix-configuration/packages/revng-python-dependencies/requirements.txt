@@ -1,0 +1,67 @@
+# Python language checkers/formatters
+black>=22.12.0,<23.0
+flake8>=7.0.0,<8.0
+flake8-breakpoint>=1.1.0,<2.0
+flake8-builtins>=2.1.0,<3.0
+flake8-comprehensions>=3.10.1,<4.0
+flake8-eradicate>=1.4.0,<2.0
+flake8-return>=1.2.0,<2.0
+flake8-simplify>=0.19.3,<1.0
+pep8-naming>=0.13.3,<1.0
+isort>=5.11.4,<6.0
+codespell>=2.2.2,<3.0
+mypy==1.4.1
+
+# Python types, needed for mypy to work correctly
+types-backports
+types-PyYAML
+types-requests
+types-urllib3
+
+# cmake-format executable
+cmakelang
+
+# Applications/Script dependencies
+ariadne[asgi-file-uploads]>=0.20.1
+cffi
+Jinja2
+gql[aiohttp]
+https://github.com/revng/grandiso-networkx/archive/043ce4b.tar.gz
+jsonschema>=4.17.3,<4.18.0
+networkx
+pefile
+pycparser
+pydot
+pyelftools
+
+# This is our fork of the python-idb package that includes some fixes.
+https://github.com/revng/python-idb/archive/08ba07a.tar.gz
+
+# pydot 3.0.2 introduced an incompatibility with pydot which is supposed to be
+# resolved in a later version, but still causes problems to us (for instance,
+# monotone framework headers generation fails), so we request v2.4.7.  See
+# https://github.com/pydot/pydot/issues/277
+#pyparsing==2.4.7
+
+pytest
+pytest-asyncio
+requests
+requests-toolbelt
+rich
+psutil
+build
+
+# uvicorn[standard] but without watchfiles (since it requires rust)
+uvicorn==0.22.0
+httptools>=0.5.0
+python-dotenv>=0.13
+websockets>=10.4
+
+xdg
+
+marko
+mkdocs
+mkdocs-graphviz
+mkdocs-material
+
+yq

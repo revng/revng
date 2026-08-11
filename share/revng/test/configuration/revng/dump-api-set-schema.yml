@@ -22,6 +22,6 @@ commands:
     # against the apisetschema.dll files in there.
     command: |-
       ROOTFS=$$(basename "$INPUT" .filecheck);
-      INSTALL_ROOT=$$(echo "$INPUT" | sed 's|/share/revng/test/.*||');
-      DLL=$$(find "$$INSTALL_ROOT/share/roots/windows/$$ROOTFS" -iname apisetschema.dll -path "*/System32/*" -not -path "*/UtilityVM/*" | head -1);
+      ROOTFS_DIR=$$(revng internal find-path "share/roots/windows/$$ROOTFS");
+      DLL=$$(find "$$ROOTFS_DIR" -iname apisetschema.dll -path "*/System32/*" -not -path "*/UtilityVM/*" | head -1);
       revng internal dump-api-set-schema "$$DLL" | FileCheck "$INPUT"

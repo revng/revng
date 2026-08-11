@@ -9,7 +9,7 @@ commands:
         filter: for-invalidation
     command: |-
       shopt -s nullglob;
-      for FILECHECK in "${SOURCE}."*".filecheck"; do
+      for FILECHECK in "${COMMAND_ROOT}/${SOURCE}."*".filecheck"; do
           ./check-invalidations "${INPUT}" "$$FILECHECK";
       done
     scripts:
