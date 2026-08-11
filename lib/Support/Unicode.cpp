@@ -17,12 +17,12 @@ static Logger Log("unicode");
 using CodePointProcessor = UnicodeCStringView::CodePointProcessor;
 
 UnicodeCStringView::UnicodeCStringView(llvm::StringRef Data,
-                                       enum Encoding Encoding,
+                                       Encoding TheEncoding,
                                        size_t CodePointCount) :
-  Data(Data), Encoding(Encoding), CodePointCount(CodePointCount) {
+  Data(Data), TheEncoding(TheEncoding), CodePointCount(CodePointCount) {
 
   // Validate
-  switch (Encoding) {
+  switch (TheEncoding) {
   case Encoding::Invalid:
     revng_assert(Data.data() == nullptr);
     revng_assert(Data.empty());
@@ -240,7 +240,7 @@ UnicodeCStringView::fromUTF8(ArrayRef<uint8_t> Data,
   return {};
 }
 
-UnicodeCStringView
+UnicodeCStringView::CandidateList
 UnicodeCStringView::get(ArrayRef<uint8_t> Data,
                         CodePointProcessor ProcessCodePoint) {
   using Decoder = UnicodeCStringView (*)(ArrayRef<uint8_t>, CodePointProcessor);
@@ -258,20 +258,23 @@ UnicodeCStringView::get(ArrayRef<uint8_t> Data,
   }
   LoggerIndent Indent(Log);
 
+  // The decoders are listed in the order the enumerators are declared, so the
+  // result comes out sorted by preference.
+  CandidateList Result;
   for (auto [DecoderName, Decoder] : Decoders) {
     revng_log(Log, "Trying " << DecoderName);
     LoggerIndent Indent(Log);
-    if (auto String = Decoder(Data, ProcessCodePoint);
-        String.isValid() and String.codePointCount() > 4) {
+    if (auto String = Decoder(Data, ProcessCodePoint); String.isValid()) {
       revng_log(Log, "Decoding successful!");
-      return String;
+      Result.push_back(String);
     }
   }
 
-  return {};
+  return Result;
 }
 
-UnicodeCStringView UnicodeCStringView::getPrintable(ArrayRef<uint8_t> Data) {
+UnicodeCStringView::CandidateList
+UnicodeCStringView::getPrintable(ArrayRef<uint8_t> Data) {
   auto IsPrintable =
     [](size_t Offset, size_t CodePointIndex, uint32_t CodePoint) {
       using namespace llvm::sys::unicode;

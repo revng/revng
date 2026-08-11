@@ -39,22 +39,21 @@ UnicodeCStringView readString(RawBinaryView &BinaryView,
     return {};
   }
 
-  UnicodeCStringView String = UnicodeCStringView::getPrintable(*MaybeData);
+  for (const UnicodeCStringView &String :
+       UnicodeCStringView::getPrintable(*MaybeData)) {
+    if (String.charSize() != CharSize) {
+      revng_log(Log, "Unexpected char size for the string");
+      continue;
+    }
 
-  if (not String.isValid()) {
-    revng_log(Log, "No printable string found");
-    return {};
+    if (String.data().size() != MaybeData->size()) {
+      revng_log(Log, "String length does not match");
+      continue;
+    }
+
+    return String;
   }
 
-  if (String.charSize() != CharSize) {
-    revng_log(Log, "Unexpected char size for the string");
-    return {};
-  }
-
-  if (String.data().size() != MaybeData->size()) {
-    revng_log(Log, "String length does not match");
-    return {};
-  }
-
-  return String;
+  revng_log(Log, "No printable string found at " << Address.toString());
+  return {};
 }
