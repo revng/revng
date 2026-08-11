@@ -40,6 +40,7 @@
 #include "revng/ValueMaterializer/DataFlowGraph.h"
 
 #include "JumpTargetManager.h"
+#include "NoReturnAnalysis.h"
 #include "RootAnalyzer.h"
 #include "ValueMaterializerPass.h"
 
@@ -386,6 +387,9 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
   // Prune the dispatcher
   JTM.setCFGForm(CFGForm::NoFunctionCalls,
                  &ValueMaterializerJumpTargetWhitelist);
+
+  // Detach the fallthrough of calls that never return
+  cutNoReturnFallthroughs(*TheFunction, *Model, JTM.dispatcher());
 
   // Detach all the unreachable basic blocks, so they don't get copied
   llvm::DenseSet<BasicBlock *> UnreachableBBs = JTM.computeUnreachable();
