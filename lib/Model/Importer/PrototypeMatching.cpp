@@ -18,6 +18,7 @@ findPrototypeInLocalFunctions(const FunctionVector &Functions,
     if (const model::TypeDefinition *Prototype = Function.prototype())
       return FunctionInfo{ .Prototype = *Prototype,
                            .Attributes = Function.Attributes(),
+                           .Comment = Function.Comment(),
                            .ModuleName = ModuleName };
   }
 
@@ -35,6 +36,7 @@ findPrototypeInDynamicFunctions(const DynamicFunctionVector &Functions,
   if (const model::TypeDefinition *Prototype = It->prototype())
     return FunctionInfo{ .Prototype = *Prototype,
                          .Attributes = It->Attributes(),
+                         .Comment = It->Comment(),
                          .ModuleName = ModuleName };
 
   return std::nullopt;

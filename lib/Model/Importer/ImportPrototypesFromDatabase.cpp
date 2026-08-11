@@ -55,6 +55,21 @@ static std::string indentAsListItem(llvm::StringRef Body) {
   return Result;
 }
 
+/// Prepend \p Prefix to each non-empty line of \p Text.
+static std::string addLinePrefix(llvm::StringRef Prefix, llvm::StringRef Text) {
+  std::string Result;
+  llvm::raw_string_ostream Stream(Result);
+
+  while (not Text.empty()) {
+    auto [Line, Rest] = Text.split('\n');
+    if (not Line.empty())
+      Stream << Prefix << Line << "\n";
+    Text = Rest;
+  }
+
+  return Result;
+}
+
 struct LibraryInfo {
   int64_t LibraryID;
   std::string Header;
@@ -255,7 +270,7 @@ public:
     {
       llvm::raw_string_ostream Stream(SymbolsQuery);
       Stream << R"(
-        SELECT s.Name, COALESCE(td.OriginalID, -1)
+        SELECT s.Name, COALESCE(td.OriginalID, -1), s.Body
         FROM Symbol s
         LEFT JOIN TypeDefinition td
           ON s.TypeDefinitionID = td.TypeDefinitionID
@@ -275,13 +290,15 @@ public:
       std::string Name;
       int64_t OriginalID;
       bool HasType;
+      std::string Body;
     };
 
     std::vector<SymbolInfo> Symbols;
-    for (auto [Name, OriginalID] :
-         SymbolsStatement.execute<llvm::StringRef, int64_t>()) {
+    using llvm::StringRef;
+    for (auto [Name, OriginalID, Body] :
+         SymbolsStatement.execute<StringRef, int64_t, StringRef>()) {
       bool HasType = OriginalID >= 0 and OriginalIDToKind.count(OriginalID) > 0;
-      Symbols.push_back({ Name.str(), OriginalID, HasType });
+      Symbols.push_back({ Name.str(), OriginalID, HasType, Body.str() });
     }
 
     if (Symbols.empty()) {
@@ -314,6 +331,11 @@ public:
                      << "\"\n";
         }
       }
+
+      // The fields with no dedicated column (Comment, Attributes) travel as a
+      // YAML mapping in Symbol.Body.
+      if (not Symbol.Body.empty())
+        YAMLStream << addLinePrefix("    ", Symbol.Body);
     }
 
     if (not TypeDefinitions.empty()) {
@@ -340,28 +362,49 @@ public:
 
     unsigned ImportedCount = 0;
 
-    auto CopyPrototype = [&](auto &Function) {
-      if (Function.prototype() != nullptr)
-        return;
-
+    auto ImportSymbol = [&](auto &Function) {
       auto &Source = ParsedModel->ImportedDynamicFunctions();
       for (llvm::StringRef Name : lookupNames(Function)) {
         auto Match = findPrototypeInDynamicFunctions(Source, Name, {});
         if (not Match.has_value())
           continue;
 
-        Function.Prototype() = Copier.copyTypeInto(Match->Prototype);
-        ++ImportedCount;
-        revng_log(Log, "Imported prototype for " << Name);
+        // Only the prototype is guarded: an existing one comes from the user or
+        // from a more precise importer and must not be overwritten. Attributes
+        // and the comment are additive, so they are applied either way --
+        // guarding them on the prototype too would mean a prototype imported
+        // earlier silently suppresses them.
+        if (Function.prototype() == nullptr) {
+          Function.Prototype() = Copier.copyTypeInto(Match->Prototype);
+          ++ImportedCount;
+          revng_log(Log, "Imported prototype for " << Name);
+        }
+
+        for (const auto &Attribute : Match->Attributes) {
+          if (Function.Attributes().contains(Attribute))
+            continue;
+
+          Function.Attributes().insert(Attribute);
+          revng_log(Log,
+                    "Imported attribute "
+                      << model::FunctionAttribute::getName(Attribute).str()
+                      << " for " << Name);
+        }
+
+        if (Function.Comment().empty() and not Match->Comment.empty()) {
+          Function.Comment() = Match->Comment.str();
+          revng_log(Log, "Imported comment for " << Name);
+        }
+
         return;
       }
     };
 
     for (auto &Function : Binary->Functions())
-      CopyPrototype(Function);
+      ImportSymbol(Function);
 
     for (auto &DynamicFunction : Binary->ImportedDynamicFunctions())
-      CopyPrototype(DynamicFunction);
+      ImportSymbol(DynamicFunction);
 
     Copier.finalize();
 

@@ -21,6 +21,7 @@ using TSV = TrackingSortedVector<T>;
 struct FunctionInfo {
   const model::TypeDefinition &Prototype;
   const detail::TMS<model::FunctionAttribute::Values> &Attributes;
+  llvm::StringRef Comment = {};
   llvm::StringRef ModuleName = {};
 };
 
