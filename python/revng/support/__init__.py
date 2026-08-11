@@ -37,6 +37,23 @@ def get_root() -> Path:
     return (Path(__file__) / "../../../../../../").resolve()
 
 
+def get_search_prefixes() -> List[str]:
+    """Roots that callers loading C++ resources at import time should
+    walk.
+
+    Mirrors what the `revng` CLI assembles into `options.search_prefixes`
+    after argument parsing (see `python/revng/internal/cli/revng.py`)
+    — REVNG_RESOURCES first (so an override wins), then this install's
+    own root. Useful for module-level lookups that fire before the CLI
+    can populate Options."""
+    prefixes: List[str] = []
+    env_resources = os.environ.get("REVNG_RESOURCES", "")
+    if env_resources:
+        prefixes.extend(p for p in env_resources.split(":") if p)
+    prefixes.append(str(get_root()))
+    return prefixes
+
+
 additional_bin_paths = read_lines(get_root() / "share/revng/additional-bin-paths")
 
 
@@ -133,12 +150,15 @@ def to_bytes(input_: ToBytesInput) -> Generator[bytes, None, None]:
 
 
 def get_example_binary_path() -> str:
-    runtime_dir = get_root() / "share/revng/test/tests/runtime"
-    for entry in runtime_dir.iterdir():
-        if not entry.is_file():
+    for prefix in get_search_prefixes():
+        runtime_dir = Path(prefix) / "share/revng/test/tests/runtime"
+        if not runtime_dir.is_dir():
             continue
-        if re.match(r"^calc-x86-64-static-revng-qa\.compiled-[0-9a-f]{8}$", entry.name):
-            return str(entry.resolve())
+        for entry in runtime_dir.iterdir():
+            if not entry.is_file():
+                continue
+            if re.match(r"^calc-x86-64-static-revng-qa\.compiled-[0-9a-f]{8}$", entry.name):
+                return str(entry.resolve())
     raise ValueError("Could not find calc binary")
 
 
