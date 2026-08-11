@@ -34,7 +34,8 @@ function wait_for_status() {
 }
 
 function start_postgres() {
-    initdb "$WORKDIR/data" &> "$WORKDIR/initdb.log"
+    initdb --encoding=UTF8 --locale=C.UTF-8 "$WORKDIR/data" \
+        &> "$WORKDIR/initdb.log"
 
     POSTGRES_PORT=$(available_port)
     postgres \
