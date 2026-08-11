@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -213,16 +214,29 @@ class TypeScriptDoctest(Doctest):
         )
         script_path = working_directory / "run.ts"
         script_path.write_text(self.script)
-        run(
-            working_directory,
-            [
-                "bash",
-                "-c",
+        # If `tsc` and `revng-model` are already provided by the
+        # environment (e.g. nix's `revng-test-node-env`), skip
+        # `npm install`. tsc's module resolution still wants a
+        # local `node_modules/`, so symlink the env's tree into
+        # the working directory — that gives both `revng-model`
+        # and `@types/node` to the type checker.
+        # Otherwise fall back to the original online install so
+        # this still works under orchestra and ad-hoc invocations.
+        tsc_path = shutil.which("tsc")
+        if tsc_path is not None:
+            env_node_modules = Path(tsc_path).resolve().parent.parent / "lib" / "node_modules"
+            if env_node_modules.is_dir():
+                link = working_directory / "node_modules"
+                if not link.exists():
+                    link.symlink_to(env_node_modules)
+            cmd = "tsc run.ts && node run.js"
+        else:
+            cmd = (
                 "npm install typescript revng-model @types/node"
                 + " && ./node_modules/.bin/tsc run.ts"
-                + " && node run.js",
-            ],
-        )
+                + " && node run.js"
+            )
+        run(working_directory, ["bash", "-c", cmd])
         self.script = ""
 
     @staticmethod
