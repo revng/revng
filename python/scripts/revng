@@ -8,10 +8,11 @@ import sys
 import sysconfig
 from pathlib import Path
 
+# In venv, if the executable is a symlink, re-exec to the base executable
 if sys.prefix != sys.base_prefix:
-    # In venv, re-exec to the base executable
     interpreter_path = os.path.realpath(sys.executable)
-    os.execv(interpreter_path, [interpreter_path, __file__, *sys.argv[1:]])
+    if interpreter_path != sys.executable:
+        os.execv(interpreter_path, [interpreter_path, __file__, *sys.argv[1:]])
 
 libpath = Path(sysconfig.get_path("purelib")).relative_to(sysconfig.get_config_var("base"))
 new_path = (Path(__file__) / "../.." / libpath).resolve()
