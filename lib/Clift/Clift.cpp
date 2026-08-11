@@ -1524,6 +1524,10 @@ mlir::LogicalResult ImmediateOp::verify() {
 
 //===------------------------------ StringOp ------------------------------===//
 
+bool StringOp::isLvalueExpression() {
+  return true;
+}
+
 mlir::LogicalResult StringOp::verify() {
   auto ArrayT = mlir::dyn_cast<ArrayType>(getType());
   if (not ArrayT or not isConst(ArrayT))

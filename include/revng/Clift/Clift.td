@@ -718,7 +718,11 @@ def Clift_FalseOp : Clift_ExpressionOp<"false"> {
   }];
 }
 
-def Clift_StringOp : Clift_ExpressionOp<"str"> {
+def Clift_StringOp
+  : Clift_ExpressionOp<"str",
+                       [DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
+                                                  ["isLvalueExpression"]>]> {
+
   let arguments = (ins StrAttr:$value);
   let results = (outs AnyType:$result);
 
