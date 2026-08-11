@@ -89,7 +89,12 @@ static rua::OperationType::Values storeType(Value *V) {
   if (auto *Call = dyn_cast<CallInst>(V))
     Callee = getCalledFunction(Call);
 
-  if (Callee != nullptr and FunctionTags::ClobbererFunction.isTagOf(Callee)) {
+  // For summaries of function calls, treat writes as clobber as well. If we
+  // don't do this, ignored return values end up being arguments of downstream
+  // call sites, which can create a domino effect.
+  if (Callee != nullptr
+      and (FunctionTags::ClobbererFunction.isTagOf(Callee)
+           or FunctionTags::WriterFunction.isTagOf(Callee))) {
     return rua::OperationType::Clobber;
   } else {
     return rua::OperationType::Write;
