@@ -18,14 +18,51 @@ let
       done
     '';
 
+  # Overlay used by `crossCompilerFrom` to pin `musl` to the version
+  # orchestra ships (1.1.12 for x86_64/mips*/i386, 1.1.19 for
+  # aarch64/s390x). Nixpkgs ships 1.2.5, but revng's DetectABI is
+  # trained against the earlier musl's startup + libc code paths —
+  # notably `__libc_start_main` (K&R 3-arg definition vs. 6-arg
+  # declaration in 1.1.x, unified to 6-arg in 1.2.x) — and a bump
+  # changes the emerging function prototypes enough to make
+  # `test-segregate-stack-accesses` and `test-dla` diverge from
+  # their pinned expected models. Drop the nixpkgs-specific CVE /
+  # stdio patches (they don't apply against 1.1.x source), keep the
+  # openwrt relative-symlink patch.
+  overrideMusl =
+    muslVersion: muslHash:
+    (final: prev: {
+      musl = prev.musl.overrideAttrs (old: {
+        version = muslVersion;
+        src = pkgs.fetchurl {
+          url = "https://musl.libc.org/releases/musl-${muslVersion}.tar.gz";
+          hash = muslHash;
+        };
+        patches = builtins.filter (
+          p: pkgs.lib.hasSuffix "300-relative.patch" (toString p)
+        ) (old.patches or [ ]);
+        # musl 1.1.x's configure doesn't grow its own AR/RANLIB
+        # accessor knobs; it derives them from CROSS_COMPILE. The
+        # nixpkgs stdenv exposes only prefixed `${triple}-ar`, so
+        # without CROSS_COMPILE the Makefile falls back to the plain
+        # `ar` name which isn't on PATH. Set it from the target triple.
+        configureFlags = (old.configureFlags or [ ]) ++ [
+          "CROSS_COMPILE=${final.stdenv.hostPlatform.config}-"
+        ];
+      });
+    });
+
   crossCompilerFrom = (
-    nixpkgs: triple: binutilsVersion: binutilsHash: gccVersion:
+    nixpkgs: triple: binutilsVersion: binutilsHash: gccVersion: muslVersion: muslHash:
     let
       crossNixpkgs = import nixpkgs {
         crossSystem = {
           config = triple;
         };
         inherit system;
+        overlays = pkgs.lib.optional (
+          pkgs.lib.hasSuffix "musl" triple && muslVersion != null
+        ) (overrideMusl muslVersion muslHash);
       };
       pkgs2 = crossNixpkgs.buildPackages;
       binutils_old_real = pkgs2.bintools.bintools.overrideAttrs {
@@ -225,10 +262,14 @@ in
   (crossCompiler "mips-unknown-linux-musl" "2.35"
     "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c="
     "9.2.0"
+    "1.1.12"
+    "sha256-cguDx+J2tLZ5wL/+lQk0DV+B/WAVCOYH5wgXffDTHA4="
   )
   (crossCompiler "mipsel-unknown-linux-musl" "2.35"
     "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c="
     "9.2.0"
+    "1.1.12"
+    "sha256-cguDx+J2tLZ5wL/+lQk0DV+B/WAVCOYH5wgXffDTHA4="
   )
   # Orchestra builds aarch64/s390x with gcc-7.3.0, but nixpkgs-2505
   # has already dropped gcc7 (lowest is gcc9). Fall back to gcc9 here
@@ -237,6 +278,8 @@ in
   (crossCompiler "aarch64-unknown-linux-musl" "2.35"
     "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c="
     "9.2.0"
+    "1.1.19"
+    "sha256-21moV4ImuYNz9bJ+YfDdKa0kVvSqnOxYe6jCRQjkwdk="
   )
   # Build the cross-compilers with vendors nixpkgs knows (pc/unknown);
   # the vendor names revng-qa expects (gentoo/ibm/hardfloat) come in
@@ -250,23 +293,31 @@ in
   (crossCompilerArm "armv7a-unknown-linux-uclibceabihf" "2.35"
     "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c="
     "13"
+    null
+    null
   )
   (crossCompiler "x86_64-unknown-linux-musl" "2.35"
     "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c="
     "9.2.0"
+    "1.1.12"
+    "sha256-cguDx+J2tLZ5wL/+lQk0DV+B/WAVCOYH5wgXffDTHA4="
   )
   (crossCompiler "i686-unknown-linux-musl" "2.35"
     "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c="
     "9.2.0"
+    "1.1.12"
+    "sha256-cguDx+J2tLZ5wL/+lQk0DV+B/WAVCOYH5wgXffDTHA4="
   )
   (crossCompiler "s390x-unknown-linux-musl" "2.35"
     "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c="
     "9.2.0"
+    "1.1.19"
+    "sha256-21moV4ImuYNz9bJ+YfDdKa0kVvSqnOxYe6jCRQjkwdk="
   )
   # mingw cross-compilers — no upstream-pinned version requirement.
-  (crossCompiler "i686-w64-mingw32" "2.35" "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c=" "13")
+  (crossCompiler "i686-w64-mingw32" "2.35" "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c=" "13" null null)
   (crossCompiler "x86_64-w64-mingw32" "2.35" "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c="
-    "13"
+    "13" null null
   )
 
   # The bumped revng-qa expects gentoo/ibm/hardfloat-vendor triple
@@ -276,24 +327,27 @@ in
     from = "armv7a-unknown-linux-uclibceabihf";
     to = "armv7a-hardfloat-linux-uclibceabi";
     cc = (crossCompilerArm "armv7a-unknown-linux-uclibceabihf" "2.35"
-      "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c=" "13");
+      "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c=" "13" null null);
   })
   (tripleAlias {
     from = "x86_64-unknown-linux-musl";
     to = "x86_64-gentoo-linux-musl";
     cc = (crossCompiler "x86_64-unknown-linux-musl" "2.35"
-      "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c=" "9.2.0");
+      "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c=" "9.2.0"
+      "1.1.12" "sha256-cguDx+J2tLZ5wL/+lQk0DV+B/WAVCOYH5wgXffDTHA4=");
   })
   (tripleAlias {
     from = "i686-unknown-linux-musl";
     to = "i386-gentoo-linux-musl";
     cc = (crossCompiler "i686-unknown-linux-musl" "2.35"
-      "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c=" "9.2.0");
+      "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c=" "9.2.0"
+      "1.1.12" "sha256-cguDx+J2tLZ5wL/+lQk0DV+B/WAVCOYH5wgXffDTHA4=");
   })
   (tripleAlias {
     from = "s390x-unknown-linux-musl";
     to = "s390x-ibm-linux-musl";
     cc = (crossCompiler "s390x-unknown-linux-musl" "2.35"
-      "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c=" "9.2.0");
+      "sha256-fSRmD4cJNnBzjli8x7ewbxIcD8sMqPxENo1nWl75z/c=" "9.2.0"
+      "1.1.19" "sha256-21moV4ImuYNz9bJ+YfDdKa0kVvSqnOxYe6jCRQjkwdk=");
   })
 ]
