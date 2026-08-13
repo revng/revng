@@ -21,21 +21,6 @@ let
       "-GNinja"
     ];
 
-    # `aarch64-unknown-linux-musl-ld` (binutils 2.35) emits a
-    # PT_LOAD segment for BSS whose `p_offset` is chosen to satisfy
-    # the 64K page alignment (0xfe8), then falls past the end of
-    # the tiny `nostdlib` binary. The old `llvm-objcopy` tolerated
-    # it; the bumped LLVM refuses with "program header ... goes
-    # past the end of the file". Adding `-Wl,-N` (--omagic) drops
-    # the page-alignment of data so the BSS PT_LOAD's file offset
-    # stays inside the file. This mirrors what the `arm` arch
-    # already does (`-Wl,-Ttext-segment=…`).
-    postPatch = ''
-      substituteInPlace share/revng/test/configuration/revng-qa/architectures.yml \
-        --replace-fail $'      QEMU_NAME: aarch64\n      COMMON_CFLAGS:' \
-        $'      QEMU_NAME: aarch64\n      GCC_CFLAGS:\n        - -Wl,-N\n      COMMON_CFLAGS:'
-    '';
-
   };
 
   testRevngQa = stdenv.mkDerivation {
