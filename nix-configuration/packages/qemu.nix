@@ -46,7 +46,6 @@ let
         meson
         ninja
         coreutils-full
-        zlib
         llvmPackages.clang
         llvmPackages.llvm
       ]) ++ [
@@ -58,6 +57,7 @@ let
 
       buildInputs = with pkgs; [
         glib
+        zlib
       ];
 
       dontUseMesonConfigure = true;
@@ -112,11 +112,15 @@ let
       # The qemu develop branch dropped the glib entry from
       # libtcg-*.so's RUNPATH; revng dlopens these at build time and
       # the loader then can't find libglib-2.0.so.0. Add it back.
+      # Also stamp zlib+glib into every qemu-* binary's RPATH so the
+      # linux-user runtimes don't resolve libz / libglib against the
+      # host filesystem (which was leaking on Ubuntu 18.04 and picking
+      # up a libc.so.6 that doesn't have GLIBC_2.35).
       postFixup = ''
-        for so in $out/lib/libtcg-*.so; do
-          [ -f "$so" ] || continue
-          current=$(patchelf --print-rpath "$so" 2>/dev/null || true)
-          patchelf --set-rpath "${pkgs.glib.out}/lib''${current:+:$current}" "$so"
+        for f in $out/lib/libtcg-*.so $out/bin/qemu-*; do
+          [ -f "$f" ] || continue
+          current=$(patchelf --print-rpath "$f" 2>/dev/null || true)
+          patchelf --set-rpath "${pkgs.glib.out}/lib:${pkgs.zlib.out}/lib''${current:+:$current}" "$f"
         done
       '';
     });
