@@ -92,17 +92,17 @@
     "revng-qa": {
       "flake": false,
       "locked": {
-        "lastModified": 1783091167,
-        "narHash": "sha256-fCn1ULWTGacyGTRy8iblZ/IawGIlVtIBE/Z/dGQ37Nk=",
+        "lastModified": 1786652309,
+        "narHash": "sha256-A9fNwARgqBMn+u+CowVd7+iJZy8zslCNTSQqZm7A/Dc=",
         "owner": "revng",
         "repo": "revng-qa",
-        "rev": "baa655e348459a15599dea5a640e44fb97423237",
+        "rev": "32c0d23bf8802aacab46b73787fafa00e5b79e0a",
         "type": "github"
       },
       "original": {
         "owner": "revng",
         "repo": "revng-qa",
-        "rev": "baa655e348459a15599dea5a640e44fb97423237",
+        "rev": "32c0d23bf8802aacab46b73787fafa00e5b79e0a",
         "type": "github"
       }
     },

@@ -22,7 +22,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    revng-qa.url = "github:revng/revng-qa/baa655e348459a15599dea5a640e44fb97423237";
+    revng-qa.url = "github:revng/revng-qa/32c0d23bf8802aacab46b73787fafa00e5b79e0a";
     revng-qa.flake = false;
 
     nixpkgs-lib.url = "github:nix-community/nixpkgs.lib";
