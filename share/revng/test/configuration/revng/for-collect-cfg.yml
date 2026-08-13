@@ -13,7 +13,7 @@ commands:
         yq -sy . |
         ./filter.py |
         revng model to-json --remap |
-        revng model compare "${COMMAND_ROOT}/${SOURCE}.cfg.yml"
+        revng model compare "${SOURCE}.cfg.yml"
     scripts:
       filter.py: |-
         #!/usr/bin/env python3

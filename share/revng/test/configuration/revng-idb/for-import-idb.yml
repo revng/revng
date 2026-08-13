@@ -8,4 +8,4 @@ commands:
       - type: revng-qa-idb.idb
     command: |-
       revng model import idb "$INPUT"
-        | revng model compare "${COMMAND_ROOT}/${SOURCE}.model.yml"
+        | revng model compare "${SOURCE}.model.yml"
