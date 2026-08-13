@@ -475,9 +475,9 @@ add_custom_command(
   OUTPUT "${CMAKE_BINARY_DIR}/share/revng/helper-list.csv"
   COMMAND
     ${CMAKE_COMMAND} -E env "PATH=${LLVM_DIR}/../../../libexec:$ENV{PATH}"
-    bash ${CMAKE_SOURCE_DIR}/scripts/extract-helper-names.sh ${HELPER_MODULE_LIST} >
+    bash ${CMAKE_SOURCE_DIR}/scripts/extract-helper-names.sh ${MODULES_TO_INLINE} >
     "${CMAKE_BINARY_DIR}/share/revng/helper-list.csv"
-  DEPENDS copy_share ${HELPER_MODULE_LIST})
+  DEPENDS copy_share ${MODULES_TO_INLINE})
 add_custom_target(helper-list ALL
                   DEPENDS "${CMAKE_BINARY_DIR}/share/revng/helper-list.csv")
 
