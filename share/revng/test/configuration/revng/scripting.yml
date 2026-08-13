@@ -11,7 +11,7 @@ commands:
       - type: revng-qa.compiled
         filter: example-executable-1 and with-debug-info
     command: |-
-      "${COMMAND_ROOT}/share/revng/test/tests/scripting.py" --cli --project-dir "$$(temp -d)" --binary "$INPUT"
+      python3 "${SOURCES_ROOT}/share/revng/test/tests/scripting.py" --cli --project-dir "$$(temp -d)" --binary "$INPUT"
 
   #
   # Test python scripting daemon
@@ -21,4 +21,4 @@ commands:
       - type: revng-qa.compiled
         filter: example-executable-1 and with-debug-info
     command: |-
-      "${COMMAND_ROOT}/share/revng/test/tests/scripting.py" --daemon --project-dir "$$(temp -d)" --binary "$INPUT"
+      python3 "${SOURCES_ROOT}/share/revng/test/tests/scripting.py" --daemon --project-dir "$$(temp -d)" --binary "$INPUT"
