@@ -350,6 +350,52 @@ getPreservedRegisters(const model::TypeDefinition &Prototype) {
   return Result;
 }
 
+/// Collect the indirect branches whose analysis \ref cutNoReturnFallthroughs
+/// has invalidated.
+///
+/// Detaching an edge can only remove paths, so the only program points whose
+/// reaching definitions change are those downstream of it: walking forward from
+/// the detached fallthroughs gives exactly that set.
+static std::set<MetaAddress>
+collectInvalidatedIndirectBranches(JumpTargetManager &JTM,
+                                   Function &Root,
+                                   ArrayRef<BasicBlock *>
+                                     DetachedFallthroughs) {
+  std::set<MetaAddress> Result;
+
+  if (DetachedFallthroughs.empty())
+    return Result;
+
+  DenseMap<BasicBlock *, MetaAddress> IndirectBranches;
+  for (CallBase *Call : callersIn(JTM.exitTB(), &Root))
+    IndirectBranches[Call->getParent()] = getPC(Call).first;
+
+  SmallPtrSet<BasicBlock *, 32> Visited;
+  SmallVector<BasicBlock *, 16> WorkList;
+
+  // Do not escape through the dispatcher, the only block from which the whole
+  // program is reachable
+  Visited.insert(JTM.dispatcher());
+
+  for (BasicBlock *BB : DetachedFallthroughs)
+    if (Visited.insert(BB).second)
+      WorkList.push_back(BB);
+
+  while (not WorkList.empty()) {
+    BasicBlock *BB = WorkList.pop_back_val();
+
+    auto It = IndirectBranches.find(BB);
+    if (It != IndirectBranches.end() and It->second.isValid())
+      Result.insert(It->second);
+
+    for (BasicBlock *Successor : successors(BB))
+      if (Visited.insert(Successor).second)
+        WorkList.push_back(Successor);
+  }
+
+  return Result;
+}
+
 // Clone the root function.
 Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
                                             ValueToValueMapTy &OldToNew) {
@@ -371,8 +417,11 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
         BasicBlock *Target = Branch->getSuccessor(0);
         Use *U = &Branch->getOperandUse(0);
 
-        // We're after a function call: pretend we're jumping to anypc
-        U->set(JTM.anyPC());
+        BasicBlock *Fallthrough = nullptr;
+        if (not isa<ConstantPointerNull>(Call->getArgOperand(0)))
+          Fallthrough = getFallthrough(Call->getParent());
+
+        U->set(Fallthrough != nullptr ? Fallthrough : JTM.anyPC());
 
         // Record Use for later undoing
         Undo[U] = Target;
@@ -389,7 +438,16 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
                  &ValueMaterializerJumpTargetWhitelist);
 
   // Detach the fallthrough of calls that never return
-  cutNoReturnFallthroughs(*TheFunction, *Model, JTM.dispatcher());
+  auto DetachedFallthroughs = cutNoReturnFallthroughs(*TheFunction,
+                                                      *Model,
+                                                      JTM.dispatcher());
+
+  // Whatever we concluded downstream of those fallthroughs was concluded on a
+  // CFG we now know to be wrong. Collect the indirect branches involved, so we
+  // can ask for them to be looked at again.
+  auto Invalidated = collectInvalidatedIndirectBranches(JTM,
+                                                        *TheFunction,
+                                                        DetachedFallthroughs);
 
   // Detach all the unreachable basic blocks, so they don't get copied
   llvm::DenseSet<BasicBlock *> UnreachableBBs = JTM.computeUnreachable();
@@ -487,6 +545,8 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
 
   // Clear the whitelist
   JTM.clearValueMaterializerPCWhitelist();
+
+  JTM.recordDetachedFallthroughs(DetachedFallthroughs, Invalidated);
 
   return OptimizedFunction;
 }
