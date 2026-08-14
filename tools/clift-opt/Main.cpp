@@ -20,7 +20,12 @@ static constexpr char ToolName[] = "Standalone optimizer driver\n";
 
 static void initializeCliftDialect(mlir::MLIRContext *Context,
                                    clift::CliftDialect *Dialect) {
-  Dialect->setDefaultDataModel(CDataModel::getDefaultDataModel(8));
+  auto DataModel = CDataModel::getDefaultDataModel(8);
+
+  // Enable 128-bit integer support:
+  DataModel.ExtendedIntegerSizeMask |= 128 / 8;
+
+  Dialect->setDefaultDataModel(DataModel);
 }
 
 int main(int Argc, char *Argv[]) {

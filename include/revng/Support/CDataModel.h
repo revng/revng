@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <bit>
 #include <ranges>
 
 #include "llvm/ADT/Hashing.h"
@@ -53,6 +54,9 @@ class CDataModel {
 public:
   uint8_t PointerSize = 0;
   uint8_t StandardTypeSize[static_cast<uint8_t>(CStandardType::Count)] = {};
+
+  // Mask of supported extended integer sizes.
+  uint16_t ExtendedIntegerSizeMask = 0;
 
   /// Returns the default data model for a given pointer size.
   ///
@@ -132,6 +136,21 @@ public:
       Max = next(Max);
 
     return std::pair<CStandardType, CStandardType>(Min, Max);
+  }
+
+  [[nodiscard]] unsigned getStandardIntegerSizeMask() const {
+    return getCharSize() | getShortSize() | getIntSize() | getLongSize()
+           | getLongLongSize();
+  }
+
+  [[nodiscard]] unsigned getSuportedIntegerSizeMask() const {
+    return getStandardIntegerSizeMask() | ExtendedIntegerSizeMask;
+  }
+
+  /// \pre \p Size is a power of two.
+  [[nodiscard]] bool isSupportedIntegerSize(unsigned Size) const {
+    revng_assert(std::has_single_bit(Size));
+    return (getSuportedIntegerSizeMask() & Size) != 0;
   }
 
   [[nodiscard]] bool verify() const;
