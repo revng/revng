@@ -19,14 +19,27 @@ using namespace clift;
 
 namespace {
 
-inline bool isVisibleStatement(mlir::Operation *Op) {
+static bool isVisibleStatement(mlir::Operation *Op) {
   return not mlir::isa<MakeLabelOp, RequireOp>(Op);
 }
 
-inline auto getVisibleStatementRange(mlir::Region &R) {
+static auto getVisibleStatementRange(mlir::Region &R) {
   return llvm::make_filter_range(R.getOps(), [](mlir::Operation &Op) {
     return isVisibleStatement(&Op);
   });
+}
+
+static mlir::Operation *getPrevVisibleStatement(mlir::Operation *Op) {
+  mlir::Block::iterator B = Op->getBlock()->begin();
+  mlir::Block::iterator I = Op->getIterator();
+
+  while (I != B) {
+    --I;
+    if (isVisibleStatement(&*I))
+      return &*I;
+  }
+
+  return nullptr;
 }
 
 static bool hasFallthrough(mlir::Region &R) {
@@ -805,7 +818,14 @@ public:
   //===---------------------------- Statements ----------------------------===//
 
   RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp Var,
-                                                        bool EmitNewline) {
+                                                        bool OnSeparateLine) {
+    if (OnSeparateLine) {
+      if (mlir::Operation *Prev = getPrevVisibleStatement(Var)) {
+        if (not mlir::isa<LocalVariableOp, AssignLabelOp>(Prev))
+          Tokens.emitNewline();
+      }
+    }
+
     mlir::Type Type = Var.getResult().getType();
     DeclaratorInfo Declarator{
       .Identifier = Var.getName(),
@@ -854,7 +874,7 @@ public:
 
     Tokens.emitPunctuator(CTE::Punctuator::Semicolon);
 
-    if (EmitNewline)
+    if (OnSeparateLine)
       Tokens.emitNewline();
   }
 
@@ -898,6 +918,11 @@ public:
   }
 
   RecursiveCoroutine<void> emitLabelStatement(AssignLabelOp S) {
+    if (mlir::Operation *Prev = getPrevVisibleStatement(S)) {
+      if (not mlir::isa<AssignLabelOp>(Prev))
+        Tokens.emitNewline();
+    }
+
     emitLabelStatement(S.getLabelOp(), LabelAssignmentOpInterface(S));
     rc_return;
   }
@@ -1116,10 +1141,18 @@ public:
                                                          MakeLabelOp Continue) {
     auto Emit = [this, Continue](mlir::Region &R) -> RecursiveCoroutine<void> {
       rc_recur emitStatementRegion(R);
-      emitLabelStatementImpl(Continue, /*RequiresEmptyExpression=*/true);
+
+      Tokens.emitNewline();
+      emitLabelStatementImpl(Continue,
+                             /*RequiresEmptyExpression=*/true);
     };
 
     return emitImplicitBlockStatement(Region, true, Emit);
+  }
+
+  void emitBreakLabelStatement(LoopOpInterface Loop) {
+    if (auto Break = Loop.getBreakLabel())
+      emitLabelStatement(Break.getDefiningOp<MakeLabelOp>(), Loop);
   }
 
   RecursiveCoroutine<bool> emitLoopBody(LoopOpInterface Loop,
@@ -1140,7 +1173,7 @@ public:
     if (mlir::Region &R = S.getInitializer(); not R.empty()) {
       mlir::Operation *Op = getOnlyOp(R);
       if (auto L = mlir::dyn_cast<LocalVariableOp>(Op))
-        rc_recur emitLocalVariableDeclaration(L, /*Newline=*/false);
+        rc_recur emitLocalVariableDeclaration(L, /*OnSeparateLine=*/false);
       else
         rc_recur emitExpressionStatement(mlir::cast<ExpressionStatementOp>(Op));
     } else {
@@ -1162,8 +1195,7 @@ public:
     if (rc_recur emitLoopBody(S, S.getBody()))
       Tokens.emitNewline();
 
-    if (auto Break = S.getBreakLabel())
-      emitLabelStatement(Break.getDefiningOp<MakeLabelOp>(), S);
+    emitBreakLabelStatement(S);
   }
 
   RecursiveCoroutine<void> emitWhileStatement(WhileOp S) {
@@ -1177,8 +1209,7 @@ public:
     if (rc_recur emitLoopBody(S, S.getBody()))
       Tokens.emitNewline();
 
-    if (auto Break = S.getBreakLabel())
-      emitLabelStatement(Break.getDefiningOp<MakeLabelOp>(), S);
+    emitBreakLabelStatement(S);
   }
 
   RecursiveCoroutine<void> emitDoWhileStatement(DoWhileOp S) {
@@ -1197,8 +1228,7 @@ public:
     Tokens.emitPunctuator(CTE::Punctuator::Semicolon);
     Tokens.emitNewline();
 
-    if (auto Break = S.getBreakLabel())
-      emitLabelStatement(Break.getDefiningOp<MakeLabelOp>(), S);
+    emitBreakLabelStatement(S);
   }
 
   RecursiveCoroutine<void> emitBlockStatement(BlockStatementOp S) {
@@ -1242,7 +1272,7 @@ public:
     }
 
     if (auto S = mlir::dyn_cast<LocalVariableOp>(Op))
-      return emitLocalVariableDeclaration(S, /*Newline=*/true);
+      return emitLocalVariableDeclaration(S, /*OnSeparateLine=*/true);
 
     if (auto S = mlir::dyn_cast<AssignLabelOp>(Op))
       return emitLabelStatement(S);
