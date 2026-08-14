@@ -4,5 +4,5 @@
 
 // RUN: not %root/bin/revng clift-opt %s 2>&1 | FileCheck %s
 
-// CHECK: failed to verify constraint: Region representing an expression
+// CHECK: failed to verify constraint: region representing an expression
 clift.switch {}
