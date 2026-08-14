@@ -14,6 +14,13 @@ using namespace clift;
 
 namespace {
 
+static bool isBooleanTestedRegion(mlir::Region *R) {
+  if (auto For = mlir::dyn_cast<ForOp>(R->getParentOp()))
+    return R == &For.getCondition();
+
+  return mlir::isa<IfOp, WhileOp, DoWhileOp>(R->getParentOp());
+}
+
 class ImplicitCastElider {
   const CDataModel &DataModel;
 
@@ -26,8 +33,23 @@ public:
       return;
 
     if (auto Yield = mlir::dyn_cast<YieldOp>(Op)) {
+      if (isBooleanTestedRegion(Yield->getParentRegion()))
+        return elideBooleanTestingCasts(Yield->getOpOperand(0));
+
       if (mlir::isa<LocalVariableOp, ReturnOp>(Yield->getParentOp()))
         return elideCoercingContextCasts(Yield->getOpOperand(0));
+    }
+
+    if (auto Extend = mlir::dyn_cast<BoolExtendOp>(Op))
+      return elideBooleanExtensionCasts(Extend);
+
+    if (mlir::isa<TernaryOp, LogicalNotOp>(Op))
+      return elideBooleanTestingCasts(Op->getOpOperand(0));
+
+    if (mlir::isa<LogicalAndOp, LogicalOrOp>(Op)) {
+      elideBooleanTestingCasts(Op->getOpOperand(0));
+      elideBooleanTestingCasts(Op->getOpOperand(1));
+      return;
     }
 
     if (auto Assignment = mlir::dyn_cast<AssignOp>(Op))
@@ -176,6 +198,9 @@ private:
     mlir::Type DstT = unwrapTypedefs(Cast.getType());
     mlir::Type SrcT = unwrapTypedefs(Cast.getValueType());
 
+    if (mlir::isa<BoolType>(SrcT) and mlir::isa<IntegralType>(DstT))
+      return true;
+
     if (mlir::isa<IntegralType>(SrcT) and mlir::isa<IntegralType>(DstT))
       return true;
 
@@ -215,6 +240,21 @@ private:
     }
 
     return false;
+  }
+
+  void elideBooleanTestingCasts(mlir::OpOperand &Operand) {
+    if (auto Test = Operand.get().getDefiningOp<TestOp>())
+      markAsImplicit(Test);
+  }
+
+  void elideBooleanExtensionCasts(BoolExtendOp Extend) {
+    if (not Extend.getValue().getDefiningOp<TestOp>()) {
+      if (auto Type = mlir::dyn_cast<IntegerType>(Extend.getType())) {
+        if (Type.getKind() == IntegerKind::Signed
+            and Type.getSize() == DataModel.getIntSize())
+          markAsImplicit(Extend);
+      }
+    }
   }
 
   void elideCoercingContextCasts(mlir::OpOperand &Operand) {
