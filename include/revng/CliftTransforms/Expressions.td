@@ -54,6 +54,12 @@ def XorAllOnesPattern
         (Clift_BitwiseNotOp $arg),
         [(Constraint<CPred<"areAllBitsSet($0.getValue(), $1.getType())">> $value, $imm)]>;
 
+// 0 - x -> -x
+def ZeroSubPattern
+  : Pat<(Clift_SubOp (Clift_ImmediateOp $value), $arg),
+        (Clift_NegOp $arg),
+        [(Constraint<CPred<[{ $0.getValue().isZero() }]>> $value)]>;
+
 //===---------------------------- Miscellaneous ---------------------------===//
 
 // (T)123 -> 123
