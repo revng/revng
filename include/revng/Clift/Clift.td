@@ -787,8 +787,8 @@ class Clift_UnaryArithmeticOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
                        [Clift_UnqualifiedTypeMatches<"value", "result">]> {
 
-  let arguments = (ins Clift_AnyPrimitiveIntegerType:$value);
-  let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveIntegerType>:$result);
+  let arguments = (ins Clift_AnyIntegerType:$value);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
 
   let assemblyFormat = [{
     $value attr-dict `:` type($value)
@@ -800,10 +800,10 @@ class Clift_BinaryArithmeticOp<string mnemonic, list<Trait> traits = []>
                        !listconcat(traits,
                                    [Clift_AllTypesMatch<["lhs", "rhs", "result"]>])> {
 
-  let arguments = (ins Clift_AnyPrimitiveIntegerType:$lhs,
-                       Clift_AnyPrimitiveIntegerType:$rhs);
+  let arguments = (ins Clift_AnyIntegerType:$lhs,
+                       Clift_AnyIntegerType:$rhs);
 
-  let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveIntegerType>:$result);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
 
   let builders = [
     OpBuilder<(ins "mlir::Value":$Lhs, "mlir::Value":$Rhs), [{
@@ -874,10 +874,10 @@ class Clift_ShiftOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
                        [Clift_UnqualifiedTypeMatches<"lhs", "result">]> {
 
-  let arguments = (ins Clift_AnyPrimitiveIntegerType:$lhs,
-                       Clift_AnyPrimitiveIntegerType:$rhs);
+  let arguments = (ins Clift_AnyIntegerType:$lhs,
+                       Clift_AnyIntegerType:$rhs);
 
-  let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveIntegerType>:$result);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
 
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:` custom<CliftOpOperandTypes>(type($lhs), type($rhs))
@@ -906,8 +906,8 @@ class Clift_UnaryIntegerMutationOp<string mnemonic>
                        [AllTypesMatch<["value", "result"]>,
                         Clift_LValueOperand<"value">]> {
 
-  let arguments = (ins Clift_AnyModifiableType<Clift_AnyPrimitiveIntegerType>:$value);
-  let results = (outs Clift_AnyPrimitiveIntegerType:$result);
+  let arguments = (ins Clift_AnyModifiableType<Clift_AnyIntegerType>:$value);
+  let results = (outs Clift_AnyIntegerType:$result);
 
   let assemblyFormat = [{
     $value attr-dict `:` type($value)
@@ -924,8 +924,10 @@ def Clift_NegOp : Clift_UnaryArithmeticOp<"neg">;
 def Clift_AddOp : Clift_BinaryArithmeticOp<"add", [Commutative]>;
 def Clift_SubOp : Clift_BinaryArithmeticOp<"sub">;
 def Clift_MulOp : Clift_BinaryArithmeticOp<"mul", [Commutative]>;
-def Clift_DivOp : Clift_BinaryArithmeticOp<"div">;
-def Clift_RemOp : Clift_BinaryArithmeticOp<"rem">;
+def Clift_SDivOp : Clift_BinaryArithmeticOp<"sdiv">;
+def Clift_UDivOp : Clift_BinaryArithmeticOp<"udiv">;
+def Clift_SRemOp : Clift_BinaryArithmeticOp<"srem">;
+def Clift_URemOp : Clift_BinaryArithmeticOp<"urem">;
 
 def Clift_PtrAddOp : Clift_PointerArithmeticOp<"ptr_add", [Commutative]>;
 def Clift_PtrSubOp : Clift_PointerArithmeticOp<"ptr_sub">;
@@ -969,15 +971,21 @@ def Clift_BitwiseAndOp : Clift_BinaryArithmeticOp<"bitand", [Commutative]>;
 def Clift_BitwiseOrOp : Clift_BinaryArithmeticOp<"bitor", [Commutative]>;
 def Clift_BitwiseXorOp : Clift_BinaryArithmeticOp<"bitxor", [Commutative]>;
 
-def Clift_ShiftLeftOp : Clift_ShiftOp<"shl">;
-def Clift_ShiftRightOp : Clift_ShiftOp<"shr">;
+def Clift_ShlOp : Clift_ShiftOp<"shl">;
+def Clift_ShrOp : Clift_ShiftOp<"shr">;
+def Clift_SarOp : Clift_ShiftOp<"sar">;
 
 def Clift_CmpEqOp : Clift_ComparisonOp<"eq">;
 def Clift_CmpNeOp : Clift_ComparisonOp<"ne">;
-def Clift_CmpLtOp : Clift_ComparisonOp<"lt">;
-def Clift_CmpGtOp : Clift_ComparisonOp<"gt">;
-def Clift_CmpLeOp : Clift_ComparisonOp<"le">;
-def Clift_CmpGeOp : Clift_ComparisonOp<"ge">;
+
+def Clift_SCmpLtOp : Clift_ComparisonOp<"slt">;
+def Clift_UCmpLtOp : Clift_ComparisonOp<"ult">;
+def Clift_SCmpGtOp : Clift_ComparisonOp<"sgt">;
+def Clift_UCmpGtOp : Clift_ComparisonOp<"ugt">;
+def Clift_SCmpLeOp : Clift_ComparisonOp<"sle">;
+def Clift_UCmpLeOp : Clift_ComparisonOp<"ule">;
+def Clift_SCmpGeOp : Clift_ComparisonOp<"sge">;
+def Clift_UCmpGeOp : Clift_ComparisonOp<"uge">;
 
 def Clift_IncrementOp : Clift_UnaryIntegerMutationOp<"inc">;
 def Clift_DecrementOp : Clift_UnaryIntegerMutationOp<"dec">;

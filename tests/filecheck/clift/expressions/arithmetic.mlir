@@ -6,36 +6,43 @@
 
 !int32_t = !clift.int<signed 4>
 
-%1 = clift.local : !int32_t
+%0 = clift.local : !int32_t
 
-clift.neg %1 : !int32_t
-clift.add %1, %1 : !int32_t
-clift.sub %1, %1 : !int32_t
-clift.mul %1, %1 : !int32_t
-clift.div %1, %1 : !int32_t
-clift.rem %1, %1 : !int32_t
+clift.neg %0 : !int32_t
+clift.add %0, %0 : !int32_t
+clift.sub %0, %0 : !int32_t
+clift.mul %0, %0 : !int32_t
+clift.sdiv %0, %0 : !int32_t
+clift.udiv %0, %0 : !int32_t
+clift.srem %0, %0 : !int32_t
+clift.urem %0, %0 : !int32_t
 
-clift.not %1 : !int32_t -> !int32_t
-clift.and %1, %1 : !int32_t -> !int32_t
-clift.or %1, %1 : !int32_t -> !int32_t
+clift.not %0 : !int32_t -> !int32_t
+clift.and %0, %0 : !int32_t -> !int32_t
+clift.or %0, %0 : !int32_t -> !int32_t
 
-clift.bitnot %1 : !int32_t
-clift.bitand %1, %1 : !int32_t
-clift.bitor %1, %1 : !int32_t
-clift.bitxor %1, %1 : !int32_t
+clift.bitnot %0 : !int32_t
+clift.bitand %0, %0 : !int32_t
+clift.bitor %0, %0 : !int32_t
+clift.bitxor %0, %0 : !int32_t
 
-clift.shl %1, %1 : !int32_t
-clift.shr %1, %1 : !int32_t
+clift.shl %0, %0 : !int32_t
+clift.shr %0, %0 : !int32_t
+clift.sar %0, %0 : !int32_t
 
-clift.eq %1, %1 : !int32_t -> !int32_t
-clift.ne %1, %1 : !int32_t -> !int32_t
-clift.lt %1, %1 : !int32_t -> !int32_t
-clift.gt %1, %1 : !int32_t -> !int32_t
-clift.le %1, %1 : !int32_t -> !int32_t
-clift.ge %1, %1 : !int32_t -> !int32_t
+clift.eq %0, %0 : !int32_t -> !int32_t
+clift.ne %0, %0 : !int32_t -> !int32_t
+clift.slt %0, %0 : !int32_t -> !int32_t
+clift.ult %0, %0 : !int32_t -> !int32_t
+clift.sgt %0, %0 : !int32_t -> !int32_t
+clift.ugt %0, %0 : !int32_t -> !int32_t
+clift.sle %0, %0 : !int32_t -> !int32_t
+clift.ule %0, %0 : !int32_t -> !int32_t
+clift.sge %0, %0 : !int32_t -> !int32_t
+clift.uge %0, %0 : !int32_t -> !int32_t
 
-clift.inc %1 : !int32_t
-clift.dec %1 : !int32_t
+clift.inc %0 : !int32_t
+clift.dec %0 : !int32_t
 
-clift.post_inc %1 : !int32_t
-clift.post_dec %1 : !int32_t
+clift.post_inc %0 : !int32_t
+clift.post_dec %0 : !int32_t

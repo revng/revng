@@ -107,7 +107,7 @@ namespace clift {
 std::unique_ptr<mlir::MLIRContext> makeContext();
 
 /// Creates a new Clift module.
-mlir::OwningOpRef<mlir::ModuleOp> makeModule(mlir::MLIRContext &Context);
+mlir::OwningOpRef<mlir::ModuleOp> makeModule(mlir::MLIRContext *Context);
 
 /// Returns true if the module has a Clift module attribute.
 bool isCliftModule(mlir::ModuleOp Module);

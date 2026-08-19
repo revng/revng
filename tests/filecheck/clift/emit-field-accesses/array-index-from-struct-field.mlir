@@ -66,7 +66,8 @@ module attributes {clift.module} {
   // CHECK: [[IDX_EXT:%[0-9]+]] = clift.extend [[IDX_LOAD]]
   // CHECK: [[ARR_ACCESS:%[0-9]+]] = clift.access<indirect 0> [[ADDRESSOF1]]
   // CHECK: [[ARR_DECAY:%[0-9]+]] = clift.decay [[ARR_ACCESS]]
-  // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[ARR_DECAY]], [[IDX_EXT]]
+  // CHECK: [[IDX_CAST:%[0-9]+]] = clift.bitcast [[IDX_EXT]]
+  // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[ARR_DECAY]], [[IDX_CAST]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[SUBSCRIPT]]
   // CHECK: clift.yield [[ADDRESSOF2]] : !clift.ptr<8 to !int32_t>
 }

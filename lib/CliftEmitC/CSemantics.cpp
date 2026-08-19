@@ -62,6 +62,10 @@ public:
                                  << " implementation.";
     }
 
+    if (hasMismatchedSignedness(Op))
+      return Op->emitOpError() << " operand signedness does not match operation"
+                                  " semantics.";
+
     return mlir::success();
   }
 
@@ -76,14 +80,17 @@ private:
                      AddOp,
                      SubOp,
                      MulOp,
-                     DivOp,
-                     RemOp,
+                     SDivOp,
+                     UDivOp,
+                     SRemOp,
+                     URemOp,
                      BitwiseNotOp,
                      BitwiseAndOp,
                      BitwiseOrOp,
                      BitwiseXorOp,
-                     ShiftLeftOp,
-                     ShiftRightOp>(Op);
+                     ShlOp,
+                     ShrOp,
+                     SarOp>(Op);
   }
 
   static bool isBooleanOp(mlir::Operation *Op) {
@@ -92,10 +99,36 @@ private:
                      LogicalOrOp,
                      CmpEqOp,
                      CmpNeOp,
-                     CmpLtOp,
-                     CmpGtOp,
-                     CmpLeOp,
-                     CmpGeOp>(Op);
+                     SCmpLtOp,
+                     UCmpLtOp,
+                     SCmpGtOp,
+                     UCmpGtOp,
+                     SCmpLeOp,
+                     UCmpLeOp,
+                     SCmpGeOp,
+                     UCmpGeOp>(Op);
+  }
+
+  static bool hasMismatchedSignedness(mlir::Operation *Op) {
+    if (mlir::isa<ShrOp,
+                  UDivOp,
+                  URemOp,
+                  UCmpLtOp,
+                  UCmpGtOp,
+                  UCmpLeOp,
+                  UCmpGeOp>(Op))
+      return clift::isSigned(Op->getOperand(0).getType());
+
+    if (mlir::isa<SarOp,
+                  SDivOp,
+                  SRemOp,
+                  SCmpLtOp,
+                  SCmpGtOp,
+                  SCmpLeOp,
+                  SCmpGeOp>(Op))
+      return not clift::isSigned(Op->getOperand(0).getType());
+
+    return false;
   }
 
   bool isPotentiallyPromotingType(mlir::Type Type) {

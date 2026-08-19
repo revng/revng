@@ -77,7 +77,7 @@ void importDescriptiveInfo(const model::Function &Function,
 std::pair<std::unique_ptr<mlir::MLIRContext>, mlir::OwningOpRef<mlir::ModuleOp>>
 makeHeaderModule(const model::Binary &Model, bool IncludeGlobals);
 
-clift::StructType makeOpaqueStruct(mlir::MLIRContext &Context,
+clift::StructType makeOpaqueStruct(mlir::MLIRContext *Context,
                                    uint64_t NumBytes);
 
 } // namespace clift

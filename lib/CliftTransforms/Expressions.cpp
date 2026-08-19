@@ -43,6 +43,9 @@ static bool assignTypePunnedConstraint(mlir::Value Ptr, mlir::Value Value) {
   if (not clift::unwrapped_isa<ValueType>(DstType))
     return false;
 
+  if (not isModifiableType(DstType))
+    return false;
+
   return SrcType != DstType
          and getObjectSize(SrcType) == getObjectSizeOrZero(DstType);
 }
@@ -210,10 +213,8 @@ struct OptimizeExpressionsPass
 
   mlir::LogicalResult initialize(mlir::MLIRContext *Context) override {
     mlir::RewritePatternSet Set(Context);
-    populateWithGenerated(Set);
-    populateWithBooleanNegationPatterns(Set);
-    populateWithCastCanonicalizations(Set);
 
+    populateWithExpressionOptimizationPatterns(Set);
     Patterns = mlir::FrozenRewritePatternSet(std::move(Set),
                                              disabledPatterns,
                                              enabledPatterns);
@@ -241,6 +242,17 @@ struct OptimizeExpressionsPass
 
 void clift::populateWithCastCanonicalizations(mlir::RewritePatternSet &Set) {
   Set.add<CastCollapsingPattern>(Set.getContext());
+}
+
+void clift::populateWithExpressionOptimizationPatterns(mlir::RewritePatternSet
+                                                         &Set) {
+  populateWithGenerated(Set);
+
+  populateWithBooleanNegationPatterns(Set);
+  populateWithCastCanonicalizations(Set);
+
+  mlir::Dialect *Clift = Set.getContext()->getLoadedDialect<CliftDialect>();
+  Clift->getCanonicalizationPatterns(Set);
 }
 
 PassPtr<FunctionOp> clift::createOptimizeExpressionsPass() {

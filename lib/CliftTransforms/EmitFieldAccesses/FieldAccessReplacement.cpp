@@ -40,8 +40,7 @@ struct Replacement {
   /// relative `Index`
   struct FieldAccessInfo {
     enum Kind {
-      Union,
-      Struct,
+      Class,
       Array
     } TheKind;
 
@@ -123,7 +122,7 @@ Replacement Replacement::make(unsigned PointerBitWidth,
 
     // Inspect the `TypedefType` and cast to a known `clift` `Type`
     if (auto TypedefType = mlir::dyn_cast<clift::TypedefType>(BaseType)) {
-      BaseType = mlir::cast<mlir::Type>(TypedefType.getUnderlyingType());
+      BaseType = TypedefType.getUnderlyingType();
       continue;
     }
 
@@ -134,19 +133,14 @@ Replacement Replacement::make(unsigned PointerBitWidth,
 
     // Inspect `struct` or `union` (both implement ClassType)
     if (auto ClassType = mlir::dyn_cast<clift::ClassType>(BaseType)) {
-
-      auto Kind = mlir::isa<clift::StructType>(BaseType) ?
-                    FieldAccessInfo::Struct :
-                    FieldAccessInfo::Union;
       unsigned FieldIndex = *FieldIt++;
-
-      Result.FieldAccesses.push_back({ .TheKind = Kind,
+      Result.FieldAccesses.push_back({ .TheKind = FieldAccessInfo::Class,
                                        .Index = { {}, FieldIndex } });
 
       // Look up the field by positional index. Subtract the field's byte
       // offset from LeftoverOffset (for unions, getOffset() returns 0)
       const FieldAttr &Field = ClassType.getFields()[FieldIndex];
-      BaseType = mlir::cast<mlir::Type>(Field.getType());
+      BaseType = Field.getType();
       LeftoverOffset.BaseOffset -= Field.getOffset();
 
       continue;
@@ -231,15 +225,21 @@ Replacement Replacement::make(unsigned PointerBitWidth,
 
 bool Replacement::replace(ExpressionOpInterface PointerToReplace,
                           const PointerArithmetic &Arithmetic) const {
-  bool PropagatedThroughIndirection = false;
+  auto IsZeroOffsetArrayAccess = [](const FieldAccessInfo &Access) {
+    return Access.TheKind == FieldAccessInfo::Kind::Array
+           and Access.Index.Variables.empty() and Access.Index.Constant == 0;
+  };
+
+  if (std::ranges::all_of(FieldAccesses, IsZeroOffsetArrayAccess))
+    return false;
+
+  mlir::Type PointerToReplaceType = PointerToReplace->getResult(0).getType();
 
   // We need the `PointerSize` in order to generate the `ImmediateOp`s used to
   // access the `struct` fields and `array` members, and to generate the
   // `AddressOp` at the end of the field access substitution. We extract it
   // from the `PointerToReplace` we are processing.
-  auto PointerSize = clift::unwrapped_cast<PointerType>(PointerToReplace
-                                                          ->getResult(0)
-                                                          .getType())
+  auto PointerSize = clift::unwrapped_cast<PointerType>(PointerToReplaceType)
                        .getPointerSize();
 
   // Set insertion point right before the `PointerToReplace`
@@ -255,28 +255,18 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
   //       give better results.
   mlir::Location PointerToReplaceLoc = PointerToReplace.getLoc();
 
+  auto IntPtrType = clift::IntegerType::get(Builder.getContext(),
+                                            IntegerKind::Generic,
+                                            PointerSize);
+
   // Apply each field access in sequence
   // Iterate over every `FieldAccess` in `Replacement`, and materialize the
   // `clift` `Operation`s needed to perform such access
   for (const FieldAccessInfo &Access : FieldAccesses) {
     switch (Access.TheKind) {
-    case FieldAccessInfo::Kind::Struct: {
+    case FieldAccessInfo::Kind::Class: {
       auto Index = Access.Index.Constant;
-      auto [Type,
-            IsIndirect] = getAccessedTypeInfo<clift::StructType>(CurrentValue);
-      mlir::Type FieldType = Type.getFields()[Index].getType();
-      CurrentValue = Builder.create<AccessOp>(PointerToReplaceLoc,
-                                              FieldType,
-                                              CurrentValue,
-                                              IsIndirect,
-                                              Index);
-      break;
-    }
-
-    case FieldAccessInfo::Kind::Union: {
-      auto Index = Access.Index.Constant;
-      auto [Type,
-            IsIndirect] = getAccessedTypeInfo<clift::UnionType>(CurrentValue);
+      auto [Type, IsIndirect] = getAccessedTypeInfo<ClassType>(CurrentValue);
       mlir::Type FieldType = Type.getFields()[Index].getType();
       CurrentValue = Builder.create<AccessOp>(PointerToReplaceLoc,
                                               FieldType,
@@ -287,18 +277,11 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
     }
 
     case FieldAccessInfo::Kind::Array: {
-
-      // We may need to unwrap the `ArrayType` from a `PointerType`, and emit
-      // the needed `IndirectionOp` and `Decay` cast accordingly.
-      mlir::Type ArrayElementType;
-
       // We need to explicitly handle the `pointer as array` case, where
       // `CurrentValue` is not a `ptr<T>` of `ArrayType` (we virtually wrap it
       // ourselves), so the `indirection` and `cast<decay>` is not needed.
-      if (auto P = unwrapped_dyn_cast<PointerType>(CurrentValue.getType());
-          P and not unwrapped_isa<ArrayType>(P.getPointeeType())) {
-        ArrayElementType = P.getPointeeType();
-      } else {
+      auto P = unwrapped_dyn_cast<PointerType>(CurrentValue.getType());
+      if (not P or unwrapped_isa<ArrayType>(P.getPointeeType())) {
         // Standard path emitting `indirection` and `cast<decay>` as needed
         auto [ArrayType,
               IsIndirect] = getAccessedTypeInfo<clift::ArrayType>(CurrentValue);
@@ -306,8 +289,8 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
           CurrentValue = Builder.create<IndirectionOp>(PointerToReplaceLoc,
                                                        CurrentValue);
         }
-        ArrayElementType = ArrayType.getElementType();
-        auto DecayType = PointerType::get(ArrayElementType, PointerSize);
+        auto DecayType = PointerType::get(ArrayType.getElementType(),
+                                          PointerSize);
         CurrentValue = Builder.create<DecayOp>(PointerToReplaceLoc,
                                                DecayType,
                                                CurrentValue);
@@ -318,49 +301,50 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
       // (or a bare `imm` when the index has no variable part, e.g. a `[0]` or
       // `[n]` access), then add each scaled variable component.
       mlir::Value IndexValue = {};
+
+      auto AddTerm =
+        [&Builder, &PointerToReplaceLoc, &IndexValue](mlir::Value Term) {
+          if (IndexValue) {
+            IndexValue = Builder.create<AddOp>(PointerToReplaceLoc,
+                                               IndexValue,
+                                               Term);
+          } else {
+            IndexValue = Term;
+          }
+        };
+
+      // If a constant offset is present, an immediate operation is emitted
+      // to represent it.
       if (Access.Index.Constant != 0 or Access.Index.Variables.empty()) {
-        auto IntegerType = Access.Index.Variables.empty() ?
-                             clift::IntegerType::get(Builder.getContext(),
-                                                     IntegerKind::Generic,
-                                                     PointerSize) :
-                             Access.Index.Variables.front().Variable.getType();
-        IndexValue = Builder.create<ImmediateOp>(PointerToReplaceLoc,
-                                                 IntegerType,
-                                                 Access.Index.Constant);
+        AddTerm(Builder.create<ImmediateOp>(PointerToReplaceLoc,
+                                            IntPtrType,
+                                            Access.Index.Constant));
       }
 
       for (const auto &Term : Access.Index.Variables) {
         mlir::Value Contribution = Term.Variable;
+
+        if (not equivalent(Contribution.getType(), IntPtrType)) {
+          Contribution = Builder.create<BitCastOp>(PointerToReplaceLoc,
+                                                   IntPtrType,
+                                                   Contribution);
+        }
+
         if (Term.Coefficient != 1) {
-          auto Coefficient = Builder
-                               .create<ImmediateOp>(PointerToReplaceLoc,
-                                                    Term.Variable.getType(),
-                                                    Term.Coefficient);
+          auto Coefficient = Builder.create<ImmediateOp>(PointerToReplaceLoc,
+                                                         IntPtrType,
+                                                         Term.Coefficient);
+
           Contribution = Builder.create<MulOp>(PointerToReplaceLoc,
                                                Contribution,
                                                Coefficient);
         }
-        if (IndexValue)
-          IndexValue = Builder.create<AddOp>(PointerToReplaceLoc,
-                                             IndexValue,
-                                             Contribution);
-        else
-          IndexValue = Contribution;
+
+        AddTerm(Contribution);
       }
 
-      // The `SubscriptOp` requires its `Pointer` operand to be a `PointerType`.
-      // In case `CurrentValue` is a `PointerType`, wrapped into a
-      // `TypeDefType`, we need to cast it to the underlying `PointerType`
-      // first.
-      if (not mlir::isa<clift::PointerType>(CurrentValue.getType())) {
-        auto PtrType = unwrapped_cast<PointerType>(CurrentValue.getType());
-        CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
-                                                 PtrType,
-                                                 CurrentValue);
-      }
-
-      // Finally, we emit the `SubscriptOp` using as `Index` the `mlir::Value`
-      // constructed above
+      // Finally, we emit a `SubscriptOp` to represent the arithmetic on
+      // `CurrentValue` and the `IndexValue` created above.
       CurrentValue = Builder.create<SubscriptOp>(PointerToReplaceLoc,
                                                  CurrentValue,
                                                  IndexValue);
@@ -378,20 +362,17 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
                                              CurrentValuePointerType,
                                              CurrentValue);
 
-  // After we emit the `addressof`, we save the resulting `RichValue`, which may
+  // After we emit the `addressof`, we save the resulting `RichType`, which may
   // contain a _rich_ type information of the emitted access. We collect this
   // here before the subsequent `cast` strips it of the type information`. We
   // then propagate the type information into `indirection` uses.
-  mlir::Value RichValue = CurrentValue;
+  mlir::Type RichType = CurrentValue.getType();
 
   // If there is a non-null `LeftoverOffset`, we add it as integer arithmetic
   if (not LeftoverOffset.BaseOffset.isZero()
       or not LeftoverOffset.LinearCombination.empty()) {
 
     // Cast pointer to integer
-    auto IntPtrType = clift::IntegerType::get(Builder.getContext(),
-                                              IntegerKind::Generic,
-                                              PointerSize);
     CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
                                              IntPtrType,
                                              CurrentValue);
@@ -434,20 +415,21 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
     }
 
     // Cast back to pointer
-    auto PointerType = PointerType::get(IntPtrType, PointerSize);
     CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
-                                             PointerType,
+                                             RichType,
                                              CurrentValue);
   }
 
-  // If the result type differs from PointerToReplace's type, prepare a cast
-  // to make the replacement fit the replaced `PointerToReplace` type.
-  if (CurrentValue.getType() != PointerToReplace->getResult(0).getType()) {
-    CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
-                                             PointerToReplace->getResult(0)
-                                               .getType(),
-                                             CurrentValue);
-  }
+  auto AsType = [&Builder,
+                 &PointerToReplaceLoc](mlir::Value Value,
+                                       mlir::Type Type) -> mlir::Value {
+    if (Value.getType() != Type) {
+      Value = Builder.create<BitCastOp>(PointerToReplaceLoc, Type, Value);
+    }
+    return Value;
+  };
+
+  bool PropagatedThroughIndirection = false;
 
   // Replace all the `Use`s of `PointerToReplace`, handling `IndirectionOp`s
   // specially: instead of giving them the "type-erased" `CurrentValue` (through
@@ -471,13 +453,12 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
       // not applicable, we just redirect the `Use` to the type-matched
       // `CurrentValue`
       auto Indirection = mlir::dyn_cast<IndirectionOp>(Use->getOwner());
-      auto RichPointerType = unwrapped_dyn_cast<PointerType>(RichValue
-                                                               .getType());
+      auto RichPointerType = unwrapped_dyn_cast<PointerType>(RichType);
       bool CanPropagate = RichPointerType
                           and unwrapped_isa<PointerType>(RichPointerType
                                                            .getPointeeType());
       if (not Indirection or not CanPropagate) {
-        Use->set(CurrentValue);
+        Use->set(AsType(CurrentValue, PointerToReplaceType));
         continue;
       }
 
@@ -489,13 +470,13 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
       auto RichPointeeSize = getObjectSizeOrZero(RichPointeeType);
       auto IndirectionResultSize = getObjectSizeOrZero(IndirectionResultType);
       if (RichPointeeSize != IndirectionResultSize) {
-        Use->set(CurrentValue);
+        Use->set(AsType(CurrentValue, PointerToReplaceType));
         continue;
       }
 
       // Types already match — no propagation needed
       if (RichPointeeType == IndirectionResultType) {
-        Use->set(CurrentValue);
+        Use->set(AsType(CurrentValue, PointerToReplaceType));
         continue;
       }
 
@@ -503,7 +484,8 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
       // so its result type is inferred from the `RichPointeeType`
       Builder.setInsertionPoint(Indirection);
       auto NewIndirection = Builder.create<IndirectionOp>(PointerToReplaceLoc,
-                                                          RichValue);
+                                                          AsType(CurrentValue,
+                                                                 RichType));
 
       // Insert a `FixupCast` from the typed result to the old untyped result,
       // so existing users that expect the original type still verify
@@ -533,7 +515,7 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
       }
 
       // The old indirection's operand stays as-is (for assign LHS uses)
-      Use->set(CurrentValue);
+      Use->set(AsType(CurrentValue, PointerToReplaceType));
     }
   }
 

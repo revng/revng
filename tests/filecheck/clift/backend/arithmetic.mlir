@@ -43,8 +43,8 @@ module attributes {clift.module} {
       %a = clift.add %0, %1 : !int32_t
       %b = clift.sub %a, %2 : !int32_t
       %c = clift.mul %b, %3 : !int32_t
-      %d = clift.div %c, %4 : !int32_t
-      %e = clift.rem %d, %5 : !int32_t
+      %d = clift.sdiv %c, %4 : !int32_t
+      %e = clift.srem %d, %5 : !int32_t
 
       clift.yield %e : !int32_t
     }
@@ -59,8 +59,8 @@ module attributes {clift.module} {
       %5 = clift.imm 5 : !int32_t
 
       %b = clift.sub %1, %2 : !int32_t
-      %e = clift.rem %4, %5 : !int32_t
-      %d = clift.div %3, %e : !int32_t
+      %e = clift.srem %4, %5 : !int32_t
+      %d = clift.sdiv %3, %e : !int32_t
       %c = clift.mul %b, %d : !int32_t
       %a = clift.add %0, %c : !int32_t
 
@@ -76,8 +76,8 @@ module attributes {clift.module} {
       %4 = clift.imm 4 : !int32_t
       %5 = clift.imm 5 : !int32_t
 
-      %a = clift.rem %0, %1 : !int32_t
-      %b = clift.div %a, %2 : !int32_t
+      %a = clift.srem %0, %1 : !int32_t
+      %b = clift.sdiv %a, %2 : !int32_t
       %c = clift.mul %b, %3 : !int32_t
       %d = clift.sub %c, %4 : !int32_t
       %e = clift.add %d, %5 : !int32_t

@@ -86,14 +86,18 @@ def EnumImmediatePattern
                                                  $1.getValue().getZExtValue()) }]>> $res, $value)]>;
 
 // *&x -> x
+// Constraint: the type of x is equivalent to the type of the original expression.
 def IndirectionAddressofPattern
-  : Pat<(Clift_IndirectionOp (Clift_AddressofOp $arg)),
-        (replaceWithValue $arg)>;
+  : Pat<(Clift_IndirectionOp:$res (Clift_AddressofOp $arg)),
+        (replaceWithValue $arg),
+        [(TypesAreEquivalent $res, $arg)]>;
 
 // &*x -> x
+// Constraint: the type of x is equivalent to the type of the original expression.
 def AddressofIndirectionPattern
-  : Pat<(Clift_AddressofOp (Clift_IndirectionOp $arg)),
-        (replaceWithValue $arg)>;
+  : Pat<(Clift_AddressofOp:$res (Clift_IndirectionOp $arg)),
+        (replaceWithValue $arg),
+        [(TypesAreEquivalent $res, $arg)]>;
 
 // (T)x -> x
 // Constraint: the type of x is equivalent to T.
