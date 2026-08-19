@@ -111,11 +111,6 @@ public:
                           bool IsSigned,
                           CStandardType Type,
                           unsigned Radix) {
-    if (IsSigned and static_cast<int64_t>(Value) < 0) {
-      Tokens.emitOperator(ptml::CTokenEmitter::Operator::Minus);
-      Value = ~Value + 1;
-    }
-
     Tokens.emitIntegerLiteral(llvm::APInt(64, Value, IsSigned),
                               CTE::IntegerSuffix{ .Unsigned = not IsSigned,
                                                   .MinimumType = Type },
@@ -470,24 +465,13 @@ public:
 
     Tokens.emitOperator(getOperator(Op));
 
-    auto StartsWithMinus = [](mlir::Value V) {
-      if (mlir::isa_and_nonnull<NegOp, DecrementOp>(V.getDefiningOp()))
-        return true;
-
-      if (auto I = V.getDefiningOp<ImmediateOp>()) {
-        if (auto T = mlir::dyn_cast<IntegerType>(I.getResult().getType()))
-          return T.isSigned() and static_cast<int64_t>(I.getValue()) < 0;
-      }
-
-      return false;
-    };
-
     // Double negation requires a space in between to avoid being confused as
     // decrement. (- -x) vs (--x)
     //
     // Negation after a decrement requires a space in between to avoid being
     // confused as decrement after negation. (- --x) vs (---x)
-    if (V.getDefiningOp<NegOp>() and StartsWithMinus(Operand))
+    if (mlir::isa<NegOp>(Op)
+        and mlir::isa_and_nonnull<NegOp, DecrementOp>(Operand.getDefiningOp()))
       Tokens.emitSpace();
 
     // Parenthesizing a nested unary prefix expression is not necessary.

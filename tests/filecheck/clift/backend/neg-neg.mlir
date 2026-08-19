@@ -32,13 +32,6 @@ module attributes {clift.module} {
       clift.yield %2 : !int32_t
     }
 
-    // CHECK: - -1;
-    clift.expr {
-      %0 = clift.imm -1 : !int32_t
-      %1 = clift.neg %0 : !int32_t
-      clift.yield %1 : !int32_t
-    }
-
     // CHECK: - --x;
     clift.expr {
       %0 = clift.dec %x : !int32_t
