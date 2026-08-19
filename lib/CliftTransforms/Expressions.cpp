@@ -71,16 +71,6 @@ static mlir::Value assignTypePunnedResult(mlir::PatternRewriter &Rewriter,
   return Result;
 }
 
-static bool hasEnumeratorValue(mlir::Type Type, uint64_t Value) {
-  if (auto Enum = mlir::dyn_cast<EnumType>(Type)) {
-    for (EnumFieldAttr Enumerator : Enum.getFields()) {
-      if (Enumerator.getRawValue() == Value)
-        return true;
-    }
-  }
-  return false;
-}
-
 struct DivModPair {
   uint64_t Div;
   uint64_t Mod;
