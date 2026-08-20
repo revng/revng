@@ -1503,40 +1503,35 @@ private:
     }
 
     if (auto *GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(V)) {
-      const llvm::Value *GEPPointerOp = GEP->getPointerOperand();
+      revng_check(GEP->getNumIndices() == 1);
+      revng_check(GEP->getSourceElementType()->isIntegerTy(8));
+
       mlir::Location Loc = C.getLocation(GEP);
+      mlir::Value Operand = rc_recur emitExpression(GEP->getPointerOperand(),
+                                                    Loc);
 
-      if (GEP->getNumIndices() == 1
-          and GEP->getSourceElementType()->isIntegerTy(8)) {
+      const llvm::Value *GEPIndex = GEP->idx_begin()->get();
 
-        auto UnsignedCharType = C.getIntegerType(1, IntegerKind::Unsigned);
-        auto PointerType = C.getPointerType(UnsignedCharType);
-
-        mlir::Value
-          Pointer = emitImplicitBitcast(Loc,
-                                        rc_recur emitExpression(GEPPointerOp,
-                                                                Loc),
-                                        PointerType);
-
-        llvm::Value *GEPIndex = GEP->idx_begin()->get();
-
-        // If the index is zero, there is no need to add zero
-        if (const auto
-              *ConstantIndex = llvm::dyn_cast<llvm::ConstantInt>(GEPIndex))
-          if (ConstantIndex->isZero())
-            rc_return Pointer;
-
-        mlir::Value Index = rc_recur emitExpression(GEPIndex, Loc);
-
-        auto IndexType = cast<clift::ValueType>(Index.getType());
-        auto IntptrType = cast<clift::ValueType>(C.getIntptrType());
-        auto Cmp = IntptrType.getObjectSize() <=> IndexType.getObjectSize();
-        if (Cmp < 0)
-          Index = Builder.create<TruncateOp>(Loc, C.getIntptrType(), Index);
-        else if (Cmp > 0)
-          Index = Builder.create<ExtendOp>(Loc, C.getIntptrType(), Index);
-        rc_return Builder.create<PtrAddOp>(Loc, PointerType, Pointer, Index);
+      // If the index is zero, there is no need to add zero
+      if (const auto *CI = llvm::dyn_cast<llvm::ConstantInt>(GEPIndex)) {
+        if (CI->isZero())
+          rc_return Operand;
       }
+
+      Operand = Builder.create<BitCastOp>(Loc,
+                                          C.getPointerType(C.getIntegerType(1)),
+                                          Operand);
+
+      mlir::Value Index = rc_recur emitExpression(GEPIndex, Loc);
+      Index = emitIntegerCast(Loc,
+                              Index,
+                              getObjectSize(Operand),
+                              IntegerKind::Signed);
+
+      rc_return Builder.create<PtrAddOp>(Loc,
+                                         Operand.getType(),
+                                         Operand,
+                                         Index);
     }
 
     if (auto I = llvm::dyn_cast<llvm::FreezeInst>(V))
