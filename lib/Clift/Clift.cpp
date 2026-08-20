@@ -1465,32 +1465,6 @@ mlir::LogicalResult DecayOp::verify() {
   return mlir::success();
 }
 
-//===------------------------------ ExtendOp ------------------------------===//
-
-mlir::LogicalResult ExtendOp::verify() {
-  mlir::Type ResT = getResult().getType();
-  mlir::Type ArgT = getValue().getType();
-
-  if (getObjectSize(ArgT) >= getObjectSize(ResT))
-    return emitOpError() << getOperationName()
-                         << " result must be wider than the operand";
-
-  return mlir::success();
-}
-
-//===----------------------------- TruncateOp -----------------------------===//
-
-mlir::LogicalResult TruncateOp::verify() {
-  mlir::Type ResT = getResult().getType();
-  mlir::Type ArgT = getValue().getType();
-
-  if (getObjectSize(ArgT) <= getObjectSize(ResT))
-    return emitOpError() << getOperationName()
-                         << " result must be narrower than the operand";
-
-  return mlir::success();
-}
-
 //===----------------------------- PtrResizeOp ----------------------------===//
 
 mlir::LogicalResult PtrResizeOp::verify() {

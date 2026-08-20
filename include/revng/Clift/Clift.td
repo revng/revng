@@ -84,6 +84,13 @@ class Clift_AllSizesMatch<list<string> names>
                               "clift::getObjectSize($_self.getType())",
                               "object size">;
 
+class Clift_ValuesAreOrdered<string lhs_name, string rhs_name, string operator, string summary>
+  : PredOpTrait<"the " # summary # " of " # lhs_name # " and " # rhs_name # " are ordered",
+                CPred<!subst("$_self", "$" # lhs_name, operator) # " < " # !subst("$_self", "$" # rhs_name, operator)>>;
+
+class Clift_ObjectSizesAreOrdered<string lhs_name, string rhs_name>
+  : Clift_ValuesAreOrdered<lhs_name, rhs_name, "clift::getObjectSize($_self.getType())", "sizes">;
+
 class Clift_AllPointeeTypesMatch<list<string> names>
   : AllMatchSameOperatorTrait<names,
                               "clift::unwrapped_cast<clift::PointerType>($_self.getType()).getPointeeType()",
@@ -1020,7 +1027,10 @@ def Clift_BitCastOp
   }];
 }
 
-def Clift_ExtendOp : Clift_CastExpressionOp<"extend"> {
+def Clift_ExtendOp
+  : Clift_CastExpressionOp<"extend",
+                           [Clift_ObjectSizesAreOrdered<"value", "result">]> {
+
   let arguments = (ins Clift_AnyIntegerType:$value);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
@@ -1028,11 +1038,12 @@ def Clift_ExtendOp : Clift_CastExpressionOp<"extend"> {
   let assemblyFormat = [{
     $value attr-dict `:` type($value) `->` type($result)
   }];
-
-  let hasVerifier = 1;
 }
 
-def Clift_TruncateOp : Clift_CastExpressionOp<"truncate"> {
+def Clift_TruncateOp
+  : Clift_CastExpressionOp<"truncate",
+                           [Clift_ObjectSizesAreOrdered<"result", "value">]> {
+
   let arguments = (ins Clift_AnyIntegerType:$value);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
@@ -1040,8 +1051,6 @@ def Clift_TruncateOp : Clift_CastExpressionOp<"truncate"> {
   let assemblyFormat = [{
     $value attr-dict `:` type($value) `->` type($result)
   }];
-
-  let hasVerifier = 1;
 }
 
 def Clift_PtrResizeOp

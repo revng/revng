@@ -8,5 +8,5 @@
 
 %value = clift.undef : !int32_t
 
-// CHECK: result must be wider than the operand
+// CHECK: failed to verify that the sizes of value and result are ordered
 clift.extend %value : !int32_t -> !int32_t
