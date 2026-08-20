@@ -798,15 +798,6 @@ private:
     }
   }
 
-  template<typename OpT>
-  mlir::Value
-  emitCast(mlir::Location Loc, mlir::Value Value, mlir::Type TargetType) {
-    if (Value.getType() != TargetType)
-      return Builder.create<OpT>(Loc, TargetType, Value);
-
-    return Value;
-  }
-
   // Apply an implicit conversion to the requested type. The conversion is only
   // applied in the case that neither the source nor target values have array
   // type, and as long as both have the same size. If the cast is possible, it
@@ -832,7 +823,7 @@ private:
     if (not SourceT)
       return Value;
 
-    return emitCast<BitCastOp>(Loc, Value, TargetType);
+    return Builder.create<BitCastOp>(Loc, TargetType, Value);
   }
 
   // Used for emitting operations acting on integer operands (arithmetic,
@@ -848,7 +839,7 @@ private:
       revng_assert(UnderlyingType);
 
       uint64_t Size = UnderlyingType.getSize();
-      Value = emitCast<BitCastOp>(Loc, Value, C.getIntegerType(Size, Kind));
+      Value = emitImplicitBitcast(Loc, Value, C.getIntegerType(Size, Kind));
     };
 
     (ConvertToKind(Operands, Kind), ...);
@@ -868,16 +859,16 @@ private:
                               IntegerKind Kind = IntegerKind::Generic) {
     uint64_t SrcSize = getUnderlyingIntegerType(Operand.getType()).getSize();
 
-    auto EmitCast = [&](mlir::Value Operand) {
+    auto EmitCast = [&](mlir::Value Operand) -> mlir::Value {
       auto NewType = C.getIntegerType(Size, Kind);
 
       if (Size > SrcSize)
-        return emitCast<ExtendOp>(Loc, Operand, NewType);
+        return Builder.create<ExtendOp>(Loc, NewType, Operand);
 
       if (Size < SrcSize)
-        return emitCast<TruncateOp>(Loc, Operand, NewType);
+        return Builder.create<TruncateOp>(Loc, NewType, Operand);
 
-      return emitCast<BitCastOp>(Loc, Operand, NewType);
+      return Builder.create<BitCastOp>(Loc, NewType, Operand);
     };
 
     return emitIntegerOp(Loc, Kind, EmitCast, Operand);
@@ -998,7 +989,7 @@ private:
                                            std::move(String->Data));
 
         auto Type = C.getPointerType(String->Type.getElementType());
-        rc_return emitCast<DecayOp>(SurroundingLocation, Op, Type);
+        rc_return Builder.create<DecayOp>(SurroundingLocation, Type, Op);
       }
 
       if (const auto *F = llvm::dyn_cast<llvm::Function>(G)) {
@@ -1010,9 +1001,9 @@ private:
                                          Type,
                                          Function.getSymNameAttr());
 
-        rc_return emitCast<DecayOp>(SurroundingLocation,
-                                    Use,
-                                    C.getPointerType(Type));
+        rc_return Builder.create<DecayOp>(SurroundingLocation,
+                                          C.getPointerType(Type),
+                                          Use);
       }
 
       if (const auto *V = llvm::dyn_cast<llvm::GlobalVariable>(G)) {
@@ -1096,7 +1087,7 @@ private:
                                             /*Value=*/0);
 
       LoggerIndent Indent(ExpressionLog);
-      rc_return emitCast<BitCastOp>(SurroundingLocation,
+      rc_return emitImplicitBitcast(SurroundingLocation,
                                     Op,
                                     C.getVoidPointerType());
     }
@@ -1341,8 +1332,8 @@ private:
         if (not I->isSigned())
           rc_return EmitOp(Lhs, Rhs);
 
-        Lhs = emitCast<BitCastOp>(Loc, Lhs, C.getIntptrType());
-        Rhs = emitCast<BitCastOp>(Loc, Rhs, C.getIntptrType());
+        Lhs = emitImplicitBitcast(Loc, Lhs, C.getIntptrType());
+        Rhs = emitImplicitBitcast(Loc, Rhs, C.getIntptrType());
       }
 
       rc_return emitIntegerOp(Loc, Kind, EmitOp, Lhs, Rhs);
@@ -1378,7 +1369,7 @@ private:
       case Operators::Trunc:
         rc_return EmitIntegerCast(IntegerKind::Generic);
       case Operators::PtrToInt:
-        Operand = emitCast<BitCastOp>(Loc, Operand, C.getIntptrType());
+        Operand = emitImplicitBitcast(Loc, Operand, C.getIntptrType());
         if (uint64_t S = GetIntegerSize(I->getDestTy());
             S != C.getPointerSize())
           Operand = emitIntegerCast(Loc, Operand, S);
@@ -1386,7 +1377,7 @@ private:
       case Operators::IntToPtr:
         if (uint64_t S = GetIntegerSize(I->getSrcTy()); S != C.getPointerSize())
           Operand = emitIntegerCast(Loc, Operand, C.getPointerSize());
-        rc_return emitCast<BitCastOp>(Loc, Operand, C.getVoidPointerType());
+        rc_return emitImplicitBitcast(Loc, Operand, C.getVoidPointerType());
       default:
         revng_abort("Unsupported LLVM cast operation.");
       }
@@ -1424,12 +1415,12 @@ private:
         // If the callee is a function and not a pointer to function, it must
         // be decayed to a pointer before applying the type conversion:
         if (mlir::isa<clift::FunctionType>(Function.getType())) {
-          Function = emitCast<DecayOp>(Loc,
-                                       Function,
-                                       C.getPointerType(FunctionType));
+          Function = Builder.create<DecayOp>(Loc,
+                                             C.getPointerType(FunctionType),
+                                             Function);
         }
 
-        Function = emitCast<BitCastOp>(Loc,
+        Function = emitImplicitBitcast(Loc,
                                        Function,
                                        C.getPointerType(CallType));
       }
@@ -1522,7 +1513,7 @@ private:
         auto PointerType = C.getPointerType(UnsignedCharType);
 
         mlir::Value
-          Pointer = emitCast<BitCastOp>(Loc,
+          Pointer = emitImplicitBitcast(Loc,
                                         rc_recur emitExpression(GEPPointerOp,
                                                                 Loc),
                                         PointerType);
@@ -1541,9 +1532,9 @@ private:
         auto IntptrType = cast<clift::ValueType>(C.getIntptrType());
         auto Cmp = IntptrType.getObjectSize() <=> IndexType.getObjectSize();
         if (Cmp < 0)
-          Index = emitCast<TruncateOp>(Loc, Index, C.getIntptrType());
+          Index = Builder.create<TruncateOp>(Loc, C.getIntptrType(), Index);
         else if (Cmp > 0)
-          Index = emitCast<ExtendOp>(Loc, Index, C.getIntptrType());
+          Index = Builder.create<ExtendOp>(Loc, C.getIntptrType(), Index);
         rc_return Builder.create<PtrAddOp>(Loc, PointerType, Pointer, Index);
       }
     }
@@ -1810,12 +1801,12 @@ private:
           // appropriate type (type punning, violates strict aliasing).
           if (auto AT = mlir::dyn_cast<ArrayType>(ReturnValue.getType())) {
             ReturnValue = //
-              emitCast<DecayOp>(TerminalLoc,
-                                ReturnValue,
-                                C.getPointerType(AT.getElementType()));
+              Builder.create<DecayOp>(TerminalLoc,
+                                      C.getPointerType(AT.getElementType()),
+                                      ReturnValue);
 
             ReturnValue = //
-              emitCast<BitCastOp>(TerminalLoc,
+              emitImplicitBitcast(TerminalLoc,
                                   ReturnValue,
                                   C.getPointerType(LLVMReturnType));
 
