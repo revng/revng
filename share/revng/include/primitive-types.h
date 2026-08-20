@@ -29,6 +29,58 @@ static_assert(CHAR_MIN == INT8_MIN, "CHAR_MIN != INT8_MIN");
 static_assert(CHAR_MAX == INT8_MAX, "CHAR_MAX != INT8_MAX");
 
 //
+// Signed and unsigned
+//
+
+// Widths from 8 to 64 are defined by stdint.h.
+
+#ifdef __SIZEOF_INT128__
+typedef signed __int128 int128_t;
+typedef unsigned __int128 uint128_t;
+#elif defined(__BITINT_MAXWIDTH__) && __BITINT_MAXWIDTH__ >= 128
+typedef signed _BitInt(128) int128_t;
+typedef unsigned _BitInt(128) uint128_t;
+#else
+typedef struct {
+  char data[16];
+} int128_t, uint128_t;
+#endif
+
+#if defined(__BITINT_MAXWIDTH__) && __BITINT_MAXWIDTH__ >= 256
+typedef signed _BitInt(256) int256_t;
+typedef unsigned _BitInt(256) uint256_t;
+#else
+typedef struct {
+  char data[32];
+} int256_t, uint256_t;
+#endif
+
+#if defined(__BITINT_MAXWIDTH__) && __BITINT_MAXWIDTH__ >= 512
+typedef signed _BitInt(512) int512_t;
+typedef unsigned _BitInt(512) uint512_t;
+#else
+typedef struct {
+  char data[64];
+} int512_t, uint512_t;
+#endif
+
+static_assert(sizeof(int8_t) == 1, "");
+static_assert(sizeof(int16_t) == 2, "");
+static_assert(sizeof(int32_t) == 4, "");
+static_assert(sizeof(int64_t) == 8, "");
+static_assert(sizeof(int128_t) == 16, "");
+static_assert(sizeof(int256_t) == 32, "");
+static_assert(sizeof(int512_t) == 64, "");
+
+static_assert(sizeof(uint8_t) == 1, "");
+static_assert(sizeof(uint16_t) == 2, "");
+static_assert(sizeof(uint32_t) == 4, "");
+static_assert(sizeof(uint64_t) == 8, "");
+static_assert(sizeof(uint128_t) == 16, "");
+static_assert(sizeof(uint256_t) == 32, "");
+static_assert(sizeof(uint512_t) == 64, "");
+
+//
 // Generic
 //
 
@@ -36,36 +88,17 @@ typedef uint8_t generic8_t;
 typedef uint16_t generic16_t;
 typedef uint32_t generic32_t;
 typedef uint64_t generic64_t;
+typedef uint128_t generic128_t;
+typedef uint256_t generic256_t;
+typedef uint512_t generic512_t;
 
-#if __SIZEOF_LONG_DOUBLE__ == 10
-typedef long double generic80_t;
-#else
 typedef struct {
   char data[10];
 } generic80_t;
-#endif
 
-#if __SIZEOF_LONG_DOUBLE__ == 12
-typedef long double generic96_t;
-#else
 typedef struct {
   char data[12];
 } generic96_t;
-#endif
-
-#ifdef __SIZEOF_INT128__
-typedef unsigned __int128 generic128_t;
-#endif
-
-static_assert(sizeof(generic8_t) == 1, "");
-static_assert(sizeof(generic16_t) == 2, "");
-static_assert(sizeof(generic32_t) == 4, "");
-static_assert(sizeof(generic64_t) == 8, "");
-static_assert(sizeof(generic80_t) == 10, "");
-static_assert(sizeof(generic96_t) == 12, "");
-#ifdef __SIZEOF_INT128__
-static_assert(sizeof(generic128_t) == 16, "");
-#endif
 
 //
 // PointerOrNumber
@@ -75,17 +108,9 @@ typedef uint8_t pointer_or_number8_t;
 typedef uint16_t pointer_or_number16_t;
 typedef uint32_t pointer_or_number32_t;
 typedef uint64_t pointer_or_number64_t;
-#ifdef __SIZEOF_INT128__
-typedef unsigned __int128 pointer_or_number128_t;
-#endif
-
-static_assert(sizeof(pointer_or_number8_t) == 1, "");
-static_assert(sizeof(pointer_or_number16_t) == 2, "");
-static_assert(sizeof(pointer_or_number32_t) == 4, "");
-static_assert(sizeof(pointer_or_number64_t) == 8, "");
-#ifdef __SIZEOF_INT128__
-static_assert(sizeof(pointer_or_number128_t) == 16, "");
-#endif
+typedef uint128_t pointer_or_number128_t;
+typedef uint256_t pointer_or_number256_t;
+typedef uint512_t pointer_or_number512_t;
 
 //
 // Number
@@ -95,43 +120,9 @@ typedef uint8_t number8_t;
 typedef uint16_t number16_t;
 typedef uint32_t number32_t;
 typedef uint64_t number64_t;
-#ifdef __SIZEOF_INT128__
-typedef unsigned __int128 number128_t;
-#endif
-
-static_assert(sizeof(number8_t) == 1, "");
-static_assert(sizeof(number16_t) == 2, "");
-static_assert(sizeof(number32_t) == 4, "");
-static_assert(sizeof(number64_t) == 8, "");
-#ifdef __SIZEOF_INT128__
-static_assert(sizeof(number128_t) == 16, "");
-#endif
-
-//
-// Signed and Unsigned
-//
-
-// Smaller sizes are already present in stdint.h
-#ifdef __SIZEOF_INT128__
-typedef __int128 int128_t;
-typedef unsigned __int128 uint128_t;
-#endif
-
-static_assert(sizeof(int8_t) == 1, "");
-static_assert(sizeof(int16_t) == 2, "");
-static_assert(sizeof(int32_t) == 4, "");
-static_assert(sizeof(int64_t) == 8, "");
-#ifdef __SIZEOF_INT128__
-static_assert(sizeof(int128_t) == 16, "");
-#endif
-
-static_assert(sizeof(uint8_t) == 1, "");
-static_assert(sizeof(uint16_t) == 2, "");
-static_assert(sizeof(uint32_t) == 4, "");
-static_assert(sizeof(uint64_t) == 8, "");
-#ifdef __SIZEOF_INT128__
-static_assert(sizeof(uint128_t) == 16, "");
-#endif
+typedef uint128_t number128_t;
+typedef uint256_t number256_t;
+typedef uint512_t number512_t;
 
 //
 // Float
@@ -184,7 +175,6 @@ typedef long double float128_t;
 #if defined(__FLT128_MIN__)
 typedef _Float128 float128_t;
 #else
-
 typedef struct {
   char data[16];
 } float128_t;
@@ -197,20 +187,6 @@ static_assert(sizeof(float64_t) == 8, "");
 static_assert(sizeof(float80_t) == 10, "");
 static_assert(sizeof(float96_t) == 12, "");
 static_assert(sizeof(float128_t) == 16, "");
-
-//
-// Pointers
-//
-
-#ifdef LEGACY_BACKEND
-#define pointer16_t(T) __typeof__((T *){ 0 })
-#define pointer32_t(T) __typeof__((T *){ 0 })
-#define pointer64_t(T) __typeof__((T *){ 0 })
-#else
-#define pointer16_t(T) uint16_t
-#define pointer32_t(T) uint32_t
-#define pointer64_t(T) uint64_t
-#endif
 
 //
 // Undefined values

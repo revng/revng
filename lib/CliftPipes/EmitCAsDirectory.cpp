@@ -28,29 +28,30 @@ void revng::pypeline::piperuns::EmitCAsDirectory::run() {
   Buffer = InputHelpers.getMemoryBuffer(ObjectID{});
   TarWriter.addMember("decompiled/helpers.h", *Buffer);
 
-  {
-    auto Path = revng::ResourceFinder.findFile("share/revng/include/"
-                                               "attributes.h");
+  auto AddHeader = [&](llvm::StringRef HeaderName) {
+    std::string HeaderPath;
+    {
+      llvm::raw_string_ostream Out(HeaderPath);
+      Out << "share/revng/include/" << HeaderName;
+    }
 
+    auto Path = revng::ResourceFinder.findFile(HeaderPath);
     if (not Path or Path->empty())
-      revng_abort("can't find attributes.h");
+      revng_abort("cannot find header");
 
     auto BufferOrError = llvm::MemoryBuffer::getFileOrSTDIN(*Path);
     auto Buffer = cantFail(errorOrToExpected(std::move(BufferOrError)));
 
-    TarWriter.addMember("decompiled/attributes.h", *Buffer);
-  }
+    std::string TarHeaderPath;
+    {
+      llvm::raw_string_ostream Out(TarHeaderPath);
+      Out << "decompiled/" << HeaderName;
+    }
 
-  {
-    auto Path = revng::ResourceFinder.findFile("share/revng/include/"
-                                               "primitive-types.h");
+    TarWriter.addMember(TarHeaderPath, *Buffer);
+  };
 
-    if (not Path or Path->empty())
-      revng_abort("can't find primitive-types.h");
-
-    auto BufferOrError = llvm::MemoryBuffer::getFileOrSTDIN(*Path);
-    auto Buffer = cantFail(errorOrToExpected(std::move(BufferOrError)));
-
-    TarWriter.addMember("decompiled/primitive-types.h", *Buffer);
-  }
+  AddHeader("attributes.h");
+  AddHeader("primitive-types.h");
+  AddHeader("runtime-library.h");
 }
