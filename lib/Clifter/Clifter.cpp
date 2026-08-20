@@ -806,16 +806,8 @@ private:
   template<typename OpT>
   mlir::Value
   emitCast(mlir::Location Loc, mlir::Value Value, mlir::Type TargetType) {
-    if (Value.getType() != TargetType) {
-      OpT X = Builder.create<OpT>(Loc, TargetType, Value);
-      if constexpr (std::is_same_v<OpT, BitCastOp>) {
-        auto ValueSize = unwrapped_cast<ValueType>(Value.getType())
-                           .getObjectSize();
-        auto TargetSize = unwrapped_cast<ValueType>(TargetType).getObjectSize();
-        revng_assert(ValueSize == TargetSize);
-      }
-      return X;
-    }
+    if (Value.getType() != TargetType)
+      return Builder.create<OpT>(Loc, TargetType, Value);
 
     return Value;
   }
