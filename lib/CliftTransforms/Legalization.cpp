@@ -43,10 +43,14 @@ static mlir::Value emitCast(mlir::PatternRewriter &Rewriter,
     return Rewriter.create<BitCastOp>(Loc, NewType, Value);
 
   if constexpr (std::is_void_v<ResizeCastOpOrVoid>) {
-    if (NewSize > OldSize)
-      return Rewriter.create<ExtendOp>(Loc, NewType, Value);
-    else
+    if (NewSize > OldSize) {
+      if (isSigned(OldType))
+        return Rewriter.create<SignExtendOp>(Loc, NewType, Value);
+      else
+        return Rewriter.create<ZeroExtendOp>(Loc, NewType, Value);
+    } else {
       return Rewriter.create<TruncateOp>(Loc, NewType, Value);
+    }
   } else {
     return Rewriter.create<ResizeCastOpOrVoid>(Loc, NewType, Value);
   }
@@ -358,6 +362,13 @@ struct SignMatchingPattern : mlir::OpRewritePattern<OpT> {
 };
 
 template<typename OpT, bool IsSigned>
+using ExtendCastSignMatchingPattern = //
+  SignMatchingPattern<OpT,
+                      IsSigned,
+                      /*RewriteResult=*/false,
+                      /*RewriteRHS=*/false>;
+
+template<typename OpT, bool IsSigned>
 using ArithmeticSignMatchingPattern = //
   SignMatchingPattern<OpT,
                       IsSigned,
@@ -528,6 +539,9 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   // unsigned operations to signed operations.
   {
     mlir::RewritePatternSet Set(Context);
+
+    Set.add<ExtendCastSignMatchingPattern<SignExtendOp, true>>(Context);
+    Set.add<ExtendCastSignMatchingPattern<ZeroExtendOp, false>>(Context);
 
     Set.add<ArithmeticSignMatchingPattern<SDivOp, true>>(Context);
     Set.add<ArithmeticSignMatchingPattern<UDivOp, false>>(Context);

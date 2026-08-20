@@ -1027,8 +1027,21 @@ def Clift_BitCastOp
   }];
 }
 
-def Clift_ExtendOp
-  : Clift_CastExpressionOp<"extend",
+def Clift_ZeroExtendOp
+  : Clift_CastExpressionOp<"zext",
+                           [Clift_ObjectSizesAreOrdered<"value", "result">]> {
+
+  let arguments = (ins Clift_AnyIntegerType:$value);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($value) `->` type($result)
+  }];
+}
+
+def Clift_SignExtendOp
+  : Clift_CastExpressionOp<"sext",
                            [Clift_ObjectSizesAreOrdered<"value", "result">]> {
 
   let arguments = (ins Clift_AnyIntegerType:$value);

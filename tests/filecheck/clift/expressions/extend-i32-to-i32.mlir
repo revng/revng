@@ -9,4 +9,4 @@
 %value = clift.undef : !int32_t
 
 // CHECK: failed to verify that the sizes of value and result are ordered
-clift.extend %value : !int32_t -> !int32_t
+clift.sext %value : !int32_t -> !int32_t

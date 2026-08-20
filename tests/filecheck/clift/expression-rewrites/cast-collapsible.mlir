@@ -42,11 +42,11 @@ module attributes {clift.module} {
     }
     // CHECK: }
 
-    // bitcast(extend(x)) -> extend(x)
+    // bitcast(zext(x)) -> zext(x)
     // CHECK: clift.expr {
     clift.expr {
-      // CHECK: %3 = clift.extend %1 : !uint32_t -> !int64_t
-      %3 = clift.extend %1 : !uint32_t -> !generic64_t
+      // CHECK: %3 = clift.zext %1 : !uint32_t -> !int64_t
+      %3 = clift.zext %1 : !uint32_t -> !generic64_t
       %4 = clift.bitcast %3 : !generic64_t -> !int64_t
       // CHECK: clift.yield %3 : !int64_t
       clift.yield %4 : !int64_t
@@ -64,49 +64,83 @@ module attributes {clift.module} {
     }
     // CHECK: }
 
-    // extend(bitcast(x)) -> extend(x)
+    // zext(bitcast(x)) -> zext(x)
     // CHECK: clift.expr {
     clift.expr {
-      // CHECK: %3 = clift.extend %1 : !uint32_t -> !int64_t
+      // CHECK: %3 = clift.zext %1 : !uint32_t -> !int64_t
       %3 = clift.bitcast %1 : !uint32_t -> !generic32_t
-      %4 = clift.extend %3 : !generic32_t -> !int64_t
+      %4 = clift.zext %3 : !generic32_t -> !int64_t
       // CHECK: clift.yield %3 : !int64_t
       clift.yield %4 : !int64_t
     }
     // CHECK: }
 
-    // extend(bitcast(x))
+    // sext(bitcast(x))
     // CHECK: clift.expr {
     clift.expr {
-      // CHECK: %3 = clift.bitcast %1 : !uint32_t -> !int32_t
+      // CHECK: %3 = clift.sext %1 : !uint32_t -> !int64_t
       %3 = clift.bitcast %1 : !uint32_t -> !int32_t
-      // CHECK: %4 = clift.extend %3 : !int32_t -> !int64_t
-      %4 = clift.extend %3 : !int32_t -> !int64_t
-      // CHECK: clift.yield %4 : !int64_t
-      clift.yield %4 : !int64_t
-    }
-    // CHECK: }
-
-    // extend(extend(x)) -> extend(x)
-    // CHECK: clift.expr {
-    clift.expr {
-      // CHECK: %3 = clift.extend %0 : !uint16_t -> !int64_t
-      %3 = clift.extend %0 : !uint16_t -> !uint32_t
-      %4 = clift.extend %3 : !uint32_t -> !int64_t
+      %4 = clift.sext %3 : !int32_t -> !int64_t
       // CHECK: clift.yield %3 : !int64_t
       clift.yield %4 : !int64_t
     }
     // CHECK: }
 
-    // extend(extend(x))
+    // zext(zext(x)) -> zext(x)
     // CHECK: clift.expr {
     clift.expr {
-      // CHECK: %3 = clift.extend %0 : !uint16_t -> !int32_t
-      %3 = clift.extend %0 : !uint16_t -> !int32_t
-      // CHECK: %4 = clift.extend %3 : !int32_t -> !int64_t
-      %4 = clift.extend %3 : !int32_t -> !int64_t
-      // CHECK: clift.yield %4 : !int64_t
+      // CHECK: %3 = clift.zext %0 : !uint16_t -> !int64_t
+      %3 = clift.zext %0 : !uint16_t -> !uint32_t
+      %4 = clift.zext %3 : !uint32_t -> !int64_t
+      // CHECK: clift.yield %3 : !int64_t
       clift.yield %4 : !int64_t
+    }
+    // CHECK: }
+
+    // sext(zext(x)) -> zext(x)
+    // CHECK: clift.expr {
+    clift.expr {
+      // CHECK: %3 = clift.zext %0 : !uint16_t -> !int64_t
+      %3 = clift.zext %0 : !uint16_t -> !int32_t
+      %4 = clift.sext %3 : !int32_t -> !int64_t
+      // CHECK: clift.yield %3 : !int64_t
+      clift.yield %4 : !int64_t
+    }
+    // CHECK: }
+
+    // zext(truncate(x)) -> zext(truncate(x))
+    // CHECK: clift.expr {
+    clift.expr {
+      // CHECK: %3 = clift.truncate %1 : !uint32_t -> !uint16_t
+      %3 = clift.truncate %1 : !uint32_t -> !uint16_t
+      // CHECK: %4 = clift.zext %3 : !uint16_t -> !uint32_t
+      %4 = clift.zext %3 : !uint16_t -> !uint32_t
+      // CHECK: clift.yield %4 : !uint32_t
+      clift.yield %4 : !uint32_t
+    }
+    // CHECK: }
+
+    // sext(truncate(x)) -> sext(truncate(x))
+    // CHECK: clift.expr {
+    clift.expr {
+      // CHECK: %3 = clift.truncate %1 : !uint32_t -> !uint16_t
+      %3 = clift.truncate %1 : !uint32_t -> !uint16_t
+      // CHECK: %4 = clift.sext %3 : !uint16_t -> !uint32_t
+      %4 = clift.sext %3 : !uint16_t -> !uint32_t
+      // CHECK: clift.yield %4 : !uint32_t
+      clift.yield %4 : !uint32_t
+    }
+    // CHECK: }
+
+    // zext(sext(x)) -> zext(sext(x))
+    // CHECK: clift.expr {
+    clift.expr {
+      // CHECK: %3 = clift.sext %0 : !uint16_t -> !uint32_t
+      %3 = clift.sext %0 : !uint16_t -> !uint32_t
+      // CHECK: %4 = clift.zext %3 : !uint32_t -> !uint64_t
+      %4 = clift.zext %3 : !uint32_t -> !uint64_t
+      // CHECK: clift.yield %4 : !uint64_t
+      clift.yield %4 : !uint64_t
     }
     // CHECK: }
 
@@ -121,33 +155,33 @@ module attributes {clift.module} {
     }
     // CHECK: }
 
-    // truncate(extend(x)) -> bitcast(x)
+    // truncate(zext(x)) -> bitcast(x)
     // CHECK: clift.expr {
     clift.expr {
       // CHECK: %3 = clift.bitcast %1 : !uint32_t -> !int32_t
-      %3 = clift.extend %1 : !uint32_t -> !int64_t
+      %3 = clift.zext %1 : !uint32_t -> !int64_t
       %4 = clift.truncate %3 : !int64_t -> !int32_t
       // CHECK: clift.yield %3 : !int32_t
       clift.yield %4 : !int32_t
     }
     // CHECK: }
 
-    // truncate(extend(x)) -> extend(x)
+    // truncate(zext(x)) -> truncate(x)
     // CHECK: clift.expr {
     clift.expr {
-      // CHECK: %3 = clift.extend %0 : !uint16_t -> !int32_t
-      %3 = clift.extend %0 : !uint16_t -> !int64_t
+      // CHECK: %3 = clift.zext %0 : !uint16_t -> !int32_t
+      %3 = clift.zext %0 : !uint16_t -> !int64_t
       %4 = clift.truncate %3 : !int64_t -> !int32_t
       // CHECK: clift.yield %3 : !int32_t
       clift.yield %4 : !int32_t
     }
     // CHECK: }
 
-    // truncate(extend(x)) -> truncate(x)
+    // truncate(zext(x)) -> truncate(x)
     // CHECK: clift.expr {
     clift.expr {
       // CHECK: %3 = clift.truncate %1 : !uint32_t -> !int16_t
-      %3 = clift.extend %1 : !uint32_t -> !int64_t
+      %3 = clift.zext %1 : !uint32_t -> !int64_t
       %4 = clift.truncate %3 : !int64_t -> !int16_t
       // CHECK: clift.yield %3 : !int16_t
       clift.yield %4 : !int16_t

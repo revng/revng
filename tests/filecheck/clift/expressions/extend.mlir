@@ -13,5 +13,5 @@
 %i16 = clift.undef : !int16_t
 %u16 = clift.undef : !uint16_t
 
-clift.extend %i16 : !int16_t -> !int32_t
-clift.extend %u16 : !uint16_t -> !uint32_t
+clift.sext %i16 : !int16_t -> !int32_t
+clift.zext %u16 : !uint16_t -> !uint32_t

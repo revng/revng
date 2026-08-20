@@ -20,16 +20,35 @@ namespace clift {
 using namespace clift;
 
 namespace {
+namespace cast_canonicalization {
+
+template<typename ExtendOpT>
+static mlir::Value makeCastOpImpl(mlir::OpBuilder &Builder,
+                                  mlir::Value ArgumentValue,
+                                  mlir::Value ReplacedValue) {
+  mlir::Type TargetType = ReplacedValue.getType();
+  mlir::Location Loc = ReplacedValue.getDefiningOp()->getLoc();
+
+  uint64_t SourceSize = getObjectSize(ArgumentValue.getType());
+  uint64_t TargetSize = getObjectSize(TargetType);
+
+  if (TargetSize > SourceSize)
+    return Builder.create<ExtendOpT>(Loc, TargetType, ArgumentValue);
+
+  if (TargetSize < SourceSize)
+    return Builder.create<TruncateOp>(Loc, TargetType, ArgumentValue);
+
+  return Builder.create<BitCastOp>(Loc, TargetType, ArgumentValue);
+}
+
+#include "revng/CliftTransforms/CastCanonicalization.h.inc"
+
+} // namespace cast_canonicalization
+
+namespace expression_optimization {
 
 static bool areAllBitsSet(llvm::APInt Value, mlir::Type Type) {
   return Value.trunc(getUnderlyingIntegerType(Type).getSize() * 8).isAllOnes();
-}
-
-static uint64_t truncateIntegerValue(mlir::IntegerAttr ValueAttr,
-                                     mlir::Value IntegerOperand) {
-  uint64_t Width = getObjectSize(IntegerOperand.getType()) * 8;
-  uint64_t Value = ValueAttr.getValue().getZExtValue();
-  return Value & (static_cast<uint64_t>(-1) >> (64 - Width));
 }
 
 static bool assignTypePunnedConstraint(mlir::Value Ptr, mlir::Value Value) {
@@ -98,105 +117,7 @@ static DivModPair ptrOffsetDivMod(mlir::IntegerAttr OffsetAttr,
 
 #include "revng/CliftTransforms/Expressions.h.inc"
 
-struct CastCollapsingPattern
-  : mlir::OpInterfaceRewritePattern<CastOpInterface> {
-
-  using OpInterfaceRewritePattern::OpInterfaceRewritePattern;
-
-  struct CastRewriter {
-    mlir::PatternRewriter &Rewriter;
-    CastOpInterface Outer;
-    CastOpInterface Inner;
-
-    template<typename CastOpT>
-    mlir::LogicalResult collapse() {
-      mlir::Value Result = Outer.getResult();
-      auto Op = Rewriter.create<CastOpT>(Outer->getLoc(),
-                                         Result.getType(),
-                                         Inner.getValue());
-
-      Rewriter.replaceOp(Outer, { Op.getResult() });
-      return mlir::success();
-    }
-
-    mlir::LogicalResult rewrite() {
-      mlir::Type OuterT = Outer.getResult().getType();
-      mlir::Type InnerT = Inner.getResult().getType();
-      mlir::Type ValueT = Inner.getValue().getType();
-
-      if (mlir::isa<BitCastOp>(Outer)) {
-        if (mlir::isa<BitCastOp>(Inner))
-          return collapse<BitCastOp>();
-
-        if (not unwrapped_isa<IntegralType>(OuterT))
-          return mlir::failure();
-
-        if (mlir::isa<ExtendOp>(Inner))
-          return collapse<ExtendOp>();
-
-        if (mlir::isa<TruncateOp>(Inner))
-          return collapse<TruncateOp>();
-
-        return mlir::failure();
-      }
-
-      if (mlir::isa<ExtendOp>(Outer)) {
-        if (isSigned(InnerT) != isSigned(ValueT))
-          return mlir::failure();
-
-        if (mlir::isa<BitCastOp>(Inner)) {
-          if (not unwrapped_isa<IntegralType>(ValueT))
-            return mlir::failure();
-
-          return collapse<ExtendOp>();
-        }
-
-        if (mlir::isa<ExtendOp>(Inner))
-          return collapse<ExtendOp>();
-
-        return mlir::failure();
-      }
-
-      if (mlir::isa<TruncateOp>(Outer)) {
-        if (mlir::isa<BitCastOp>(Inner)) {
-          if (not unwrapped_isa<IntegralType>(ValueT))
-            return mlir::failure();
-
-          return collapse<TruncateOp>();
-        }
-
-        if (mlir::isa<ExtendOp>(Inner)) {
-          auto SourceSize = getObjectSize(ValueT);
-          auto TargetSize = getObjectSize(OuterT);
-
-          if (TargetSize > SourceSize)
-            return collapse<ExtendOp>();
-
-          if (TargetSize < SourceSize)
-            return collapse<TruncateOp>();
-
-          return collapse<BitCastOp>();
-        }
-
-        if (mlir::isa<TruncateOp>(Inner))
-          return collapse<TruncateOp>();
-
-        return mlir::failure();
-      }
-
-      return mlir::failure();
-    }
-  };
-
-  mlir::LogicalResult
-  matchAndRewrite(CastOpInterface Outer,
-                  mlir::PatternRewriter &Rewriter) const override {
-    auto Inner = Outer.getValue().getDefiningOp<CastOpInterface>();
-    if (not Inner)
-      return mlir::failure();
-    return CastRewriter(Rewriter, Outer, Inner).rewrite();
-  }
-};
+} // namespace expression_optimization
 
 struct OptimizeExpressionsPass
   : impl::CliftOptimizeExpressionsBase<OptimizeExpressionsPass> {
@@ -231,12 +152,12 @@ struct OptimizeExpressionsPass
 } // namespace
 
 void clift::populateWithCastCanonicalizations(mlir::RewritePatternSet &Set) {
-  Set.add<CastCollapsingPattern>(Set.getContext());
+  cast_canonicalization::populateWithGenerated(Set);
 }
 
 void clift::populateWithExpressionOptimizationPatterns(mlir::RewritePatternSet
                                                          &Set) {
-  populateWithGenerated(Set);
+  expression_optimization::populateWithGenerated(Set);
 
   populateWithBooleanNegationPatterns(Set);
   populateWithCastCanonicalizations(Set);

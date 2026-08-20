@@ -851,27 +851,27 @@ private:
     return Result;
   }
 
-  // Applies an integer cast of the operand to the specified size, using the
-  // specified primitive kind. Finally the result is converted to generic kind.
-  mlir::Value emitIntegerCast(mlir::Location Loc,
-                              mlir::Value Operand,
-                              uint64_t Size,
-                              IntegerKind Kind = IntegerKind::Generic) {
-    uint64_t SrcSize = getUnderlyingIntegerType(Operand.getType()).getSize();
+  template<typename ExtendOpT>
+  mlir::Value extendOrTruncate(mlir::Location Loc,
+                               mlir::Value Operand,
+                               uint64_t TargetSize) {
+    IntegerType UnderlyingType = getUnderlyingIntegerType(Operand.getType());
+    IntegerKind UnderlyingKind = UnderlyingType.getKind();
 
-    auto EmitCast = [&](mlir::Value Operand) -> mlir::Value {
-      auto NewType = C.getIntegerType(Size, Kind);
+    uint64_t SrcSize = UnderlyingType.getSize();
+    if (TargetSize > SrcSize)
+      return Builder.create<ExtendOpT>(Loc,
+                                       C.getIntegerType(TargetSize,
+                                                        UnderlyingKind),
+                                       Operand);
 
-      if (Size > SrcSize)
-        return Builder.create<ExtendOp>(Loc, NewType, Operand);
+    if (TargetSize < SrcSize)
+      return Builder.create<TruncateOp>(Loc,
+                                        C.getIntegerType(TargetSize,
+                                                         UnderlyingKind),
+                                        Operand);
 
-      if (Size < SrcSize)
-        return Builder.create<TruncateOp>(Loc, NewType, Operand);
-
-      return Builder.create<BitCastOp>(Loc, NewType, Operand);
-    };
-
-    return emitIntegerOp(Loc, Kind, EmitCast, Operand);
+    return Operand;
   }
 
   mlir::Value useGlobal(mlir::Location Loc, clift::GlobalOpInterface Global) {
@@ -1354,30 +1354,40 @@ private:
         return ClifterImpl::getIntegerSize(IntegerType->getBitWidth());
       };
 
-      auto EmitIntegerCast = [&](IntegerKind Kind) {
-        return emitIntegerCast(Loc,
-                               Operand,
-                               GetIntegerSize(V->getType()),
-                               Kind);
-      };
-
       switch (I->getOpcode()) {
         using Operators = llvm::CastInst::CastOps;
+
       case Operators::SExt:
-        rc_return EmitIntegerCast(IntegerKind::Signed);
+        rc_return Builder.create<SignExtendOp>(Loc,
+                                               C.importLLVMType(V->getType()),
+                                               Operand);
       case Operators::ZExt:
+        rc_return Builder.create<ZeroExtendOp>(Loc,
+                                               C.importLLVMType(V->getType()),
+                                               Operand);
       case Operators::Trunc:
-        rc_return EmitIntegerCast(IntegerKind::Generic);
+        rc_return Builder.create<TruncateOp>(Loc,
+                                             C.importLLVMType(V->getType()),
+                                             Operand);
+
       case Operators::PtrToInt:
-        Operand = emitImplicitBitcast(Loc, Operand, C.getIntptrType());
+        Operand = Builder.create<BitCastOp>(Loc, C.getIntptrType(), Operand);
         if (uint64_t S = GetIntegerSize(I->getDestTy());
             S != C.getPointerSize())
-          Operand = emitIntegerCast(Loc, Operand, S);
+          Operand = extendOrTruncate<ZeroExtendOp>(Loc, Operand, S);
+
         rc_return Operand;
+
       case Operators::IntToPtr:
         if (uint64_t S = GetIntegerSize(I->getSrcTy()); S != C.getPointerSize())
-          Operand = emitIntegerCast(Loc, Operand, C.getPointerSize());
-        rc_return emitImplicitBitcast(Loc, Operand, C.getVoidPointerType());
+          Operand = extendOrTruncate<ZeroExtendOp>(Loc,
+                                                   Operand,
+                                                   C.getPointerSize());
+
+        rc_return Builder.create<BitCastOp>(Loc,
+                                            C.getVoidPointerType(),
+                                            Operand);
+
       default:
         revng_abort("Unsupported LLVM cast operation.");
       }
@@ -1523,10 +1533,9 @@ private:
                                           Operand);
 
       mlir::Value Index = rc_recur emitExpression(GEPIndex, Loc);
-      Index = emitIntegerCast(Loc,
-                              Index,
-                              getObjectSize(Operand),
-                              IntegerKind::Signed);
+      Index = extendOrTruncate<SignExtendOp>(Loc,
+                                             Index,
+                                             getObjectSize(Operand));
 
       rc_return Builder.create<PtrAddOp>(Loc,
                                          Operand.getType(),
