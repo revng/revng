@@ -798,11 +798,6 @@ private:
     }
   }
 
-  template<typename OpT, typename... ArgsT>
-  mlir::Value emitExpr(mlir::Location Loc, ArgsT &&...Args) {
-    return Builder.create<OpT>(Loc, std::forward<ArgsT>(Args)...);
-  }
-
   template<typename OpT>
   mlir::Value
   emitCast(mlir::Location Loc, mlir::Value Value, mlir::Type TargetType) {
@@ -1216,47 +1211,47 @@ private:
       auto *IntegerType = llvm::cast<llvm::IntegerType>(V->getType());
       auto Type = C.importLLVMIntegerType(IntegerType, Kind);
 
-      auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) {
+      auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) -> mlir::Value {
         switch (I->getOpcode()) {
         case Operators::Add:
           revng_log(ExpressionLog, "AddOp");
-          return emitExpr<AddOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<AddOp>(Loc, Type, Lhs, Rhs);
         case Operators::Sub:
           revng_log(ExpressionLog, "SubOp");
-          return emitExpr<SubOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<SubOp>(Loc, Type, Lhs, Rhs);
         case Operators::Mul:
           revng_log(ExpressionLog, "MulOp");
-          return emitExpr<MulOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<MulOp>(Loc, Type, Lhs, Rhs);
         case Operators::SDiv:
           revng_log(ExpressionLog, "SDivOp");
-          return emitExpr<SDivOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<SDivOp>(Loc, Type, Lhs, Rhs);
         case Operators::UDiv:
           revng_log(ExpressionLog, "UDivOp");
-          return emitExpr<UDivOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<UDivOp>(Loc, Type, Lhs, Rhs);
         case Operators::SRem:
           revng_log(ExpressionLog, "SRemOp");
-          return emitExpr<SRemOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<SRemOp>(Loc, Type, Lhs, Rhs);
         case Operators::URem:
           revng_log(ExpressionLog, "URemOp");
-          return emitExpr<URemOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<URemOp>(Loc, Type, Lhs, Rhs);
         case Operators::Shl:
           revng_log(ExpressionLog, "ShlOp");
-          return emitExpr<ShlOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<ShlOp>(Loc, Type, Lhs, Rhs);
         case Operators::LShr:
           revng_log(ExpressionLog, "ShrOp");
-          return emitExpr<ShrOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<ShrOp>(Loc, Type, Lhs, Rhs);
         case Operators::AShr:
           revng_log(ExpressionLog, "SarOp");
-          return emitExpr<SarOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<SarOp>(Loc, Type, Lhs, Rhs);
         case Operators::And:
           revng_log(ExpressionLog, "BitwiseAndOp");
-          return emitExpr<BitwiseAndOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<BitwiseAndOp>(Loc, Type, Lhs, Rhs);
         case Operators::Or:
           revng_log(ExpressionLog, "BitwiseOrOp");
-          return emitExpr<BitwiseOrOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<BitwiseOrOp>(Loc, Type, Lhs, Rhs);
         case Operators::Xor:
           revng_log(ExpressionLog, "BitwiseXorOp");
-          return emitExpr<BitwiseXorOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<BitwiseXorOp>(Loc, Type, Lhs, Rhs);
         default:
           revng_abort("Unsupported LLVM binary operator.");
         }
@@ -1302,38 +1297,38 @@ private:
       auto *IntegerType = llvm::cast<llvm::IntegerType>(V->getType());
       auto Type = C.importLLVMIntegerType(IntegerType, IntegerKind::Signed);
 
-      auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) {
+      auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) -> mlir::Value {
         switch (I->getPredicate()) {
         case ICMP_EQ:
           revng_log(ExpressionLog, "CmpEqOp");
-          return emitExpr<CmpEqOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<CmpEqOp>(Loc, Type, Lhs, Rhs);
         case ICMP_NE:
           revng_log(ExpressionLog, "CmpNeOp");
-          return emitExpr<CmpNeOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<CmpNeOp>(Loc, Type, Lhs, Rhs);
         case ICMP_SGT:
           revng_log(ExpressionLog, "SCmpGtOp");
-          return emitExpr<SCmpGtOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<SCmpGtOp>(Loc, Type, Lhs, Rhs);
         case ICMP_UGT:
           revng_log(ExpressionLog, "UCmpGtOp");
-          return emitExpr<UCmpGtOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<UCmpGtOp>(Loc, Type, Lhs, Rhs);
         case ICMP_SGE:
           revng_log(ExpressionLog, "SCmpGeOp");
-          return emitExpr<SCmpGeOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<SCmpGeOp>(Loc, Type, Lhs, Rhs);
         case ICMP_UGE:
           revng_log(ExpressionLog, "UCmpGeOp");
-          return emitExpr<UCmpGeOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<UCmpGeOp>(Loc, Type, Lhs, Rhs);
         case ICMP_SLT:
           revng_log(ExpressionLog, "SCmpLtOp");
-          return emitExpr<SCmpLtOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<SCmpLtOp>(Loc, Type, Lhs, Rhs);
         case ICMP_ULT:
           revng_log(ExpressionLog, "UCmpLtOp");
-          return emitExpr<UCmpLtOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<UCmpLtOp>(Loc, Type, Lhs, Rhs);
         case ICMP_SLE:
           revng_log(ExpressionLog, "SCmpLeOp");
-          return emitExpr<SCmpLeOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<SCmpLeOp>(Loc, Type, Lhs, Rhs);
         case ICMP_ULE:
           revng_log(ExpressionLog, "UCmpLeOp");
-          return emitExpr<UCmpLeOp>(Loc, Type, Lhs, Rhs);
+          return Builder.create<UCmpLeOp>(Loc, Type, Lhs, Rhs);
         default:
           revng_abort("Unsupported LLVM comparison predicate.");
         }
@@ -1549,7 +1544,7 @@ private:
           Index = emitCast<TruncateOp>(Loc, Index, C.getIntptrType());
         else if (Cmp > 0)
           Index = emitCast<ExtendOp>(Loc, Index, C.getIntptrType());
-        rc_return emitExpr<PtrAddOp>(Loc, PointerType, Pointer, Index);
+        rc_return Builder.create<PtrAddOp>(Loc, PointerType, Pointer, Index);
       }
     }
 
