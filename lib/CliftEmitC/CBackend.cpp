@@ -817,20 +817,18 @@ public:
     bool DefinitionEmitted = false;
     if (Configuration.InlineStackFrameType) {
       // When the configuration enables stack-frame inlining,
-      if (auto Flag = Var->getAttrOfType<mlir::BoolAttr>("clift.stack_frame")) {
-        if (Flag.getValue()) {
-          // and the variable has been tagged as the canonical stack frame,
-          if (auto S = clift::unwrapped_dyn_cast<clift::StructType>(Type)) {
-            // emit the *definition* of the struct/union type inline instead of
-            // a regular declaration, so the C output reads as
-            // `struct _PACKED ... my_stack { ... } var_1;`.
-            //
-            // Note that this skips all the typedefs that might be there before
-            // the struct.
-            TypeDefinitionEmitter Emitter(Tokens, DataModel, Configuration);
-            Emitter.emitClassDefinition(S, Declarator);
-            DefinitionEmitted = true;
-          }
+      if (Var->hasAttr("clift.stack_frame")) {
+        // and the variable has been tagged as the canonical stack frame,
+        if (auto S = clift::unwrapped_dyn_cast<clift::StructType>(Type)) {
+          // emit the *definition* of the struct/union type inline instead of
+          // a regular declaration, so the C output reads as
+          // `struct _PACKED ... my_stack { ... } var_1;`.
+          //
+          // Note that this skips all the typedefs that might be there before
+          // the struct.
+          TypeDefinitionEmitter Emitter(Tokens, DataModel, Configuration);
+          Emitter.emitClassDefinition(S, Declarator);
+          DefinitionEmitted = true;
         }
       }
     }
