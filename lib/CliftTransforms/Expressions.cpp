@@ -47,33 +47,24 @@ static mlir::Value makeCastOpImpl(mlir::OpBuilder &Builder,
 
 namespace expression_optimization {
 
-static bool areAllBitsSet(llvm::APInt Value, mlir::Type Type) {
-  return Value.trunc(getUnderlyingIntegerType(Type).getSize() * 8).isAllOnes();
-}
-
-struct DivModPair {
-  uint64_t Div;
-  uint64_t Mod;
-};
-
-static DivModPair ptrOffsetDivMod(mlir::IntegerAttr OffsetAttr,
-                                  mlir::Value PointerOperand) {
+static std::optional<llvm::APInt>
+pointerOffsetQuotient(mlir::IntegerAttr OffsetAttr,
+                      mlir::Value PointerOperand) {
   auto PtrType = clift::unwrapped_cast<PointerType>(PointerOperand.getType());
-
-  uint64_t Offset = OffsetAttr.getValue().getZExtValue();
   uint64_t Size = getObjectSizeOrZero(PtrType.getPointeeType());
 
-  if (Size == 0) {
-    return {
-      .Div = 0,
-      .Mod = static_cast<uint64_t>(-1),
-    };
-  }
+  if (Size == 0)
+    return std::nullopt;
 
-  return {
-    .Div = Offset / Size,
-    .Mod = Offset % Size,
-  };
+  llvm::APInt Quotient;
+  uint64_t Remainder;
+
+  llvm::APInt::udivrem(OffsetAttr.getValue(), Size, Quotient, Remainder);
+
+  if (Remainder != 0)
+    return std::nullopt;
+
+  return Quotient;
 }
 
 #include "revng/CliftTransforms/Expressions.h.inc"

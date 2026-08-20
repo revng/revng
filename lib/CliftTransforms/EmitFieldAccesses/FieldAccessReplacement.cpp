@@ -388,13 +388,12 @@ bool Replacement::replace(mlir::PatternRewriter &Rewriter,
     // Add base offset
     if (!LeftoverOffset.BaseOffset.isZero()) {
 
-      auto LeftoverOffsetValue = LeftoverOffset.BaseOffset.getSExtValue();
-      auto AddOperandValue = Rewriter.create<ImmediateOp>(PointerToReplaceLoc,
-                                                          IntPtrType,
-                                                          LeftoverOffsetValue);
+      auto Operand = Rewriter.create<ImmediateOp>(PointerToReplaceLoc,
+                                                  IntPtrType,
+                                                  LeftoverOffset.BaseOffset);
       CurrentValue = Rewriter.create<AddOp>(PointerToReplaceLoc,
                                             CurrentValue,
-                                            AddOperandValue);
+                                            Operand);
     }
 
     // Add strided terms
@@ -408,12 +407,10 @@ bool Replacement::replace(mlir::PatternRewriter &Rewriter,
       // Multiply stride by index
       auto IndexValue = Rewriter.create<ImmediateOp>(PointerToReplaceLoc,
                                                      IntPtrType,
-                                                     Term.Idx.Constant
-                                                       .getSExtValue());
-      auto StrideValue = Rewriter
-                           .create<ImmediateOp>(PointerToReplaceLoc,
-                                                IntPtrType,
-                                                Term.Stride.getSExtValue());
+                                                     Term.Idx.Constant);
+      auto StrideValue = Rewriter.create<ImmediateOp>(PointerToReplaceLoc,
+                                                      IntPtrType,
+                                                      Term.Stride);
       auto StridedValue = Rewriter.create<clift::MulOp>(PointerToReplaceLoc,
                                                         IndexValue,
                                                         StrideValue);

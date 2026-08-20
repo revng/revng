@@ -25,17 +25,17 @@ namespace {
 // decimal (when the multiplier is greater than one).
 static constexpr double HexEntropyMultiplier = 1.20;
 
-template<uint64_t Radix>
-static double computeRepresentationEntropy(uint64_t Value) {
-  revng_assert(Value != 0);
+template<unsigned Radix>
+static double computeRepresentationEntropy(llvm::APInt Value) {
+  revng_assert(not Value.isZero());
 
-  uint8_t Digits[Radix] = {};
-  uint8_t UniqueDigitCount = 0;
-  uint8_t DigitCount = 0;
+  unsigned Digits[Radix] = {};
+  unsigned UniqueDigitCount = 0;
+  unsigned DigitCount = 0;
 
   do {
-    uint8_t Digit = Value % Radix;
-    Value = Value / Radix;
+    unsigned Digit = Value.urem(Radix);
+    Value = Value.udiv(Radix);
     UniqueDigitCount += Digits[Digit]++ == 0;
     ++DigitCount;
   } while (Value != 0);
@@ -44,11 +44,11 @@ static double computeRepresentationEntropy(uint64_t Value) {
 }
 
 // Deduces the best radix based purely the value of an integer immediate.
-static unsigned deduceBestIntegerRadix(uint64_t Value) {
-  if (Value < 0x10)
+static unsigned deduceBestIntegerRadix(llvm::APInt Value) {
+  if (Value.ult(0x10))
     return 10;
 
-  if (Value > 64 and std::has_single_bit(Value))
+  if (Value.ugt(64) and Value.isPowerOf2())
     return 0x10;
 
   double DecEntropy = computeRepresentationEntropy<10>(Value);
@@ -109,7 +109,7 @@ struct SwitchCaseRadixReductionPattern : mlir::OpRewritePattern<SwitchOp> {
 
     llvm::SmallDenseMap<unsigned, unsigned, 2> RadixCounts;
     for (uint64_t Value : Switch.getCaseValues())
-      ++RadixCounts[deduceBestIntegerRadix(Value)];
+      ++RadixCounts[deduceBestIntegerRadix(llvm::APInt(64, Value))];
 
     static constexpr unsigned Radices[] = { 10, 0x10 };
 

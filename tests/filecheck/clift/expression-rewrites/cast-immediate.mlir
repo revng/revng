@@ -15,7 +15,7 @@ module attributes {clift.module} {
   clift.func @f<!f>() -> !void {
     // CHECK: clift.expr {
     clift.expr {
-      // CHECK: %0 = clift.imm 3567587328 : !int32_t
+      // CHECK: %0 = clift.imm -727379968 : !int32_t
       %0 = clift.imm 1000000000000 : !int64_t
       %1 = clift.truncate %0 : !int64_t -> !int32_t
       // CHECK: clift.yield %0 : !int32_t

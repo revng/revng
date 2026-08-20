@@ -52,7 +52,7 @@ def TernaryInversionPattern
 def XorAllOnesPattern
   : Pat<(Clift_BitwiseXorOp $arg, (Clift_ImmediateOp:$imm $value)),
         (Clift_BitwiseNotOp $arg),
-        [(Constraint<CPred<"areAllBitsSet($0.getValue(), $1.getType())">> $value, $imm)]>;
+        [(Constraint<CPred<[{ $0.getValue().isAllOnes() }]>> $value, $imm)]>;
 
 // 0 - x -> -x
 def ZeroSubPattern
@@ -72,17 +72,17 @@ def BitCastImmediatePattern
 // (T)123 -> 123
 def ZeroExtendImmediatePattern
   : Pat<(Clift_ZeroExtendOp:$res (Clift_ImmediateOp $value)),
-        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ $0.getValue().zext(getBitWidth($1)).getZExtValue() }]> $value, $res)))>;
+        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ $0.getValue().zext(getBitWidth($1)) }]> $value, $res)))>;
 
 // (T)123 -> 123
 def SignExtendImmediatePattern
   : Pat<(Clift_SignExtendOp:$res (Clift_ImmediateOp $value)),
-        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ $0.getValue().sext(getBitWidth($1)).getZExtValue() }]> $value, $res)))>;
+        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ $0.getValue().sext(getBitWidth($1)) }]> $value, $res)))>;
 
 // (T)123 -> 123
 def TruncateImmediatePattern
   : Pat<(Clift_TruncateOp:$res (Clift_ImmediateOp $value)),
-        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ $0.getValue().trunc(getBitWidth($1)).getZExtValue() }]> $value, $res)))>;
+        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ $0.getValue().trunc(getBitWidth($1)) }]> $value, $res)))>;
 
 // *&x -> x
 // Constraint: the type of x is equivalent to the type of the original expression.
@@ -112,10 +112,10 @@ def PointerArithmeticAddImmPattern
   : Pat<(Clift_BitCastOp:$res (Clift_AddOp $ptr,
                                            (Clift_ImmediateOp:$imm $k))),
         (Clift_PtrAddOp (Clift_BitCastOp $ptr, (returnType $res)),
-                        (Clift_ImmediateOp (makeInteger (NativeCodeCall<"ptrOffsetDivMod($0, $1).Div"> $k, $res)),
+                        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ *pointerOffsetQuotient($0, $1) }]> $k, $res)),
                                            (returnType $imm))),
         [(Clift_AnyPointerType $res),
-         (Constraint<CPred<"ptrOffsetDivMod($0, $1).Mod == 0">> $k, $res)]>;
+         (Constraint<CPred<[{ pointerOffsetQuotient($0, $1) }]>> $k, $res)]>;
 
 // (T*)(i + n * k_1) -> (T*)i + n * k_2
 // Note: k_2 = k_1 / sizeof(T)
@@ -126,10 +126,10 @@ def PointerArithmeticAddMulImmPattern
                                                         (Clift_ImmediateOp:$imm $k)))),
         (Clift_PtrAddOp (Clift_BitCastOp $ptr, (returnType $res)),
                         (Clift_MulOp $n,
-                                     (Clift_ImmediateOp (makeInteger (NativeCodeCall<"ptrOffsetDivMod($0, $1).Div"> $k, $res)),
+                                     (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ *pointerOffsetQuotient($0, $1) }]> $k, $res)),
                                                         (returnType $imm)))),
         [(Clift_AnyPointerType $res),
-         (Constraint<CPred<"ptrOffsetDivMod($0, $1).Mod == 0">> $k, $res)]>;
+         (Constraint<CPred<[{ pointerOffsetQuotient($0, $1) }]>> $k, $res)]>;
 
 // (*x).m -> x->m
 def IndirectAccessPattern

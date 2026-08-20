@@ -419,16 +419,16 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
     mlir::OpRewritePattern<ImmediateOp>(Context), DataModel(DataModel) {}
 
   mlir::LogicalResult rewriteWithCast(ImmediateOp Op,
-                                      mlir::Type NewImmediateType,
+                                      mlir::Type NewType,
                                       mlir::PatternRewriter &Rewriter) const {
-    mlir::Value Result = Op.getResult();
-    mlir::Type OldImmediateType = Result.getType();
-    mlir::OpOperand &Use = *getOnlyUse(Result);
-
     Rewriter.setInsertionPointAfter(Op);
-    Result.setType(NewImmediateType);
-    Use.set(emitCast(Rewriter, Op->getLoc(), Result, OldImmediateType));
 
+    unsigned Width = getObjectSize(NewType) * 8;
+    auto NewOp = Rewriter.create<ImmediateOp>(Op->getLoc(),
+                                              NewType,
+                                              Op.getValue().zextOrTrunc(Width));
+
+    getOnlyUse(Op)->set(emitCast(Rewriter, Op->getLoc(), NewOp, Op.getType()));
     return mlir::success();
   }
 
@@ -436,7 +436,7 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
   matchAndRewriteEnumImmediate(ImmediateOp Op,
                                EnumType Type,
                                mlir::PatternRewriter &Rewriter) const {
-    auto Enumerator = Type.getFieldByValue(Op.getValue());
+    auto Enumerator = Type.getFieldByValue(Op.getZExtValue());
     if (Enumerator)
       return mlir::failure();
 
@@ -460,6 +460,26 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
                                              DataModel.getIntSize());
 
       return rewriteWithCast(Op, NewType, Rewriter);
+    }
+
+    // Extended integers may be representable using standard integer types
+    // depending on the immediate value.
+    if (DataModel.isSupportedIntegerSize(Size)) {
+      llvm::APInt Value = Op.getValue();
+
+      unsigned RequiredSize = //
+        std::max(DataModel.getIntSize(),
+                 std::bit_ceil(Value.getSignificantBits()) / 8);
+
+      if (auto Range = DataModel.getStandardIntegerRange(RequiredSize)) {
+        revng_assert(Range->second >= CStandardType::Int);
+
+        IntegerType NewType = IntegerType::get(Type.getContext(),
+                                               IntegerKind::Signed,
+                                               RequiredSize);
+
+        return rewriteWithCast(Op, NewType, Rewriter);
+      }
     }
 
     // Any unsupported type is emitted using an intrinsic.

@@ -22,7 +22,7 @@ def getPointeeType : NativeCodeCall<[{
 }]>;
 
 def makeInteger : NativeCodeCall<[{
-  $_builder.getIntegerAttr($_builder.getIntegerType(64), $0);
+  mlir::IntegerAttr::get($_builder.getContext(), llvm::APSInt($0))
 }]>;
 
 def forceBooleanResult : NativeCodeCall<[{

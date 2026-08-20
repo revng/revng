@@ -1054,33 +1054,19 @@ private:
     if (auto I = llvm::dyn_cast<llvm::ConstantInt>(V)) {
       revng_log(ExpressionLog, "llvm::ConstantInt -> ImmediateOp");
       const llvm::IntegerType *T = llvm::cast<llvm::IntegerType>(I->getType());
-      // ImmediateOp stores its value in a 64-bit attribute. An integer wider
-      // than 64 bits (e.g. the i128 magic multiplier of a signed division by a
-      // constant) can still be represented as long as it fits in 64 bits once
-      // zero- or sign-extended; a value that needs more than 64 bits cannot be
-      // represented yet.
-      // TODO: note that this is a partial fix that only deals with values that
-      // are still ultimately representable with only 64 bits, which is what I
-      // have observed happening in mass testing. If it turns out we really have
-      // 128-bits immediates in the wild, we will have to extend this and handle
-      // it properly, possibly using 128-bits value in ImmediateOp.
-      const llvm::APInt &Value = I->getValue();
-      revng_assert(Value.getActiveBits() <= 64
-                     or Value.getSignificantBits() <= 64,
-                   "Cannot represent a >64-bit integer immediate");
-      uint64_t Immediate = Value.getActiveBits() <= 64 ?
-                             Value.getZExtValue() :
-                             static_cast<uint64_t>(Value.getSExtValue());
+
+      unsigned Width = C.getIntegerSize(T->getBitWidth()) * 8;
       rc_return Builder.create<ImmediateOp>(SurroundingLocation,
                                             C.importLLVMIntegerType(T),
-                                            Immediate);
+                                            I->getValue().sextOrTrunc(Width));
     }
 
     if (auto N = llvm::dyn_cast<llvm::ConstantPointerNull>(V)) {
       revng_log(ExpressionLog, "llvm::ConstantPointerNull -> ImmediateOp");
+
       auto Op = Builder.create<ImmediateOp>(SurroundingLocation,
                                             C.getIntptrType(),
-                                            /*Value=*/0);
+                                            C.getPointerSize() * 8);
 
       LoggerIndent Indent(ExpressionLog);
       rc_return emitImplicitBitcast(SurroundingLocation,

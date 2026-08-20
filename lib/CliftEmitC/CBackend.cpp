@@ -107,11 +107,11 @@ public:
                           CTE::IdentifierKind::Reference);
   }
 
-  void emitIntegerLiteral(uint64_t Value,
+  void emitIntegerLiteral(llvm::APInt Value,
                           bool IsSigned,
                           CStandardType Type,
                           unsigned Radix) {
-    Tokens.emitIntegerLiteral(llvm::APInt(64, Value, IsSigned),
+    Tokens.emitIntegerLiteral(Value,
                               CTE::IntegerSuffix{ .Unsigned = not IsSigned,
                                                   .MinimumType = Type },
                               Radix);
@@ -227,7 +227,7 @@ public:
     mlir::Type Type = unwrapTypedefs(E.getType());
 
     if (auto Enum = mlir::dyn_cast<EnumType>(Type))
-      rc_return emitEnumImmediate(E.getValue(), Enum);
+      rc_return emitEnumImmediate(E.getValue().getZExtValue(), Enum);
 
     auto IntType = mlir::cast<IntegerType>(Type);
     auto CType = CStandardType::Int;
@@ -1153,7 +1153,10 @@ public:
         Parent.emitCStyleCast(Type);
       }
 
-      Parent.emitIntegerLiteral(Value, IsSigned, CStandardType::Int, Radix);
+      Parent.emitIntegerLiteral(llvm::APInt(64, Value),
+                                IsSigned,
+                                CStandardType::Int,
+                                Radix);
     }
 
   private:
