@@ -471,7 +471,7 @@ public:
     Tokens.emitOperator(getOperator(Op));
 
     auto StartsWithMinus = [](mlir::Value V) {
-      if (mlir::isa<NegOp, DecrementOp>(V.getDefiningOp()))
+      if (mlir::isa_and_nonnull<NegOp, DecrementOp>(V.getDefiningOp()))
         return true;
 
       if (auto I = V.getDefiningOp<ImmediateOp>()) {
