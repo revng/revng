@@ -91,6 +91,8 @@ static void modifyOperandType(mlir::PatternRewriter &Rewriter,
     .set(emitCast<ResizeCastOpOrVoid>(Rewriter, Op->getLoc(), Value, NewType));
 }
 
+//===------------------------------ Promotion -----------------------------===//
+
 template<typename OpT>
 struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
   uint64_t TargetPointerSize;
@@ -323,6 +325,8 @@ struct ShiftPromotionPattern : ArithmeticPromotionPattern<OpT> {
   }
 };
 
+//===---------------------------- Sign matching ---------------------------===//
+
 template<typename OpT, bool IsSigned, unsigned... OperandIndices>
 struct ArithmeticSignPattern : mlir::OpRewritePattern<OpT> {
   explicit ArithmeticSignPattern(mlir::MLIRContext *Context) :
@@ -353,6 +357,8 @@ struct ArithmeticSignPattern : mlir::OpRewritePattern<OpT> {
     return mlir::success();
   }
 };
+
+//===----------------------------- Immediates -----------------------------===//
 
 // Introduces casts around immediates not directly representable in C:
 // * 0 -> (int16_t)0, where the original expression has type int16_t.
@@ -448,64 +454,82 @@ struct CLegalizationPass
 
 mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   mlir::MLIRContext *Context = Function.getContext();
-  mlir::RewritePatternSet Set(Context);
-
   const CDataModel &DataModel = getDataModel(Function);
 
-  // Pointer resizing
-  Set.add<ResizePtrAddPattern>(Context, DataModel);
-  Set.add<ResizePtrSubPattern>(Context, DataModel);
-  Set.add<ResizePtrDiffPattern>(Context, DataModel);
-  Set.add<PointerResizePattern<IndirectionOp>>(Context, DataModel);
-  Set.add<PointerResizePattern<SubscriptOp>>(Context, DataModel);
-  Set.add<PointerResizePattern<AccessOp>>(Context, DataModel);
-  Set.add<PointerResizePattern<CallOp>>(Context, DataModel);
-  Set.add<ResizeAddressofPattern>(Context, DataModel);
-  Set.add<ResizeDecayCastPattern>(Context, DataModel);
+  // * Resize pointer operands.
+  // * Apply arithmetic promotions.
+  // * Canonicalize boolean result types.
+  // * Emit casts around unrepresentable literals.
+  {
+    mlir::RewritePatternSet Set(Context);
 
-  // Boolean canonicalization
-  Set.add<BooleanCanonicalizationPattern>(Context, DataModel);
+    Set.add<ResizePtrAddPattern>(Context, DataModel);
+    Set.add<ResizePtrSubPattern>(Context, DataModel);
+    Set.add<ResizePtrDiffPattern>(Context, DataModel);
+    Set.add<PointerResizePattern<IndirectionOp>>(Context, DataModel);
+    Set.add<PointerResizePattern<SubscriptOp>>(Context, DataModel);
+    Set.add<PointerResizePattern<AccessOp>>(Context, DataModel);
+    Set.add<PointerResizePattern<CallOp>>(Context, DataModel);
+    Set.add<ResizeAddressofPattern>(Context, DataModel);
+    Set.add<ResizeDecayCastPattern>(Context, DataModel);
 
-  // Integer promotion
-  Set.add<ArithmeticPromotionPattern<NegOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<AddOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<SubOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<MulOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<SDivOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<UDivOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<SRemOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<URemOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<BitwiseNotOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<BitwiseAndOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<BitwiseOrOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<BitwiseXorOp>>(Context, DataModel);
-  Set.add<ShiftPromotionPattern<ShlOp>>(Context, DataModel);
-  Set.add<ShiftPromotionPattern<SarOp>>(Context, DataModel);
-  Set.add<ShiftPromotionPattern<ShrOp>>(Context, DataModel);
+    Set.add<BooleanCanonicalizationPattern>(Context, DataModel);
 
-  // Literal typing
-  Set.add<ImmediateCastPattern>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<NegOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<AddOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<SubOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<MulOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<SDivOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<UDivOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<SRemOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<URemOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<BitwiseNotOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<BitwiseAndOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<BitwiseOrOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<BitwiseXorOp>>(Context, DataModel);
 
-  // Operation signedness
-  Set.add<ArithmeticSignPattern<SDivOp, true, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<UDivOp, false, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<SRemOp, true, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<URemOp, false, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<SarOp, true, 0>>(Context);
-  Set.add<ArithmeticSignPattern<ShrOp, false, 0>>(Context);
-  Set.add<ArithmeticSignPattern<SCmpLtOp, true, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<UCmpLtOp, false, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<SCmpGtOp, true, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<UCmpGtOp, false, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<SCmpLeOp, true, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<UCmpLeOp, false, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<SCmpGeOp, true, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<UCmpGeOp, false, 0, 1>>(Context);
+    Set.add<ShiftPromotionPattern<ShlOp>>(Context, DataModel);
+    Set.add<ShiftPromotionPattern<SarOp>>(Context, DataModel);
+    Set.add<ShiftPromotionPattern<ShrOp>>(Context, DataModel);
 
-  populateWithCastCanonicalizations(Set);
+    Set.add<ImmediateCastPattern>(Context, DataModel);
 
-  auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
-  return mlir::applyPatternsAndFoldGreedily(Function, Patterns);
+    // Cast canonicalisation is used to collapse casts introduced by the
+    // other rewrites.
+    populateWithCastCanonicalizations(Set);
+
+    auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
+    if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
+      return mlir::failure();
+  }
+
+  // Ensure operation semantics match operand signedness. Matching operand
+  // signedness should be done after promotion, because promotion may change
+  // unsigned operations to signed operations.
+  {
+    mlir::RewritePatternSet Set(Context);
+
+    Set.add<ArithmeticSignPattern<SDivOp, true, 0, 1>>(Context);
+    Set.add<ArithmeticSignPattern<UDivOp, false, 0, 1>>(Context);
+    Set.add<ArithmeticSignPattern<SRemOp, true, 0, 1>>(Context);
+    Set.add<ArithmeticSignPattern<URemOp, false, 0, 1>>(Context);
+    Set.add<ArithmeticSignPattern<SarOp, true, 0>>(Context);
+    Set.add<ArithmeticSignPattern<ShrOp, false, 0>>(Context);
+    Set.add<ArithmeticSignPattern<SCmpLtOp, true, 0, 1>>(Context);
+    Set.add<ArithmeticSignPattern<UCmpLtOp, false, 0, 1>>(Context);
+    Set.add<ArithmeticSignPattern<SCmpGtOp, true, 0, 1>>(Context);
+    Set.add<ArithmeticSignPattern<UCmpGtOp, false, 0, 1>>(Context);
+    Set.add<ArithmeticSignPattern<SCmpLeOp, true, 0, 1>>(Context);
+    Set.add<ArithmeticSignPattern<UCmpLeOp, false, 0, 1>>(Context);
+    Set.add<ArithmeticSignPattern<SCmpGeOp, true, 0, 1>>(Context);
+    Set.add<ArithmeticSignPattern<UCmpGeOp, false, 0, 1>>(Context);
+
+    auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
+    if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
+      return mlir::failure();
+  }
+
+  return mlir::success();
 }
 
 clift::PassPtr<clift::FunctionOp> clift::createCLegalizationPass() {
