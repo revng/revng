@@ -826,31 +826,6 @@ private:
     return Builder.create<BitCastOp>(Loc, TargetType, Value);
   }
 
-  // Used for emitting operations acting on integer operands (arithmetic,
-  // comparison, etc.) of a specific kind. Before applying the operation, the
-  // operands are automatically converted to the requested kind, if necessary.
-  // After the operation, the result is automaticlaly converted to generic kind.
-  mlir::Value emitIntegerOp(mlir::Location Loc,
-                            IntegerKind Kind,
-                            auto ApplyOperation,
-                            std::same_as<mlir::Value> auto... Operands) {
-    auto ConvertToKind = [&](mlir::Value &Value, IntegerKind Kind) {
-      auto UnderlyingType = getUnderlyingIntegerType(Value.getType());
-      revng_assert(UnderlyingType);
-
-      uint64_t Size = UnderlyingType.getSize();
-      Value = emitImplicitBitcast(Loc, Value, C.getIntegerType(Size, Kind));
-    };
-
-    (ConvertToKind(Operands, Kind), ...);
-    mlir::Value Result = ApplyOperation(Operands...);
-
-    if (Kind != IntegerKind::Generic)
-      ConvertToKind(Result, IntegerKind::Generic);
-
-    return Result;
-  }
-
   template<typename ExtendOpT>
   mlir::Value extendOrTruncate(mlir::Location Loc,
                                mlir::Value Operand,
@@ -1171,8 +1146,6 @@ private:
       revng_log(ExpressionLog, "llvm::BinaryOperator");
       LoggerIndent Indent(ExpressionLog);
 
-      using Operators = llvm::BinaryOperator::BinaryOps;
-
       mlir::Location Loc = C.getLocation(I);
 
       revng_log(ExpressionLog, "LHS subexpression");
@@ -1183,98 +1156,64 @@ private:
       mlir::Value Rhs = (LoggerIndent(ExpressionLog),
                          rc_recur emitExpression(I->getOperand(1), Loc));
 
-      IntegerKind Kind = IntegerKind::Generic;
+      llvm::IntegerType *VType = llvm::cast<llvm::IntegerType>(V->getType());
+      mlir::Type Type = C.importLLVMIntegerType(VType);
+
+      Lhs = emitImplicitBitcast(Loc, Lhs, Type);
+      if (not I->isShift())
+        Rhs = emitImplicitBitcast(Loc, Rhs, Type);
+
       switch (I->getOpcode()) {
+        using Operators = llvm::BinaryOperator::BinaryOps;
+
+      case Operators::Add:
+        revng_log(ExpressionLog, "AddOp");
+        rc_return Builder.create<AddOp>(Loc, Type, Lhs, Rhs);
+      case Operators::Sub:
+        revng_log(ExpressionLog, "SubOp");
+        rc_return Builder.create<SubOp>(Loc, Type, Lhs, Rhs);
+      case Operators::Mul:
+        revng_log(ExpressionLog, "MulOp");
+        rc_return Builder.create<MulOp>(Loc, Type, Lhs, Rhs);
       case Operators::SDiv:
-      case Operators::SRem:
-      case Operators::AShr:
-        Kind = IntegerKind::Signed;
-        break;
+        revng_log(ExpressionLog, "SDivOp");
+        rc_return Builder.create<SDivOp>(Loc, Type, Lhs, Rhs);
       case Operators::UDiv:
+        revng_log(ExpressionLog, "UDivOp");
+        rc_return Builder.create<UDivOp>(Loc, Type, Lhs, Rhs);
+      case Operators::SRem:
+        revng_log(ExpressionLog, "SRemOp");
+        rc_return Builder.create<SRemOp>(Loc, Type, Lhs, Rhs);
       case Operators::URem:
+        revng_log(ExpressionLog, "URemOp");
+        rc_return Builder.create<URemOp>(Loc, Type, Lhs, Rhs);
+      case Operators::Shl:
+        revng_log(ExpressionLog, "ShlOp");
+        rc_return Builder.create<ShlOp>(Loc, Type, Lhs, Rhs);
       case Operators::LShr:
-        Kind = IntegerKind::Unsigned;
-        break;
+        revng_log(ExpressionLog, "ShrOp");
+        rc_return Builder.create<ShrOp>(Loc, Type, Lhs, Rhs);
+      case Operators::AShr:
+        revng_log(ExpressionLog, "SarOp");
+        rc_return Builder.create<SarOp>(Loc, Type, Lhs, Rhs);
+      case Operators::And:
+        revng_log(ExpressionLog, "BitwiseAndOp");
+        rc_return Builder.create<BitwiseAndOp>(Loc, Type, Lhs, Rhs);
+      case Operators::Or:
+        revng_log(ExpressionLog, "BitwiseOrOp");
+        rc_return Builder.create<BitwiseOrOp>(Loc, Type, Lhs, Rhs);
+      case Operators::Xor:
+        revng_log(ExpressionLog, "BitwiseXorOp");
+        rc_return Builder.create<BitwiseXorOp>(Loc, Type, Lhs, Rhs);
       default:
-        break;
+        revng_abort("Unsupported LLVM binary operator.");
       }
-
-      auto *IntegerType = llvm::cast<llvm::IntegerType>(V->getType());
-      auto Type = C.importLLVMIntegerType(IntegerType, Kind);
-
-      auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) -> mlir::Value {
-        switch (I->getOpcode()) {
-        case Operators::Add:
-          revng_log(ExpressionLog, "AddOp");
-          return Builder.create<AddOp>(Loc, Type, Lhs, Rhs);
-        case Operators::Sub:
-          revng_log(ExpressionLog, "SubOp");
-          return Builder.create<SubOp>(Loc, Type, Lhs, Rhs);
-        case Operators::Mul:
-          revng_log(ExpressionLog, "MulOp");
-          return Builder.create<MulOp>(Loc, Type, Lhs, Rhs);
-        case Operators::SDiv:
-          revng_log(ExpressionLog, "SDivOp");
-          return Builder.create<SDivOp>(Loc, Type, Lhs, Rhs);
-        case Operators::UDiv:
-          revng_log(ExpressionLog, "UDivOp");
-          return Builder.create<UDivOp>(Loc, Type, Lhs, Rhs);
-        case Operators::SRem:
-          revng_log(ExpressionLog, "SRemOp");
-          return Builder.create<SRemOp>(Loc, Type, Lhs, Rhs);
-        case Operators::URem:
-          revng_log(ExpressionLog, "URemOp");
-          return Builder.create<URemOp>(Loc, Type, Lhs, Rhs);
-        case Operators::Shl:
-          revng_log(ExpressionLog, "ShlOp");
-          return Builder.create<ShlOp>(Loc, Type, Lhs, Rhs);
-        case Operators::LShr:
-          revng_log(ExpressionLog, "ShrOp");
-          return Builder.create<ShrOp>(Loc, Type, Lhs, Rhs);
-        case Operators::AShr:
-          revng_log(ExpressionLog, "SarOp");
-          return Builder.create<SarOp>(Loc, Type, Lhs, Rhs);
-        case Operators::And:
-          revng_log(ExpressionLog, "BitwiseAndOp");
-          return Builder.create<BitwiseAndOp>(Loc, Type, Lhs, Rhs);
-        case Operators::Or:
-          revng_log(ExpressionLog, "BitwiseOrOp");
-          return Builder.create<BitwiseOrOp>(Loc, Type, Lhs, Rhs);
-        case Operators::Xor:
-          revng_log(ExpressionLog, "BitwiseXorOp");
-          return Builder.create<BitwiseXorOp>(Loc, Type, Lhs, Rhs);
-        default:
-          revng_abort("Unsupported LLVM binary operator.");
-        }
-      };
-
-      rc_return emitIntegerOp(Loc, Kind, EmitOp, Lhs, Rhs);
     }
 
     if (auto I = llvm::dyn_cast<llvm::ICmpInst>(V)) {
       revng_log(ExpressionLog, "llvm::ICmpInst");
       LoggerIndent Indent(ExpressionLog);
 
-      using enum llvm::ICmpInst::Predicate;
-
-      IntegerKind Kind = IntegerKind::Generic;
-      switch (I->getPredicate()) {
-      case ICMP_SGT:
-      case ICMP_SGE:
-      case ICMP_SLT:
-      case ICMP_SLE:
-        Kind = IntegerKind::Signed;
-        break;
-      case ICMP_UGT:
-      case ICMP_UGE:
-      case ICMP_ULT:
-      case ICMP_ULE:
-        Kind = IntegerKind::Unsigned;
-        break;
-      default:
-        break;
-      }
-
       mlir::Location Loc = C.getLocation(I);
 
       revng_log(ExpressionLog, "LHS subexpression");
@@ -1285,58 +1224,58 @@ private:
       mlir::Value Rhs = (LoggerIndent(ExpressionLog),
                          rc_recur emitExpression(I->getOperand(1), Loc));
 
-      auto *IntegerType = llvm::cast<llvm::IntegerType>(V->getType());
-      auto Type = C.importLLVMIntegerType(IntegerType, IntegerKind::Signed);
+      llvm::IntegerType *VType = llvm::cast<llvm::IntegerType>(V->getType());
+      mlir::Type BooleanType = C.importLLVMIntegerType(VType,
+                                                       IntegerKind::Signed);
 
-      auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) -> mlir::Value {
-        switch (I->getPredicate()) {
-        case ICMP_EQ:
-          revng_log(ExpressionLog, "CmpEqOp");
-          return Builder.create<CmpEqOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_NE:
-          revng_log(ExpressionLog, "CmpNeOp");
-          return Builder.create<CmpNeOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_SGT:
-          revng_log(ExpressionLog, "SCmpGtOp");
-          return Builder.create<SCmpGtOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_UGT:
-          revng_log(ExpressionLog, "UCmpGtOp");
-          return Builder.create<UCmpGtOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_SGE:
-          revng_log(ExpressionLog, "SCmpGeOp");
-          return Builder.create<SCmpGeOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_UGE:
-          revng_log(ExpressionLog, "UCmpGeOp");
-          return Builder.create<UCmpGeOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_SLT:
-          revng_log(ExpressionLog, "SCmpLtOp");
-          return Builder.create<SCmpLtOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_ULT:
-          revng_log(ExpressionLog, "UCmpLtOp");
-          return Builder.create<UCmpLtOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_SLE:
-          revng_log(ExpressionLog, "SCmpLeOp");
-          return Builder.create<SCmpLeOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_ULE:
-          revng_log(ExpressionLog, "UCmpLeOp");
-          return Builder.create<UCmpLeOp>(Loc, Type, Lhs, Rhs);
-        default:
-          revng_abort("Unsupported LLVM comparison predicate.");
-        }
-      };
+      mlir::Type Type = C.importLLVMType(I->getOperand(0)->getType());
+      revng_assert(Type == C.importLLVMType(I->getOperand(1)->getType()));
 
-      // Pointer comparisons are handled separately. Non-signed comparisons are
-      // emitted directly as pointer comparisons. For signed comparisons, the
-      // pointer operands are converted to integers before the comparison.
-      if (llvm::isa<llvm::PointerType>(I->getOperand(0)->getType())) {
-        if (not I->isSigned())
-          rc_return EmitOp(Lhs, Rhs);
+      // Non-signed pointer comparisons are emitted directly. For signed
+      // comparisons, the pointer operands are converted to integers before
+      // applying the comparison.
+      if (I->isSigned() and mlir::isa<PointerType>(Type))
+        Type = C.getIntptrType();
 
-        Lhs = emitImplicitBitcast(Loc, Lhs, C.getIntptrType());
-        Rhs = emitImplicitBitcast(Loc, Rhs, C.getIntptrType());
+      Lhs = emitImplicitBitcast(Loc, Lhs, Type);
+      Rhs = emitImplicitBitcast(Loc, Rhs, Type);
+
+      switch (I->getPredicate()) {
+        using enum llvm::ICmpInst::Predicate;
+
+      case ICMP_EQ:
+        revng_log(ExpressionLog, "CmpEqOp");
+        rc_return Builder.create<CmpEqOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_NE:
+        revng_log(ExpressionLog, "CmpNeOp");
+        rc_return Builder.create<CmpNeOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_SGT:
+        revng_log(ExpressionLog, "SCmpGtOp");
+        rc_return Builder.create<SCmpGtOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_UGT:
+        revng_log(ExpressionLog, "UCmpGtOp");
+        rc_return Builder.create<UCmpGtOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_SGE:
+        revng_log(ExpressionLog, "SCmpGeOp");
+        rc_return Builder.create<SCmpGeOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_UGE:
+        revng_log(ExpressionLog, "UCmpGeOp");
+        rc_return Builder.create<UCmpGeOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_SLT:
+        revng_log(ExpressionLog, "SCmpLtOp");
+        rc_return Builder.create<SCmpLtOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_ULT:
+        revng_log(ExpressionLog, "UCmpLtOp");
+        rc_return Builder.create<UCmpLtOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_SLE:
+        revng_log(ExpressionLog, "SCmpLeOp");
+        rc_return Builder.create<SCmpLeOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_ULE:
+        revng_log(ExpressionLog, "UCmpLeOp");
+        rc_return Builder.create<UCmpLeOp>(Loc, BooleanType, Lhs, Rhs);
+      default:
+        revng_abort("Unsupported LLVM comparison predicate.");
       }
-
-      rc_return emitIntegerOp(Loc, Kind, EmitOp, Lhs, Rhs);
     }
 
     if (auto I = llvm::dyn_cast<llvm::CastInst>(V)) {
