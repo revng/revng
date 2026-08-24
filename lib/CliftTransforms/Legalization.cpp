@@ -327,16 +327,15 @@ struct ShiftPromotionPattern : ArithmeticPromotionPattern<OpT> {
 
 //===---------------------------- Sign matching ---------------------------===//
 
-template<typename OpT, bool IsSigned, unsigned... OperandIndices>
-struct ArithmeticSignPattern : mlir::OpRewritePattern<OpT> {
-  explicit ArithmeticSignPattern(mlir::MLIRContext *Context) :
-    mlir::OpRewritePattern<OpT>(Context, /*benefit=*/0) {}
-
-  static constexpr unsigned Indices[] = { OperandIndices... };
+// Ensures that the signedness of arithmetic operands matches the semantics of
+// the operation, where the operand signedness affects semantics.
+template<typename OpT, bool IsSigned, bool RewriteResult, bool RewriteRHS>
+struct SignMatchingPattern : mlir::OpRewritePattern<OpT> {
+  using mlir::OpRewritePattern<OpT>::OpRewritePattern;
 
   mlir::LogicalResult
   matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
-    mlir::Type OldType = Op->getOperand(Indices[0]).getType();
+    mlir::Type OldType = Op->getOperand(0).getType();
 
     if (isSigned(OldType) == IsSigned)
       return mlir::failure();
@@ -346,17 +345,38 @@ struct ArithmeticSignPattern : mlir::OpRewritePattern<OpT> {
                                                      IntegerKind::Unsigned,
                                           getObjectSize(OldType));
 
-    modifyResultType(Rewriter, Op, NewType);
+    if constexpr (RewriteResult)
+      modifyResultType(Rewriter, Op, NewType);
 
-    for (unsigned Index : Indices) {
-      mlir::OpOperand &Operand = Op->getOpOperand(Index);
-      revng_assert(equivalent(Operand.get().getType(), OldType));
-      modifyOperandType(Rewriter, Operand, NewType);
-    }
+    modifyOperandType(Rewriter, Op->getOpOperand(0), NewType);
+
+    if constexpr (RewriteRHS)
+      modifyOperandType(Rewriter, Op->getOpOperand(1), NewType);
 
     return mlir::success();
   }
 };
+
+template<typename OpT, bool IsSigned>
+using ArithmeticSignMatchingPattern = //
+  SignMatchingPattern<OpT,
+                      IsSigned,
+                      /*RewriteResult=*/true,
+                      /*RewriteRHS=*/true>;
+
+template<typename OpT, bool IsSigned>
+using ShiftSignMatchingPattern = //
+  SignMatchingPattern<OpT,
+                      IsSigned,
+                      /*RewriteResult=*/true,
+                      /*RewriteRHS=*/false>;
+
+template<typename OpT, bool IsSigned>
+using ComparisonSignMatchingPattern = //
+  SignMatchingPattern<OpT,
+                      IsSigned,
+                      /*RewriteResult=*/false,
+                      /*RewriteRHS=*/true>;
 
 //===----------------------------- Immediates -----------------------------===//
 
@@ -509,20 +529,22 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   {
     mlir::RewritePatternSet Set(Context);
 
-    Set.add<ArithmeticSignPattern<SDivOp, true, 0, 1>>(Context);
-    Set.add<ArithmeticSignPattern<UDivOp, false, 0, 1>>(Context);
-    Set.add<ArithmeticSignPattern<SRemOp, true, 0, 1>>(Context);
-    Set.add<ArithmeticSignPattern<URemOp, false, 0, 1>>(Context);
-    Set.add<ArithmeticSignPattern<SarOp, true, 0>>(Context);
-    Set.add<ArithmeticSignPattern<ShrOp, false, 0>>(Context);
-    Set.add<ArithmeticSignPattern<SCmpLtOp, true, 0, 1>>(Context);
-    Set.add<ArithmeticSignPattern<UCmpLtOp, false, 0, 1>>(Context);
-    Set.add<ArithmeticSignPattern<SCmpGtOp, true, 0, 1>>(Context);
-    Set.add<ArithmeticSignPattern<UCmpGtOp, false, 0, 1>>(Context);
-    Set.add<ArithmeticSignPattern<SCmpLeOp, true, 0, 1>>(Context);
-    Set.add<ArithmeticSignPattern<UCmpLeOp, false, 0, 1>>(Context);
-    Set.add<ArithmeticSignPattern<SCmpGeOp, true, 0, 1>>(Context);
-    Set.add<ArithmeticSignPattern<UCmpGeOp, false, 0, 1>>(Context);
+    Set.add<ArithmeticSignMatchingPattern<SDivOp, true>>(Context);
+    Set.add<ArithmeticSignMatchingPattern<UDivOp, false>>(Context);
+    Set.add<ArithmeticSignMatchingPattern<SRemOp, true>>(Context);
+    Set.add<ArithmeticSignMatchingPattern<URemOp, false>>(Context);
+
+    Set.add<ShiftSignMatchingPattern<SarOp, true>>(Context);
+    Set.add<ShiftSignMatchingPattern<ShrOp, false>>(Context);
+
+    Set.add<ComparisonSignMatchingPattern<SCmpLtOp, true>>(Context);
+    Set.add<ComparisonSignMatchingPattern<UCmpLtOp, false>>(Context);
+    Set.add<ComparisonSignMatchingPattern<SCmpGtOp, true>>(Context);
+    Set.add<ComparisonSignMatchingPattern<UCmpGtOp, false>>(Context);
+    Set.add<ComparisonSignMatchingPattern<SCmpLeOp, true>>(Context);
+    Set.add<ComparisonSignMatchingPattern<UCmpLeOp, false>>(Context);
+    Set.add<ComparisonSignMatchingPattern<SCmpGeOp, true>>(Context);
+    Set.add<ComparisonSignMatchingPattern<UCmpGeOp, false>>(Context);
 
     auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
     if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
