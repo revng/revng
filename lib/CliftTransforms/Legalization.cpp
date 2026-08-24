@@ -249,6 +249,28 @@ struct ResizeDecayCastPattern : PointerResizePattern<clift::DecayOp> {
   }
 };
 
+template<typename OpT>
+struct PointerComparisonPattern : mlir::OpRewritePattern<OpT> {
+  using mlir::OpRewritePattern<OpT>::OpRewritePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
+    auto Type = clift::unwrapped_dyn_cast<PointerType>(Op.getLhs().getType());
+
+    if (not Type)
+      return mlir::failure();
+
+    mlir::Type NewType = IntegerType::get(Op.getContext(),
+                                          IntegerKind::Signed,
+                                          Type.getPointerSize());
+
+    modifyOperandType(Rewriter, Op->getOpOperand(0), NewType);
+    modifyOperandType(Rewriter, Op->getOpOperand(1), NewType);
+
+    return mlir::success();
+  }
+};
+
 struct BooleanCanonicalizationPattern
   : mlir::OpTraitRewritePattern<clift::ReturnsBoolean> {
   IntegerType IntType;
@@ -503,6 +525,11 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     Set.add<PointerResizePattern<CallOp>>(Context, DataModel);
     Set.add<ResizeAddressofPattern>(Context, DataModel);
     Set.add<ResizeDecayCastPattern>(Context, DataModel);
+
+    Set.add<PointerComparisonPattern<SCmpLtOp>>(Context);
+    Set.add<PointerComparisonPattern<SCmpGtOp>>(Context);
+    Set.add<PointerComparisonPattern<SCmpLeOp>>(Context);
+    Set.add<PointerComparisonPattern<SCmpGeOp>>(Context);
 
     Set.add<BooleanCanonicalizationPattern>(Context, DataModel);
 

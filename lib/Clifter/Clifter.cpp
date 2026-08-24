@@ -1231,12 +1231,6 @@ private:
       mlir::Type Type = C.importLLVMType(I->getOperand(0)->getType());
       revng_assert(Type == C.importLLVMType(I->getOperand(1)->getType()));
 
-      // Non-signed pointer comparisons are emitted directly. For signed
-      // comparisons, the pointer operands are converted to integers before
-      // applying the comparison.
-      if (I->isSigned() and mlir::isa<PointerType>(Type))
-        Type = C.getIntptrType();
-
       Lhs = emitImplicitBitcast(Loc, Lhs, Type);
       Rhs = emitImplicitBitcast(Loc, Rhs, Type);
 
