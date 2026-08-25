@@ -184,28 +184,36 @@ mlir::Type clift::getExpressionType(mlir::Region &R) {
 
 //===---------------------------- Region types ----------------------------===//
 
-template<typename OpInterface>
-static bool verifyRegionContent(mlir::Region &R) {
+bool clift::impl::verifyStatementRegion(mlir::Region &R) {
   if (not R.hasOneBlock())
     return false;
 
-  for (mlir::Operation &Op : R.front()) {
-    if (not mlir::isa<OpInterface>(&Op))
-      return false;
-  }
+  mlir::Block &Block = R.front();
+  mlir::Block::iterator Begin = Block.begin();
+  mlir::Block::iterator End = Block.end();
 
-  return true;
-}
-
-bool clift::impl::verifyStatementRegion(mlir::Region &R) {
-  return verifyRegionContent<StatementOpInterface>(R);
+  return std::all_of(Begin, End, [](mlir::Operation &Op) {
+    return mlir::isa<StatementOpInterface>(&Op);
+  });
 }
 
 bool clift::impl::verifyExpressionRegion(mlir::Region &R) {
-  if (not verifyRegionContent<ExpressionOpInterface>(R))
+  if (not R.hasOneBlock())
     return false;
 
-  return static_cast<bool>(getExpressionYieldOp(R));
+  mlir::Block &Block = R.front();
+  mlir::Block::iterator Begin = Block.begin();
+  mlir::Block::iterator End = Block.end();
+
+  if (Begin == End)
+    return false;
+
+  if (not mlir::isa<YieldOp>(&*--End))
+    return false;
+
+  return std::all_of(Begin, End, [](mlir::Operation &Op) {
+    return mlir::isa<ExpressionOpInterface>(&Op) and Op.hasOneUse();
+  });
 }
 
 bool clift::impl::verifyConditionRegion(mlir::Region &R) {
