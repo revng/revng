@@ -128,7 +128,12 @@ public:
   }
 
   void emitIntrinsicMacro(llvm::StringRef Identifier) {
-    Tokens.emitMacro(Identifier);
+    std::string FullIdentifier;
+    {
+      llvm::raw_string_ostream Out(FullIdentifier);
+      Out << "rr_" << Identifier;
+    }
+    Tokens.emitMacro(FullIdentifier);
   }
 
   static llvm::StringRef getIntrinsicIdentifier(mlir::Operation *Op) {

@@ -565,6 +565,9 @@ model::CNameBuilder::isNameStaticallyReserved(llvm::StringRef Name) const {
   // Hardcoded prefixes
   //
 
+  if (Name.starts_with("rr_"))
+    return revng::createError("it is reserved for runtime library functions");
+
   // TODO: We can be more careful with these and only reserve the ones we use,
   //       We should take a fresh look once `CTargetImplementation` is mature
   //       enough to give us the list.

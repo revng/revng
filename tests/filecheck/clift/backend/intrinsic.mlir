@@ -19,7 +19,7 @@ module attributes {clift.module} {
   clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    // CHECK: truncate(int32_t, add(imm(int512_t, 0), imm(int512_t, 1)));
+    // CHECK: rr_truncate(int32_t, rr_add(rr_imm(int512_t, 0), rr_imm(int512_t, 1)));
     clift.expr {
       %0 = clift.imm 0 {clift.intrinsic} : !int512_t
       %1 = clift.imm 1 {clift.intrinsic} : !int512_t
