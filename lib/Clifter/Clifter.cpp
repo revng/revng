@@ -20,6 +20,7 @@
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/Clifter/Clifter.h"
 #include "revng/LocalVariables/LocalVariableHelpers.h"
+#include "revng/LocalVariables/Statements.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
@@ -1700,9 +1701,19 @@ private:
       if (&I == Terminal)
         break;
 
+      // `revng::isStatement` describes, for the passes running before us,
+      // which instructions get a statement of their own. Check that its
+      // description keeps matching what we actually do.
+      bool EmittedStatement = false;
+      auto CheckPrediction = llvm::make_scope_exit([&] {
+        revng_assert(EmittedStatement == revng::isStatement(I));
+      });
+
       // Alloca instructions get special handling and are emitted as local
       // variables in Clift:
       if (auto *A = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
+        EmittedStatement = true;
+
         // Dynamic-size allocas are not supported: callers must encode the
         // size in an `ArrayType` instead of using `alloca`'s ArraySize.
         revng_assert(not A->isArrayAllocation());
@@ -1762,23 +1773,21 @@ private:
         continue;
       }
 
-      // Some call instructions are only used to represent information about
-      // the scope-graph structure. Such calls are not emitted in Clift.
-      if (const llvm::CallInst *Call = llvm::dyn_cast<llvm::CallInst>(&I)) {
-        if (isCallToTagged(Call, FunctionTags::GotoBlockMarker)) {
-          HasGotoMarker = true;
-          continue;
-        }
-
-        // Scope closer markers are just ignored. They only affect the scope
-        // graph structure.
-        if (isCallToTagged(Call, FunctionTags::ScopeCloserMarker))
-          continue;
+      // The scope-graph markers only carry the structure of the scope graph
+      // and are not emitted. The goto marker is matched separately because it
+      // also changes how the terminator is handled below.
+      if (isCallToTagged(&I, FunctionTags::GotoBlockMarker)) {
+        HasGotoMarker = true;
+        continue;
       }
+
+      if (revng::isNotEmitted(I))
+        continue;
 
       // Finally, any instruction with no uses represents the root of an
       // expression tree. Any such tree is emitted as an expression statement.
       if (I.use_empty()) {
+        EmittedStatement = true;
         mlir::Location Loc = C.getLocation(&I);
         auto Op = Builder.create<ExpressionStatementOp>(Loc);
         emitExpressionTree(Op.getExpression(), &I, Loc);
