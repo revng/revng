@@ -47,19 +47,45 @@ static unsigned approximateRegionWeight(mlir::Region &R) {
   return Weight;
 }
 
-// A non-fallthrough region leaves in a definite way when control does so in a
-// single known manner - a continue, break, goto or return - as opposed to a
-// Mixed region, whose nested branches leave in differing ways.
-static bool leavesDefinitely(mlir::Region &R) {
-  return isIndirectlyNoFallthrough(R) != NoFallthroughKind::Mixed;
+// Precedence of a branch region as a hoisting target: the region ranking first
+// (the lowest value) is hoisted.
+enum class HoistPrecedence : unsigned {
+  Continue, // leaves via a continue
+  Return, // leaves via a return
+  Break, // leaves via a break
+  Goto, // leaves via a goto
+  Other, // leaves in more than one way
+};
+
+// Ranks a region by how it leaves. A region whose nested branches leave in
+// differing ways (Mixed) has no single precedence and ranks last. Using the
+// recursive classification, rather than just the last statement, lets a region
+// ending in a nested if or switch rank by the kind its branches agree on.
+static HoistPrecedence hoistPrecedence(mlir::Region &R) {
+  switch (isIndirectlyNoFallthrough(R)) {
+  case NoFallthroughKind::Continue:
+    return HoistPrecedence::Continue;
+  case NoFallthroughKind::Return:
+    return HoistPrecedence::Return;
+  case NoFallthroughKind::Break:
+    return HoistPrecedence::Break;
+  case NoFallthroughKind::Goto:
+    return HoistPrecedence::Goto;
+  case NoFallthroughKind::Mixed:
+    return HoistPrecedence::Other;
+  case NoFallthroughKind::FallsThrough:
+    // selectByPrecedence only runs when every region is non-fallthrough.
+    break;
+  }
+  revng_abort();
 }
 
-// When no branch region falls through, any of them may be hoisted. This
-// generalises the heuristic originally used to choose between the two branches
-// of an if: prefer a region leaving in a definite way, then the lowest weight.
-static unsigned selectByHeuristic(llvm::MutableArrayRef<mlir::Region> Regions) {
+// When no branch region falls through, any of them may be hoisted. Pick one by
+// precedence, preferring the lowest weight on a tie.
+static unsigned
+selectByPrecedence(llvm::MutableArrayRef<mlir::Region> Regions) {
   auto Rank = [&Regions](unsigned I) {
-    return std::pair(not leavesDefinitely(Regions[I]),
+    return std::pair(hoistPrecedence(Regions[I]),
                      approximateRegionWeight(Regions[I]));
   };
 
@@ -95,8 +121,8 @@ selectHoistingTarget(llvm::MutableArrayRef<mlir::Region> Regions) {
     return Fallthrough.front();
 
   // No branch falls through, so the whole operation is non-fallthrough and any
-  // branch may be hoisted. The heuristic picks one.
-  return selectByHeuristic(Regions);
+  // branch may be hoisted. Precedence picks one.
+  return selectByPrecedence(Regions);
 }
 
 // Moves the statements of the branch region \p R out of \p Op, into the nesting
@@ -188,7 +214,7 @@ struct SwitchTerminalBranchComplementHoisting
     //
     // Dropping a case is in fact never valid, which is subtle: a case is
     // hoisted only when the default does not fall through, either because the
-    // case is the sole fall-through branch, or because the heuristic ran, which
+    // case is the sole fall-through branch, or because precedence ran, which
     // requires every branch, the default included, to be non-fallthrough.
     // Removing the case would then route its value to that default rather than
     // to the hoisted code. A switch without a default hoists nothing anyway,
