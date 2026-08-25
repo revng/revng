@@ -51,14 +51,21 @@ static unsigned approximateRegionWeight(mlir::Region &R) {
 // Attempts to select one branch of an if-statement to be inlined into the
 // nesting scope. If neither branch should be hoisted, the result is nullopt.
 static std::optional<HoistingTarget> selectHoistingTarget(IfOp If) {
+  // Both empty region shapes are meaningful for an else, and are handled in
+  // turn: a block-less region is an absent else clause, leaving nothing to
+  // hoist, while an empty block is an else clause doing nothing, which is
+  // dropped.
   if (If.getElse().empty())
     return std::nullopt;
 
-  if (If.getThen().empty())
-    return HoistingTarget::Then;
-
   if (If.getElse().front().empty())
     return HoistingTarget::Else;
+
+  // A then clause is instead always present, so its two empty region shapes
+  // mean the same thing and are tested together. Inverting the condition drops
+  // an empty then.
+  if (isEmptyRegionOrBlock(If.getThen()))
+    return HoistingTarget::Then;
 
   bool ThenFallthrough = not isIndirectlyNoFallthrough(If.getThen());
   bool ElseFallthrough = not isIndirectlyNoFallthrough(If.getElse());

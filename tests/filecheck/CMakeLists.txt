@@ -390,6 +390,7 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/terminal-branch-complement-hoisting-both-goto.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-else-goto.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-empty-else.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-empty-then-block.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-empty-then.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-then-goto.mlir
     clift/statement-rewrites/trivial-jump-elimination.mlir
