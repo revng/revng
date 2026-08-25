@@ -392,6 +392,11 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/terminal-branch-complement-hoisting-empty-else.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-empty-then-block.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-empty-then.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-all-nofallthrough.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-case.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-default.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-no-default.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-two-fallthrough.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-then-goto.mlir
     clift/statement-rewrites/trivial-jump-elimination.mlir
     clift/statement-rewrites/trivial-return-elimination-double.mlir
