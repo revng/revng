@@ -3,7 +3,7 @@
 #
 
 revng_add_analyses_library_internal(revngLocalVariables
-                                    LocalVariableBuilder.cpp)
+                                    LocalVariableBuilder.cpp Statements.cpp)
 
 target_link_libraries(revngLocalVariables revngABI revngModel revngSupport
                       ${LLVM_LIBRARIES})

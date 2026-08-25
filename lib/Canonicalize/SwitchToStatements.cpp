@@ -840,11 +840,6 @@ public:
   }
 
 private:
-  bool isSerializable(const Instruction &I) const {
-    const Type *T = I.getType();
-    return not T->isVoidTy();
-  }
-
   void pick(Instruction *I) {
     LoggerIndent Indent{ Log };
     revng_log(Log, "pick(I), I: " << dumpToString(I, *MST));

@@ -428,6 +428,7 @@ set(FILECHECK_TESTS
     llvm-passes/remove-extractvalues.ll
     llvm-passes/scope-graph-dumper.ll
     llvm-passes/select-scope.ll
+    llvm-passes/split-exponential-dataflow.ll
     llvm-passes/switch-to-statements.ll
     model/drop-types/ArrayPropagation.yml
     model/drop-types/DropStructField.yml

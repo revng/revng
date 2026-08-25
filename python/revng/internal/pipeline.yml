@@ -414,7 +414,6 @@ branches:
             - exit-ssa
             - arithmetic-to-gep
             - extractvalue-to-gep
-            - split-exponential-dataflow
             - dce
       - pipe: switch-to-statements
         arguments: [llvm-functions]
@@ -422,6 +421,7 @@ branches:
         arguments: [llvm-functions]
         configuration:
           passes:
+            - split-exponential-dataflow
             - remove-constant-array-returns
             - dagify
             - inline-divergent-scopes

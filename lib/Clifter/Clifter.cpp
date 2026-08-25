@@ -20,6 +20,7 @@
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/Clifter/Clifter.h"
 #include "revng/LocalVariables/LocalVariableHelpers.h"
+#include "revng/LocalVariables/Statements.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
@@ -752,15 +753,6 @@ class ClifterImpl::FunctionClifter {
   // variable.
   llvm::DenseMap<const llvm::AllocaInst *, mlir::Value> AllocaMapping;
 
-  // Maps an LLVM CallInst that returns SPTAR to the Clift LocalVariableOp that
-  // holds the return value.
-  // All LLVM uses of the CallInst use it as a pointer, as if it was pointing to
-  // the storage holding the return value. This is a hack, and should be avoided
-  // in the future. Until then, for the generation of uses of the SPTAR call in
-  // Clift, the address of the LocalVariablOp must be taken, to preserve
-  // semantic.
-  llvm::DenseMap<const llvm::CallInst *, mlir::Value> SPTARCallVariableMapping;
-
 public:
   static clift::FunctionOp import(ClifterImpl &C, const llvm::Function *F) {
     const model::Function *MF = llvmToModelFunction(C.Model, *F);
@@ -1419,19 +1411,6 @@ private:
 
       mlir::Location Loc = C.getLocation(I);
 
-      if (auto It = SPTARCallVariableMapping.find(I);
-          It != SPTARCallVariableMapping.end()) {
-        revng_log(ExpressionLog, "<existing value>");
-
-        mlir::Value Value = It->second;
-
-        Value = Builder.create<AddressofOp>(SurroundingLocation,
-                                            C.getPointerType(Value.getType()),
-                                            Value);
-
-        rc_return Value;
-      }
-
       // Any call without a prototype is considered a helper function and is
       // imported separately:
       if (not I->hasMetadata(PrototypeMDName))
@@ -1685,17 +1664,6 @@ private:
     Builder.create<GotoOp>(Loc, Iterator->second.Label);
   }
 
-  bool returnsAggregate(const llvm::CallInst *Call) {
-    if (not Call->hasMetadata(PrototypeMDName))
-      return false;
-
-    const auto *ModelCallType = getCallSitePrototype(C.Model, Call);
-    auto Layout = abi::FunctionType::Layout::make(*ModelCallType);
-    namespace ReturnMethod = abi::FunctionType::ReturnMethod;
-
-    return Layout.returnMethod() == ReturnMethod::ModelAggregate;
-  }
-
   // This function emits a single basic block as part of a larger C scope.
   // Nested scopes reached through branches at the end of this basic block are
   // emitted recursively using emitScope.
@@ -1733,9 +1701,19 @@ private:
       if (&I == Terminal)
         break;
 
+      // `revng::isStatement` describes, for the passes running before us,
+      // which instructions get a statement of their own. Check that its
+      // description keeps matching what we actually do.
+      bool EmittedStatement = false;
+      auto CheckPrediction = llvm::make_scope_exit([&] {
+        revng_assert(EmittedStatement == revng::isStatement(I));
+      });
+
       // Alloca instructions get special handling and are emitted as local
       // variables in Clift:
       if (auto *A = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
+        EmittedStatement = true;
+
         // Dynamic-size allocas are not supported: callers must encode the
         // size in an `ArrayType` instead of using `alloca`'s ArraySize.
         revng_assert(not A->isArrayAllocation());
@@ -1795,50 +1773,21 @@ private:
         continue;
       }
 
-      // Call instructions require special handling:
-      // 1. Some call instructions are only used to represent information about
-      //    the scope-graph structure. Such calls are not emitted in Clift.
-      // 2. Some calls must only be evaluated once and as such are emitted as
-      //    local variable initializers, with any further use of that call value
-      //    during expression import being redirected to instead use the
-      //    local variable created here.
-      if (const llvm::CallInst *Call = llvm::dyn_cast<llvm::CallInst>(&I)) {
-        if (isCallToTagged(Call, FunctionTags::GotoBlockMarker)) {
-          HasGotoMarker = true;
-          continue;
-        }
-
-        // Scope closer markers are just ignored. They only affect the scope
-        // graph structure.
-        if (isCallToTagged(Call, FunctionTags::ScopeCloserMarker))
-          continue;
-
-        // Some function calls are emitted in local variable initializers.
-        if (returnsAggregate(Call)) {
-          mlir::Location Loc = C.getLocation(Call);
-
-          auto Op = Builder.create<ExpressionStatementOp>(Loc);
-
-          mlir::Value Local;
-          emitExpressionTreeImpl(Op.getExpression(), [&]() {
-            mlir::Value Initializer = emitExpression(Call, Loc);
-
-            mlir::Type Type = Initializer.getType();
-            Local = emitLocalDeclaration<LocalVariableOp>(Loc, Type);
-
-            return Builder.create<AssignOp>(Loc, Type, Local, Initializer);
-          });
-
-          auto [_, Inserted] = SPTARCallVariableMapping.try_emplace(Call,
-                                                                    Local);
-          revng_assert(Inserted);
-          continue;
-        }
+      // The scope-graph markers only carry the structure of the scope graph
+      // and are not emitted. The goto marker is matched separately because it
+      // also changes how the terminator is handled below.
+      if (isCallToTagged(&I, FunctionTags::GotoBlockMarker)) {
+        HasGotoMarker = true;
+        continue;
       }
+
+      if (revng::isNotEmitted(I))
+        continue;
 
       // Finally, any instruction with no uses represents the root of an
       // expression tree. Any such tree is emitted as an expression statement.
       if (I.use_empty()) {
+        EmittedStatement = true;
         mlir::Location Loc = C.getLocation(&I);
         auto Op = Builder.create<ExpressionStatementOp>(Loc);
         emitExpressionTree(Op.getExpression(), &I, Loc);
