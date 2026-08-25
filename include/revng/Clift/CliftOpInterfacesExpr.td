@@ -19,11 +19,13 @@ def Clift_CastOpInterface : Clift_OpInterface<"CastOpInterface",
       /*desc=*/"Returns the unique operand of this cast expression.",
       "mlir::Value", "getValue", (ins)
     >,
-    InterfaceMethod<
-      /*desc=*/"Returns the result of this cast expression.",
-      "mlir::Value", "getResult", (ins)
-    >,
   ];
+
+  let extraSharedClassDeclaration = [{
+    [[nodiscard]] mlir::Type getValueType() {
+      return this->getOperation()->getOperand(0).getType();
+    }
+  }];
 }
 
 #endif

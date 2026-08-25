@@ -122,6 +122,20 @@ def Clift_ExpressionOpInterface : Clift_OpInterface<"ExpressionOpInterface"> {
       }]
     >,
   ];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] mlir::Value getResult() {
+      return this->getOperation()->getResult(0);
+    }
+
+    [[nodiscard]] operator mlir::Value() {
+      return this->getOperation()->getResult(0);
+    }
+
+    [[nodiscard]] mlir::Type getType() {
+      return this->getOperation()->getResult(0).getType();
+    }
+  }];
 }
 
 def Clift_StatementRegionOpInterface

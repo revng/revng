@@ -575,10 +575,6 @@ def Clift_LocalVariableOp
   let hasVerifier = 1;
 
   let extraClassDeclaration = [{
-    mlir::Type getType() {
-      return getResult().getType();
-    }
-
     unsigned getExpressionRegionCount() {
       return 1;
     }
