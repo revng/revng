@@ -751,19 +751,12 @@ def Clift_UndefOp : Clift_ExpressionOp<"undef"> {
   }];
 }
 
-def Clift_YieldOp : Clift_Op<"yield", [Clift_ExpressionOpInterface,
-                                       Terminator,
-                                       NoRegionArguments]> {
+def Clift_YieldOp : Clift_Op<"yield", [Terminator]> {
 
   let arguments = (ins Clift_AnyAddressableType:$value);
 
   let assemblyFormat = [{
     $value attr-dict `:` type($value)
-  }];
-
-  let extraClassDeclaration = [{
-    [[nodiscard]] bool isDiscardedOperand(mlir::OpOperand &Operand);
-    [[nodiscard]] bool isBooleanTestedOperand(mlir::OpOperand &Operand);
   }];
 }
 

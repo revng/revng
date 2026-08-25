@@ -192,9 +192,6 @@ private:
 /// Helper function used to verify if an `ExpressionOpInterface` is
 /// `PointerType`d
 static bool isPointerTyped(ExpressionOpInterface Expr) {
-  if (mlir::isa<YieldOp>(Expr.getOperation()))
-    return false;
-
   return clift::unwrapped_isa<clift::PointerType>(Expr->getResult(0).getType());
 }
 
