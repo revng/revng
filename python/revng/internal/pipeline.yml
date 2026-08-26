@@ -460,6 +460,7 @@ branches:
             - emit-field-accesses
             - canonicalize
             - optimize-expressions
+            - post-process-expressions
             - terminal-branch-complement-hoisting
             - tighten-variable-scopes
             - hoist-variable-initializers

@@ -11,6 +11,7 @@ revng_add_library_internal(
   EmitFieldAccesses/FieldAccessReplacement.cpp
   EmitFieldAccesses/PointerArithmetic.cpp
   Expressions.cpp
+  ExpressionPostProcessing.cpp
   ImmediateRadixDeduction.cpp
   ImplicitCastElision.cpp
   LabelMerging.cpp

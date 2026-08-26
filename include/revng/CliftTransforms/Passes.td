@@ -48,6 +48,13 @@ def CliftEmitFieldAccesses : Clift_Pass<"emit-field-accesses", "clift::FunctionO
   let constructor = "clift::createEmitFieldAccessesPass()";
 }
 
+def CliftExpressionPostProcessing : Clift_Pass<"post-process-expressions",
+                                               "clift::FunctionOp"> {
+  let summary = "Post process Clift expressions";
+  let constructor = "clift::createExpressionPostProcessingPass()";
+  let options = RewritePassUtils.options;
+}
+
 def CliftTerminalBranchComplementHoisting
   : Clift_Pass<"terminal-branch-complement-hoisting", "clift::FunctionOp"> {
 
