@@ -236,7 +236,7 @@ bool Replacement::replace(mlir::PatternRewriter &Rewriter,
   if (std::ranges::all_of(FieldAccesses, IsZeroOffsetArrayAccess))
     return false;
 
-  mlir::Type PointerToReplaceType = PointerToReplace->getResult(0).getType();
+  mlir::Type PointerToReplaceType = PointerToReplace.getType();
 
   // We need the `PointerSize` in order to generate the `ImmediateOp`s used to
   // access the `struct` fields and `array` members, and to generate the
@@ -439,7 +439,7 @@ bool Replacement::replace(mlir::PatternRewriter &Rewriter,
 
     // Collect the `Use`s before the iteration, to avoid invalidation
     llvm::SmallVector<mlir::OpOperand *> Uses;
-    for (auto &Use : PointerToReplace->getResult(0).getUses()) {
+    for (auto &Use : PointerToReplace.getResult().getUses()) {
       Uses.push_back(&Use);
     }
 
@@ -465,7 +465,7 @@ bool Replacement::replace(mlir::PatternRewriter &Rewriter,
       }
 
       auto RichPointeeType = RichPointerType.getPointeeType();
-      auto IndirectionResultType = Indirection.getResult().getType();
+      auto IndirectionResultType = Indirection.getType();
 
       // Size guard: the rich `pointee` must have the same byte size as the
       // `IndirectionOp` result for the retyping to be safe
@@ -542,7 +542,6 @@ bool replaceFieldAccess(mlir::PatternRewriter &Rewriter,
 
   // Derive the `PointerBitWidth` from the `PointerToReplace` type
   unsigned PointerBitWidth = clift::unwrapped_cast<PointerType>(PointerToReplace
-                                                                  ->getResult(0)
                                                                   .getType())
                                .getPointerSize()
                              * 8;

@@ -161,8 +161,8 @@ private:
   }
 
   bool isImplicitConversion(CastOpInterface Cast) {
-    mlir::Type DstT = unwrapTypedefs(Cast.getResult().getType());
-    mlir::Type SrcT = unwrapTypedefs(Cast.getValue().getType());
+    mlir::Type DstT = unwrapTypedefs(Cast.getType());
+    mlir::Type SrcT = unwrapTypedefs(Cast.getValueType());
 
     if (mlir::isa<IntegralType>(SrcT) and mlir::isa<IntegralType>(DstT))
       return true;
@@ -218,7 +218,7 @@ private:
       if (not Cast)
         continue;
 
-      mlir::Type CastOperandType = Cast.getValue().getType();
+      mlir::Type CastOperandType = Cast.getValueType();
       if (not unwrapped_isa<IntegralType>(CastOperandType))
         continue;
 

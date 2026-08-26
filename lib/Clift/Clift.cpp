@@ -1257,7 +1257,7 @@ void WhileOp::build(mlir::OpBuilder &Builder,
 //===------------------------------ StringOp ------------------------------===//
 
 mlir::LogicalResult StringOp::verify() {
-  auto ArrayT = mlir::dyn_cast<ArrayType>(getResult().getType());
+  auto ArrayT = mlir::dyn_cast<ArrayType>(getType());
   if (not ArrayT or not isConst(ArrayT))
     return emitOpError() << getOperationName()
                          << " result must have const array type.";
@@ -1315,7 +1315,7 @@ static void printCliftPointerArithmeticOpTypes(mlir::OpAsmPrinter &Printer,
   Printer << Rhs;
 }
 
-static mlir::LogicalResult verifyPointerArithmeticOp(mlir::Operation *Op) {
+static mlir::LogicalResult verifyPointerArithmeticOp(ExpressionOpInterface Op) {
   mlir::Type LhsT = Op->getOperand(0).getType();
   mlir::Type RhsT = Op->getOperand(1).getType();
 
@@ -1343,7 +1343,7 @@ static mlir::LogicalResult verifyPointerArithmeticOp(mlir::Operation *Op) {
   if (not clift::unwrapped_isa<ObjectType>(PtrType.getPointeeType()))
     return Op->emitOpError() << "operand pointee must have object type.";
 
-  if (Op->getResult(0).getType() != removeConst(LhsPT ? LhsT : RhsT))
+  if (Op.getType() != removeConst(LhsPT ? LhsT : RhsT))
     return Op->emitOpError() << "result and pointer operand types must match.";
 
   return mlir::success();
@@ -1387,7 +1387,7 @@ mlir::LogicalResult PtrDiffOp::verify() {
     return emitOpError() << getOperationName()
                          << " operand pointee must have object type.";
 
-  auto IntType = mlir::dyn_cast<IntegerType>(getResult().getType());
+  auto IntType = mlir::dyn_cast<IntegerType>(getType());
   if (not IntType or not IntType.isSigned()
       or IntType.getSize() != LHS.getPointerSize())
     return emitOpError() << getOperationName()
@@ -1400,9 +1400,9 @@ mlir::LogicalResult PtrDiffOp::verify() {
 //===------------------------------- DecayOp ------------------------------===//
 
 mlir::LogicalResult DecayOp::verify() {
-  auto ArgT = collapseTypedefs(getValue().getType());
+  auto ArgT = collapseTypedefs(getValueType());
 
-  auto PtrT = clift::unwrapped_dyn_cast<PointerType>(getResult().getType());
+  auto PtrT = clift::unwrapped_dyn_cast<PointerType>(getType());
   if (not PtrT)
     return emitOpError() << getOperationName()
                          << " result must have pointer type.";
@@ -1429,8 +1429,8 @@ mlir::LogicalResult DecayOp::verify() {
 //===----------------------------- PtrResizeOp ----------------------------===//
 
 mlir::LogicalResult PtrResizeOp::verify() {
-  auto ResT = getResult().getType();
-  auto ArgT = getValue().getType();
+  auto ResT = getType();
+  auto ArgT = getValueType();
 
   if (getObjectSize(ResT) == getObjectSize(ArgT))
     return emitOpError() << getOperationName()
@@ -1485,7 +1485,7 @@ mlir::LogicalResult AccessOp::verify() {
                          << " struct or union member index out of range.";
 
   auto FieldT = Fields[Index].getType();
-  if (FieldT != getResult().getType())
+  if (FieldT != getType())
     return emitOpError() << getOperationName()
                          << " result type must match the selected member type.";
 
@@ -1507,7 +1507,7 @@ mlir::LogicalResult SubscriptOp::verify() {
     return emitOpError() << getOperationName()
                          << " cannot dereference pointer to non-object type.";
 
-  if (getResult().getType() != PointeeT)
+  if (getType() != PointeeT)
     return emitOpError() << getOperationName()
                          << " result type must match the pointer type.";
 
@@ -1522,12 +1522,12 @@ UseOp::verifySymbolUses(mlir::SymbolTableCollection &SymbolTable) {
   mlir::Operation *Op = SymbolTable.lookupSymbolIn(Module, getSymbolNameAttr());
 
   if (auto V = mlir::dyn_cast_or_null<GlobalVariableOp>(Op)) {
-    if (getResult().getType() != V.getType())
+    if (getType() != V.getType())
       return emitOpError() << getOperationName()
                            << " result type must match the type of the global"
                               " variable being referenced.";
   } else if (auto F = mlir::dyn_cast_or_null<FunctionOp>(Op)) {
-    if (getResult().getType() != F.getFunctionType())
+    if (getType() != F.getFunctionType())
       return emitOpError() << getOperationName()
                            << " result type must match the type of the function"
                               " being referenced.";
@@ -1724,7 +1724,7 @@ mlir::LogicalResult CallOp::verify() {
                               " of the function, ignoring qualifiers.";
   }
 
-  if (getResult().getType() != removeConst(FuncType.getReturnType()))
+  if (getType() != removeConst(FuncType.getReturnType()))
     return emitOpError() << getOperationName()
                          << " result type must match the return type of the"
                             " function, ignoring qualifiers.";
@@ -1818,7 +1818,7 @@ mlir::ParseResult AggregateOp::parse(mlir::OpAsmParser &Parser,
 }
 
 void AggregateOp::print(mlir::OpAsmPrinter &Printer) {
-  mlir::Type ResultType = getResult().getType();
+  mlir::Type ResultType = getType();
 
   printArgumentList(Printer,
                     getInitializers(),
@@ -1832,7 +1832,7 @@ void AggregateOp::print(mlir::OpAsmPrinter &Printer) {
 
 mlir::LogicalResult AggregateOp::verify() {
   auto InitializerTypes = getInitializers().getTypes();
-  auto AT = unwrapTypedefs(getResult().getType());
+  auto AT = unwrapTypedefs(getType());
 
   if (auto T = mlir::dyn_cast<StructType>(AT)) {
     auto Fields = T.getFields();

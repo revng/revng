@@ -133,7 +133,7 @@ public:
       return false;
 
     if (auto Cast = getOnlyUser<BitCastOp>(E))
-      return clift::unwrapped_isa<PointerType>(Cast.getResult().getType());
+      return clift::unwrapped_isa<PointerType>(Cast.getType());
 
     return false;
   }
@@ -157,8 +157,7 @@ public:
     // usually removed by expression rewriting, some may be reintroduced during
     // legalization.
     auto Cast = getOnlyUser<CastOpInterface>(V);
-    if (not Cast
-        or not unwrapped_isa<IntegralType>(Cast.getResult().getType())) {
+    if (not Cast or not unwrapped_isa<IntegralType>(Cast.getType())) {
       auto Range = DataModel.getStandardIntegerRange(IntType.getSize());
       revng_assert(Range, "Integer immediate not representable in C.");
       CType = Range->first;
@@ -201,7 +200,7 @@ public:
     auto E = V.getDefiningOp<AggregateOp>();
 
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
-    emitType(E.getResult().getType());
+    emitType(E.getType());
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
 
     rc_recur emitAggregateInitializer(E);
@@ -349,8 +348,8 @@ public:
       return clift::unwrapped_isa<IntegerType, EnumType, PointerType>(T);
     };
 
-    return not IsCastableType(Op.getValue().getType())
-           or not IsCastableType(Op.getResult().getType());
+    return not IsCastableType(Op.getValueType())
+           or not IsCastableType(Op.getType());
   }
 
   RecursiveCoroutine<void> emitBitCastExpression(mlir::Value V) {
@@ -359,7 +358,7 @@ public:
     Tokens.emitMacro("bit_cast");
     Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
-    emitType(E.getResult().getType());
+    emitType(E.getType());
     Tokens.emitPunctuator(CTE::Punctuator::Comma);
     Tokens.emitSpace();
 
@@ -372,7 +371,7 @@ public:
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<CastOpInterface>();
 
-    emitCStyleCast(E.getResult().getType());
+    emitCStyleCast(E.getType());
 
     // Parenthesizing a nested unary prefix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
@@ -810,7 +809,7 @@ public:
       }
     }
 
-    mlir::Type Type = Var.getResult().getType();
+    mlir::Type Type = Var.getType();
     DeclaratorInfo Declarator{
       .Identifier = Var.getName(),
       .Location = Var.getHandle(),

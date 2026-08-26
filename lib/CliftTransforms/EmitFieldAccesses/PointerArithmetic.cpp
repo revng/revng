@@ -192,7 +192,7 @@ private:
 /// Helper function used to verify if an `ExpressionOpInterface` is
 /// `PointerType`d
 static bool isPointerTyped(ExpressionOpInterface Expr) {
-  return clift::unwrapped_isa<clift::PointerType>(Expr->getResult(0).getType());
+  return clift::unwrapped_isa<clift::PointerType>(Expr.getType());
 }
 
 /// Helper function used to extract the underlying constant value from an
@@ -220,13 +220,11 @@ PointerArithmeticBuilder::computePointerArithmetic(ExpressionOpInterface
   }
 
   // Derive the pointer bit size from the PointerToReplace type
-  auto PtrType = clift::unwrapped_cast<PointerType>(PointerToReplace
-                                                      ->getResult(0)
-                                                      .getType());
+  auto PtrType = clift::unwrapped_cast<PointerType>(PointerToReplace.getType());
   PointerBitWidth = PtrType.getPointerSize() * 8;
 
   // We traverse upwards the dataflow starting from the
-  auto Result = rc_eval(traverse(PointerToReplace->getResult(0)));
+  auto Result = rc_eval(traverse(PointerToReplace));
 
   // If we got a numeric result, discard it, since we cannot use it
   if (Result and Result->isNumeric()) {
@@ -248,7 +246,7 @@ PointerArithmeticBuilder::computePointerArithmetic(ExpressionOpInterface
   // `replaceAllUsesWith` would replace the `BasePointer` uses with the new
   // `clift.subscript` result, and this insert the circular reference between
   // mlir `Value`s.
-  if (PointerToReplace->getResult(0) == Result->BasePointer) {
+  if (PointerToReplace.getResult() == Result->BasePointer) {
 
     // We expect this situation only for empty `Result->Offset`
     const auto &Offset = Result->Offset;
