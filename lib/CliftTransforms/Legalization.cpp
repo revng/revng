@@ -450,31 +450,35 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
     return rewriteWithCast(Op, Type.getUnderlyingType(), Rewriter);
   }
 
-  bool isRepresentableLiteralSize(uint64_t Size) const {
-    auto Range = DataModel.getStandardIntegerRange(Size);
-    return Range and Range->second >= CStandardType::Int;
-  }
-
   mlir::LogicalResult
   matchAndRewriteIntegerImmediate(ImmediateOp Op,
                                   IntegerType Type,
                                   mlir::PatternRewriter &Rewriter) const {
-    if (isRepresentableLiteralSize(Type.getSize()))
-      return mlir::failure();
+    uint64_t Size = Type.getSize();
 
-    // Sizes in the range [sizeof(int), 8] must be representable in the target.
-    uint64_t NewSize = std::clamp<uint64_t>(Type.getSize(),
-                                            DataModel.getIntSize(),
-                                            8);
+    if (auto Range = DataModel.getStandardIntegerRange(Size)) {
+      // Int, long and long long are directly representable.
+      if (Range->second >= CStandardType::Int)
+        return mlir::failure();
 
-    revng_assert(NewSize != Type.getSize());
-    revng_assert(isRepresentableLiteralSize(NewSize));
+      // Char and short are rewritten to int with truncation.
+      IntegerType NewType = IntegerType::get(Type.getContext(),
+                                             IntegerKind::Signed,
+                                             DataModel.getIntSize());
 
-    IntegerType NewType = Type.getSize() == NewSize ?
-                            Type :
-                            IntegerType::get(Type.getContext(),
-                                             Type.getKind(),
-                                             NewSize);
+      return rewriteWithCast(Op, NewType, Rewriter);
+    }
+
+    // Any other type must be an extended integer with a size greater than 8.
+    revng_assert(Size >= 8);
+
+    auto Range = DataModel.getStandardIntegerRange(8);
+    revng_assert(Range);
+
+    IntegerType
+      NewType = IntegerType::get(Type.getContext(),
+                                 Type.getKind(),
+                                 DataModel.getStandardTypeSize(Range->first));
 
     return rewriteWithCast(Op, NewType, Rewriter);
   }
