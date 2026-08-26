@@ -256,13 +256,34 @@ inline StatementOpInterface getLastNoFallthroughStatement(mlir::Region &R) {
   });
 }
 
-inline bool isIndirectlyNoFallthrough(mlir::Region &R) {
+inline NoFallthroughKind isIndirectlyNoFallthrough(mlir::Region &R) {
   StatementOpInterface Op = getLastStatement(R);
   if (not Op)
-    return false;
-  if (Op->template hasTrait<clift::NoFallthrough>())
-    return true;
+    return NoFallthroughKind::FallsThrough;
+
+  // A statement carrying the NoFallthrough trait is directly non-fallthrough;
+  // its concrete kind classifies the region.
+  if (Op->template hasTrait<clift::NoFallthrough>()) {
+    if (mlir::isa<ContinueToOp>(Op))
+      return NoFallthroughKind::Continue;
+    if (mlir::isa<BreakToOp>(Op))
+      return NoFallthroughKind::Break;
+    if (mlir::isa<GotoOp>(Op))
+      return NoFallthroughKind::Goto;
+    revng_assert(mlir::isa<ReturnOp>(Op));
+    return NoFallthroughKind::Return;
+  }
+
+  // Otherwise the region can be non-fallthrough only indirectly, through a
+  // nested branch or block; defer to the operation's own classification.
   return Op.isIndirectlyNoFallthrough();
+}
+
+// A region indirectly falls through when control can reach its end, whether
+// directly or through the statement it ends in. A block-less region - a missing
+// else or default, or an empty `{}` case body - also falls through.
+inline bool indirectlyFallsThrough(mlir::Region &R) {
+  return isIndirectlyNoFallthrough(R) == NoFallthroughKind::FallsThrough;
 }
 
 //===----------------------------- Expressions ----------------------------===//

@@ -25,6 +25,21 @@ public:
   }
 };
 
+/// Classifies how control leaves a statement region, refining the NoFallthrough
+/// trait.
+///
+/// The named non-fallthrough kinds correspond to the terminating statement the
+/// region ends in. Mixed is used for a branch whose sub-regions are each
+/// non-fallthrough but disagree on how (e.g. one returns while another breaks).
+enum class NoFallthroughKind {
+  FallsThrough,
+  Continue,
+  Break,
+  Goto,
+  Return,
+  Mixed,
+};
+
 template<typename ConcreteType>
 class AssignsLoopLabels
   : public mlir::OpTrait::TraitBase<ConcreteType, AssignsLoopLabels> {

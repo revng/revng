@@ -41,15 +41,21 @@ def Clift_StatementOpInterface : Clift_OpInterface<"StatementOpInterface"> {
 
   let methods = [
     InterfaceMethod<
-      /*desc=*/"Returns true if the operation is indirectly non-fallthrough."
-               "This is as opposed to being directly marked with the "
-               "NoFallthrough trait. For example, an if-else operation whose "
-               "both branches end in non-fallthrough operations is considered "
-               "indirectly non-fallthrough.",
-      "bool", "isIndirectlyNoFallthrough", (ins),
+      /*desc=*/"Classifies how the operation is indirectly non-fallthrough, as "
+               "opposed to being directly marked with the NoFallthrough trait. "
+               "For example, an if-else operation whose branches both end in "
+               "non-fallthrough operations is indirectly non-fallthrough, with "
+               "the kind those branches agree on (or Mixed if they disagree).",
+      "clift::NoFallthroughKind", "isIndirectlyNoFallthrough", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/ [{
-        return ConcreteOp::template hasTrait<clift::NoFallthrough>();
+        // Only operations that do not carry the NoFallthrough trait reach this
+        // default: the region classifier maps trait-carrying terminators to
+        // their kind before ever querying the operation. Loops are the notable
+        // case; we conservatively treat them as falling through, since we do
+        // not analyse whether a loop always terminates through its body or may
+        // run forever.
+        return clift::NoFallthroughKind::FallsThrough;
       }]
     >,
     InterfaceMethod<
