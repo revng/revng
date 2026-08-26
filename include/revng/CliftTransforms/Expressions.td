@@ -12,6 +12,48 @@ include "revng/CliftTransforms/ExpressionHelpers.td"
 
 //===------------------------- Boolean expressions -------------------------===//
 
+// test(bext(x)) -> x
+def TestBoolExtendPattern
+  : Pat<(Clift_TestOp (Clift_BoolExtendOp $arg)),
+        (replaceWithValue $arg)>;
+
+// test(bitcast(x)) -> test(x)
+def TestBitCastPattern
+  : Pat<(Clift_TestOp (Clift_BitCastOp $arg)),
+        (Clift_TestOp $arg),
+        [(Clift_AnyScalarType $arg)]>;
+
+// test(zext(x)) -> test(x)
+def TestZeroExtendPattern
+  : Pat<(Clift_TestOp (Clift_ZeroExtendOp $arg)),
+        (Clift_TestOp $arg)>;
+
+// test(sext(x)) -> test(x)
+def TestSignExtendPattern
+  : Pat<(Clift_TestOp (Clift_SignExtendOp $arg)),
+        (Clift_TestOp $arg)>;
+
+// bitcast(bext(x)) -> bext(x)
+def BitcastBoolExtendPattern
+  : Pat<(Clift_BitCastOp:$res (Clift_BoolExtendOp $arg)),
+        (Clift_BoolExtendOp $arg),
+        [(Clift_AnyIntegerType $res)]>;
+
+// zext(bext(x)) -> bext(x)
+def ZeroExtendBoolExtendPattern
+  : Pat<(Clift_ZeroExtendOp (Clift_BoolExtendOp $arg)),
+        (Clift_BoolExtendOp $arg)>;
+
+// sext(bext(x)) -> bext(x)
+def SignExtendBoolExtendPattern
+  : Pat<(Clift_SignExtendOp (Clift_BoolExtendOp $arg)),
+        (Clift_BoolExtendOp $arg)>;
+
+// truncate(bext(x)) -> bext(x)
+def TruncateBoolExtendPattern
+  : Pat<(Clift_TruncateOp (Clift_BoolExtendOp $arg)),
+        (Clift_BoolExtendOp $arg)>;
+
 // x == 0 -> !test(x)
 def CmpEqWithZeroPattern
   : Pat<(Clift_CmpEqOp $arg, (Clift_ImmediateOp $value)),
