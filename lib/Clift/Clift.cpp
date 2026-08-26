@@ -1017,7 +1017,7 @@ mlir::LogicalResult LocalVariableOp::verify() {
       }
     }
 
-    if (getExpressionType(R) != removeConst(getType()))
+    if (not equivalent(getExpressionType(R), getType()))
       return emitOpError() << getOperationName()
                            << " initializer type must match the variable type";
   }
