@@ -7,7 +7,6 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Clift/Clift.h"
 
-#include "EmitFieldAccesses.h"
 #include "PointerArithmetic.h"
 
 using namespace clift;

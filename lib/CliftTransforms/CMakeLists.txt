@@ -6,8 +6,8 @@ revng_add_library_internal(
   revngCliftTransforms
   SHARED
   BooleanNegations.cpp
+  EmitFieldAccesses.cpp
   EmitFieldAccesses/BestTraversal.cpp
-  EmitFieldAccesses/EmitFieldAccesses.cpp
   EmitFieldAccesses/FieldAccessReplacement.cpp
   EmitFieldAccesses/PointerArithmetic.cpp
   Expressions.cpp

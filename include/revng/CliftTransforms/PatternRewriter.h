@@ -28,4 +28,10 @@ inline void clearRegion(mlir::PatternRewriter &Rewriter, mlir::Region &Region) {
     Rewriter.eraseBlock(&Region.front());
 }
 
+inline void setOperandValue(mlir::PatternRewriter &Rewriter,
+                            mlir::OpOperand &Operand,
+                            mlir::Value Value) {
+  Rewriter.updateRootInPlace(Operand.getOwner(), [&]() { Operand.set(Value); });
+}
+
 } // namespace clift

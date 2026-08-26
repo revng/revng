@@ -43,7 +43,9 @@ def CliftOptimizeExpressions : Clift_Pass<"optimize-expressions",
   let options = RewritePassUtils.options;
 }
 
-def CliftEmitFieldAccesses : Clift_Pass<"emit-field-accesses", "clift::FunctionOp"> {
+def CliftEmitFieldAccesses : Clift_Pass<"emit-field-accesses",
+                                        "clift::FunctionOp"> {
+
   let summary = "Emit field accesses.";
   let constructor = "clift::createEmitFieldAccessesPass()";
 }
