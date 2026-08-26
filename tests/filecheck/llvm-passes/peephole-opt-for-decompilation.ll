@@ -161,3 +161,40 @@ other:
 exit:
   ret void
 }
+
+;
+; CHECK-LABEL: define void @two_dominating_compares(i32 %x)
+;
+; Both %entrycond and %middlecond dominate %next, so %next has to be hoisted
+; above the topmost of the two, %entrycond. Hoisting it above %middlecond only
+; would leave %entrycond, which is also rewritten, using a definition that does
+; not dominate it.
+; The candidates are visited in use-list order, which says nothing about
+; dominance; the uselistorder directive below pins the order that yields
+; %middlecond last.
+define void @two_dominating_compares(i32 %x) {
+; CHECK: entry:
+entry:
+  ; CHECK: [[NEXT:%[a-zA-Z_]+]] = add i32 %x, 1
+  ; CHECK-NEXT: icmp eq i32 [[NEXT]], 1
+  %entrycond = icmp eq i32 %x, 0
+  br i1 %entrycond, label %exit, label %middle
+
+; CHECK: middle:
+middle:
+  ; CHECK: icmp eq i32 [[NEXT]], 8
+  %middlecond = icmp eq i32 %x, 7
+  br i1 %middlecond, label %exit, label %tail
+
+; CHECK: tail:
+tail:
+  %next = add i32 %x, 1
+  br label %exit
+
+; CHECK: exit:
+exit:
+  %phi = phi i32 [ 0, %entry ], [ 0, %middle ], [ %next, %tail ]
+  ret void
+
+  uselistorder i32 %x, { 0, 2, 1 }
+}

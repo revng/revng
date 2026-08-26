@@ -148,9 +148,14 @@ static bool reusePHIIncomings(PHINode &PHI, const DominatorTree &DT) {
           revng_log(Log, "AddSub dominates ICmp");
           RewritableICmp.push_back(ICmp);
         } else if (DT.dominates(ICmp, AddSub)) {
-          revng_log(Log, "AddSub dominates ICmp");
+          revng_log(Log, "ICmp dominates AddSub");
           RewritableICmp.push_back(ICmp);
-          CommonDominator = ICmp;
+          // All the ICmp that dominate AddSub also are also in a totoal order,
+          // because the dominators of a given instruction are totally ordered.
+          // Let's keep the topmost, which is guaranteed to dominate all the
+          // others.
+          if (DT.dominates(ICmp, CommonDominator))
+            CommonDominator = ICmp;
         }
       }
     }
