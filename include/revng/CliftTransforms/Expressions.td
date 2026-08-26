@@ -54,36 +54,35 @@ def XorAllOnesPattern
         (Clift_BitwiseNotOp $arg),
         [(Constraint<CPred<"areAllBitsSet($0.getValue(), $1.getType())">> $value, $imm)]>;
 
+// 0 - x -> -x
+def ZeroSubPattern
+  : Pat<(Clift_SubOp (Clift_ImmediateOp $value), $arg),
+        (Clift_NegOp $arg),
+        [(Constraint<CPred<[{ $0.getValue().isZero() }]>> $value)]>;
+
 //===---------------------------- Miscellaneous ---------------------------===//
 
 // (T)123 -> 123
-// Constraint: T is a primitive integer type
+// Constraint: T is an integer type.
 def BitCastImmediatePattern
   : Pat<(Clift_BitCastOp:$res (Clift_ImmediateOp $value)),
-        (Clift_ImmediateOp (makeInteger (NativeCodeCall<"truncateIntegerValue($0, $1)"> $value, $res))),
-        [(Clift_AnyPrimitiveIntegerType $res)]>;
+        (Clift_ImmediateOp $value),
+        [(Clift_AnyIntegerType $res)]>;
 
 // (T)123 -> 123
-// Constraint: T is a primitive integer type
-def ExtendImmediatePattern
-  : Pat<(Clift_ExtendOp:$res (Clift_ImmediateOp $value)),
-        (Clift_ImmediateOp (makeInteger (NativeCodeCall<"truncateIntegerValue($0, $1)"> $value, $res))),
-        [(Clift_AnyPrimitiveIntegerType $res)]>;
+def ZeroExtendImmediatePattern
+  : Pat<(Clift_ZeroExtendOp:$res (Clift_ImmediateOp $value)),
+        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ $0.getValue().zext(getBitWidth($1)).getZExtValue() }]> $value, $res)))>;
 
 // (T)123 -> 123
-// Constraint: T is a primitive integer type
+def SignExtendImmediatePattern
+  : Pat<(Clift_SignExtendOp:$res (Clift_ImmediateOp $value)),
+        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ $0.getValue().sext(getBitWidth($1)).getZExtValue() }]> $value, $res)))>;
+
+// (T)123 -> 123
 def TruncateImmediatePattern
   : Pat<(Clift_TruncateOp:$res (Clift_ImmediateOp $value)),
-        (Clift_ImmediateOp (makeInteger (NativeCodeCall<"truncateIntegerValue($0, $1)"> $value, $res))),
-        [(Clift_AnyPrimitiveIntegerType $res)]>;
-
-// (enum E)123 -> A
-// Constraint: A is an enumerator of E whose value is 123.
-def EnumImmediatePattern
-  : Pat<(Clift_BitCastOp:$res (Clift_ImmediateOp $value)),
-        (Clift_ImmediateOp $value),
-        [(Constraint<CPred<[{ hasEnumeratorValue($0.getType(),
-                                                 $1.getValue().getZExtValue()) }]>> $res, $value)]>;
+        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ $0.getValue().trunc(getBitWidth($1)).getZExtValue() }]> $value, $res)))>;
 
 // *&x -> x
 // Constraint: the type of x is equivalent to the type of the original expression.

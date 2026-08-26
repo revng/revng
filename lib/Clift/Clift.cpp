@@ -185,10 +185,7 @@ mlir::Type clift::getExpressionType(mlir::Region &R) {
 //===---------------------------- Region types ----------------------------===//
 
 template<typename OpInterface>
-static bool verifyRegionContent(mlir::Region &R, const bool Required) {
-  if (R.empty())
-    return not Required;
-
+static bool verifyRegionContent(mlir::Region &R) {
   if (not R.hasOneBlock())
     return false;
 
@@ -201,14 +198,18 @@ static bool verifyRegionContent(mlir::Region &R, const bool Required) {
 }
 
 bool clift::impl::verifyStatementRegion(mlir::Region &R) {
-  return verifyRegionContent<StatementOpInterface>(R, false);
+  return verifyRegionContent<StatementOpInterface>(R);
 }
 
-bool clift::impl::verifyExpressionRegion(mlir::Region &R, const bool Required) {
-  if (not verifyRegionContent<ExpressionOpInterface>(R, Required))
+bool clift::impl::verifyExpressionRegion(mlir::Region &R) {
+  if (not verifyRegionContent<ExpressionOpInterface>(R))
     return false;
 
-  return R.empty() or static_cast<bool>(getExpressionYieldOp(R));
+  return static_cast<bool>(getExpressionYieldOp(R));
+}
+
+bool clift::impl::verifyConditionRegion(mlir::Region &R) {
+  return verifyExpressionRegion(R) and isScalarType(getExpressionType(R));
 }
 
 //===-------------------------- Operation parsing -------------------------===//
@@ -660,14 +661,6 @@ void DoWhileOp::build(mlir::OpBuilder &Builder,
   buildLoop(Builder, State, 2, OtherLoop);
 }
 
-mlir::LogicalResult DoWhileOp::verify() {
-  if (not isScalarType(getExpressionType(getCondition())))
-    return emitOpError() << getOperationName()
-                         << " condition requires a scalar type.";
-
-  return mlir::success();
-}
-
 //===-------------------------------- ForOp -------------------------------===//
 
 mlir::Value ForOp::getBlockArgumentVariable(mlir::BlockArgument Argument) {
@@ -877,12 +870,6 @@ mlir::LogicalResult ForOp::verify() {
   if (CheckRegionArguments("body", getBody()).failed())
     return mlir::failure();
 
-  if (auto ConditionType = getExpressionType(getCondition())) {
-    if (not isScalarType(ConditionType))
-      return emitOpError() << getOperationName()
-                           << " condition requires a scalar type.";
-  }
-
   return mlir::success();
 }
 
@@ -952,14 +939,6 @@ isIndirectlyNoFallthroughImpl(BranchOpInterface Branch) {
 
 NoFallthroughKind IfOp::isIndirectlyNoFallthrough() const {
   return isIndirectlyNoFallthroughImpl(*this);
-}
-
-mlir::LogicalResult IfOp::verify() {
-  if (not isScalarType(getExpressionType(getCondition())))
-    return emitOpError() << getOperationName()
-                         << " condition requires a scalar type.";
-
-  return mlir::success();
 }
 
 //===--------------------------- LocalVariableOp --------------------------===//
@@ -1265,14 +1244,6 @@ void WhileOp::build(mlir::OpBuilder &Builder,
   buildLoop(Builder, State, 2, OtherLoop);
 }
 
-mlir::LogicalResult WhileOp::verify() {
-  if (not isScalarType(getExpressionType(getCondition())))
-    return emitOpError() << getOperationName()
-                         << " condition requires a scalar type.";
-
-  return mlir::success();
-}
-
 //===----------------------------- Expressions ----------------------------===//
 
 //===------------------------------- YieldOp ------------------------------===//
@@ -1461,32 +1432,6 @@ mlir::LogicalResult DecayOp::verify() {
     return emitOpError() << getOperationName()
                          << " argument must have array or function type.";
   }
-
-  return mlir::success();
-}
-
-//===------------------------------ ExtendOp ------------------------------===//
-
-mlir::LogicalResult ExtendOp::verify() {
-  mlir::Type ResT = getResult().getType();
-  mlir::Type ArgT = getValue().getType();
-
-  if (getObjectSize(ArgT) >= getObjectSize(ResT))
-    return emitOpError() << getOperationName()
-                         << " result must be wider than the operand";
-
-  return mlir::success();
-}
-
-//===----------------------------- TruncateOp -----------------------------===//
-
-mlir::LogicalResult TruncateOp::verify() {
-  mlir::Type ResT = getResult().getType();
-  mlir::Type ArgT = getValue().getType();
-
-  if (getObjectSize(ArgT) <= getObjectSize(ResT))
-    return emitOpError() << getOperationName()
-                         << " result must be narrower than the operand";
 
   return mlir::success();
 }

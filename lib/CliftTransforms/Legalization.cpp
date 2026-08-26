@@ -43,10 +43,14 @@ static mlir::Value emitCast(mlir::PatternRewriter &Rewriter,
     return Rewriter.create<BitCastOp>(Loc, NewType, Value);
 
   if constexpr (std::is_void_v<ResizeCastOpOrVoid>) {
-    if (NewSize > OldSize)
-      return Rewriter.create<ExtendOp>(Loc, NewType, Value);
-    else
+    if (NewSize > OldSize) {
+      if (isSigned(OldType))
+        return Rewriter.create<SignExtendOp>(Loc, NewType, Value);
+      else
+        return Rewriter.create<ZeroExtendOp>(Loc, NewType, Value);
+    } else {
       return Rewriter.create<TruncateOp>(Loc, NewType, Value);
+    }
   } else {
     return Rewriter.create<ResizeCastOpOrVoid>(Loc, NewType, Value);
   }
@@ -90,6 +94,8 @@ static void modifyOperandType(mlir::PatternRewriter &Rewriter,
   Operand
     .set(emitCast<ResizeCastOpOrVoid>(Rewriter, Op->getLoc(), Value, NewType));
 }
+
+//===------------------------------ Promotion -----------------------------===//
 
 template<typename OpT>
 struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
@@ -243,6 +249,28 @@ struct ResizeDecayCastPattern : PointerResizePattern<clift::DecayOp> {
   }
 };
 
+template<typename OpT>
+struct PointerComparisonPattern : mlir::OpRewritePattern<OpT> {
+  using mlir::OpRewritePattern<OpT>::OpRewritePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
+    auto Type = clift::unwrapped_dyn_cast<PointerType>(Op.getLhs().getType());
+
+    if (not Type)
+      return mlir::failure();
+
+    mlir::Type NewType = IntegerType::get(Op.getContext(),
+                                          IntegerKind::Signed,
+                                          Type.getPointerSize());
+
+    modifyOperandType(Rewriter, Op->getOpOperand(0), NewType);
+    modifyOperandType(Rewriter, Op->getOpOperand(1), NewType);
+
+    return mlir::success();
+  }
+};
+
 struct BooleanCanonicalizationPattern
   : mlir::OpTraitRewritePattern<clift::ReturnsBoolean> {
   IntegerType IntType;
@@ -323,16 +351,17 @@ struct ShiftPromotionPattern : ArithmeticPromotionPattern<OpT> {
   }
 };
 
-template<typename OpT, bool IsSigned, unsigned... OperandIndices>
-struct ArithmeticSignPattern : mlir::OpRewritePattern<OpT> {
-  explicit ArithmeticSignPattern(mlir::MLIRContext *Context) :
-    mlir::OpRewritePattern<OpT>(Context, /*benefit=*/0) {}
+//===---------------------------- Sign matching ---------------------------===//
 
-  static constexpr unsigned Indices[] = { OperandIndices... };
+// Ensures that the signedness of arithmetic operands matches the semantics of
+// the operation, where the operand signedness affects semantics.
+template<typename OpT, bool IsSigned, bool RewriteResult, bool RewriteRHS>
+struct SignMatchingPattern : mlir::OpRewritePattern<OpT> {
+  using mlir::OpRewritePattern<OpT>::OpRewritePattern;
 
   mlir::LogicalResult
   matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
-    mlir::Type OldType = Op->getOperand(Indices[0]).getType();
+    mlir::Type OldType = Op->getOperand(0).getType();
 
     if (isSigned(OldType) == IsSigned)
       return mlir::failure();
@@ -342,17 +371,47 @@ struct ArithmeticSignPattern : mlir::OpRewritePattern<OpT> {
                                                      IntegerKind::Unsigned,
                                           getObjectSize(OldType));
 
-    modifyResultType(Rewriter, Op, NewType);
+    if constexpr (RewriteResult)
+      modifyResultType(Rewriter, Op, NewType);
 
-    for (unsigned Index : Indices) {
-      mlir::OpOperand &Operand = Op->getOpOperand(Index);
-      revng_assert(equivalent(Operand.get().getType(), OldType));
-      modifyOperandType(Rewriter, Operand, NewType);
-    }
+    modifyOperandType(Rewriter, Op->getOpOperand(0), NewType);
+
+    if constexpr (RewriteRHS)
+      modifyOperandType(Rewriter, Op->getOpOperand(1), NewType);
 
     return mlir::success();
   }
 };
+
+template<typename OpT, bool IsSigned>
+using ExtendCastSignMatchingPattern = //
+  SignMatchingPattern<OpT,
+                      IsSigned,
+                      /*RewriteResult=*/false,
+                      /*RewriteRHS=*/false>;
+
+template<typename OpT, bool IsSigned>
+using ArithmeticSignMatchingPattern = //
+  SignMatchingPattern<OpT,
+                      IsSigned,
+                      /*RewriteResult=*/true,
+                      /*RewriteRHS=*/true>;
+
+template<typename OpT, bool IsSigned>
+using ShiftSignMatchingPattern = //
+  SignMatchingPattern<OpT,
+                      IsSigned,
+                      /*RewriteResult=*/true,
+                      /*RewriteRHS=*/false>;
+
+template<typename OpT, bool IsSigned>
+using ComparisonSignMatchingPattern = //
+  SignMatchingPattern<OpT,
+                      IsSigned,
+                      /*RewriteResult=*/false,
+                      /*RewriteRHS=*/true>;
+
+//===----------------------------- Immediates -----------------------------===//
 
 // Introduces casts around immediates not directly representable in C:
 // * 0 -> (int16_t)0, where the original expression has type int16_t.
@@ -391,31 +450,35 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
     return rewriteWithCast(Op, Type.getUnderlyingType(), Rewriter);
   }
 
-  bool isRepresentableLiteralSize(uint64_t Size) const {
-    auto Range = DataModel.getStandardIntegerRange(Size);
-    return Range and Range->second >= CStandardType::Int;
-  }
-
   mlir::LogicalResult
   matchAndRewriteIntegerImmediate(ImmediateOp Op,
                                   IntegerType Type,
                                   mlir::PatternRewriter &Rewriter) const {
-    if (isRepresentableLiteralSize(Type.getSize()))
-      return mlir::failure();
+    uint64_t Size = Type.getSize();
 
-    // Sizes in the range [sizeof(int), 8] must be representable in the target.
-    uint64_t NewSize = std::clamp<uint64_t>(Type.getSize(),
-                                            DataModel.getIntSize(),
-                                            8);
+    if (auto Range = DataModel.getStandardIntegerRange(Size)) {
+      // Int, long and long long are directly representable.
+      if (Range->second >= CStandardType::Int)
+        return mlir::failure();
 
-    revng_assert(NewSize != Type.getSize());
-    revng_assert(isRepresentableLiteralSize(NewSize));
+      // Char and short are rewritten to int with truncation.
+      IntegerType NewType = IntegerType::get(Type.getContext(),
+                                             IntegerKind::Signed,
+                                             DataModel.getIntSize());
 
-    IntegerType NewType = Type.getSize() == NewSize ?
-                            Type :
-                            IntegerType::get(Type.getContext(),
-                                             Type.getKind(),
-                                             NewSize);
+      return rewriteWithCast(Op, NewType, Rewriter);
+    }
+
+    // Any other type must be an extended integer with a size greater than 8.
+    revng_assert(Size >= 8);
+
+    auto Range = DataModel.getStandardIntegerRange(8);
+    revng_assert(Range);
+
+    IntegerType
+      NewType = IntegerType::get(Type.getContext(),
+                                 Type.getKind(),
+                                 DataModel.getStandardTypeSize(Range->first));
 
     return rewriteWithCast(Op, NewType, Rewriter);
   }
@@ -448,64 +511,92 @@ struct CLegalizationPass
 
 mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   mlir::MLIRContext *Context = Function.getContext();
-  mlir::RewritePatternSet Set(Context);
-
   const CDataModel &DataModel = getDataModel(Function);
 
-  // Pointer resizing
-  Set.add<ResizePtrAddPattern>(Context, DataModel);
-  Set.add<ResizePtrSubPattern>(Context, DataModel);
-  Set.add<ResizePtrDiffPattern>(Context, DataModel);
-  Set.add<PointerResizePattern<IndirectionOp>>(Context, DataModel);
-  Set.add<PointerResizePattern<SubscriptOp>>(Context, DataModel);
-  Set.add<PointerResizePattern<AccessOp>>(Context, DataModel);
-  Set.add<PointerResizePattern<CallOp>>(Context, DataModel);
-  Set.add<ResizeAddressofPattern>(Context, DataModel);
-  Set.add<ResizeDecayCastPattern>(Context, DataModel);
+  // * Resize pointer operands.
+  // * Apply arithmetic promotions.
+  // * Canonicalize boolean result types.
+  // * Emit casts around unrepresentable literals.
+  {
+    mlir::RewritePatternSet Set(Context);
 
-  // Boolean canonicalization
-  Set.add<BooleanCanonicalizationPattern>(Context, DataModel);
+    Set.add<ResizePtrAddPattern>(Context, DataModel);
+    Set.add<ResizePtrSubPattern>(Context, DataModel);
+    Set.add<ResizePtrDiffPattern>(Context, DataModel);
+    Set.add<PointerResizePattern<IndirectionOp>>(Context, DataModel);
+    Set.add<PointerResizePattern<SubscriptOp>>(Context, DataModel);
+    Set.add<PointerResizePattern<AccessOp>>(Context, DataModel);
+    Set.add<PointerResizePattern<CallOp>>(Context, DataModel);
+    Set.add<ResizeAddressofPattern>(Context, DataModel);
+    Set.add<ResizeDecayCastPattern>(Context, DataModel);
 
-  // Integer promotion
-  Set.add<ArithmeticPromotionPattern<NegOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<AddOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<SubOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<MulOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<SDivOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<UDivOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<SRemOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<URemOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<BitwiseNotOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<BitwiseAndOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<BitwiseOrOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<BitwiseXorOp>>(Context, DataModel);
-  Set.add<ShiftPromotionPattern<ShlOp>>(Context, DataModel);
-  Set.add<ShiftPromotionPattern<SarOp>>(Context, DataModel);
-  Set.add<ShiftPromotionPattern<ShrOp>>(Context, DataModel);
+    Set.add<PointerComparisonPattern<SCmpLtOp>>(Context);
+    Set.add<PointerComparisonPattern<SCmpGtOp>>(Context);
+    Set.add<PointerComparisonPattern<SCmpLeOp>>(Context);
+    Set.add<PointerComparisonPattern<SCmpGeOp>>(Context);
 
-  // Literal typing
-  Set.add<ImmediateCastPattern>(Context, DataModel);
+    Set.add<BooleanCanonicalizationPattern>(Context, DataModel);
 
-  // Operation signedness
-  Set.add<ArithmeticSignPattern<SDivOp, true, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<UDivOp, false, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<SRemOp, true, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<URemOp, false, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<SarOp, true, 0>>(Context);
-  Set.add<ArithmeticSignPattern<ShrOp, false, 0>>(Context);
-  Set.add<ArithmeticSignPattern<SCmpLtOp, true, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<UCmpLtOp, false, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<SCmpGtOp, true, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<UCmpGtOp, false, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<SCmpLeOp, true, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<UCmpLeOp, false, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<SCmpGeOp, true, 0, 1>>(Context);
-  Set.add<ArithmeticSignPattern<UCmpGeOp, false, 0, 1>>(Context);
+    Set.add<ArithmeticPromotionPattern<NegOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<AddOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<SubOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<MulOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<SDivOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<UDivOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<SRemOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<URemOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<BitwiseNotOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<BitwiseAndOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<BitwiseOrOp>>(Context, DataModel);
+    Set.add<ArithmeticPromotionPattern<BitwiseXorOp>>(Context, DataModel);
 
-  populateWithCastCanonicalizations(Set);
+    Set.add<ShiftPromotionPattern<ShlOp>>(Context, DataModel);
+    Set.add<ShiftPromotionPattern<SarOp>>(Context, DataModel);
+    Set.add<ShiftPromotionPattern<ShrOp>>(Context, DataModel);
 
-  auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
-  return mlir::applyPatternsAndFoldGreedily(Function, Patterns);
+    Set.add<ImmediateCastPattern>(Context, DataModel);
+
+    // Cast canonicalisation is used to collapse casts introduced by the
+    // other rewrites.
+    populateWithCastCanonicalizations(Set);
+
+    auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
+    if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
+      return mlir::failure();
+  }
+
+  // Ensure operation semantics match operand signedness. Matching operand
+  // signedness should be done after promotion, because promotion may change
+  // unsigned operations to signed operations.
+  {
+    mlir::RewritePatternSet Set(Context);
+
+    Set.add<ExtendCastSignMatchingPattern<SignExtendOp, true>>(Context);
+    Set.add<ExtendCastSignMatchingPattern<ZeroExtendOp, false>>(Context);
+
+    Set.add<ArithmeticSignMatchingPattern<SDivOp, true>>(Context);
+    Set.add<ArithmeticSignMatchingPattern<UDivOp, false>>(Context);
+    Set.add<ArithmeticSignMatchingPattern<SRemOp, true>>(Context);
+    Set.add<ArithmeticSignMatchingPattern<URemOp, false>>(Context);
+
+    Set.add<ShiftSignMatchingPattern<SarOp, true>>(Context);
+    Set.add<ShiftSignMatchingPattern<ShrOp, false>>(Context);
+
+    Set.add<ComparisonSignMatchingPattern<SCmpLtOp, true>>(Context);
+    Set.add<ComparisonSignMatchingPattern<UCmpLtOp, false>>(Context);
+    Set.add<ComparisonSignMatchingPattern<SCmpGtOp, true>>(Context);
+    Set.add<ComparisonSignMatchingPattern<UCmpGtOp, false>>(Context);
+    Set.add<ComparisonSignMatchingPattern<SCmpLeOp, true>>(Context);
+    Set.add<ComparisonSignMatchingPattern<UCmpLeOp, false>>(Context);
+    Set.add<ComparisonSignMatchingPattern<SCmpGeOp, true>>(Context);
+    Set.add<ComparisonSignMatchingPattern<UCmpGeOp, false>>(Context);
+
+    auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
+    if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
+      return mlir::failure();
+  }
+
+  return mlir::success();
 }
 
 clift::PassPtr<clift::FunctionOp> clift::createCLegalizationPass() {

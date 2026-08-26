@@ -39,7 +39,7 @@ module attributes {clift.module} {
       %6 = clift.bitcast %5 : !generic64_t -> !clift.ptr<8 to !int32_t>
       %7 = clift.indirection %6 : !clift.ptr<8 to !int32_t>
       // Sign-extend to 64 bits
-      %8 = clift.extend %7 : !int32_t -> !clift.int<signed 8>
+      %8 = clift.sext %7 : !int32_t -> !clift.int<signed 8>
       %9 = clift.bitcast %8 : !clift.int<signed 8> -> !generic64_t
       // Multiply by element size: `index * 4`
       %10 = clift.imm 4 : !generic64_t
@@ -63,7 +63,7 @@ module attributes {clift.module} {
   // CHECK: [[IDX_ACCESS:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
   // CHECK: [[IDX_ADDROF:%[0-9]+]] = clift.addressof [[IDX_ACCESS]]
   // CHECK: [[IDX_LOAD:%[0-9]+]] = clift.indirection [[IDX_ADDROF]]
-  // CHECK: [[IDX_EXT:%[0-9]+]] = clift.extend [[IDX_LOAD]]
+  // CHECK: [[IDX_EXT:%[0-9]+]] = clift.sext [[IDX_LOAD]]
   // CHECK: [[ARR_ACCESS:%[0-9]+]] = clift.access<indirect 0> [[ADDRESSOF1]]
   // CHECK: [[ARR_DECAY:%[0-9]+]] = clift.decay [[ARR_ACCESS]]
   // CHECK: [[IDX_CAST:%[0-9]+]] = clift.bitcast [[IDX_EXT]]

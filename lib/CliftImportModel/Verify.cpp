@@ -494,8 +494,7 @@ private:
     // inside compound statements are still counted.
     std::size_t StackFrameCount = 0;
     Op.walk([&](clift::LocalVariableOp Local) {
-      auto Flag = Local->getAttrOfType<mlir::BoolAttr>("clift.stack_frame");
-      if (Flag and Flag.getValue())
+      if (Local->hasAttr("clift.stack_frame"))
         ++StackFrameCount;
     });
     if (StackFrameCount > 1)

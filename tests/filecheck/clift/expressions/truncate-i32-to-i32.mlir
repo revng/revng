@@ -8,5 +8,5 @@
 
 %value = clift.undef : !int32_t
 
-// CHECK: result must be narrower than the operand
+// CHECK: failed to verify that the sizes of result and value are ordered
 clift.truncate %value : !int32_t -> !int32_t

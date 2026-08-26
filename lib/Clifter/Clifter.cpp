@@ -798,28 +798,6 @@ private:
     }
   }
 
-  template<typename OpT, typename... ArgsT>
-  mlir::Value emitExpr(mlir::Location Loc, ArgsT &&...Args) {
-    return Builder.create<OpT>(Loc, std::forward<ArgsT>(Args)...);
-  }
-
-  template<typename OpT>
-  mlir::Value
-  emitCast(mlir::Location Loc, mlir::Value Value, mlir::Type TargetType) {
-    if (Value.getType() != TargetType) {
-      OpT X = Builder.create<OpT>(Loc, TargetType, Value);
-      if constexpr (std::is_same_v<OpT, BitCastOp>) {
-        auto ValueSize = unwrapped_cast<ValueType>(Value.getType())
-                           .getObjectSize();
-        auto TargetSize = unwrapped_cast<ValueType>(TargetType).getObjectSize();
-        revng_assert(ValueSize == TargetSize);
-      }
-      return X;
-    }
-
-    return Value;
-  }
-
   // Apply an implicit conversion to the requested type. The conversion is only
   // applied in the case that neither the source nor target values have array
   // type, and as long as both have the same size. If the cast is possible, it
@@ -845,55 +823,30 @@ private:
     if (not SourceT)
       return Value;
 
-    return emitCast<BitCastOp>(Loc, Value, TargetType);
+    return Builder.create<BitCastOp>(Loc, TargetType, Value);
   }
 
-  // Used for emitting operations acting on integer operands (arithmetic,
-  // comparison, etc.) of a specific kind. Before applying the operation, the
-  // operands are automatically converted to the requested kind, if necessary.
-  // After the operation, the result is automaticlaly converted to generic kind.
-  mlir::Value emitIntegerOp(mlir::Location Loc,
-                            IntegerKind Kind,
-                            auto ApplyOperation,
-                            std::same_as<mlir::Value> auto... Operands) {
-    auto ConvertToKind = [&](mlir::Value &Value, IntegerKind Kind) {
-      auto UnderlyingType = getUnderlyingIntegerType(Value.getType());
-      revng_assert(UnderlyingType);
+  template<typename ExtendOpT>
+  mlir::Value extendOrTruncate(mlir::Location Loc,
+                               mlir::Value Operand,
+                               uint64_t TargetSize) {
+    IntegerType UnderlyingType = getUnderlyingIntegerType(Operand.getType());
+    IntegerKind UnderlyingKind = UnderlyingType.getKind();
 
-      uint64_t Size = UnderlyingType.getSize();
-      Value = emitCast<BitCastOp>(Loc, Value, C.getIntegerType(Size, Kind));
-    };
+    uint64_t SrcSize = UnderlyingType.getSize();
+    if (TargetSize > SrcSize)
+      return Builder.create<ExtendOpT>(Loc,
+                                       C.getIntegerType(TargetSize,
+                                                        UnderlyingKind),
+                                       Operand);
 
-    (ConvertToKind(Operands, Kind), ...);
-    mlir::Value Result = ApplyOperation(Operands...);
+    if (TargetSize < SrcSize)
+      return Builder.create<TruncateOp>(Loc,
+                                        C.getIntegerType(TargetSize,
+                                                         UnderlyingKind),
+                                        Operand);
 
-    if (Kind != IntegerKind::Generic)
-      ConvertToKind(Result, IntegerKind::Generic);
-
-    return Result;
-  }
-
-  // Applies an integer cast of the operand to the specified size, using the
-  // specified primitive kind. Finally the result is converted to generic kind.
-  mlir::Value emitIntegerCast(mlir::Location Loc,
-                              mlir::Value Operand,
-                              uint64_t Size,
-                              IntegerKind Kind = IntegerKind::Generic) {
-    uint64_t SrcSize = getUnderlyingIntegerType(Operand.getType()).getSize();
-
-    auto EmitCast = [&](mlir::Value Operand) {
-      auto NewType = C.getIntegerType(Size, Kind);
-
-      if (Size > SrcSize)
-        return emitCast<ExtendOp>(Loc, Operand, NewType);
-
-      if (Size < SrcSize)
-        return emitCast<TruncateOp>(Loc, Operand, NewType);
-
-      return emitCast<BitCastOp>(Loc, Operand, NewType);
-    };
-
-    return emitIntegerOp(Loc, Kind, EmitCast, Operand);
+    return Operand;
   }
 
   mlir::Value useGlobal(mlir::Location Loc, clift::GlobalOpInterface Global) {
@@ -1011,7 +964,7 @@ private:
                                            std::move(String->Data));
 
         auto Type = C.getPointerType(String->Type.getElementType());
-        rc_return emitCast<DecayOp>(SurroundingLocation, Op, Type);
+        rc_return Builder.create<DecayOp>(SurroundingLocation, Type, Op);
       }
 
       if (const auto *F = llvm::dyn_cast<llvm::Function>(G)) {
@@ -1023,9 +976,9 @@ private:
                                          Type,
                                          Function.getSymNameAttr());
 
-        rc_return emitCast<DecayOp>(SurroundingLocation,
-                                    Use,
-                                    C.getPointerType(Type));
+        rc_return Builder.create<DecayOp>(SurroundingLocation,
+                                          C.getPointerType(Type),
+                                          Use);
       }
 
       if (const auto *V = llvm::dyn_cast<llvm::GlobalVariable>(G)) {
@@ -1109,7 +1062,7 @@ private:
                                             /*Value=*/0);
 
       LoggerIndent Indent(ExpressionLog);
-      rc_return emitCast<BitCastOp>(SurroundingLocation,
+      rc_return emitImplicitBitcast(SurroundingLocation,
                                     Op,
                                     C.getVoidPointerType());
     }
@@ -1193,8 +1146,6 @@ private:
       revng_log(ExpressionLog, "llvm::BinaryOperator");
       LoggerIndent Indent(ExpressionLog);
 
-      using Operators = llvm::BinaryOperator::BinaryOps;
-
       mlir::Location Loc = C.getLocation(I);
 
       revng_log(ExpressionLog, "LHS subexpression");
@@ -1205,98 +1156,64 @@ private:
       mlir::Value Rhs = (LoggerIndent(ExpressionLog),
                          rc_recur emitExpression(I->getOperand(1), Loc));
 
-      IntegerKind Kind = IntegerKind::Generic;
+      llvm::IntegerType *VType = llvm::cast<llvm::IntegerType>(V->getType());
+      mlir::Type Type = C.importLLVMIntegerType(VType);
+
+      Lhs = emitImplicitBitcast(Loc, Lhs, Type);
+      if (not I->isShift())
+        Rhs = emitImplicitBitcast(Loc, Rhs, Type);
+
       switch (I->getOpcode()) {
+        using Operators = llvm::BinaryOperator::BinaryOps;
+
+      case Operators::Add:
+        revng_log(ExpressionLog, "AddOp");
+        rc_return Builder.create<AddOp>(Loc, Type, Lhs, Rhs);
+      case Operators::Sub:
+        revng_log(ExpressionLog, "SubOp");
+        rc_return Builder.create<SubOp>(Loc, Type, Lhs, Rhs);
+      case Operators::Mul:
+        revng_log(ExpressionLog, "MulOp");
+        rc_return Builder.create<MulOp>(Loc, Type, Lhs, Rhs);
       case Operators::SDiv:
-      case Operators::SRem:
-      case Operators::AShr:
-        Kind = IntegerKind::Signed;
-        break;
+        revng_log(ExpressionLog, "SDivOp");
+        rc_return Builder.create<SDivOp>(Loc, Type, Lhs, Rhs);
       case Operators::UDiv:
+        revng_log(ExpressionLog, "UDivOp");
+        rc_return Builder.create<UDivOp>(Loc, Type, Lhs, Rhs);
+      case Operators::SRem:
+        revng_log(ExpressionLog, "SRemOp");
+        rc_return Builder.create<SRemOp>(Loc, Type, Lhs, Rhs);
       case Operators::URem:
+        revng_log(ExpressionLog, "URemOp");
+        rc_return Builder.create<URemOp>(Loc, Type, Lhs, Rhs);
+      case Operators::Shl:
+        revng_log(ExpressionLog, "ShlOp");
+        rc_return Builder.create<ShlOp>(Loc, Type, Lhs, Rhs);
       case Operators::LShr:
-        Kind = IntegerKind::Unsigned;
-        break;
+        revng_log(ExpressionLog, "ShrOp");
+        rc_return Builder.create<ShrOp>(Loc, Type, Lhs, Rhs);
+      case Operators::AShr:
+        revng_log(ExpressionLog, "SarOp");
+        rc_return Builder.create<SarOp>(Loc, Type, Lhs, Rhs);
+      case Operators::And:
+        revng_log(ExpressionLog, "BitwiseAndOp");
+        rc_return Builder.create<BitwiseAndOp>(Loc, Type, Lhs, Rhs);
+      case Operators::Or:
+        revng_log(ExpressionLog, "BitwiseOrOp");
+        rc_return Builder.create<BitwiseOrOp>(Loc, Type, Lhs, Rhs);
+      case Operators::Xor:
+        revng_log(ExpressionLog, "BitwiseXorOp");
+        rc_return Builder.create<BitwiseXorOp>(Loc, Type, Lhs, Rhs);
       default:
-        break;
+        revng_abort("Unsupported LLVM binary operator.");
       }
-
-      auto *IntegerType = llvm::cast<llvm::IntegerType>(V->getType());
-      auto Type = C.importLLVMIntegerType(IntegerType, Kind);
-
-      auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) {
-        switch (I->getOpcode()) {
-        case Operators::Add:
-          revng_log(ExpressionLog, "AddOp");
-          return emitExpr<AddOp>(Loc, Type, Lhs, Rhs);
-        case Operators::Sub:
-          revng_log(ExpressionLog, "SubOp");
-          return emitExpr<SubOp>(Loc, Type, Lhs, Rhs);
-        case Operators::Mul:
-          revng_log(ExpressionLog, "MulOp");
-          return emitExpr<MulOp>(Loc, Type, Lhs, Rhs);
-        case Operators::SDiv:
-          revng_log(ExpressionLog, "SDivOp");
-          return emitExpr<SDivOp>(Loc, Type, Lhs, Rhs);
-        case Operators::UDiv:
-          revng_log(ExpressionLog, "UDivOp");
-          return emitExpr<UDivOp>(Loc, Type, Lhs, Rhs);
-        case Operators::SRem:
-          revng_log(ExpressionLog, "SRemOp");
-          return emitExpr<SRemOp>(Loc, Type, Lhs, Rhs);
-        case Operators::URem:
-          revng_log(ExpressionLog, "URemOp");
-          return emitExpr<URemOp>(Loc, Type, Lhs, Rhs);
-        case Operators::Shl:
-          revng_log(ExpressionLog, "ShlOp");
-          return emitExpr<ShlOp>(Loc, Type, Lhs, Rhs);
-        case Operators::LShr:
-          revng_log(ExpressionLog, "ShrOp");
-          return emitExpr<ShrOp>(Loc, Type, Lhs, Rhs);
-        case Operators::AShr:
-          revng_log(ExpressionLog, "SarOp");
-          return emitExpr<SarOp>(Loc, Type, Lhs, Rhs);
-        case Operators::And:
-          revng_log(ExpressionLog, "BitwiseAndOp");
-          return emitExpr<BitwiseAndOp>(Loc, Type, Lhs, Rhs);
-        case Operators::Or:
-          revng_log(ExpressionLog, "BitwiseOrOp");
-          return emitExpr<BitwiseOrOp>(Loc, Type, Lhs, Rhs);
-        case Operators::Xor:
-          revng_log(ExpressionLog, "BitwiseXorOp");
-          return emitExpr<BitwiseXorOp>(Loc, Type, Lhs, Rhs);
-        default:
-          revng_abort("Unsupported LLVM binary operator.");
-        }
-      };
-
-      rc_return emitIntegerOp(Loc, Kind, EmitOp, Lhs, Rhs);
     }
 
     if (auto I = llvm::dyn_cast<llvm::ICmpInst>(V)) {
       revng_log(ExpressionLog, "llvm::ICmpInst");
       LoggerIndent Indent(ExpressionLog);
 
-      using enum llvm::ICmpInst::Predicate;
-
-      IntegerKind Kind = IntegerKind::Generic;
-      switch (I->getPredicate()) {
-      case ICMP_SGT:
-      case ICMP_SGE:
-      case ICMP_SLT:
-      case ICMP_SLE:
-        Kind = IntegerKind::Signed;
-        break;
-      case ICMP_UGT:
-      case ICMP_UGE:
-      case ICMP_ULT:
-      case ICMP_ULE:
-        Kind = IntegerKind::Unsigned;
-        break;
-      default:
-        break;
-      }
-
       mlir::Location Loc = C.getLocation(I);
 
       revng_log(ExpressionLog, "LHS subexpression");
@@ -1307,58 +1224,52 @@ private:
       mlir::Value Rhs = (LoggerIndent(ExpressionLog),
                          rc_recur emitExpression(I->getOperand(1), Loc));
 
-      auto *IntegerType = llvm::cast<llvm::IntegerType>(V->getType());
-      auto Type = C.importLLVMIntegerType(IntegerType, IntegerKind::Signed);
+      llvm::IntegerType *VType = llvm::cast<llvm::IntegerType>(V->getType());
+      mlir::Type BooleanType = C.importLLVMIntegerType(VType,
+                                                       IntegerKind::Signed);
 
-      auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) {
-        switch (I->getPredicate()) {
-        case ICMP_EQ:
-          revng_log(ExpressionLog, "CmpEqOp");
-          return emitExpr<CmpEqOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_NE:
-          revng_log(ExpressionLog, "CmpNeOp");
-          return emitExpr<CmpNeOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_SGT:
-          revng_log(ExpressionLog, "SCmpGtOp");
-          return emitExpr<SCmpGtOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_UGT:
-          revng_log(ExpressionLog, "UCmpGtOp");
-          return emitExpr<UCmpGtOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_SGE:
-          revng_log(ExpressionLog, "SCmpGeOp");
-          return emitExpr<SCmpGeOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_UGE:
-          revng_log(ExpressionLog, "UCmpGeOp");
-          return emitExpr<UCmpGeOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_SLT:
-          revng_log(ExpressionLog, "SCmpLtOp");
-          return emitExpr<SCmpLtOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_ULT:
-          revng_log(ExpressionLog, "UCmpLtOp");
-          return emitExpr<UCmpLtOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_SLE:
-          revng_log(ExpressionLog, "SCmpLeOp");
-          return emitExpr<SCmpLeOp>(Loc, Type, Lhs, Rhs);
-        case ICMP_ULE:
-          revng_log(ExpressionLog, "UCmpLeOp");
-          return emitExpr<UCmpLeOp>(Loc, Type, Lhs, Rhs);
-        default:
-          revng_abort("Unsupported LLVM comparison predicate.");
-        }
-      };
+      mlir::Type Type = C.importLLVMType(I->getOperand(0)->getType());
+      revng_assert(Type == C.importLLVMType(I->getOperand(1)->getType()));
 
-      // Pointer comparisons are handled separately. Non-signed comparisons are
-      // emitted directly as pointer comparisons. For signed comparisons, the
-      // pointer operands are converted to integers before the comparison.
-      if (llvm::isa<llvm::PointerType>(I->getOperand(0)->getType())) {
-        if (not I->isSigned())
-          rc_return EmitOp(Lhs, Rhs);
+      Lhs = emitImplicitBitcast(Loc, Lhs, Type);
+      Rhs = emitImplicitBitcast(Loc, Rhs, Type);
 
-        Lhs = emitCast<BitCastOp>(Loc, Lhs, C.getIntptrType());
-        Rhs = emitCast<BitCastOp>(Loc, Rhs, C.getIntptrType());
+      switch (I->getPredicate()) {
+        using enum llvm::ICmpInst::Predicate;
+
+      case ICMP_EQ:
+        revng_log(ExpressionLog, "CmpEqOp");
+        rc_return Builder.create<CmpEqOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_NE:
+        revng_log(ExpressionLog, "CmpNeOp");
+        rc_return Builder.create<CmpNeOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_SGT:
+        revng_log(ExpressionLog, "SCmpGtOp");
+        rc_return Builder.create<SCmpGtOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_UGT:
+        revng_log(ExpressionLog, "UCmpGtOp");
+        rc_return Builder.create<UCmpGtOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_SGE:
+        revng_log(ExpressionLog, "SCmpGeOp");
+        rc_return Builder.create<SCmpGeOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_UGE:
+        revng_log(ExpressionLog, "UCmpGeOp");
+        rc_return Builder.create<UCmpGeOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_SLT:
+        revng_log(ExpressionLog, "SCmpLtOp");
+        rc_return Builder.create<SCmpLtOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_ULT:
+        revng_log(ExpressionLog, "UCmpLtOp");
+        rc_return Builder.create<UCmpLtOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_SLE:
+        revng_log(ExpressionLog, "SCmpLeOp");
+        rc_return Builder.create<SCmpLeOp>(Loc, BooleanType, Lhs, Rhs);
+      case ICMP_ULE:
+        revng_log(ExpressionLog, "UCmpLeOp");
+        rc_return Builder.create<UCmpLeOp>(Loc, BooleanType, Lhs, Rhs);
+      default:
+        revng_abort("Unsupported LLVM comparison predicate.");
       }
-
-      rc_return emitIntegerOp(Loc, Kind, EmitOp, Lhs, Rhs);
     }
 
     if (auto I = llvm::dyn_cast<llvm::CastInst>(V)) {
@@ -1376,30 +1287,40 @@ private:
         return ClifterImpl::getIntegerSize(IntegerType->getBitWidth());
       };
 
-      auto EmitIntegerCast = [&](IntegerKind Kind) {
-        return emitIntegerCast(Loc,
-                               Operand,
-                               GetIntegerSize(V->getType()),
-                               Kind);
-      };
-
       switch (I->getOpcode()) {
         using Operators = llvm::CastInst::CastOps;
+
       case Operators::SExt:
-        rc_return EmitIntegerCast(IntegerKind::Signed);
+        rc_return Builder.create<SignExtendOp>(Loc,
+                                               C.importLLVMType(V->getType()),
+                                               Operand);
       case Operators::ZExt:
+        rc_return Builder.create<ZeroExtendOp>(Loc,
+                                               C.importLLVMType(V->getType()),
+                                               Operand);
       case Operators::Trunc:
-        rc_return EmitIntegerCast(IntegerKind::Generic);
+        rc_return Builder.create<TruncateOp>(Loc,
+                                             C.importLLVMType(V->getType()),
+                                             Operand);
+
       case Operators::PtrToInt:
-        Operand = emitCast<BitCastOp>(Loc, Operand, C.getIntptrType());
+        Operand = Builder.create<BitCastOp>(Loc, C.getIntptrType(), Operand);
         if (uint64_t S = GetIntegerSize(I->getDestTy());
             S != C.getPointerSize())
-          Operand = emitIntegerCast(Loc, Operand, S);
+          Operand = extendOrTruncate<ZeroExtendOp>(Loc, Operand, S);
+
         rc_return Operand;
+
       case Operators::IntToPtr:
         if (uint64_t S = GetIntegerSize(I->getSrcTy()); S != C.getPointerSize())
-          Operand = emitIntegerCast(Loc, Operand, C.getPointerSize());
-        rc_return emitCast<BitCastOp>(Loc, Operand, C.getVoidPointerType());
+          Operand = extendOrTruncate<ZeroExtendOp>(Loc,
+                                                   Operand,
+                                                   C.getPointerSize());
+
+        rc_return Builder.create<BitCastOp>(Loc,
+                                            C.getVoidPointerType(),
+                                            Operand);
+
       default:
         revng_abort("Unsupported LLVM cast operation.");
       }
@@ -1437,12 +1358,12 @@ private:
         // If the callee is a function and not a pointer to function, it must
         // be decayed to a pointer before applying the type conversion:
         if (mlir::isa<clift::FunctionType>(Function.getType())) {
-          Function = emitCast<DecayOp>(Loc,
-                                       Function,
-                                       C.getPointerType(FunctionType));
+          Function = Builder.create<DecayOp>(Loc,
+                                             C.getPointerType(FunctionType),
+                                             Function);
         }
 
-        Function = emitCast<BitCastOp>(Loc,
+        Function = emitImplicitBitcast(Loc,
                                        Function,
                                        C.getPointerType(CallType));
       }
@@ -1525,40 +1446,34 @@ private:
     }
 
     if (auto *GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(V)) {
-      const llvm::Value *GEPPointerOp = GEP->getPointerOperand();
+      revng_check(GEP->getNumIndices() == 1);
+      revng_check(GEP->getSourceElementType()->isIntegerTy(8));
+
       mlir::Location Loc = C.getLocation(GEP);
+      mlir::Value Operand = rc_recur emitExpression(GEP->getPointerOperand(),
+                                                    Loc);
 
-      if (GEP->getNumIndices() == 1
-          and GEP->getSourceElementType()->isIntegerTy(8)) {
+      const llvm::Value *GEPIndex = GEP->idx_begin()->get();
 
-        auto UnsignedCharType = C.getIntegerType(1, IntegerKind::Unsigned);
-        auto PointerType = C.getPointerType(UnsignedCharType);
-
-        mlir::Value
-          Pointer = emitCast<BitCastOp>(Loc,
-                                        rc_recur emitExpression(GEPPointerOp,
-                                                                Loc),
-                                        PointerType);
-
-        llvm::Value *GEPIndex = GEP->idx_begin()->get();
-
-        // If the index is zero, there is no need to add zero
-        if (const auto
-              *ConstantIndex = llvm::dyn_cast<llvm::ConstantInt>(GEPIndex))
-          if (ConstantIndex->isZero())
-            rc_return Pointer;
-
-        mlir::Value Index = rc_recur emitExpression(GEPIndex, Loc);
-
-        auto IndexType = cast<clift::ValueType>(Index.getType());
-        auto IntptrType = cast<clift::ValueType>(C.getIntptrType());
-        auto Cmp = IntptrType.getObjectSize() <=> IndexType.getObjectSize();
-        if (Cmp < 0)
-          Index = emitCast<TruncateOp>(Loc, Index, C.getIntptrType());
-        else if (Cmp > 0)
-          Index = emitCast<ExtendOp>(Loc, Index, C.getIntptrType());
-        rc_return emitExpr<PtrAddOp>(Loc, PointerType, Pointer, Index);
+      // If the index is zero, there is no need to add zero
+      if (const auto *CI = llvm::dyn_cast<llvm::ConstantInt>(GEPIndex)) {
+        if (CI->isZero())
+          rc_return Operand;
       }
+
+      Operand = Builder.create<BitCastOp>(Loc,
+                                          C.getPointerType(C.getIntegerType(1)),
+                                          Operand);
+
+      mlir::Value Index = rc_recur emitExpression(GEPIndex, Loc);
+      Index = extendOrTruncate<SignExtendOp>(Loc,
+                                             Index,
+                                             getObjectSize(Operand));
+
+      rc_return Builder.create<PtrAddOp>(Loc,
+                                         Operand.getType(),
+                                         Operand,
+                                         Index);
     }
 
     if (auto I = llvm::dyn_cast<llvm::FreezeInst>(V))
@@ -1759,8 +1674,7 @@ private:
 
         Op.setHandle(*Handle);
         if (hasStackFrameMetadata(A))
-          Op->setAttr("clift.stack_frame",
-                      mlir::Builder(Op.getContext()).getBoolAttr(true));
+          Op->setAttr("clift.stack_frame", mlir::UnitAttr::get(C.Context));
 
         auto [Iterator, Inserted] = AllocaMapping.try_emplace(A, Op);
         revng_assert(Inserted);
@@ -1824,12 +1738,12 @@ private:
           // appropriate type (type punning, violates strict aliasing).
           if (auto AT = mlir::dyn_cast<ArrayType>(ReturnValue.getType())) {
             ReturnValue = //
-              emitCast<DecayOp>(TerminalLoc,
-                                ReturnValue,
-                                C.getPointerType(AT.getElementType()));
+              Builder.create<DecayOp>(TerminalLoc,
+                                      C.getPointerType(AT.getElementType()),
+                                      ReturnValue);
 
             ReturnValue = //
-              emitCast<BitCastOp>(TerminalLoc,
+              emitImplicitBitcast(TerminalLoc,
                                   ReturnValue,
                                   C.getPointerType(LLVMReturnType));
 

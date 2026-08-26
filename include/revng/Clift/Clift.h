@@ -33,7 +33,8 @@ inline constexpr unsigned BreakLabelFlag = 1 << 0;
 inline constexpr unsigned ContinueLabelFlag = 1 << 1;
 
 bool verifyStatementRegion(mlir::Region &R);
-bool verifyExpressionRegion(mlir::Region &R, bool Required);
+bool verifyExpressionRegion(mlir::Region &R);
+bool verifyConditionRegion(mlir::Region &R);
 
 unsigned getPointerArithmeticPointerOperandIndex(mlir::Operation *Op);
 unsigned getPointerArithmeticOffsetOperandIndex(mlir::Operation *Op);

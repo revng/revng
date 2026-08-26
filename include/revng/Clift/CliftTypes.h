@@ -163,6 +163,19 @@ template<typename TypeT>
   return getObjectSize(Value.getType());
 }
 
+/// Returns the bit width of the given type, assuming it is an IntegralType
+/// (after unwrapping typedefs).
+[[nodiscard]] inline uint64_t getBitWidth(mlir::Type Type) {
+  revng_assert(clift::unwrapped_isa<IntegralType>(Type));
+  return getObjectSize(Type) * 8;
+}
+
+/// Returns the bit width of the given value, assuming its type is an
+/// IntegralType (after unwrapping typedefs).
+[[nodiscard]] inline uint64_t getBitWidth(mlir::Value Value) {
+  return getBitWidth(Value.getType());
+}
+
 //===--------------------------- Integral types ---------------------------===//
 
 /// Returns true if the specified type is a signed integer type (including

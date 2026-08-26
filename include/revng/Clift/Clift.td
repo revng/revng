@@ -84,6 +84,13 @@ class Clift_AllSizesMatch<list<string> names>
                               "clift::getObjectSize($_self.getType())",
                               "object size">;
 
+class Clift_ValuesAreOrdered<string lhs_name, string rhs_name, string operator, string summary>
+  : PredOpTrait<"the " # summary # " of " # lhs_name # " and " # rhs_name # " are ordered",
+                CPred<!subst("$_self", "$" # lhs_name, operator) # " < " # !subst("$_self", "$" # rhs_name, operator)>>;
+
+class Clift_ObjectSizesAreOrdered<string lhs_name, string rhs_name>
+  : Clift_ValuesAreOrdered<lhs_name, rhs_name, "clift::getObjectSize($_self.getType())", "sizes">;
+
 class Clift_AllPointeeTypesMatch<list<string> names>
   : AllMatchSameOperatorTrait<names,
                               "clift::unwrapped_cast<clift::PointerType>($_self.getType()).getPointeeType()",
@@ -107,17 +114,21 @@ class Clift_LValueOperand<string name>
 
 //===---------------------------- Region types ----------------------------===//
 
+class Clift_OptionalRegion<Region region>
+  : Region<Or<[CPred<"$_self.empty()">, region.predicate]>,
+           "optional " # region.summary>;
+
 def Clift_StatementRegion
-  : Region<CPred<"clift::impl::verifyStatementRegion($_self)">,
-           "Region containing statements">;
+  : Clift_OptionalRegion<Region<CPred<"clift::impl::verifyStatementRegion($_self)">,
+                                      "region containing statements">>;
 
 def Clift_ExpressionRegion
-  : Region<CPred<"clift::impl::verifyExpressionRegion($_self, true)">,
-           "Region representing an expression">;
+  : Region<CPred<"clift::impl::verifyExpressionRegion($_self)">,
+           "region representing an expression">;
 
-def Clift_OptionalExpressionRegion
-  : Region<CPred<"clift::impl::verifyExpressionRegion($_self, false)">,
-           "Optional region representing an expression">;
+def Clift_ConditionRegion
+  : Region<CPred<"clift::impl::verifyConditionRegion($_self)">,
+           "region representing a condition expression">;
 
 //===------------------------ Top level operations ------------------------===//
 
@@ -243,7 +254,7 @@ def Clift_GlobalVariableOp : Clift_Op<"global",
     global variable
   }];
 
-  let regions = (region Clift_OptionalExpressionRegion:$initializer);
+  let regions = (region Clift_OptionalRegion<Clift_ExpressionRegion>:$initializer);
 
   let assemblyFormat = [{
     $sym_name `:` $type (`=` $initializer^)? attr-dict-with-keyword
@@ -403,7 +414,7 @@ def Clift_ContinueToOp : Clift_JumpStatementOp<"continue_to"> {
 
 def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
   let regions = (region Clift_StatementRegion:$body,
-                        Clift_ExpressionRegion:$condition);
+                        Clift_ConditionRegion:$condition);
 
   // The leading `` suppresses the space the printer inserts before the label
   // directive, which prints each label with its own leading space instead. This
@@ -412,8 +423,6 @@ def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
     `` custom<CliftLoopLabels>($label_mask, $labels)
     `body` $body `cond` $condition attr-dict-with-keyword
   }];
-
-  let hasVerifier = 1;
 
   let extraClassDeclaration = [{
     [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
@@ -443,7 +452,7 @@ def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
 def Clift_ExpressionStatementOp
   : Clift_StatementOp<"expr", [Clift_ExpressionRegionOpInterface]> {
 
-  let regions = (region Clift_OptionalExpressionRegion:$expression);
+  let regions = (region Clift_ExpressionRegion:$expression);
 
   let assemblyFormat = [{
     $expression attr-dict-with-keyword
@@ -471,8 +480,8 @@ def Clift_ForOp
                                                      ["getBlockArgumentVariable"]>]> {
 
   let regions = (region Clift_StatementRegion:$initializer,
-                        Clift_OptionalExpressionRegion:$condition,
-                        Clift_OptionalExpressionRegion:$expression,
+                        Clift_OptionalRegion<Clift_ConditionRegion>:$condition,
+                        Clift_OptionalRegion<Clift_ExpressionRegion>:$expression,
                         Clift_StatementRegion:$body);
 
   let hasCustomAssemblyFormat = 1;
@@ -514,15 +523,13 @@ def Clift_GotoOp : Clift_JumpStatementOp<"goto"> {
 }
 
 def Clift_IfOp : Clift_BasicStatementOp<"if", Clift_BranchOpInterface> {
-  let regions = (region Clift_ExpressionRegion:$condition,
+  let regions = (region Clift_ConditionRegion:$condition,
                         Clift_StatementRegion:$then,
                         Clift_StatementRegion:$else);
 
   let assemblyFormat = [{
     $condition `then` $then (`else` $else^)? attr-dict-with-keyword
   }];
-
-  let hasVerifier = 1;
 
   let extraClassDeclaration = [{
     clift::NoFallthroughKind isIndirectlyNoFallthrough() const;
@@ -562,7 +569,7 @@ def Clift_LocalVariableOp
 
   let results = (outs Clift_AnyObjectType:$result);
 
-  let regions = (region Clift_OptionalExpressionRegion:$initializer);
+  let regions = (region Clift_OptionalRegion<Clift_ExpressionRegion>:$initializer);
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
@@ -585,7 +592,7 @@ def Clift_LocalVariableOp
 
 def Clift_ReturnOp : Clift_StatementOp<"return", [Clift_NoFallthrough]> {
 
-  let regions = (region Clift_OptionalExpressionRegion:$result);
+  let regions = (region Clift_OptionalRegion<Clift_ExpressionRegion>:$result);
 
   let assemblyFormat = [{
     $result attr-dict-with-keyword
@@ -688,7 +695,7 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
 }
 
 def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
-  let regions = (region Clift_ExpressionRegion:$condition,
+  let regions = (region Clift_ConditionRegion:$condition,
                         Clift_StatementRegion:$body);
 
   // The leading `` suppresses the space the printer inserts before the label
@@ -698,8 +705,6 @@ def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
     `` custom<CliftLoopLabels>($label_mask, $labels)
     `cond` $condition `body` $body attr-dict-with-keyword
   }];
-
-  let hasVerifier = 1;
 
   let extraClassDeclaration = [{
     [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
@@ -1020,7 +1025,10 @@ def Clift_BitCastOp
   }];
 }
 
-def Clift_ExtendOp : Clift_CastExpressionOp<"extend"> {
+def Clift_ZeroExtendOp
+  : Clift_CastExpressionOp<"zext",
+                           [Clift_ObjectSizesAreOrdered<"value", "result">]> {
+
   let arguments = (ins Clift_AnyIntegerType:$value);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
@@ -1028,11 +1036,12 @@ def Clift_ExtendOp : Clift_CastExpressionOp<"extend"> {
   let assemblyFormat = [{
     $value attr-dict `:` type($value) `->` type($result)
   }];
-
-  let hasVerifier = 1;
 }
 
-def Clift_TruncateOp : Clift_CastExpressionOp<"truncate"> {
+def Clift_SignExtendOp
+  : Clift_CastExpressionOp<"sext",
+                           [Clift_ObjectSizesAreOrdered<"value", "result">]> {
+
   let arguments = (ins Clift_AnyIntegerType:$value);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
@@ -1040,8 +1049,19 @@ def Clift_TruncateOp : Clift_CastExpressionOp<"truncate"> {
   let assemblyFormat = [{
     $value attr-dict `:` type($value) `->` type($result)
   }];
+}
 
-  let hasVerifier = 1;
+def Clift_TruncateOp
+  : Clift_CastExpressionOp<"truncate",
+                           [Clift_ObjectSizesAreOrdered<"result", "value">]> {
+
+  let arguments = (ins Clift_AnyIntegerType:$value);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($value) `->` type($result)
+  }];
 }
 
 def Clift_PtrResizeOp

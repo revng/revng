@@ -63,6 +63,8 @@ set(FILECHECK_TESTS
     clift/c-legalization/imm-legal.mlir
     clift/c-legalization/ptr32.mlir
     clift/c-legalization/sar-sign.mlir
+    clift/c-legalization/sext-unsigned.mlir
+    clift/c-legalization/zext-signed.mlir
     clift/c-semantics/access-p32.mlir
     clift/c-semantics/add-i16.mlir
     clift/c-semantics/addressof-p32.mlir
