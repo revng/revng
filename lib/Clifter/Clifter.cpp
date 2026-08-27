@@ -952,6 +952,22 @@ private:
                              Arguments);
   }
 
+  template<typename ExtendOpT>
+  mlir::Value emitExtendOp(mlir::Location Loc,
+                           mlir::Value Operand,
+                           const llvm::Type *LLVMSrcType,
+                           const llvm::Type *LLVMDstType) {
+    mlir::Type SrcType = Operand.getType();
+    mlir::Type DstType = C.importLLVMType(LLVMDstType);
+
+    if (getObjectSize(SrcType) == getObjectSize(DstType)) {
+      revng_assert(LLVMSrcType->isIntegerTy(1));
+      return emitImplicitBitcast(Loc, Operand, DstType);
+    }
+
+    return Builder.create<ExtendOpT>(Loc, DstType, Operand);
+  }
+
   RecursiveCoroutine<mlir::Value>
   emitExpression(const llvm::Value *V, mlir::Location SurroundingLocation) {
     LoggerIndent Indent(ExpressionLog);
@@ -1291,13 +1307,17 @@ private:
         using Operators = llvm::CastInst::CastOps;
 
       case Operators::SExt:
-        rc_return Builder.create<SignExtendOp>(Loc,
-                                               C.importLLVMType(V->getType()),
-                                               Operand);
+        rc_return emitExtendOp<SignExtendOp>(Loc,
+                                             Operand,
+                                             I->getSrcTy(),
+                                             I->getDestTy());
+
       case Operators::ZExt:
-        rc_return Builder.create<ZeroExtendOp>(Loc,
-                                               C.importLLVMType(V->getType()),
-                                               Operand);
+        rc_return emitExtendOp<ZeroExtendOp>(Loc,
+                                             Operand,
+                                             I->getSrcTy(),
+                                             I->getDestTy());
+
       case Operators::Trunc:
         rc_return Builder.create<TruncateOp>(Loc,
                                              C.importLLVMType(V->getType()),
