@@ -63,12 +63,12 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @test_index_from_field<!f>
   // CHECK: [[LOCAL:%[0-9]+]] = clift.local : !_1_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[LOCAL]] : !clift.ptr<8 to !_1_>
-  // CHECK: [[IDX_ACCESS:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
+  // CHECK: [[IDX_ACCESS:%[0-9]+]] = clift.ptr_access<1> [[ADDRESSOF1]]
   // CHECK: [[IDX_ADDROF:%[0-9]+]] = clift.addressof [[IDX_ACCESS]]
   // CHECK: [[IDX_LOAD:%[0-9]+]] = clift.indirection [[IDX_ADDROF]]
   // CHECK: [[IDX_EXT:%[0-9]+]] = clift.sext [[IDX_LOAD]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[LOCAL]] : !clift.ptr<8 to !_1_>
-  // CHECK: [[ARR_ACCESS:%[0-9]+]] = clift.access<indirect 0> [[ADDRESSOF2]]
+  // CHECK: [[ARR_ACCESS:%[0-9]+]] = clift.ptr_access<0> [[ADDRESSOF2]]
   // CHECK: [[ARR_DECAY:%[0-9]+]] = clift.decay [[ARR_ACCESS]]
   // CHECK: [[IDX_CAST:%[0-9]+]] = clift.bitcast [[IDX_EXT]]
   // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[ARR_DECAY]], [[IDX_CAST]]

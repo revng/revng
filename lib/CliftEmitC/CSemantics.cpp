@@ -16,8 +16,7 @@ static PointerType getPointerOperationType(ExpressionOpInterface Op) {
   if (mlir::isa<PtrDiffOp, IndirectionOp, SubscriptOp>(Op))
     return clift::unwrapped_cast<PointerType>(Op->getOperand(0).getType());
 
-  if (auto A = mlir::dyn_cast<AccessOp>(Op.getOperation());
-      A and A.isIndirect())
+  if (auto A = mlir::dyn_cast<IndirectAccessOp>(Op.getOperation()))
     return clift::unwrapped_cast<PointerType>(A.getValue().getType());
 
   if (mlir::isa<DecayOp>(Op))

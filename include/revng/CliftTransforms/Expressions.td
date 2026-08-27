@@ -133,14 +133,12 @@ def PointerArithmeticAddMulImmPattern
 
 // (*x).m -> x->m
 def IndirectAccessPattern
-  : Pat<(Clift_AccessOp (Clift_IndirectionOp $arg), $indirect, $member_index),
-        (Clift_AccessOp $arg, (NativeCodeCall<"$_builder.getUnitAttr()">), $member_index),
-        [(Constraint<CPred<"not $0">> $indirect)]>;
+  : Pat<(Clift_DirectAccessOp (Clift_IndirectionOp $arg), $member_index),
+        (Clift_IndirectAccessOp $arg, $member_index)>;
 
 // (&x)->m -> x.m
 def DirectAccessPattern
-  : Pat<(Clift_AccessOp (Clift_AddressofOp $arg), $indirect, $member_index),
-        (Clift_AccessOp $arg, (NativeCodeCall<"mlir::UnitAttr(nullptr)">), $member_index),
-        [(Constraint<CPred<"$0">> $indirect)]>;
+  : Pat<(Clift_IndirectAccessOp (Clift_AddressofOp $arg), $member_index),
+        (Clift_DirectAccessOp $arg, $member_index)>;
 
 #endif

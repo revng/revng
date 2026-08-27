@@ -1134,35 +1134,28 @@ def Clift_AssignOp
   }];
 }
 
-def Clift_AccessOp
-  : Clift_ExpressionOp<"access",
-                       [DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
-                                                  ["lvalueToRvalueConversion"]>]> {
+class Clift_AccessOp<string mnemonic, list<string> expr_methods>
+  : Clift_ExpressionOp<mnemonic,
+                       [DeclareOpInterfaceMethods<Clift_AccessOpInterface,
+                                                  ["getClassType"]>,
+                        DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
+                                                  !listconcat(expr_methods,
+                                                              ["isLvalueExpression"])>]> {
 
-  let arguments = (ins AnyType:$value,
-                       UnitAttr:$indirect,
-                       I64Attr:$member_index);
-
+  let arguments = (ins AnyType:$value, I64Attr:$member_index);
   let results = (outs AnyType:$result);
 
   let assemblyFormat = [{
-    `<` (`indirect` $indirect^)? $member_index `>` $value attr-dict
-    `:` type($value) `->` type($result)
-  }];
-
-  let extraClassDeclaration = [{
-    [[nodiscard]] bool isIndirect() {
-      return getIndirect();
-    }
-
-    [[nodiscard]] bool isLvalueExpression();
-
-    [[nodiscard]] clift::ClassType getClassType();
-    [[nodiscard]] clift::FieldAttr getFieldAttr();
+    `<` $member_index `>` $value attr-dict `:` type($value) `->` type($result)
   }];
 
   let hasVerifier = 1;
 }
+
+def Clift_DirectAccessOp : Clift_AccessOp<"access",
+                                          ["lvalueToRvalueConversion"]>;
+
+def Clift_IndirectAccessOp : Clift_AccessOp<"ptr_access", []>;
 
 def Clift_SubscriptOp
   : Clift_ExpressionOp<"subscript",

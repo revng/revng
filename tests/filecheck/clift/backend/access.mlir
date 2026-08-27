@@ -46,25 +46,25 @@ module attributes {clift.module} {
 
     // CHECK: var_0->x;
     clift.expr {
-      %a = clift.access<indirect 0> %s : !s$p -> !int32_t
+      %a = clift.ptr_access<0> %s : !s$p -> !int32_t
       clift.yield %a : !int32_t
     }
 
     // CHECK: var_1->x;
     clift.expr {
-      %a = clift.access<indirect 0> %u : !u$p -> !int32_t
+      %a = clift.ptr_access<0> %u : !u$p -> !int32_t
       clift.yield %a : !int32_t
     }
 
     // CHECK: var_0->y;
     clift.expr {
-      %a = clift.access<indirect 1> %s : !s$p -> !int32_t
+      %a = clift.ptr_access<1> %s : !s$p -> !int32_t
       clift.yield %a : !int32_t
     }
 
     // CHECK: var_1->y;
     clift.expr {
-      %a = clift.access<indirect 1> %u : !u$p -> !int32_t
+      %a = clift.ptr_access<1> %u : !u$p -> !int32_t
       clift.yield %a : !int32_t
     }
 

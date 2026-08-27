@@ -85,7 +85,7 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @g<!f>
   // CHECK: [[STRUCT:%[0-9]+]] = clift.local : !_2_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_2_>
-  // CHECK: [[ACCESS:%[0-9]+]] = clift.access<indirect 0> [[ADDRESSOF1]]
+  // CHECK: [[ACCESS:%[0-9]+]] = clift.ptr_access<0> [[ADDRESSOF1]]
   // CHECK: [[CAST1:%[0-9]+]] = clift.decay [[ACCESS]]
   // CHECK: [[IMM:%[0-9]+]] = clift.imm 1
   // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[CAST1]], [[IMM]]
@@ -119,7 +119,7 @@ module attributes {clift.module} {
   // CHECK: [[CAST1:%[0-9]+]] = clift.decay [[INDIRECTION]]
   // CHECK: [[IMM:%[0-9]+]] = clift.imm 2
   // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[CAST1]], [[IMM]]
-  // CHECK: [[ACCESS:%[0-9]+]] = clift.access< 1> [[SUBSCRIPT]]
+  // CHECK: [[ACCESS:%[0-9]+]] = clift.access<1> [[SUBSCRIPT]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[ACCESS]]
   // CHECK: clift.yield [[ADDRESSOF2]] : !clift.ptr<8 to !int32_t>
 }

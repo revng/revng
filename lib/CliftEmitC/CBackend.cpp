@@ -264,18 +264,17 @@ public:
   }
 
   RecursiveCoroutine<void> emitAccessExpression(mlir::Value V) {
-    auto E = V.getDefiningOp<AccessOp>();
+    auto E = V.getDefiningOp<AccessOpInterface>();
 
     // Parenthesizing a nested unary postfix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPostfix);
 
     rc_recur emitExpression(E.getValue());
 
-    Tokens.emitOperator(E.isIndirect() ? CTE::Operator::Arrow :
-                                         CTE::Operator::Dot);
+    Tokens.emitOperator(mlir::isa<DirectAccessOp>(E) ? CTE::Operator::Dot :
+                                                       CTE::Operator::Arrow);
 
-    auto Field = E.getClassType().getFields()[E.getMemberIndex()];
-
+    FieldAttr Field = E.getFieldAttr();
     Tokens.emitIdentifier(Field.getName(),
                           Field.getHandle(),
                           CTE::EntityKind::Field,
@@ -585,7 +584,7 @@ public:
       };
     }
 
-    if (mlir::isa<AccessOp>(E)) {
+    if (mlir::isa<AccessOpInterface>(E.getOperation())) {
       return {
         .Precedence = OperatorPrecedence::UnaryPostfix,
         .Emit = &CliftToCEmitter::emitAccessExpression,

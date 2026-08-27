@@ -59,7 +59,7 @@ module attributes {clift.module} {
   // CHECK-SAME: ([[ARG0:%[a-z0-9]+]]: !generic64_t)
   // CHECK: [[LOCAL:%[0-9]+]] = clift.local : !_1_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[LOCAL]] : !clift.ptr<8 to !_1_>
-  // CHECK: [[ACCESS:%[0-9]+]] = clift.access<indirect 2> [[ADDRESSOF1]]
+  // CHECK: [[ACCESS:%[0-9]+]] = clift.ptr_access<2> [[ADDRESSOF1]]
   // CHECK: [[CAST:%[0-9]+]] = clift.decay [[ACCESS]]
   // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[CAST]], [[ARG0]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[SUBSCRIPT]]
@@ -88,7 +88,7 @@ module attributes {clift.module} {
   // CHECK-SAME: ([[ARG0:%[a-z0-9]+]]: !generic64_t)
   // CHECK: [[LOCAL:%[0-9]+]] = clift.local : !_2_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[LOCAL]] : !clift.ptr<8 to !_2_>
-  // CHECK: [[ACCESS:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
+  // CHECK: [[ACCESS:%[0-9]+]] = clift.ptr_access<1> [[ADDRESSOF1]]
   // CHECK: [[CAST:%[0-9]+]] = clift.decay [[ACCESS]]
   // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[CAST]], [[ARG0]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[SUBSCRIPT]]

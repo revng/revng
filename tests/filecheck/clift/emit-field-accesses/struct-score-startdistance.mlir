@@ -53,7 +53,7 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @test_startdistance<!f>
   // CHECK: [[STRUCT:%[0-9]+]] = clift.local : !_1_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_1_>
-  // CHECK: [[ACCESS1:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
+  // CHECK: [[ACCESS1:%[0-9]+]] = clift.ptr_access<1> [[ADDRESSOF1]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[ACCESS1]]
   // CHECK: [[CAST1:%[0-9]+]] = clift.bitcast [[ADDRESSOF2]]
   // CHECK: [[IMM:%[0-9]+]] = clift.imm 2
@@ -85,5 +85,5 @@ module attributes {clift.module} {
   // CHECK: [[ADD:%[0-9]+]] = clift.add [[CAST1]], [[IMM]]
   // CHECK: [[CAST2:%[0-9]+]] = clift.bitcast [[ADD]]
   // CHECK: clift.yield [[CAST2]] : !clift.ptr<8 to !int64_t>
-  // CHECK-NOT: [[ACCESS1:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
+  // CHECK-NOT: [[ACCESS1:%[0-9]+]] = clift.ptr_access<1> [[ADDRESSOF1]]
 }

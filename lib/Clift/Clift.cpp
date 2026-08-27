@@ -1464,68 +1464,78 @@ AssignOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
                                            LvalueToRvalueConversion::Yes;
 }
 
-//===------------------------------ AccessOp ------------------------------===//
+//===--------------------------- DirectAccessOp ---------------------------===//
 
-bool AccessOp::isLvalueExpression() {
-  return isIndirect() or clift::isLvalueExpression(getValue());
+template<typename OpT>
+static mlir::LogicalResult verifyAccessOp(OpT Op, ClassType Class) {
+  auto Fields = Class.getFields();
+
+  const uint64_t Index = Op.getMemberIndex();
+  if (Index >= Fields.size())
+    return Op.emitOpError() << Op.getOperationName()
+                            << " struct or union member index out of range.";
+
+  if (Op.getType() != Fields[Index].getType())
+    return Op.emitOpError() << Op.getOperationName()
+                            << " result type must match the accessed member"
+                               " type.";
+
+  return mlir::success();
+}
+
+bool DirectAccessOp::isLvalueExpression() {
+  return clift::isLvalueExpression(getValue());
 }
 
 LvalueToRvalueConversion
-AccessOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
+DirectAccessOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
   revng_assert(Operand.getOwner() == getOperation());
 
   // Direct member accesses are transparent to l-value-to-r-value conversion. In
   // other words, an l-value-to-r-value is applied to this operand, if one is
   // applied to the result of this operation.
-  return isIndirect() ? LvalueToRvalueConversion::Yes :
-                        LvalueToRvalueConversion::Transparent;
+  return LvalueToRvalueConversion::Transparent;
 }
 
-ClassType AccessOp::getClassType() {
-  auto ObjectT = unwrapTypedefs(getValue().getType());
-
-  if (isIndirect()) {
-    ObjectT = mlir::cast<PointerType>(ObjectT).getPointeeType();
-    ObjectT = unwrapTypedefs(ObjectT);
-  }
-
-  return mlir::cast<ClassType>(removeConst(ObjectT));
+ClassType DirectAccessOp::getClassType() {
+  auto ObjectType = unwrapTypedefs(getValue().getType());
+  return mlir::cast<ClassType>(removeConst(ObjectType));
 }
 
-FieldAttr AccessOp::getFieldAttr() {
-  return getClassType().getFields()[getMemberIndex()];
-}
-
-mlir::LogicalResult AccessOp::verify() {
-  auto ObjectT = collapseTypedefs(getValue().getType());
-
-  if (auto PointerT = mlir::dyn_cast<PointerType>(ObjectT)) {
-    if (not isIndirect())
-      return emitOpError() << getOperationName()
-                           << " operand must have pointer type.";
-
-    ObjectT = unwrapTypedefs(PointerT.getPointeeType());
-  }
-
-  auto Class = mlir::dyn_cast<ClassType>(ObjectT);
+mlir::LogicalResult DirectAccessOp::verify() {
+  auto Class = clift::unwrapped_dyn_cast<ClassType>(getValue().getType());
   if (not Class)
     return emitOpError() << getOperationName()
-                         << " operand must have (pointer to) struct or union"
-                         << " type.";
+                         << " operand must have struct or union type.";
 
-  auto Fields = Class.getFields();
+  return verifyAccessOp(*this, Class);
+}
 
-  const uint64_t Index = getMemberIndex();
-  if (Index >= Fields.size())
+//===-------------------------- IndirectAccessOp --------------------------===//
+
+bool IndirectAccessOp::isLvalueExpression() {
+  return true;
+}
+
+ClassType IndirectAccessOp::getClassType() {
+  auto PtrType = clift::unwrapped_cast<PointerType>(getValue().getType());
+  auto ObjectType = unwrapTypedefs(PtrType.getPointeeType());
+  return mlir::cast<ClassType>(removeConst(ObjectType));
+}
+
+mlir::LogicalResult IndirectAccessOp::verify() {
+  auto PtrType = clift::unwrapped_dyn_cast<PointerType>(getValue().getType());
+  if (not PtrType)
     return emitOpError() << getOperationName()
-                         << " struct or union member index out of range.";
+                         << " operand must have pointer type.";
 
-  auto FieldT = Fields[Index].getType();
-  if (FieldT != getType())
+  auto Class = clift::unwrapped_dyn_cast<ClassType>(PtrType.getPointeeType());
+  if (not Class)
     return emitOpError() << getOperationName()
-                         << " result type must match the selected member type.";
+                         << " operand must have pointer to struct or union"
+                            " type.";
 
-  return mlir::success();
+  return verifyAccessOp(*this, Class);
 }
 
 //===----------------------------- SubscriptOp ----------------------------===//

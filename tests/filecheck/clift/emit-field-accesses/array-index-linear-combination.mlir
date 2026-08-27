@@ -85,7 +85,7 @@ module attributes {clift.module} {
   // CHECK: clift.imm 2
   // CHECK: [[IDX:%[0-9]+]] = clift.mul [[ARG0]], {{%[0-9]+}}
   // CHECK: [[SUB:%[0-9]+]] = clift.subscript [[DECAY]], [[IDX]]
-  // CHECK: clift.access< 2> [[SUB]]
+  // CHECK: clift.access<2> [[SUB]]
 
   // Scaled index plus a constant. A `uint32_t[8]` (element stride 4) walked as
   // `base + 8*i + 12` folds to `&arr[2*i + 3]`.
@@ -231,7 +231,7 @@ module attributes {clift.module} {
   // CHECK: [[MUL:%[0-9]+]] = clift.mul [[I]], {{%[0-9]+}}
   // CHECK: [[IDX:%[0-9]+]] = clift.add [[MUL]], [[J]]
   // CHECK: [[SUB:%[0-9]+]] = clift.subscript {{%[0-9]+}}, [[IDX]]
-  // CHECK: [[FIELD:%[0-9]+]] = clift.access< 1> [[SUB]]
+  // CHECK: [[FIELD:%[0-9]+]] = clift.access<1> [[SUB]]
   // CHECK: clift.addressof [[FIELD]] : !clift.ptr<8 to !uint8_t>
   // CHECK-NOT: clift.imm 2
 
@@ -262,6 +262,7 @@ module attributes {clift.module} {
   // CHECK: clift.bitcast {{.*}} -> !clift.ptr<8 to !uint32_t>
   // CHECK-NOT: clift.subscript
   // CHECK-NOT: clift.access
+  // CHECK-NOT: clift.ptr_access
 
   // A `uint32_t[8]` walked as `base + 8*i + 5*j`. `8*i` alone would fold, but
   // `5*j` is a multiple of no array stride, so the whole access is left as raw
@@ -290,4 +291,5 @@ module attributes {clift.module} {
   // CHECK: clift.bitcast {{.*}} -> !clift.ptr<8 to !uint32_t>
   // CHECK-NOT: clift.subscript
   // CHECK-NOT: clift.access
+  // CHECK-NOT: clift.ptr_access
 }

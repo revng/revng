@@ -58,10 +58,10 @@ module attributes {clift.module} {
   // CHECK-SAME: ([[ARG0:%[a-z0-9]+]]: !generic64_t)
   // CHECK: [[LOCAL:%[0-9]+]] = clift.local : !_1_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[LOCAL]] : !clift.ptr<8 to !_1_>
-  // CHECK: [[ACCESS1:%[0-9]+]] = clift.access<indirect 2> [[ADDRESSOF1]]
+  // CHECK: [[ACCESS1:%[0-9]+]] = clift.ptr_access<2> [[ADDRESSOF1]]
   // CHECK: [[DECAY:%[0-9]+]] = clift.decay [[ACCESS1]]
   // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[DECAY]], [[ARG0]]
-  // CHECK: [[ACCESS2:%[0-9]+]] = clift.access< 0> [[SUBSCRIPT]]
+  // CHECK: [[ACCESS2:%[0-9]+]] = clift.access<0> [[SUBSCRIPT]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[ACCESS2]]
   // CHECK: clift.yield [[ADDRESSOF2]] : !clift.ptr<8 to !int32_t>
 }

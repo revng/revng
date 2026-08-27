@@ -270,11 +270,17 @@ bool Replacement::replace(mlir::PatternRewriter &Rewriter,
       auto Index = Access.Index.Constant;
       auto [Type, IsIndirect] = getAccessedTypeInfo<ClassType>(CurrentValue);
       mlir::Type FieldType = Type.getFields()[Index].getType();
-      CurrentValue = Rewriter.create<AccessOp>(PointerToReplaceLoc,
-                                               FieldType,
-                                               CurrentValue,
-                                               IsIndirect,
-                                               Index);
+      if (IsIndirect) {
+        CurrentValue = Rewriter.create<IndirectAccessOp>(PointerToReplaceLoc,
+                                                         FieldType,
+                                                         CurrentValue,
+                                                         Index);
+      } else {
+        CurrentValue = Rewriter.create<DirectAccessOp>(PointerToReplaceLoc,
+                                                       FieldType,
+                                                       CurrentValue,
+                                                       Index);
+      }
       break;
     }
 

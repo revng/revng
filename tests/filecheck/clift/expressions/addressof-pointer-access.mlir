@@ -15,5 +15,5 @@
 !p_s = !clift.ptr<8 to !s>
 
 %0 = clift.undef : !p_s
-%1 = clift.access<indirect 0> %0 : !p_s -> !int32_t
+%1 = clift.ptr_access<0> %0 : !p_s -> !int32_t
 %2 = clift.addressof %1 : !int32_t$ptr

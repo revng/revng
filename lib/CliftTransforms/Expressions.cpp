@@ -109,11 +109,8 @@ struct TypePunnedReadPattern : mlir::RewritePattern {
         continue;
 
       mlir::OpOperand *InnerOperand = &Operand;
-      while (auto A = InnerOperand->get().getDefiningOp<AccessOp>()) {
-        if (A.isIndirect())
-          break;
+      while (auto A = InnerOperand->get().getDefiningOp<DirectAccessOp>())
         InnerOperand = &A->getOpOperand(0);
-      }
 
       auto I = InnerOperand->get().getDefiningOp<IndirectionOp>();
       if (not I)
