@@ -51,45 +51,6 @@ static bool areAllBitsSet(llvm::APInt Value, mlir::Type Type) {
   return Value.trunc(getUnderlyingIntegerType(Type).getSize() * 8).isAllOnes();
 }
 
-static bool assignTypePunnedConstraint(mlir::Value Ptr, mlir::Value Value) {
-  auto PtrType = clift::unwrapped_dyn_cast<PointerType>(Ptr.getType());
-  if (not PtrType)
-    return false;
-
-  mlir::Type SrcType = Value.getType();
-  mlir::Type DstType = PtrType.getPointeeType();
-
-  if (not clift::unwrapped_isa<ValueType>(DstType))
-    return false;
-
-  if (not isModifiableType(DstType))
-    return false;
-
-  return SrcType != DstType
-         and getObjectSize(SrcType) == getObjectSizeOrZero(DstType);
-}
-
-static mlir::Value assignTypePunnedResult(mlir::PatternRewriter &Rewriter,
-                                          mlir::Value OldAssignment,
-                                          mlir::Value NewAssignment,
-                                          mlir::Value PointerCast,
-                                          mlir::Value Indirection) {
-  mlir::Value Result = NewAssignment;
-  if (not isDiscarded(OldAssignment)) {
-    mlir::Location PointerCastLoc = PointerCast.getDefiningOp()->getLoc();
-    mlir::Location IndirectionLoc = Indirection.getDefiningOp()->getLoc();
-
-    auto NewPtrType = mlir::cast<PointerType>(PointerCast.getType());
-    auto OldPtrType = PointerType::get(NewAssignment.getType(),
-                                       NewPtrType.getPointerSize());
-
-    Result = Rewriter.create<AddressofOp>(IndirectionLoc, OldPtrType, Result);
-    Result = Rewriter.create<BitCastOp>(PointerCastLoc, NewPtrType, Result);
-    Result = Rewriter.create<IndirectionOp>(IndirectionLoc, Result);
-  }
-  return Result;
-}
-
 struct DivModPair {
   uint64_t Div;
   uint64_t Mod;
@@ -119,21 +80,22 @@ static DivModPair ptrOffsetDivMod(mlir::IntegerAttr OffsetAttr,
 
 } // namespace expression_optimization
 
+static bool isSubjectToLvalueToRvalueConversion(mlir::OpOperand &Operand) {
+  if (auto E = mlir::dyn_cast<ExpressionOpInterface>(Operand.getOwner()))
+    return E.lvalueToRvalueConversion(Operand) == LvalueToRvalueConversion::Yes;
+
+  revng_assert(mlir::isa<YieldOp>(Operand.getOwner()));
+
+  // All yields are considered subject to l-value-to-r-value conversion.
+  return true;
+}
+
 struct TypePunnedReadPattern : mlir::RewritePattern {
   TypePunnedReadPattern(mlir::MLIRContext *Context,
                         mlir::PatternBenefit Benefit = 1) :
     RewritePattern(MatchAnyOpTypeTag(), Benefit, Context) {}
 
-  static LvalueToRvalueConversion
-  lvalueToRvalueConversion(mlir::OpOperand &Operand) {
-    if (auto E = mlir::dyn_cast<ExpressionOpInterface>(Operand.getOwner()))
-      return E.lvalueToRvalueConversion(Operand);
-
-    revng_assert(mlir::isa<YieldOp>(Operand.getOwner()));
-
-    // All yields are considered subject to l-value-to-r-value conversion.
-    return LvalueToRvalueConversion::Yes;
-  }
+  void initialize() { setDebugName("type-punned-read"); }
 
   mlir::LogicalResult
   matchAndRewrite(mlir::Operation *Op,
@@ -143,7 +105,7 @@ struct TypePunnedReadPattern : mlir::RewritePattern {
 
     mlir::LogicalResult Result = mlir::failure();
     for (mlir::OpOperand &Operand : Op->getOpOperands()) {
-      if (lvalueToRvalueConversion(Operand) != LvalueToRvalueConversion::Yes)
+      if (not isSubjectToLvalueToRvalueConversion(Operand))
         continue;
 
       mlir::OpOperand *InnerOperand = &Operand;
@@ -196,6 +158,83 @@ struct TypePunnedReadPattern : mlir::RewritePattern {
   }
 };
 
+struct TypePunnedWritePattern : mlir::RewritePattern {
+  TypePunnedWritePattern(mlir::MLIRContext *Context,
+                         mlir::PatternBenefit Benefit = 1) :
+    RewritePattern(MatchAnyOpTypeTag(), Benefit, Context) {}
+
+  void initialize() { setDebugName("type-punned-write"); }
+
+  mlir::LogicalResult
+  matchAndRewrite(mlir::Operation *Op,
+                  mlir::PatternRewriter &Rewriter) const override {
+    if (not mlir::isa<ExpressionOpInterface, YieldOp>(Op))
+      return mlir::failure();
+
+    mlir::LogicalResult Result = mlir::failure();
+    for (mlir::OpOperand &Operand : Op->getOpOperands()) {
+      bool IsDiscarded = isDiscardedOperand(Operand);
+      if (not IsDiscarded and not isSubjectToLvalueToRvalueConversion(Operand))
+        return mlir::failure();
+
+      auto A = Operand.get().getDefiningOp<AssignOp>();
+      if (not A)
+        continue;
+
+      auto I = A.getLhs().getDefiningOp<IndirectionOp>();
+      if (not I)
+        continue;
+
+      auto C = I.getPointer().getDefiningOp<BitCastOp>();
+      if (not C)
+        continue;
+
+      auto P1 = clift::unwrapped_dyn_cast<PointerType>(C.getValueType());
+      if (not P1)
+        continue;
+
+      auto P2 = clift::unwrapped_cast<PointerType>(C.getType());
+
+      auto T1 = P1.getPointeeType();
+      auto T2 = P2.getPointeeType();
+
+      if (getObjectSizeOrZero(T1) != getObjectSizeOrZero(T2))
+        continue;
+
+      // For now arrays are not value types and so cannot be bit-cast. In the
+      // future, if array types are made regular, this rewrite can be applied.
+      if (clift::unwrapped_isa<ArrayType>(T1)
+          or clift::unwrapped_isa<ArrayType>(T2))
+        continue;
+
+      if (not isModifiableType(T1))
+        continue;
+
+      Rewriter.setInsertionPoint(A);
+
+      mlir::Value LHS = C.getValue();
+      LHS = Rewriter.create<IndirectionOp>(I->getLoc(), LHS);
+
+      mlir::Value RHS = A.getRhs();
+      RHS = Rewriter.create<BitCastOp>(A->getLoc(), T1, RHS);
+
+      A->getOpOperand(0).set(LHS);
+      A->getOpOperand(1).set(RHS);
+      A.getResult().setType(T1);
+
+      if (not IsDiscarded) {
+        Rewriter.setInsertionPoint(Operand.getOwner());
+        Operand.set(Rewriter.create<BitCastOp>(Operand.getOwner()->getLoc(),
+                                               T2,
+                                               A));
+      }
+
+      Result = mlir::success();
+    }
+    return Result;
+  }
+};
+
 struct OptimizeExpressionsPass
   : impl::CliftOptimizeExpressionsBase<OptimizeExpressionsPass> {
 
@@ -240,6 +279,7 @@ void clift::populateWithExpressionOptimizationPatterns(mlir::RewritePatternSet
   populateWithCastCanonicalizations(Set);
 
   Set.add<TypePunnedReadPattern>(Set.getContext());
+  Set.add<TypePunnedWritePattern>(Set.getContext());
 
   mlir::Dialect *Clift = Set.getContext()->getLoadedDialect<CliftDialect>();
   Clift->getCanonicalizationPatterns(Set);

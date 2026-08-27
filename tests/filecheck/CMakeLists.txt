@@ -143,8 +143,8 @@ set(FILECHECK_TESTS
     clift/emit-field-accesses/struct-union-access.mlir
     clift/emit-field-accesses/union-array-stride-selection.mlir
     clift/expression-rewrites/addressof.mlir
-    clift/expression-rewrites/assign-type-punned-reused.mlir
-    clift/expression-rewrites/assign-type-punned.mlir
+    clift/expression-rewrites/assign-type-punned-discarded.mlir
+    clift/expression-rewrites/assign-type-punned-read.mlir
     clift/expression-rewrites/cast-collapsible.mlir
     clift/expression-rewrites/cast-immediate.mlir
     clift/expression-rewrites/cast-redundant.mlir

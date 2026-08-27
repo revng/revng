@@ -16,13 +16,21 @@ static bool testExpressionUsage(YieldOp Yield) {
 }
 
 template<auto TestStatement, auto TestOperand>
+static bool testOperandUsage(mlir::OpOperand &Operand) {
+  if (auto Yield = mlir::dyn_cast<YieldOp>(Operand.getOwner()))
+    return testExpressionUsage<TestStatement>(Yield);
+
+  auto Expression = mlir::cast<ExpressionOpInterface>(Operand.getOwner());
+  if (not(Expression.*TestOperand)(Operand))
+    return false;
+
+  return true;
+}
+
+template<auto TestStatement, auto TestOperand>
 static bool testValueUsage(mlir::Value Value) {
   for (mlir::OpOperand &Use : Value.getUses()) {
-    if (auto Yield = mlir::dyn_cast<YieldOp>(Use.getOwner()))
-      return testExpressionUsage<TestStatement>(Yield);
-
-    auto Expression = mlir::cast<ExpressionOpInterface>(Use.getOwner());
-    if (not(Expression.*TestOperand)(Use))
+    if (not testOperandUsage<TestStatement, TestOperand>(Use))
       return false;
   }
 
@@ -32,6 +40,11 @@ static bool testValueUsage(mlir::Value Value) {
 bool clift::isDiscarded(mlir::Value Value) {
   return testValueUsage<&StatementOpInterface::isDiscardedExpression,
                         &ExpressionOpInterface::isDiscardedOperand>(Value);
+}
+
+bool clift::isDiscardedOperand(mlir::OpOperand &Operand) {
+  return testOperandUsage<&StatementOpInterface::isDiscardedExpression,
+                          &ExpressionOpInterface::isDiscardedOperand>(Operand);
 }
 
 bool clift::isBooleanTested(mlir::Value Value) {
