@@ -389,6 +389,8 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/loop-detection-overlapping.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-both-fallthrough.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-both-goto-else-shorter.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-both-goto-trailing-label.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-both-goto-trailing-statement.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-both-goto.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-else-goto.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-empty-else.mlir
@@ -404,6 +406,7 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/terminal-branch-complement-hoisting-switch-precedence-break.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-switch-precedence-continue.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-switch-precedence-return.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-trailing-statement.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-switch-two-fallthrough.mlir
     clift/statement-rewrites/terminal-branch-complement-hoisting-then-goto.mlir
     clift/statement-rewrites/trivial-jump-elimination.mlir

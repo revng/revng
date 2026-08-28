@@ -125,8 +125,17 @@ selectHoistingTarget(llvm::MutableArrayRef<mlir::Region> Regions) {
   return selectByPrecedence(Regions);
 }
 
+static bool endsWithNoFallthrough(mlir::Region &R) {
+  return static_cast<bool>(getLastNoFallthroughStatement(R));
+}
+
 // Moves the statements of the branch region \p R out of \p Op, into the nesting
 // scope right after it. The emptied block is erased unless \p KeepBlock.
+// If \p ends with a NoFallthrough statement, all the statements after it in the
+// block where it's inlined are removed up to the first AssignLabelOp, given
+// that they are effectively dead and this would also break verification for the
+// NoFallthrough trait of the hoisted jump, which mandates the only allowed
+// statements after it an AssignLabelOp.
 static void hoistBranchRegion(mlir::PatternRewriter &Rewriter,
                               mlir::Operation *Op,
                               mlir::Region &R,
@@ -134,6 +143,10 @@ static void hoistBranchRegion(mlir::PatternRewriter &Rewriter,
   mlir::Block *Block = getOnlyBlock(R);
   if (Block == nullptr)
     return;
+
+  mlir::Operation *Unreachable = nullptr;
+  if (endsWithNoFallthrough(R))
+    Unreachable = Op->getNextNode();
 
   Rewriter.updateRootInPlace(Op, [&]() {
     inlineBlockBefore(Rewriter,
@@ -144,6 +157,12 @@ static void hoistBranchRegion(mlir::PatternRewriter &Rewriter,
 
   if (not KeepBlock)
     Rewriter.eraseBlock(Block);
+
+  while (Unreachable != nullptr and not mlir::isa<AssignLabelOp>(Unreachable)) {
+    mlir::Operation *Next = Unreachable->getNextNode();
+    Rewriter.eraseOp(Unreachable);
+    Unreachable = Next;
+  }
 }
 
 // Selects the branch region of \p If to be hoisted, as an index into
