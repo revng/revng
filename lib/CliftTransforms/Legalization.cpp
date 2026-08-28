@@ -264,31 +264,6 @@ struct PointerComparisonPattern : mlir::OpRewritePattern<OpT> {
   }
 };
 
-struct BooleanCanonicalizationPattern
-  : mlir::OpTraitRewritePattern<clift::ReturnsBoolean> {
-  IntegerType IntType;
-
-  explicit BooleanCanonicalizationPattern(mlir::MLIRContext *Context,
-                                          const CDataModel &DataModel) :
-    mlir::OpTraitRewritePattern<clift::ReturnsBoolean>(Context),
-    IntType(getIntType(Context, DataModel)) {}
-
-  mlir::LogicalResult
-  matchAndRewrite(mlir::Operation *Op,
-                  mlir::PatternRewriter &Rewriter) const override {
-    mlir::Value Result = Op->getResult(0);
-
-    auto T = clift::unwrapped_cast<IntegerType>(Result.getType());
-
-    if (T.getSize() == IntType.getSize())
-      return mlir::failure();
-
-    modifyResultType(Rewriter, Op, IntType, not clift::isBooleanTested(Result));
-
-    return mlir::success();
-  }
-};
-
 template<typename OpT>
 struct ArithmeticPromotionPattern : mlir::OpRewritePattern<OpT> {
   IntegerType IntType;
@@ -341,6 +316,24 @@ struct ShiftPromotionPattern : ArithmeticPromotionPattern<OpT> {
   mlir::LogicalResult
   matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
     return this->tryPromoteTypes(Rewriter, Op, { 0 });
+  }
+};
+
+struct BooleanCanonicalizationPattern : mlir::OpRewritePattern<BoolExtendOp> {
+  IntegerType IntType;
+
+  explicit BooleanCanonicalizationPattern(mlir::MLIRContext *Context,
+                                          const CDataModel &DataModel) :
+    OpRewritePattern(Context), IntType(getIntType(Context, DataModel)) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(BoolExtendOp Op,
+                  mlir::PatternRewriter &Rewriter) const override {
+    if (Op.getType() == IntType)
+      return mlir::failure();
+
+    modifyResultType(Rewriter, Op, IntType);
+    return mlir::success();
   }
 };
 

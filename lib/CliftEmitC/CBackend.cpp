@@ -90,9 +90,17 @@ public:
     return static_cast<OperatorPrecedence>(static_cast<T>(Precedence) - 1);
   }
 
+  void emitExpressionType(mlir::Type Type) {
+    if (mlir::isa<BoolType>(Type)) {
+      Tokens.emitKeyword(CTE::Keyword::Bool);
+    } else {
+      emitType(Type);
+    }
+  }
+
   void emitCStyleCast(mlir::Type Type) {
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
-    emitType(Type);
+    emitExpressionType(Type);
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
     Tokens.emitSpace();
   }
@@ -206,7 +214,7 @@ public:
   RecursiveCoroutine<void> emitUndefExpression(mlir::Value V) {
     Tokens.emitMacro("undef");
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
-    emitType(V.getType());
+    emitExpressionType(V.getType());
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
 
     rc_return;
@@ -247,6 +255,13 @@ public:
                        IntType.isSigned(),
                        CType,
                        getConstantRadix(E));
+
+    rc_return;
+  }
+
+  RecursiveCoroutine<void> emitBooleanConstantExpression(mlir::Value V) {
+    Tokens.emitKeyword(V.getDefiningOp<TrueOp>() ? CTE::Keyword::True :
+                                                   CTE::Keyword::False);
 
     rc_return;
   }
@@ -652,6 +667,13 @@ public:
       return {
         .Precedence = OperatorPrecedence::Primary,
         .Emit = &CliftToCEmitter::emitImmediateExpression,
+      };
+    }
+
+    if (mlir::isa<TrueOp, FalseOp>(E)) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CliftToCEmitter::emitBooleanConstantExpression,
       };
     }
 

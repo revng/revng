@@ -9,10 +9,6 @@
 
 namespace clift {
 
-inline IntegerType getBooleanType(mlir::MLIRContext *Context) {
-  return IntegerType::get(Context, IntegerKind::Signed, /*Size=*/1);
-}
-
 /// Transform the expression tree in \p Region with a new expression tree.
 ///
 /// \p Transform is used to compute the new expression tree root. It is invoked

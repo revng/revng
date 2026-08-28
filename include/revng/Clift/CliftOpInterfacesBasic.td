@@ -77,15 +77,6 @@ def Clift_StatementOpInterface : Clift_OpInterface<"StatementOpInterface"> {
         return false;
       }]
     >,
-    InterfaceMethod<
-      /*desc=*/"Returns true if the specified region represents a "
-               "boolean-tested expression.",
-      "bool", "isBooleanTestedExpression", (ins "mlir::Region &":$region),
-      /*methodBody=*/[{}],
-      /*defaultImplementation=*/ [{
-        return false;
-      }]
-    >,
   ];
 }
 
@@ -107,15 +98,6 @@ def Clift_ExpressionOpInterface : Clift_OpInterface<"ExpressionOpInterface"> {
       /*desc=*/"Returns true if the specified operand represents a discarded "
                "subexpression.",
       "bool", "isDiscardedOperand", (ins "mlir::OpOperand &":$operand),
-      /*methodBody=*/[{}],
-      /*defaultImplementation=*/ [{
-        return false;
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/"Returns true if the specified operand represents a "
-               "boolean-tested subexpression.",
-      "bool", "isBooleanTestedOperand", (ins "mlir::OpOperand &":$operand),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/ [{
         return false;

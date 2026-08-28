@@ -25,8 +25,4 @@ def makeInteger : NativeCodeCall<[{
   mlir::IntegerAttr::get($_builder.getContext(), llvm::APSInt($0))
 }]>;
 
-def forceBooleanResult : NativeCodeCall<[{
-  clift::impl::forceBooleanResult($_builder, $0, $1)
-}]>;
-
 #endif

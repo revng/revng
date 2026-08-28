@@ -42,10 +42,11 @@ module attributes {clift.module} {
       clift.yield %r : !int32_t
     }
 
-    // CHECK: !var_0;
+    // CHECK: !(bool) var_0;
     clift.expr {
-      %r = clift.not %x : !int32_t -> !int32_t
-      clift.yield %r : !int32_t
+      %b = clift.test %x : !int32_t
+      %r = clift.not %b
+      clift.yield %r : !clift.bool
     }
 
     // CHECK: ++var_0;
@@ -114,16 +115,20 @@ module attributes {clift.module} {
       clift.yield %r : !int32_t
     }
 
-    // CHECK: var_0 &&var_0;
+    // CHECK: (bool) var_0 && (bool) var_0;
     clift.expr {
-      %r = clift.and %x, %x : !int32_t -> !int32_t
-      clift.yield %r : !int32_t
+      %0 = clift.test %x : !int32_t
+      %1 = clift.test %x : !int32_t
+      %r = clift.and %0, %1
+      clift.yield %r : !clift.bool
     }
 
-    // CHECK: var_0 || var_0;
+    // CHECK: (bool) var_0 || (bool) var_0;
     clift.expr {
-      %r = clift.or %x, %x : !int32_t -> !int32_t
-      clift.yield %r : !int32_t
+      %0 = clift.test %x : !int32_t
+      %1 = clift.test %x : !int32_t
+      %r = clift.or %0, %1
+      clift.yield %r : !clift.bool
     }
 
     // CHECK: var_0 &var_0;
@@ -158,38 +163,38 @@ module attributes {clift.module} {
 
     // CHECK: var_0 == var_0;
     clift.expr {
-      %r = clift.eq %x, %x : !int32_t -> !int32_t
-      clift.yield %r : !int32_t
+      %r = clift.eq %x, %x : !int32_t
+      clift.yield %r : !clift.bool
     }
 
     // CHECK: var_0 != var_0;
     clift.expr {
-      %r = clift.ne %x, %x : !int32_t -> !int32_t
-      clift.yield %r : !int32_t
+      %r = clift.ne %x, %x : !int32_t
+      clift.yield %r : !clift.bool
     }
 
     // CHECK: var_0 < var_0;
     clift.expr {
-      %r = clift.slt %x, %x : !int32_t -> !int32_t
-      clift.yield %r : !int32_t
+      %r = clift.slt %x, %x : !int32_t
+      clift.yield %r : !clift.bool
     }
 
     // CHECK: var_0 > var_0;
     clift.expr {
-      %r = clift.sgt %x, %x : !int32_t -> !int32_t
-      clift.yield %r : !int32_t
+      %r = clift.sgt %x, %x : !int32_t
+      clift.yield %r : !clift.bool
     }
 
     // CHECK: var_0 <= var_0;
     clift.expr {
-      %r = clift.sle %x, %x : !int32_t -> !int32_t
-      clift.yield %r : !int32_t
+      %r = clift.sle %x, %x : !int32_t
+      clift.yield %r : !clift.bool
     }
 
     // CHECK: var_0 >= var_0;
     clift.expr {
-      %r = clift.sge %x, %x : !int32_t -> !int32_t
-      clift.yield %r : !int32_t
+      %r = clift.sge %x, %x : !int32_t
+      clift.yield %r : !clift.bool
     }
 
     // CHECK: var_0, var_0;

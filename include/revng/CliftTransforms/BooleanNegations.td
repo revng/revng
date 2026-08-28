@@ -10,6 +10,16 @@ include "mlir/IR/PatternBase.td"
 include "revng/Clift/Clift.td"
 include "revng/CliftTransforms/ExpressionHelpers.td"
 
+// !true -> false
+def NotTruePattern
+  : Pat<(Clift_LogicalNotOp (Clift_TrueOp)),
+        (Clift_FalseOp)>;
+
+// !false -> true
+def NotFalsePattern
+  : Pat<(Clift_LogicalNotOp (Clift_FalseOp)),
+        (Clift_TrueOp)>;
+
 // !(x == y) -> x != y
 def NotCmpEqPattern
   : Pat<(Clift_LogicalNotOp (Clift_CmpEqOp $lhs, $rhs)),
@@ -61,12 +71,9 @@ def NotUCmpGePattern
         (Clift_UCmpLtOp $lhs, $rhs)>;
 
 // !!x -> x
-//        x ? 1 : 0
-// Note: The choice of replacement depends on whether the result is
-//       boolean-tested.
 def LogicalNotNotPattern
-  : Pat<(Clift_LogicalNotOp:$outer (Clift_LogicalNotOp $arg)),
-        (forceBooleanResult $outer, $arg)>;
+  : Pat<(Clift_LogicalNotOp (Clift_LogicalNotOp $arg)),
+        (replaceWithValue $arg)>;
 
 // !x && !y -> x || y
 def DeMorganConjunctionPattern

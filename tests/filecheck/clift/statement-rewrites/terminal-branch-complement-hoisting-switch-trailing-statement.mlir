@@ -19,8 +19,8 @@ module attributes {clift.module} {
     %break = clift.make_label
     %continue = clift.make_label
     clift.while break %break continue %continue cond {
-      %c = clift.imm 1 : !int32_t
-      clift.yield %c : !int32_t
+      %c = clift.true
+      clift.yield %c : !clift.bool
     } body {
       // CHECK: clift.switch {
       clift.switch {

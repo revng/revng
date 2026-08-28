@@ -12,19 +12,16 @@ include "revng/CliftTransforms/ExpressionHelpers.td"
 
 //===------------------------- Boolean expressions -------------------------===//
 
-// x == 0 -> !x
+// x == 0 -> !test(x)
 def CmpEqWithZeroPattern
-  : Pat<(Clift_CmpEqOp:$res $arg, (Clift_ImmediateOp $value)),
-        (Clift_LogicalNotOp $arg),
+  : Pat<(Clift_CmpEqOp $arg, (Clift_ImmediateOp $value)),
+        (Clift_LogicalNotOp (Clift_TestOp $arg)),
         [(Constraint<CPred<"$0.getValue().isZero()">> $value)]>;
 
-// x != 0 -> x
-//           x ? 1 : 0
-// Note: The choice of replacement depends on whether the result is
-//       boolean-tested.
+// x != 0 -> test(x)
 def CmpNeWithZeroPattern
-  : Pat<(Clift_CmpNeOp:$res $arg, (Clift_ImmediateOp $value)),
-        (forceBooleanResult $res, $arg),
+  : Pat<(Clift_CmpNeOp $arg, (Clift_ImmediateOp $value)),
+        (Clift_TestOp $arg),
         [(Constraint<CPred<"$0.getValue().isZero()">> $value)]>;
 
 //===--------------------------- Math identities --------------------------===//
