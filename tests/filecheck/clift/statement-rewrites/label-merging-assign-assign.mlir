@@ -22,7 +22,8 @@ module attributes {clift.module} {
 
     // CHECK: clift.if {
     clift.if {
-      clift.yield %arg0 : !int32_t
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     // CHECK: } then {
     } then {
       // CHECK: clift.goto [[L]]
@@ -32,7 +33,8 @@ module attributes {clift.module} {
 
     // CHECK: clift.if {
     clift.if {
-      clift.yield %arg0 : !int32_t
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     // CHECK: } then {
     } then {
       // CHECK: clift.goto [[L]]
@@ -42,7 +44,8 @@ module attributes {clift.module} {
 
     // CHECK: clift.if {
     clift.if {
-      clift.yield %arg0 : !int32_t
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     // CHECK: } then {
     } then {
       // CHECK: clift.goto [[L]]
@@ -52,7 +55,8 @@ module attributes {clift.module} {
 
     // CHECK: clift.if {
     clift.if {
-      clift.yield %arg0 : !int32_t
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     // CHECK: } then {
     } then {
       // CHECK: clift.assign_label [[L]]

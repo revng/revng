@@ -103,17 +103,6 @@ static void printCliftPointerArithmeticOpTypes(mlir::OpAsmPrinter &Parser,
                                                mlir::Type Lhs,
                                                mlir::Type Rhs);
 
-static mlir::ParseResult parseCliftTernaryOpTypes(mlir::OpAsmParser &Parser,
-                                                  mlir::Type &Condition,
-                                                  mlir::Type &Lhs,
-                                                  mlir::Type &Rhs);
-
-static void printCliftTernaryOpTypes(mlir::OpAsmPrinter &Printer,
-                                     mlir::Operation *Op,
-                                     mlir::Type Condition,
-                                     mlir::Type Lhs,
-                                     mlir::Type Rhs);
-
 #define GET_OP_CLASSES
 #include "revng/Clift/Clift.cpp.inc"
 
@@ -221,7 +210,8 @@ bool clift::impl::verifyExpressionRegion(mlir::Region &R) {
 }
 
 bool clift::impl::verifyConditionRegion(mlir::Region &R) {
-  return verifyExpressionRegion(R) and isScalarType(getExpressionType(R));
+  return verifyExpressionRegion(R)
+         and mlir::isa<BoolType>(getExpressionType(R));
 }
 
 //===-------------------------- Operation parsing -------------------------===//
@@ -1258,6 +1248,19 @@ void WhileOp::build(mlir::OpBuilder &Builder,
 
 //===----------------------------- Expressions ----------------------------===//
 
+//===------------------------------- TestOp -------------------------------===//
+
+mlir::LogicalResult TestOp::canonicalize(TestOp Op,
+                                         mlir::PatternRewriter &Rewriter) {
+  mlir::Value Operand = Op.getValue();
+
+  if (not mlir::isa<BoolType>(Operand.getType()))
+    return mlir::failure();
+
+  Rewriter.replaceAllUsesWith(Op, Operand);
+  return mlir::success();
+}
+
 //===----------------------------- ImmediateOp ----------------------------===//
 
 mlir::ParseResult ImmediateOp::parse(mlir::OpAsmParser &Parser,
@@ -1829,46 +1832,6 @@ mlir::LogicalResult CallOp::verify() {
                             " function, ignoring qualifiers.";
 
   return mlir::success();
-}
-
-//===------------------------------ TernaryOp -----------------------------===//
-
-static mlir::ParseResult parseCliftTernaryOpTypes(mlir::OpAsmParser &Parser,
-                                                  mlir::Type &Condition,
-                                                  mlir::Type &Lhs,
-                                                  mlir::Type &Rhs) {
-  if (Parser.parseType(Condition).failed())
-    return mlir::failure();
-
-  if (Parser.parseComma().failed())
-    return mlir::failure();
-
-  if (Parser.parseType(Lhs).failed())
-    return mlir::failure();
-
-  if (Parser.parseOptionalComma().succeeded()) {
-    if (Parser.parseType(Rhs).failed())
-      return mlir::failure();
-  } else {
-    Rhs = Lhs;
-  }
-
-  return mlir::success();
-}
-
-static void printCliftTernaryOpTypes(mlir::OpAsmPrinter &Printer,
-                                     mlir::Operation *Op,
-                                     mlir::Type Condition,
-                                     mlir::Type Lhs,
-                                     mlir::Type Rhs) {
-  Printer << Condition;
-  Printer << ',';
-  Printer << Lhs;
-
-  if (Lhs != Rhs) {
-    Printer << ',';
-    Printer << Rhs;
-  }
 }
 
 //===----------------------------- AggregateOp ----------------------------===//

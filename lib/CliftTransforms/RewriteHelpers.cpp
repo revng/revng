@@ -54,10 +54,9 @@ void clift::mergeExpressionInto(mlir::PatternRewriter &Rewriter,
 }
 
 bool clift::isTriviallyTrue(mlir::Region &Condition) {
-  if (auto Yield = clift::getYieldOp(Condition)) {
-    if (auto Immediate = Yield.getValue().getDefiningOp<clift::ImmediateOp>())
-      return not Immediate.getValue().isZero();
-  }
+  if (auto Yield = clift::getYieldOp(Condition))
+    return Yield.getValue().getDefiningOp<TrueOp>() != nullptr;
+
   return false;
 }
 
@@ -65,8 +64,7 @@ void clift::invertBooleanExpression(mlir::PatternRewriter &Rewriter,
                                     mlir::Location Loc,
                                     mlir::Region &Region) {
   auto Transform = [&Rewriter, &Loc](mlir::Value Value) {
-    auto Bool = getBooleanType(Rewriter.getContext());
-    return Rewriter.create<clift::LogicalNotOp>(Loc, Bool, Value);
+    return Rewriter.create<clift::LogicalNotOp>(Loc, Value);
   };
   transformExpression(Rewriter, Region, Transform);
 }

@@ -24,10 +24,11 @@ module attributes {clift.module} {
         %0 = clift.imm 0 : !int32_t
         clift.yield %0 : !int32_t
       }
-    // CHECK: while (1);
+    // CHECK: while ((bool) 1);
     } cond {
       %1 = clift.imm 1 : !int32_t
-      clift.yield %1 : !int32_t
+      %2 = clift.test %1 : !int32_t
+      clift.yield %2 : !clift.bool
     }
 
     // CHECK: do {
@@ -42,10 +43,11 @@ module attributes {clift.module} {
         %3 = clift.imm 3 : !int32_t
         clift.yield %3 : !int32_t
       }
-    // CHECK: } while (4);
+    // CHECK: } while ((bool) 4);
     } cond {
       %4 = clift.imm 4 : !int32_t
-      clift.yield %4 : !int32_t
+      %5 = clift.test %4 : !int32_t
+      clift.yield %5 : !clift.bool
     }
   }
   // CHECK: }

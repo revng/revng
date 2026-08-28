@@ -152,12 +152,7 @@ struct IfAndCombiningPattern : mlir::OpRewritePattern<IfOp> {
     }
 
     auto Merge = [&](mlir::Value Inner, mlir::Value Outer) -> mlir::Value {
-      auto BooleanType = getBooleanType(Rewriter.getContext());
-
-      return Rewriter.create<LogicalAndOp>(InnerIf.getLoc(),
-                                           BooleanType,
-                                           Outer,
-                                           Inner);
+      return Rewriter.create<LogicalAndOp>(InnerIf.getLoc(), Outer, Inner);
     };
 
     // Merge the two if conditions by joining the expressions together using a

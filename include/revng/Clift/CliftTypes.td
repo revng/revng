@@ -24,6 +24,16 @@ def Clift_LabelType : Clift_Type<"Label", "label"> {
   }];
 }
 
+def Clift_BoolType : Clift_Type<"Bool", "bool"> {
+  let summary = "Clift boolean type";
+
+  let description = [{
+    1-bit boolean type. Has no model equivalent. The boolean is not an
+    addressable type, and as such cannot be used in type composition. It can
+    only appear as the result type of an expression.
+  }];
+}
+
 def Clift_VoidType
   : Clift_Type<"Void",
                "void",

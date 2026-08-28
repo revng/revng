@@ -1231,52 +1231,64 @@ private:
       mlir::Value Rhs = (LoggerIndent(ExpressionLog),
                          rc_recur emitExpression(I->getOperand(1), Loc));
 
-      llvm::IntegerType *VType = llvm::cast<llvm::IntegerType>(V->getType());
-      mlir::Type BooleanType = C.importLLVMIntegerType(VType,
-                                                       IntegerKind::Signed);
-
       mlir::Type Type = C.importLLVMType(I->getOperand(0)->getType());
       revng_assert(Type == C.importLLVMType(I->getOperand(1)->getType()));
 
       Lhs = emitImplicitBitcast(Loc, Lhs, Type);
       Rhs = emitImplicitBitcast(Loc, Rhs, Type);
 
+      mlir::Value Result;
       switch (I->getPredicate()) {
         using enum llvm::ICmpInst::Predicate;
 
       case ICMP_EQ:
         revng_log(ExpressionLog, "CmpEqOp");
-        rc_return Builder.create<CmpEqOp>(Loc, BooleanType, Lhs, Rhs);
+        Result = Builder.create<CmpEqOp>(Loc, Lhs, Rhs);
+        break;
       case ICMP_NE:
         revng_log(ExpressionLog, "CmpNeOp");
-        rc_return Builder.create<CmpNeOp>(Loc, BooleanType, Lhs, Rhs);
+        Result = Builder.create<CmpNeOp>(Loc, Lhs, Rhs);
+        break;
       case ICMP_SGT:
         revng_log(ExpressionLog, "SCmpGtOp");
-        rc_return Builder.create<SCmpGtOp>(Loc, BooleanType, Lhs, Rhs);
+        Result = Builder.create<SCmpGtOp>(Loc, Lhs, Rhs);
+        break;
       case ICMP_UGT:
         revng_log(ExpressionLog, "UCmpGtOp");
-        rc_return Builder.create<UCmpGtOp>(Loc, BooleanType, Lhs, Rhs);
+        Result = Builder.create<UCmpGtOp>(Loc, Lhs, Rhs);
+        break;
       case ICMP_SGE:
         revng_log(ExpressionLog, "SCmpGeOp");
-        rc_return Builder.create<SCmpGeOp>(Loc, BooleanType, Lhs, Rhs);
+        Result = Builder.create<SCmpGeOp>(Loc, Lhs, Rhs);
+        break;
       case ICMP_UGE:
         revng_log(ExpressionLog, "UCmpGeOp");
-        rc_return Builder.create<UCmpGeOp>(Loc, BooleanType, Lhs, Rhs);
+        Result = Builder.create<UCmpGeOp>(Loc, Lhs, Rhs);
+        break;
       case ICMP_SLT:
         revng_log(ExpressionLog, "SCmpLtOp");
-        rc_return Builder.create<SCmpLtOp>(Loc, BooleanType, Lhs, Rhs);
+        Result = Builder.create<SCmpLtOp>(Loc, Lhs, Rhs);
+        break;
       case ICMP_ULT:
         revng_log(ExpressionLog, "UCmpLtOp");
-        rc_return Builder.create<UCmpLtOp>(Loc, BooleanType, Lhs, Rhs);
+        Result = Builder.create<UCmpLtOp>(Loc, Lhs, Rhs);
+        break;
       case ICMP_SLE:
         revng_log(ExpressionLog, "SCmpLeOp");
-        rc_return Builder.create<SCmpLeOp>(Loc, BooleanType, Lhs, Rhs);
+        Result = Builder.create<SCmpLeOp>(Loc, Lhs, Rhs);
+        break;
       case ICMP_ULE:
         revng_log(ExpressionLog, "UCmpLeOp");
-        rc_return Builder.create<UCmpLeOp>(Loc, BooleanType, Lhs, Rhs);
+        Result = Builder.create<UCmpLeOp>(Loc, Lhs, Rhs);
+        break;
       default:
         revng_abort("Unsupported LLVM comparison predicate.");
       }
+
+      llvm::IntegerType *VType = llvm::cast<llvm::IntegerType>(V->getType());
+      rc_return Builder.create<BoolExtendOp>(Loc,
+                                             C.importLLVMIntegerType(VType),
+                                             Result);
     }
 
     if (auto I = llvm::dyn_cast<llvm::CastInst>(V)) {
@@ -1434,6 +1446,8 @@ private:
       mlir::Value Condition = (LoggerIndent(ExpressionLog),
                                rc_recur emitExpression(I->getCondition(), Loc));
 
+      Condition = Builder.create<TestOp>(Loc, Condition);
+
       revng_log(ExpressionLog, "True subexpression:");
       mlir::Value True = (LoggerIndent(ExpressionLog),
                           rc_recur emitExpression(I->getTrueValue(), Loc));
@@ -1509,11 +1523,13 @@ private:
     return emitExpressionTreeImpl(R.emplaceBlock(), EmitExpression);
   }
 
-  mlir::Type emitExpressionTree(mlir::Block &B,
-                                const llvm::Value *V,
-                                mlir::Location SurroundingLocation) {
-    return emitExpressionTreeImpl(B, [&]() {
-      return emitExpression(V, SurroundingLocation);
+  void emitConditionExpressionTree(mlir::Region &R,
+                                   const llvm::Value *V,
+                                   mlir::Location SurroundingLocation) {
+    emitExpressionTreeImpl(R, [&]() {
+      mlir::Value Value = emitExpression(V, SurroundingLocation);
+      Value = Builder.create<TestOp>(SurroundingLocation, Value);
+      return Value;
     });
   }
 
@@ -1523,13 +1539,6 @@ private:
     return emitExpressionTreeImpl(R, [&]() {
       return emitExpression(V, SurroundingLocation);
     });
-  }
-
-  [[nodiscard]] std::pair<mlir::Block *, mlir::Type>
-  emitExpressionTree(const llvm::Value *V, mlir::Location SurroundingLocation) {
-    mlir::Block *B = new mlir::Block();
-    mlir::Type Type = emitExpressionTree(*B, V, SurroundingLocation);
-    return { B, Type };
   }
 
   //===--------------------- LLVM control flow import ---------------------===//
@@ -1793,9 +1802,9 @@ private:
         revng_assert(not HasGotoMarker);
         auto Op = Builder.create<IfOp>(TerminalLoc);
 
-        emitExpressionTree(Op.getCondition(),
-                           Branch->getCondition(),
-                           TerminalLoc);
+        emitConditionExpressionTree(Op.getCondition(),
+                                    Branch->getCondition(),
+                                    TerminalLoc);
 
         mlir::OpBuilder::InsertionGuard Guard(Builder);
 
