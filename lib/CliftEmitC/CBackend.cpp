@@ -421,6 +421,7 @@ public:
       auto Inner = Cast.getValue().getDefiningOp<CastOpInterface>();
       if (not Inner or not isHiddenCast(Inner))
         break;
+      Cast = Inner;
     }
 
     return Cast.getValue();
