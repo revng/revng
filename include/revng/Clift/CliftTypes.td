@@ -24,6 +24,14 @@ def Clift_LabelType : Clift_Type<"Label", "label"> {
   }];
 }
 
+def Clift_BoolType : Clift_Type<"Bool", "bool"> {
+  let summary = "Clift boolean type";
+
+  let description = [{
+    1-bit boolean type. Has no model equivalent.
+  }];
+}
+
 def Clift_VoidType
   : Clift_Type<"Void",
                "void",

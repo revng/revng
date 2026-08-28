@@ -21,8 +21,10 @@ module attributes {clift.module} {
 
     // CHECK: clift.if {
     clift.if {
-      // CHECK: clift.yield %arg0 : !int32_t
-      clift.yield %arg0 : !int32_t
+      // CHECK: [[COND:%[0-9]+]] = clift.test %arg0 : !int32_t
+      %0 = clift.test %arg0 : !int32_t
+      // CHECK: clift.yield [[COND]] : !clift.bool
+      clift.yield %0 : !clift.bool
     // CHECK: } then {
     } then {
       // CHECK: clift.goto [[L]]
@@ -36,8 +38,10 @@ module attributes {clift.module} {
     clift.for break %L_0 body {
       // CHECK: clift.if {
       clift.if {
-        // CHECK: clift.yield %arg0 : !int32_t
-        clift.yield %arg0 : !int32_t
+        // CHECK: [[COND:%[0-9]+]] = clift.test %arg0 : !int32_t
+        %0 = clift.test %arg0 : !int32_t
+        // CHECK: clift.yield [[COND]] : !clift.bool
+        clift.yield %0 : !clift.bool
       // CHECK: } then {
       } then {
         // CHECK: clift.break_to [[L]]

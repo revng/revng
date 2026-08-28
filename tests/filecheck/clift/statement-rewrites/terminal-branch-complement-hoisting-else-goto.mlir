@@ -18,9 +18,11 @@ module attributes {clift.module} {
     clift.assign_label %0
     // CHECK: clift.if {
     clift.if {
-      // CHECK: %1 = clift.not %arg0 : !int32_t -> !int8_t
-      // CHECK: clift.yield %1 : !int8_t
-      clift.yield %arg0 : !int32_t
+      // CHECK: %1 = clift.test %arg0 : !int32_t
+      %1 = clift.test %arg0 : !int32_t
+      // CHECK: %2 = clift.not %1
+      // CHECK: clift.yield %2 : !clift.bool
+      clift.yield %1 : !clift.bool
     // CHECK: } then {
     } then {
       // CHECK: clift.goto %0

@@ -26,7 +26,7 @@ module attributes {clift.module} {
       }
     }
 
-    // CHECK: for (int32_t x = 2; x; x) {
+    // CHECK: for (int32_t x = 2; (bool) x; x) {
     clift.for init : !int32_t {
       clift.local : !int32_t = {
         %2 = clift.imm 2 : !int32_t
@@ -36,7 +36,8 @@ module attributes {clift.module} {
         name = "x"
       }
     } cond (%x) {
-      clift.yield %x : !int32_t
+      %3 = clift.test %x : !int32_t
+      clift.yield %3 : !clift.bool
     } next (%x) {
       clift.yield %x : !int32_t
     } body (%x) {

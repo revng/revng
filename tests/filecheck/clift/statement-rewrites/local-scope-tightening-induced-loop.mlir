@@ -21,8 +21,8 @@ module attributes {clift.module} {
 
     // CHECK: clift.if {
     clift.if {
-      %0 = clift.imm 1 : !int32_t
-      clift.yield %0 : !int32_t
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     // CHECK: } then {
     } then {
       // clift.assign_label
@@ -40,8 +40,8 @@ module attributes {clift.module} {
 
     // CHECK: clift.if {
     clift.if {
-      %0 = clift.imm 2 : !int32_t
-      clift.yield %0 : !int32_t
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     // CHECK: } then {
     } then {
       // clift.goto
