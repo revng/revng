@@ -62,7 +62,7 @@ module attributes {clift.module} {
 
   // CHECK-LABEL: clift.func @f<!f>
   // CHECK-SAME: ([[ARG0:%[a-z0-9]+]]: !generic64_t)
-  // CHECK: clift.access<indirect 2> {{.*}} -> !clift.array<16 x !uint8_t>
+  // CHECK: clift.ptr_access<2> {{.*}} -> !clift.array<16 x !uint8_t>
   // CHECK: [[DECAY:%[0-9]+]] = clift.decay
   // CHECK: clift.imm 2
   // CHECK: [[IDX:%[0-9]+]] = clift.mul [[ARG0]], {{%[0-9]+}}
@@ -86,7 +86,7 @@ module attributes {clift.module} {
 
   // CHECK-LABEL: clift.func @g<!f>
   // CHECK-SAME: ([[ARG0:%[a-z0-9]+]]: !generic64_t)
-  // CHECK: clift.access<indirect 1> {{.*}} -> !clift.array<8 x !uint16_t>
+  // CHECK: clift.ptr_access<1> {{.*}} -> !clift.array<8 x !uint16_t>
   // CHECK: [[DECAY:%[0-9]+]] = clift.decay
   // CHECK: clift.subscript [[DECAY]], [[ARG0]]
   // CHECK-NOT: clift.mul
@@ -116,7 +116,7 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @h<!f>
   // CHECK-SAME: ([[ARG0:%[a-z0-9]+]]: !generic64_t)
   // CHECK-NOT: !clift.array<4 x !uint32_t>
-  // CHECK: clift.access<indirect 2> {{.*}} -> !clift.array<16 x !uint8_t>
+  // CHECK: clift.ptr_access<2> {{.*}} -> !clift.array<16 x !uint8_t>
   // CHECK: [[DECAY:%[0-9]+]] = clift.decay
   // CHECK: [[IDX:%[0-9]+]] = clift.mul [[ARG0]], {{%[0-9]+}}
   // CHECK: clift.subscript [[DECAY]], [[IDX]]

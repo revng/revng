@@ -273,6 +273,7 @@ private:
                                         NameAttr,
                                         CommentAttr,
                                         Offset,
+                                        /*IsOpaque=*/false,
                                         llvm::ArrayRef(Fields),
                                         CAttributes);
 
@@ -414,6 +415,7 @@ private:
                                         NameAttr,
                                         CommentAttr,
                                         ModelType.Size(),
+                                        /*IsOpaque=*/false,
                                         llvm::ArrayRef(Fields),
                                         Attributes.getRaw());
 
@@ -856,6 +858,7 @@ clift::StructType clift::makeOpaqueStruct(mlir::MLIRContext *Context,
                                     NameAttr,
                                     CommentAttr,
                                     ByteSize,
+                                    /*IsOpaque=*/true,
                                     {},
                                     Attrs);
 

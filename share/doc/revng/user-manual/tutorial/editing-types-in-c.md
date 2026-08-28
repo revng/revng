@@ -120,7 +120,7 @@ Re-emitting `summary` makes the edit concrete: it takes an `account *` and reads
 $ revng project artifact emit-c summary | revng ptml
 _ABI(SystemV_x86_64)
 generic64_t summary(account *argument_0) {
-  return *(generic64_t *) &argument_0->balance + (int32_t) *(generic32_t *) &argument_0->id + (int32_t) *(generic32_t *) &argument_0->flags;
+  return argument_0->balance + argument_0->id + argument_0->flags;
 }
 ```
 

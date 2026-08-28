@@ -877,7 +877,7 @@ BestTraversalChooser::computeBestTraversal(ExpressionOpInterface
                                            const PointerArithmetic
                                              &Arithmetic) {
   // We only perform the substitution for `PointerType`
-  auto PointerToReplaceType = PointerToReplace->getResult(0).getType();
+  auto PointerToReplaceType = PointerToReplace.getType();
   if (not clift::unwrapped_isa<clift::PointerType>(PointerToReplaceType)) {
     return std::nullopt;
   }

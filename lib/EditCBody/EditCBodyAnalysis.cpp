@@ -124,8 +124,7 @@ makeLocalVariableEdit(mlir::Operation *Op,
                               "local variable declaration");
   }
 
-  SortedVector<MetaAddress> Location = //
-    clift::getUserAddressSet(LocalVariable.getResult());
+  SortedVector<MetaAddress> Location = clift::getUserAddressSet(LocalVariable);
   if (Location.empty()) {
     return revng::createError("the local variable cannot be identified by "
                               "its addresses");

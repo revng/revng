@@ -947,8 +947,13 @@ static TypeT parseClassType(mlir::AsmParser &Parser) {
   if (Parser.parseColon().failed())
     return {};
 
-  uint64_t Size;
+  uint64_t Size = 0;
+  bool IsOpaque = false;
+
   if constexpr (IsStruct) {
+    if (Parser.parseOptionalKeyword("opaque").succeeded())
+      IsOpaque = true;
+
     if (Parser.parseKeyword("size").failed())
       return {};
 
@@ -1058,7 +1063,7 @@ static TypeT parseClassType(mlir::AsmParser &Parser) {
   };
 
   if constexpr (IsStruct) {
-    return GetCompleteType(Size);
+    return GetCompleteType(Size, IsOpaque);
   } else {
     return GetCompleteType();
   }
@@ -1097,6 +1102,9 @@ static void printClassType(TypeT Type, mlir::AsmPrinter &Printer) {
 
   Printer << " : ";
   if constexpr (IsStruct) {
+    if (Type.isOpaque())
+      Printer << "opaque ";
+
     Printer << "size(" << Type.getSize() << ") ";
   }
 
@@ -1248,7 +1256,12 @@ static TypeT readClassDefinition(mlir::DialectBytecodeReader &Reader) {
     return {};
 
   uint64_t Size = 0;
+  bool IsOpaque = false;
+
   if constexpr (IsStruct) {
+    if (readBool(IsOpaque, Reader).failed())
+      return {};
+
     if (Reader.readVarInt(Size).failed())
       return {};
   }
@@ -1330,7 +1343,7 @@ static TypeT readClassDefinition(mlir::DialectBytecodeReader &Reader) {
   };
 
   if constexpr (IsStruct) {
-    return GetCompleteType(Size);
+    return GetCompleteType(Size, IsOpaque);
   } else {
     return GetCompleteType();
   }
@@ -1345,6 +1358,7 @@ writeClassDefinition(TypeT Type, mlir::DialectBytecodeWriter &Writer) {
   Writer.writeOwnedString(Type.getName());
 
   if constexpr (IsStruct) {
+    writeBool(Type.isOpaque(), Writer);
     Writer.writeVarInt(Type.getSize());
   }
 

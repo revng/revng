@@ -121,7 +121,30 @@ def Clift_ExpressionOpInterface : Clift_OpInterface<"ExpressionOpInterface"> {
         return false;
       }]
     >,
+    InterfaceMethod<
+      /*desc=*/"",
+      "clift::LvalueToRvalueConversion",
+      "lvalueToRvalueConversion", (ins "mlir::OpOperand &":$operand),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{
+        return LvalueToRvalueConversion::Yes;
+      }]
+    >,
   ];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] mlir::Value getResult() {
+      return this->getOperation()->getResult(0);
+    }
+
+    [[nodiscard]] operator mlir::Value() {
+      return this->getOperation()->getResult(0);
+    }
+
+    [[nodiscard]] mlir::Type getType() {
+      return this->getOperation()->getResult(0).getType();
+    }
+  }];
 }
 
 def Clift_StatementRegionOpInterface

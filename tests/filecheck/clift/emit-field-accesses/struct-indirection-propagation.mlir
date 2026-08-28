@@ -48,10 +48,10 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @test_indirection_propagation
   // CHECK: [[STRUCT:%[0-9]+]] = clift.local
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_1_>
-  // CHECK: [[ACCESS1:%[0-9]+]] = clift.access<indirect 0> [[ADDRESSOF1]]
+  // CHECK: [[ACCESS1:%[0-9]+]] = clift.ptr_access<0> [[ADDRESSOF1]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[ACCESS1]]
   // CHECK: [[INDIRECTION:%[0-9]+]] = clift.indirection [[ADDRESSOF2]]
-  // CHECK: [[ACCESS2:%[0-9]+]] = clift.access<indirect 1> [[INDIRECTION]]
+  // CHECK: [[ACCESS2:%[0-9]+]] = clift.ptr_access<1> [[INDIRECTION]]
   // CHECK: [[ADDRESSOF3:%[0-9]+]] = clift.addressof [[ACCESS2]]
   // CHECK: [[CAST:%[0-9]+]] = clift.bitcast [[ADDRESSOF3]]
   // CHECK: clift.yield [[CAST]] : !clift.ptr<8 to !generic64_t>

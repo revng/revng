@@ -91,7 +91,7 @@ module attributes {clift.module} {
   // CHECK: [[INDIRECTION:%[0-9]+]] = clift.indirection [[ADDRESSOF1]]
   // CHECK: [[DECAY1:%[0-9]+]] = clift.decay [[INDIRECTION]]
   // CHECK: [[SUBSCRIPTION1:%[0-9]+]] = clift.subscript [[DECAY1]], [[ARG0]]
-  // CHECK: [[ACCESS:%[0-9]+]] = clift.access< 0> [[SUBSCRIPTION1]]
+  // CHECK: [[ACCESS:%[0-9]+]] = clift.access<0> [[SUBSCRIPTION1]]
   // CHECK: [[DECAY2:%[0-9]+]] = clift.decay [[ACCESS]]
   // CHECK: [[SUBSCRIPTION2:%[0-9]+]] = clift.subscript [[DECAY2]], [[ARG1]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[SUBSCRIPTION2]]

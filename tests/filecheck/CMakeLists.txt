@@ -143,8 +143,8 @@ set(FILECHECK_TESTS
     clift/emit-field-accesses/struct-union-access.mlir
     clift/emit-field-accesses/union-array-stride-selection.mlir
     clift/expression-rewrites/addressof.mlir
-    clift/expression-rewrites/assign-type-punned-reused.mlir
-    clift/expression-rewrites/assign-type-punned.mlir
+    clift/expression-rewrites/assign-type-punned-discarded.mlir
+    clift/expression-rewrites/assign-type-punned-read.mlir
     clift/expression-rewrites/cast-collapsible.mlir
     clift/expression-rewrites/cast-immediate.mlir
     clift/expression-rewrites/cast-redundant.mlir
@@ -163,7 +163,6 @@ set(FILECHECK_TESTS
     clift/expression-rewrites/pointer-arithmetic-add-imm.mlir
     clift/expression-rewrites/pointer-arithmetic-add-mul-imm.mlir
     clift/expression-rewrites/read-type-punned.mlir
-    clift/expression-rewrites/subscript-zero.mlir
     clift/expression-rewrites/ternary-inversion.mlir
     clift/expression-rewrites/xor-all-ones.mlir
     clift/expressions/addressof-immediate.mlir
@@ -416,6 +415,14 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/trivial-return-elimination.mlir
     clift/statement-rewrites/variable-initializer-hoisting-with-self-assignment.mlir
     clift/statement-rewrites/variable-initializer-hoisting.mlir
+    clift/type-refinement/backward-add-refinement.mlir
+    clift/type-refinement/backward-neg-refinement.mlir
+    clift/type-refinement/backward-ternary-refinement.mlir
+    clift/type-refinement/backward-variable-refinement.mlir
+    clift/type-refinement/forward-add-refinement.mlir
+    clift/type-refinement/forward-neg-refinement.mlir
+    clift/type-refinement/forward-ternary-refinement.mlir
+    clift/type-refinement/forward-variable-refinement.mlir
     clift/types/function-with-function-argument.mlir
     clift/types/function-with-function-return.mlir
     clift/types/function-with-object-types.mlir

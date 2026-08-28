@@ -14,4 +14,7 @@ mlir_tablegen(CastCanonicalization.h.inc -gen-rewriters)
 set(LLVM_TARGET_DEFINITIONS Expressions.td)
 mlir_tablegen(Expressions.h.inc -gen-rewriters)
 
+set(LLVM_TARGET_DEFINITIONS ExpressionPostProcessing.td)
+mlir_tablegen(ExpressionPostProcessing.h.inc -gen-rewriters)
+
 add_public_tablegen_target(MLIRCliftTransformsIncGen)

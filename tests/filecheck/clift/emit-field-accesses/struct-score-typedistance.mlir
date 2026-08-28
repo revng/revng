@@ -66,8 +66,8 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @test_typedistance1<!f>
   // CHECK: [[STRUCT:%[0-9]+]] = clift.local : !_2_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_2_>
-  // CHECK: [[ACCESS1:%[0-9]+]] = clift.access<indirect 0> [[ADDRESSOF1]]
-  // CHECK: [[ACCESS2:%[0-9]+]] = clift.access< 0> [[ACCESS1]]
+  // CHECK: [[ACCESS1:%[0-9]+]] = clift.ptr_access<0> [[ADDRESSOF1]]
+  // CHECK: [[ACCESS2:%[0-9]+]] = clift.access<0> [[ACCESS1]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[ACCESS2]]
   // CHECK: clift.yield [[ADDRESSOF2]] : !clift.ptr<8 to !int32_t>
 
@@ -84,8 +84,8 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @test_typedistance2<!f>
   // CHECK: [[STRUCT:%[0-9]+]] = clift.local : !_2_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_2_>
-  // CHECK: [[ACCESS1:%[0-9]+]] = clift.access<indirect 0> [[ADDRESSOF1]]
-  // CHECK: [[ACCESS2:%[0-9]+]] = clift.access< 1> [[ACCESS1]]
+  // CHECK: [[ACCESS1:%[0-9]+]] = clift.ptr_access<0> [[ADDRESSOF1]]
+  // CHECK: [[ACCESS2:%[0-9]+]] = clift.access<1> [[ACCESS1]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[ACCESS2]]
   // CHECK: clift.yield [[ADDRESSOF2]] : !clift.ptr<8 to !uint32_t>
 
@@ -102,8 +102,8 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @test_typedistance3<!f>
   // CHECK: [[STRUCT:%[0-9]+]] = clift.local : !_2_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_2_>
-  // CHECK: [[ACCESS1:%[0-9]+]] = clift.access<indirect 0> [[ADDRESSOF1]]
-  // CHECK: [[ACCESS2:%[0-9]+]] = clift.access< 2> [[ACCESS1]]
+  // CHECK: [[ACCESS1:%[0-9]+]] = clift.ptr_access<0> [[ADDRESSOF1]]
+  // CHECK: [[ACCESS2:%[0-9]+]] = clift.access<2> [[ACCESS1]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[ACCESS2]]
   // CHECK: clift.yield [[ADDRESSOF2]] : !clift.ptr<8 to !float32_t>
 
@@ -120,8 +120,8 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @test_typedistance4<!f>
   // CHECK: [[STRUCT:%[0-9]+]] = clift.local : !_2_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_2_>
-  // CHECK: [[ACCESS1:%[0-9]+]] = clift.access<indirect 0> [[ADDRESSOF1]]
-  // CHECK: [[ACCESS2:%[0-9]+]] = clift.access< 0> [[ACCESS1]]
+  // CHECK: [[ACCESS1:%[0-9]+]] = clift.ptr_access<0> [[ADDRESSOF1]]
+  // CHECK: [[ACCESS2:%[0-9]+]] = clift.access<0> [[ACCESS1]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[ACCESS2]]
   // CHECK: clift.yield [[ADDRESSOF2]] : !clift.ptr<8 to !int32_t>
 }

@@ -24,11 +24,6 @@ static IntegerType getIntType(mlir::MLIRContext *Context,
   return IntegerType::get(Context, IntegerKind::Signed, DataModel.getIntSize());
 }
 
-static mlir::OpOperand &getOnlyUse(mlir::Value Value) {
-  revng_assert(Value.hasOneUse());
-  return *Value.use_begin();
-}
-
 template<typename ResizeCastOpOrVoid = void>
 static mlir::Value emitCast(mlir::PatternRewriter &Rewriter,
                             mlir::Location Loc,
@@ -69,7 +64,7 @@ static void modifyResultType(mlir::PatternRewriter &Rewriter,
                              mlir::Type NewType,
                              bool PreserveExpressionType = true) {
   mlir::OpResult Result = Op->getOpResult(0);
-  mlir::OpOperand &OnlyUse = getOnlyUse(Result);
+  mlir::OpOperand &OnlyUse = *getOnlyUse(Result);
 
   mlir::Type OldType = Result.getType();
   Result.setType(NewType);
@@ -155,8 +150,7 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
   mlir::LogicalResult
   replacePointerResult(mlir::PatternRewriter &Rewriter,
                        clift::ExpressionOpInterface Op) const {
-    auto OldType = clift::unwrapped_cast<PointerType>(Op->getResult(0)
-                                                        .getType());
+    auto OldType = clift::unwrapped_cast<PointerType>(Op.getType());
 
     if (OldType.getPointerSize() == TargetPointerSize)
       return mlir::failure();
@@ -201,8 +195,7 @@ struct ResizePtrDiffPattern : PointerResizePattern<clift::PtrDiffOp> {
 
   mlir::LogicalResult replaceIntegerResult(mlir::PatternRewriter &Rewriter,
                                            clift::PtrDiffOp Op) const {
-    auto OldType = clift::unwrapped_cast<IntegerType>(Op->getResult(0)
-                                                        .getType());
+    auto OldType = clift::unwrapped_cast<IntegerType>(Op.getType());
 
     if (OldType.getSize() == TargetPointerSize)
       return mlir::failure();
@@ -430,7 +423,7 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
                                       mlir::PatternRewriter &Rewriter) const {
     mlir::Value Result = Op.getResult();
     mlir::Type OldImmediateType = Result.getType();
-    mlir::OpOperand &Use = getOnlyUse(Result);
+    mlir::OpOperand &Use = *getOnlyUse(Result);
 
     Rewriter.setInsertionPointAfter(Op);
     Result.setType(NewImmediateType);
@@ -486,7 +479,7 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
   mlir::LogicalResult
   matchAndRewrite(ImmediateOp Op,
                   mlir::PatternRewriter &Rewriter) const override {
-    mlir::Type Type = unwrapTypedefs(Op.getResult().getType());
+    mlir::Type Type = unwrapTypedefs(Op.getType());
 
     if (auto T = mlir::dyn_cast<EnumType>(Type))
       return matchAndRewriteEnumImmediate(Op, T, Rewriter);
@@ -525,7 +518,8 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     Set.add<ResizePtrDiffPattern>(Context, DataModel);
     Set.add<PointerResizePattern<IndirectionOp>>(Context, DataModel);
     Set.add<PointerResizePattern<SubscriptOp>>(Context, DataModel);
-    Set.add<PointerResizePattern<AccessOp>>(Context, DataModel);
+    Set.add<PointerResizePattern<DirectAccessOp>>(Context, DataModel);
+    Set.add<PointerResizePattern<IndirectAccessOp>>(Context, DataModel);
     Set.add<PointerResizePattern<CallOp>>(Context, DataModel);
     Set.add<ResizeAddressofPattern>(Context, DataModel);
     Set.add<ResizeDecayCastPattern>(Context, DataModel);

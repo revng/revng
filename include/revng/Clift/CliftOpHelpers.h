@@ -331,6 +331,10 @@ OpT getOnlyUser(mlir::Value Value) {
 /// instance by an expression statement or a comma expression.
 bool isDiscarded(mlir::Value Value);
 
+/// Returns true if the operand is discarded. An operand might be discarded by
+/// for instance by an expression statement or a comma expression.
+bool isDiscardedOperand(mlir::OpOperand &Operand);
+
 /// Returns true if the value is boolean-tested. A value might be boolean-tested
 /// for instance by a control flow condition, a ternary expression or a logical
 /// expression.

@@ -105,22 +105,6 @@ def RedundantBitCastPattern
         (replaceWithValue $arg),
         [(TypesAreEquivalent $res, $arg)]>;
 
-// *(T*)p = x ->         *p = (T)x
-//            -> *(T*)&( *p = (T)x )
-// Note: The choice of replacement depends on whether the result is discarded.
-// Constraint: p is of type U* and x is convertible to type U using a bitcast.
-def AssignTypePunnedPattern
-  : Pattern<(Clift_AssignOp:$old_res (Clift_IndirectionOp:$old_ref (Clift_BitCastOp:$new_ptr $ptr)),
-                                     $value),
-            [(Clift_AssignOp:$new_res (Clift_IndirectionOp $ptr),
-                                      (Clift_BitCastOp $value,
-                                                       (returnType (getPointeeType $ptr)))),
-             (NativeCodeCall<"assignTypePunnedResult($_builder, $0, $1, $2, $3)"> $old_res,
-                                                                                  $new_res,
-                                                                                  $new_ptr,
-                                                                                  $old_ref)],
-            [(Constraint<CPred<"assignTypePunnedConstraint($0, $1)">> $ptr, $value)]>;
-
 // (T*)(i + k_1) -> (T*)i + k_2
 // Note: k_2 = k_1 / sizeof(T)
 // Constraint: k_1 % sizeof(T) == 0
@@ -149,22 +133,12 @@ def PointerArithmeticAddMulImmPattern
 
 // (*x).m -> x->m
 def IndirectAccessPattern
-  : Pat<(Clift_AccessOp (Clift_IndirectionOp $arg), $indirect, $member_index),
-        (Clift_AccessOp $arg, (NativeCodeCall<"$_builder.getUnitAttr()">), $member_index),
-        [(Constraint<CPred<"not $0">> $indirect)]>;
+  : Pat<(Clift_DirectAccessOp (Clift_IndirectionOp $arg), $member_index),
+        (Clift_IndirectAccessOp $arg, $member_index)>;
 
 // (&x)->m -> x.m
 def DirectAccessPattern
-  : Pat<(Clift_AccessOp (Clift_AddressofOp $arg), $indirect, $member_index),
-        (Clift_AccessOp $arg, (NativeCodeCall<"mlir::UnitAttr(nullptr)">), $member_index),
-        [(Constraint<CPred<"$0">> $indirect)]>;
-
-// x[0] -> *x
-// Constraint: the subscript index is a constant zero.
-def SubscriptZeroPattern
-  : Pat<(Clift_SubscriptOp $ptr, (Clift_ImmediateOp $value)),
-        (Clift_IndirectionOp $ptr),
-        [(Constraint<CPred<"$0.getValue().isZero()">> $value)]>;
-
+  : Pat<(Clift_IndirectAccessOp (Clift_AddressofOp $arg), $member_index),
+        (Clift_DirectAccessOp $arg, $member_index)>;
 
 #endif

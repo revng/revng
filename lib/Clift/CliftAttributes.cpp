@@ -187,6 +187,7 @@ public:
     TheKey.Definition.emplace(Definition.Name,
                               Definition.Comment,
                               Definition.Size,
+                              Definition.IsOpaque,
                               Allocator.copyInto(Definition.Fields),
                               Allocator.copyInto(Definition.CAttributes));
 
@@ -749,6 +750,9 @@ StructAttr::verifyDefinition(EmitErrorType EmitError) const {
     return EmitError() << "struct type cannot have a size of zero";
 
   if (not Definition.getFields().empty()) {
+    if (Definition.isOpaque())
+      return EmitError() << "Opaque struct type may not have fields.";
+
     uint64_t LastEndOffset = 0;
 
     llvm::SmallSet<llvm::StringRef, 16> NameSet;
@@ -811,11 +815,13 @@ StructAttr StructAttr::get(mlir::MLIRContext *Context,
                            MutableStringAttr Name,
                            MutableStringAttr Comment,
                            uint64_t Size,
+                           bool IsOpaque,
                            llvm::ArrayRef<FieldAttr> Fields,
                            llvm::ArrayRef<clift::CAttributeAttr> Attributes) {
   return get(Context,
              Handle,
-             ClassDefinition{ Name, Comment, Size, Fields, Attributes });
+             ClassDefinition{
+               Name, Comment, Size, IsOpaque, Fields, Attributes });
 }
 
 StructAttr
@@ -825,12 +831,14 @@ StructAttr::getChecked(EmitErrorType EmitError,
                        MutableStringAttr Name,
                        MutableStringAttr Comment,
                        uint64_t Size,
+                       bool IsOpaque,
                        llvm::ArrayRef<FieldAttr> Fields,
                        llvm::ArrayRef<clift::CAttributeAttr> Attributes) {
   return getChecked(EmitError,
                     Context,
                     Handle,
-                    ClassDefinition{ Name, Comment, Size, Fields, Attributes });
+                    ClassDefinition{
+                      Name, Comment, Size, IsOpaque, Fields, Attributes });
 }
 
 //===------------------------------ UnionAttr -----------------------------===//
@@ -865,6 +873,9 @@ UnionAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult UnionAttr::verifyDefinition(EmitErrorType EmitError) const {
   const ClassDefinition &Definition = getDefinition();
+
+  if (Definition.isOpaque())
+    return EmitError() << "union types may not be opaque";
 
   if (Definition.getFields().empty())
     return EmitError() << "union types must have at least one field";
@@ -930,7 +941,12 @@ UnionAttr UnionAttr::get(mlir::MLIRContext *Context,
                          llvm::ArrayRef<clift::CAttributeAttr> Attributes) {
   return get(Context,
              Handle,
-             ClassDefinition{ Name, Comment, 0, Fields, Attributes });
+             ClassDefinition{ Name,
+                              Comment,
+                              /*Size=*/0,
+                              /*IsOpaque=*/false,
+                              Fields,
+                              Attributes });
 }
 
 UnionAttr
@@ -944,7 +960,12 @@ UnionAttr::getChecked(EmitErrorType EmitError,
   return getChecked(EmitError,
                     Context,
                     Handle,
-                    ClassDefinition{ Name, Comment, 0, Fields, Attributes });
+                    ClassDefinition{ Name,
+                                     Comment,
+                                     /*Size=*/0,
+                                     /*IsOpaque=*/false,
+                                     Fields,
+                                     Attributes });
 }
 
 uint64_t UnionAttr::getSize() const {

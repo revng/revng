@@ -9,20 +9,20 @@ using namespace clift;
 
 namespace {
 
-static clift::PointerType getPointerOperationType(mlir::Operation *Op) {
+static PointerType getPointerOperationType(ExpressionOpInterface Op) {
   if (mlir::isa<PtrAddOp, PtrSubOp, AddressofOp>(Op))
-    return clift::unwrapped_cast<PointerType>(Op->getResult(0).getType());
+    return clift::unwrapped_cast<PointerType>(Op.getType());
 
   if (mlir::isa<PtrDiffOp, IndirectionOp, SubscriptOp>(Op))
     return clift::unwrapped_cast<PointerType>(Op->getOperand(0).getType());
 
-  if (auto A = mlir::dyn_cast<AccessOp>(Op); A and A.isIndirect())
+  if (auto A = mlir::dyn_cast<IndirectAccessOp>(Op.getOperation()))
     return clift::unwrapped_cast<PointerType>(A.getValue().getType());
 
-  if (auto C = mlir::dyn_cast<DecayOp>(Op))
-    return clift::unwrapped_cast<PointerType>(C.getResult().getType());
+  if (mlir::isa<DecayOp>(Op))
+    return clift::unwrapped_cast<PointerType>(Op.getType());
 
-  if (auto C = mlir::dyn_cast<CallOp>(Op)) {
+  if (auto C = mlir::dyn_cast<CallOp>(Op.getOperation())) {
     if (auto T = clift::unwrapped_dyn_cast<PointerType>(C.getFunction()
                                                           .getType()))
       return T;
@@ -36,33 +36,37 @@ class CVerifier : public ModuleVisitor<CVerifier> {
 
 public:
   mlir::LogicalResult visitNestedOp(mlir::Operation *Op) {
-    if (auto T = getPointerOperationType(Op)) {
+    auto E = mlir::dyn_cast<ExpressionOpInterface>(Op);
+    if (not E)
+      return mlir::success();
+
+    if (auto T = getPointerOperationType(E)) {
       if (T.getPointerSize() != DataModel->PointerSize)
         return getCurrentOp()->emitOpError() << "Pointer operation is not "
                                                 "representable in the target "
                                                 "implementation.";
     }
 
-    if (mlir::isa<ImmediateOp>(Op)) {
-      if (isPotentiallyPromotingType(Op->getResult(0).getType()))
+    if (mlir::isa<ImmediateOp>(E)) {
+      if (isPotentiallyPromotingType(E.getType()))
         return Op->emitOpError() << " is not representable in the target"
                                  << " implementation.";
     }
 
-    if (isPromotingOp(Op)) {
-      if (isPotentiallyPromotingType(Op->getResult(0).getType()))
+    if (isPromotingOp(E)) {
+      if (isPotentiallyPromotingType(E.getType()))
         return Op->emitOpError() << " causes integer promotion in the target"
                                     " implementation.";
     }
 
-    if (isBooleanOp(Op)) {
-      if (not isCanonicalBooleanType(Op->getResult(0).getType()))
+    if (isBooleanOp(E)) {
+      if (not isCanonicalBooleanType(E.getType()))
         return Op->emitOpError() << " - not yielding the canonical boolean type"
                                  << " - is not representable in the target"
                                  << " implementation.";
     }
 
-    if (hasMismatchedSignedness(Op))
+    if (hasMismatchedSignedness(E))
       return Op->emitOpError() << " operand signedness does not match operation"
                                   " semantics.";
 

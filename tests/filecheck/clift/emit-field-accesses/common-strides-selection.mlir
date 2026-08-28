@@ -73,13 +73,13 @@ module attributes {clift.module} {
 
   // CHECK-LABEL: clift.func @prefers_flat<!f>
   // CHECK-SAME: ([[ARG0:%[a-z0-9]+]]: !generic64_t)
-  // CHECK: clift.access<indirect 1> {{.*}} -> !clift.array<8 x !uint32_t>
+  // CHECK: clift.ptr_access<1> {{.*}} -> !clift.array<8 x !uint32_t>
   // CHECK: [[DECAY:%[0-9]+]] = clift.decay
   // CHECK: [[FOUR:%[0-9]+]] = clift.imm 4
   // CHECK: [[IDX:%[0-9]+]] = clift.add [[FOUR]], [[ARG0]]
   // CHECK: clift.subscript [[DECAY]], [[IDX]]
   // CHECK-NOT: clift.subscript
-  // CHECK-NOT: clift.access<indirect 0>
+  // CHECK-NOT: clift.ptr_access<0>
 
   // Nested stride-8 / stride-4 indices: `base + 8*i + 4*j`. Now the access
   // walks two arrays whose strides are exactly the 2-D array's outer and inner
@@ -106,10 +106,10 @@ module attributes {clift.module} {
 
   // CHECK-LABEL: clift.func @prefers_nested<!ff>
   // CHECK-SAME: ([[I:%[a-z0-9]+]]: !generic64_t, [[J:%[a-z0-9]+]]: !generic64_t)
-  // CHECK: clift.access<indirect 0> {{.*}} -> !clift.array<2 x !clift.array<2 x !uint32_t>>
+  // CHECK: clift.ptr_access<0> {{.*}} -> !clift.array<2 x !clift.array<2 x !uint32_t>>
   // CHECK: [[SUB1:%[0-9]+]] = clift.subscript {{%[0-9]+}}, [[I]]
   // CHECK: [[DECAY:%[0-9]+]] = clift.decay [[SUB1]]
   // CHECK: clift.subscript [[DECAY]], [[J]]
   // CHECK-NOT: clift.mul
-  // CHECK-NOT: clift.access<indirect 1>
+  // CHECK-NOT: clift.ptr_access<1>
 }

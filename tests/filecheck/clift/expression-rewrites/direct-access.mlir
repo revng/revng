@@ -22,8 +22,8 @@ module attributes {clift.module} {
     clift.expr {
       // CHECK-NOT: clift.addressof
       %0 = clift.addressof %arg0 : !clift.ptr<8 to !s>
-      // CHECK: %0 = clift.access< 0> %arg0 : !s -> !int32_t
-      %1 = clift.access<indirect 0> %0 : !clift.ptr<8 to !s> -> !int32_t
+      // CHECK: %0 = clift.access<0> %arg0 : !s -> !int32_t
+      %1 = clift.ptr_access<0> %0 : !clift.ptr<8 to !s> -> !int32_t
       // CHECK: clift.yield %0 : !int32_t
       clift.yield %1 : !int32_t
     }

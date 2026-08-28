@@ -124,7 +124,7 @@ struct TightenVariableScopePass
           // If the local variable was not already in the map, mark its optimal
           // position as right before the the current user, or right before the
           // parent of the current user if it is an expression operation.
-          if (mlir::isa<ExpressionOpInterface>(Op)) {
+          if (mlir::isa<YieldOp, ExpressionOpInterface>(Op)) {
             Iterator->second.Position = BlockPosition::get(Op->getParentOp());
             Iterator->second.NestingLevel = OpNestingLevel - 1;
           } else {

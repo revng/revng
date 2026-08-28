@@ -49,7 +49,7 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @test_enum_field<!f>
   // CHECK: [[STRUCT:%[0-9]+]] = clift.local : !_type_definition_1_StructDefinition
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_type_definition_1_StructDefinition>
-  // CHECK: [[ACCESS:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
+  // CHECK: [[ACCESS:%[0-9]+]] = clift.ptr_access<1> [[ADDRESSOF1]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[ACCESS]]
   // CHECK: [[CAST:%[0-9]+]] = clift.bitcast [[ADDRESSOF2]]
   // CHECK: clift.yield [[CAST]] : !clift.ptr<8 to !int32_t>

@@ -8,7 +8,7 @@
 // (`idx * -56`) or a negative base offset (`-7`). Neither maps to a field or
 // array element access, so `PointerArithmetic::verify()` rejects the result and
 // emit-field-accesses leaves the raw pointer arithmetic untouched (no
-// `clift.subscript`/`clift.access`).
+// `clift.subscript`/`clift.access`/`clift.ptr_access`).
 
 !void = !clift.void
 !generic64_t = !clift.int<generic 8>
@@ -54,6 +54,7 @@ module attributes {clift.module} {
   // CHECK: clift.yield [[PTRADD]] : !clift.ptr<8 to !uint8_t>
   // CHECK-NOT: clift.subscript
   // CHECK-NOT: clift.access
+  // CHECK-NOT: clift.ptr_access
 
   // Negative `BaseOffset`: left as raw pointer arithmetic
 
@@ -77,4 +78,5 @@ module attributes {clift.module} {
   // CHECK: clift.yield [[PTRADD2]] : !clift.ptr<8 to !uint8_t>
   // CHECK-NOT: clift.subscript
   // CHECK-NOT: clift.access
+  // CHECK-NOT: clift.ptr_access
 }

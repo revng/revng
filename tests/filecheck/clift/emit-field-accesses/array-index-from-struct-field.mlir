@@ -45,9 +45,12 @@ module attributes {clift.module} {
       %10 = clift.imm 4 : !generic64_t
       %11 = clift.mul %9, %10 : !generic64_t
       // Add to array base: `&struct + index * 4`
-      %12 = clift.add %3, %11 : !generic64_t
-      %13 = clift.bitcast %12 : !generic64_t -> !int32_t$ptr
-      clift.yield %13 : !int32_t$ptr
+      %12 = clift.addressof %0 : !clift.ptr<8 to !s>
+      %13 = clift.bitcast %12 : !clift.ptr<8 to !s> -> !clift.ptr<8 to !void>
+      %14 = clift.bitcast %13 : !clift.ptr<8 to !void> -> !generic64_t
+      %15 = clift.add %14, %11 : !generic64_t
+      %16 = clift.bitcast %15 : !generic64_t -> !int32_t$ptr
+      clift.yield %16 : !int32_t$ptr
     }
   }
 
@@ -60,14 +63,15 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @test_index_from_field<!f>
   // CHECK: [[LOCAL:%[0-9]+]] = clift.local : !_1_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[LOCAL]] : !clift.ptr<8 to !_1_>
-  // CHECK: [[IDX_ACCESS:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
+  // CHECK: [[IDX_ACCESS:%[0-9]+]] = clift.ptr_access<1> [[ADDRESSOF1]]
   // CHECK: [[IDX_ADDROF:%[0-9]+]] = clift.addressof [[IDX_ACCESS]]
   // CHECK: [[IDX_LOAD:%[0-9]+]] = clift.indirection [[IDX_ADDROF]]
   // CHECK: [[IDX_EXT:%[0-9]+]] = clift.sext [[IDX_LOAD]]
-  // CHECK: [[ARR_ACCESS:%[0-9]+]] = clift.access<indirect 0> [[ADDRESSOF1]]
+  // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[LOCAL]] : !clift.ptr<8 to !_1_>
+  // CHECK: [[ARR_ACCESS:%[0-9]+]] = clift.ptr_access<0> [[ADDRESSOF2]]
   // CHECK: [[ARR_DECAY:%[0-9]+]] = clift.decay [[ARR_ACCESS]]
   // CHECK: [[IDX_CAST:%[0-9]+]] = clift.bitcast [[IDX_EXT]]
   // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[ARR_DECAY]], [[IDX_CAST]]
-  // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[SUBSCRIPT]]
-  // CHECK: clift.yield [[ADDRESSOF2]] : !clift.ptr<8 to !int32_t>
+  // CHECK: [[ADDRESSOF3:%[0-9]+]] = clift.addressof [[SUBSCRIPT]]
+  // CHECK: clift.yield [[ADDRESSOF3]] : !clift.ptr<8 to !int32_t>
 }

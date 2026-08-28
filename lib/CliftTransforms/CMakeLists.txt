@@ -6,11 +6,12 @@ revng_add_library_internal(
   revngCliftTransforms
   SHARED
   BooleanNegations.cpp
+  EmitFieldAccesses.cpp
   EmitFieldAccesses/BestTraversal.cpp
-  EmitFieldAccesses/EmitFieldAccesses.cpp
   EmitFieldAccesses/FieldAccessReplacement.cpp
   EmitFieldAccesses/PointerArithmetic.cpp
   Expressions.cpp
+  ExpressionPostProcessing.cpp
   ImmediateRadixDeduction.cpp
   ImplicitCastElision.cpp
   LabelMerging.cpp
@@ -23,6 +24,8 @@ revng_add_library_internal(
   TerminalBranchComplementHoisting.cpp
   TightenVariableScopes.cpp
   TrivialReturnElimination.cpp
+  TypeRefinement.cpp
+  TypeRefinementWithEFA.cpp
   VariableInitializerHoisting.cpp)
 
 target_link_libraries(revngCliftTransforms MLIRTransformUtils revngClift)

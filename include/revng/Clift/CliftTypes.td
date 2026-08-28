@@ -337,6 +337,10 @@ class Clift_ClassTypeBase<string name, string mnemonic>
       return getDefinition().hasDefinition();
     }
 
+    bool isOpaque() const {
+      return getDefinition().isOpaque();
+    }
+
     llvm::StringRef getHandle() const {
       return getDefinition().getHandle();
     }

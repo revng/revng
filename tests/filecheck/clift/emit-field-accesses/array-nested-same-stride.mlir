@@ -51,7 +51,7 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @test_nested_same_stride<!f>
   // CHECK: [[STRUCT:%[0-9]+]] = clift.local : !_1_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_1_>
-  // CHECK: [[ACCESS:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
+  // CHECK: [[ACCESS:%[0-9]+]] = clift.ptr_access<1> [[ADDRESSOF1]]
   // CHECK: [[CAST1:%[0-9]+]] = clift.decay [[ACCESS]]
   // CHECK: [[IMM1:%[0-9]+]] = clift.imm 0
   // CHECK: [[SUBSCRIPT1:%[0-9]+]] = clift.subscript [[CAST1]], [[IMM1]]

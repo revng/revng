@@ -22,7 +22,7 @@ module attributes {clift.module} {
     // CHECK: Pointer operation is not representable in the target implementation
     clift.expr {
       %0 = clift.undef : !ptr32_s
-      %1 = clift.access<indirect 0> %0 : !ptr32_s -> !int32_t
+      %1 = clift.ptr_access<0> %0 : !ptr32_s -> !int32_t
       clift.yield %1 : !int32_t
     }
   }
