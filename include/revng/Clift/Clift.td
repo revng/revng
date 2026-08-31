@@ -757,13 +757,39 @@ def Clift_YieldOp : Clift_Op<"yield", [Terminator]> {
 }
 
 def Clift_ImmediateOp : Clift_ExpressionOp<"imm"> {
-  let arguments = (ins I64Attr:$value);
+  let arguments = (ins APIntAttr:$value);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
 
-  let assemblyFormat = [{
-    $value attr-dict `:` type($result)
+  let builders = [
+    OpBuilder<(ins "mlir::Type":$Type, "uint64_t":$Value), [{
+      build($_builder,
+            $_state,
+            Type,
+            llvm::APInt(getObjectSize(Type) * 8, Value));
+    }]>,
+
+    OpBuilder<(ins "mlir::Type":$Type, "llvm::APInt":$Value), [{
+      build($_builder,
+            $_state,
+            Type,
+            mlir::IntegerAttr::get($_builder.getContext(),
+                                   llvm::APSInt(Value)));
+    }]>
+  ];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] int64_t getSExtValue() const {
+      return ImmediateOp(*this).getValue().getSExtValue();
+    }
+
+    [[nodiscard]] uint64_t getZExtValue() const {
+      return ImmediateOp(*this).getValue().getZExtValue();
+    }
   }];
+
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 def Clift_StringOp : Clift_ExpressionOp<"str"> {

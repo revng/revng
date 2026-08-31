@@ -37,6 +37,7 @@ set(FILECHECK_TESTS
     clift/backend/goto.mlir
     clift/backend/if.mlir
     clift/backend/immediate.mlir
+    clift/backend/intrinsic.mlir
     clift/backend/label.mlir
     clift/backend/local.mlir
     clift/backend/member-subscript.mlir

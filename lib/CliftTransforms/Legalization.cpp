@@ -419,16 +419,16 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
     mlir::OpRewritePattern<ImmediateOp>(Context), DataModel(DataModel) {}
 
   mlir::LogicalResult rewriteWithCast(ImmediateOp Op,
-                                      mlir::Type NewImmediateType,
+                                      mlir::Type NewType,
                                       mlir::PatternRewriter &Rewriter) const {
-    mlir::Value Result = Op.getResult();
-    mlir::Type OldImmediateType = Result.getType();
-    mlir::OpOperand &Use = *getOnlyUse(Result);
-
     Rewriter.setInsertionPointAfter(Op);
-    Result.setType(NewImmediateType);
-    Use.set(emitCast(Rewriter, Op->getLoc(), Result, OldImmediateType));
 
+    unsigned Width = getObjectSize(NewType) * 8;
+    auto NewOp = Rewriter.create<ImmediateOp>(Op->getLoc(),
+                                              NewType,
+                                              Op.getValue().zextOrTrunc(Width));
+
+    getOnlyUse(Op)->set(emitCast(Rewriter, Op->getLoc(), NewOp, Op.getType()));
     return mlir::success();
   }
 
@@ -436,7 +436,7 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
   matchAndRewriteEnumImmediate(ImmediateOp Op,
                                EnumType Type,
                                mlir::PatternRewriter &Rewriter) const {
-    auto Enumerator = Type.getFieldByValue(Op.getValue());
+    auto Enumerator = Type.getFieldByValue(Op.getZExtValue());
     if (Enumerator)
       return mlir::failure();
 
@@ -462,23 +462,38 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
       return rewriteWithCast(Op, NewType, Rewriter);
     }
 
-    // Any other type must be an extended integer with a size greater than 8.
-    revng_assert(Size >= 8);
+    // Extended integers may be representable using standard integer types
+    // depending on the immediate value.
+    if (DataModel.isSupportedIntegerSize(Size)) {
+      llvm::APInt Value = Op.getValue();
 
-    auto Range = DataModel.getStandardIntegerRange(8);
-    revng_assert(Range);
+      unsigned RequiredSize = //
+        std::max(DataModel.getIntSize(),
+                 std::bit_ceil(Value.getSignificantBits()) / 8);
 
-    IntegerType
-      NewType = IntegerType::get(Type.getContext(),
-                                 Type.getKind(),
-                                 DataModel.getStandardTypeSize(Range->first));
+      if (auto Range = DataModel.getStandardIntegerRange(RequiredSize)) {
+        revng_assert(Range->second >= CStandardType::Int);
 
-    return rewriteWithCast(Op, NewType, Rewriter);
+        IntegerType NewType = IntegerType::get(Type.getContext(),
+                                               IntegerKind::Signed,
+                                               RequiredSize);
+
+        return rewriteWithCast(Op, NewType, Rewriter);
+      }
+    }
+
+    // Any unsupported type is emitted using an intrinsic.
+    Op->setAttr("clift.intrinsic", mlir::UnitAttr::get(Op.getContext()));
+
+    return mlir::success();
   }
 
   mlir::LogicalResult
   matchAndRewrite(ImmediateOp Op,
                   mlir::PatternRewriter &Rewriter) const override {
+    if (Op->hasAttr("clift.intrinsic"))
+      return mlir::failure();
+
     mlir::Type Type = unwrapTypedefs(Op.getType());
 
     if (auto T = mlir::dyn_cast<EnumType>(Type))
@@ -488,6 +503,63 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
       return matchAndRewriteIntegerImmediate(Op, T, Rewriter);
 
     return mlir::failure();
+  }
+};
+
+//===----------------------------- Intrinsics -----------------------------===//
+
+static mlir::Type getOperationType(ImmediateOp Immediate) {
+  return Immediate.getType();
+}
+
+static mlir::Type getOperationType(mlir::Operation *Op) {
+  return Op->getOperand(0).getType();
+}
+
+template<typename OpT>
+struct IntrinsicPattern : mlir::OpRewritePattern<OpT> {
+  const CDataModel &DataModel;
+
+  explicit IntrinsicPattern(mlir::MLIRContext *Context,
+                            const CDataModel &DataModel) :
+    mlir::OpRewritePattern<OpT>(Context), DataModel(DataModel) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
+    if (Op->hasAttr("clift.intrinsic"))
+      return mlir::failure();
+
+    mlir::Type Type = getOperationType(Op);
+    if (DataModel.isSupportedIntegerSize(getObjectSize(Type)))
+      return mlir::failure();
+
+    Op->setAttr("clift.intrinsic", mlir::UnitAttr::get(Op->getContext()));
+    return mlir::success();
+  }
+};
+
+template<typename OpT>
+struct IntrinsicCastPattern : mlir::OpRewritePattern<OpT> {
+  const CDataModel &DataModel;
+
+  explicit IntrinsicCastPattern(mlir::MLIRContext *Context,
+                                const CDataModel &DataModel) :
+    mlir::OpRewritePattern<OpT>(Context), DataModel(DataModel) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
+    if (Op->hasAttr("clift.intrinsic"))
+      return mlir::failure();
+
+    mlir::Type SourceType = Op.getValueType();
+    mlir::Type TargetType = Op.getType();
+
+    if (DataModel.isSupportedIntegerSize(getObjectSize(SourceType))
+        and DataModel.isSupportedIntegerSize(getObjectSize(TargetType)))
+      return mlir::failure();
+
+    Op->setAttr("clift.intrinsic", mlir::UnitAttr::get(Op->getContext()));
+    return mlir::success();
   }
 };
 
@@ -559,9 +631,60 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
       return mlir::failure();
   }
 
+  // Intrinsics should only be marked after immediate casts, because some
+  // immediates may be emitted using casts instead.
+  {
+    mlir::RewritePatternSet Set(Context);
+
+    Set.add<IntrinsicPattern<ImmediateOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<NegOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<AddOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<SubOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<MulOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<SDivOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<UDivOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<SRemOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<URemOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<ShlOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<ShrOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<SarOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<BitwiseNotOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<BitwiseAndOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<BitwiseOrOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<BitwiseXorOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<CmpEqOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<CmpNeOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<SCmpLtOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<UCmpLtOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<SCmpGtOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<UCmpGtOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<SCmpLeOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<UCmpLeOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<SCmpGeOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<UCmpGeOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<IncrementOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<PostIncrementOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<DecrementOp>>(Context, DataModel);
+    Set.add<IntrinsicPattern<PostIncrementOp>>(Context, DataModel);
+
+    Set.add<IntrinsicCastPattern<ZeroExtendOp>>(Context, DataModel);
+    Set.add<IntrinsicCastPattern<SignExtendOp>>(Context, DataModel);
+    Set.add<IntrinsicCastPattern<TruncateOp>>(Context, DataModel);
+
+    // TODO: Boolean tests should be represented by an expression operation, and
+    //       that operation should then be marked as intrinsic as needed.
+
+    auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
+    if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
+      return mlir::failure();
+  }
+
   // Ensure operation semantics match operand signedness. Matching operand
-  // signedness should be done after promotion, because promotion may change
-  // unsigned operations to signed operations.
+  // signedness should only be done after
+  // 1. promotion, because promotion may change unsigned operations to signed
+  //    operations, and
+  // 2. intrinsics, because intrinsics always have explicit semantics and do not
+  //    require matching operand signedness.
   {
     mlir::RewritePatternSet Set(Context);
 

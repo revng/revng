@@ -55,20 +55,6 @@ module attributes {clift.module} {
       clift.yield %0 : !uint64_t
     }
 
-    // CHECK: (int128_t) 0;
-    clift.expr {
-      %0 = clift.imm 0 : !int64_t
-      %1 = clift.sext %0 : !int64_t -> !int128_t
-      clift.yield %1 : !int128_t
-    }
-
-    // CHECK: (uint128_t) 0U;
-    clift.expr {
-      %0 = clift.imm 0 : !uint64_t
-      %1 = clift.sext %0 : !uint64_t -> !uint128_t
-      clift.yield %1 : !uint128_t
-    }
-
     // CHECK: my_enum_0;
     clift.expr {
       %e = clift.imm 0 : !my_enum

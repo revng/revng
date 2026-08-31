@@ -200,7 +200,7 @@ static bool isPointerTyped(ExpressionOpInterface Expr) {
 static std::optional<llvm::APInt> getConstantValue(mlir::Value V,
                                                    unsigned BitWidth) {
   if (auto Immediate = V.getDefiningOp<ImmediateOp>()) {
-    return llvm::APInt(BitWidth, Immediate.getValue());
+    return llvm::APInt(BitWidth, Immediate.getZExtValue());
   }
 
   return std::nullopt;

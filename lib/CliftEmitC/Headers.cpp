@@ -73,6 +73,9 @@ public:
     Tokens.emitIncludeDirective("primitive-types.h",
                                 "",
                                 ptml::CTokenEmitter::IncludeMode::Quote);
+    Tokens.emitIncludeDirective("runtime-library.h",
+                                "",
+                                ptml::CTokenEmitter::IncludeMode::Quote);
     Tokens.emitNewline();
   }
 

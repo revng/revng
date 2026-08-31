@@ -107,17 +107,101 @@ public:
                           CTE::IdentifierKind::Reference);
   }
 
-  void emitIntegerLiteral(uint64_t Value,
+  void emitIntegerLiteral(llvm::APInt Value,
                           bool IsSigned,
                           CStandardType Type,
                           unsigned Radix) {
-    Tokens.emitIntegerLiteral(llvm::APInt(64, Value, IsSigned),
+    Tokens.emitIntegerLiteral(Value,
                               CTE::IntegerSuffix{ .Unsigned = not IsSigned,
                                                   .MinimumType = Type },
                               Radix);
   }
 
   //===---------------------------- Expressions ---------------------------===//
+
+  unsigned getConstantRadix(mlir::Operation *Op) {
+    unsigned Radix = 10;
+    if (auto Attr = Op->getAttr("clift.radix"))
+      Radix = mlir::cast<mlir::IntegerAttr>(Attr).getValue().getZExtValue();
+
+    return Radix;
+  }
+
+  void emitIntrinsicMacro(llvm::StringRef Identifier) {
+    std::string FullIdentifier;
+    {
+      llvm::raw_string_ostream Out(FullIdentifier);
+      Out << "rr_" << Identifier;
+    }
+    Tokens.emitMacro(FullIdentifier);
+  }
+
+  static llvm::StringRef getIntrinsicIdentifier(mlir::Operation *Op) {
+    return Op->getName().stripDialect();
+  }
+
+  RecursiveCoroutine<void> emitIntrinsicImmediateExpression(ImmediateOp E) {
+    mlir::Type Type = unwrapTypedefs(E.getType());
+    auto IntType = mlir::cast<IntegerType>(Type);
+
+    emitIntrinsicMacro(getIntrinsicIdentifier(E));
+    Tokens.emitOperator(CTE::Operator::LeftParenthesis);
+
+    emitType(E.getType());
+    Tokens.emitPunctuator(CTE::Punctuator::Comma);
+
+    emitIntegerLiteral(E.getValue(),
+                       IntType.isSigned(),
+                       CStandardType::Int,
+                       getConstantRadix(E));
+
+    Tokens.emitOperator(CTE::Operator::RightParenthesis);
+
+    rc_return;
+  }
+
+  RecursiveCoroutine<void> emitIntrinsicCastExpression(CastOpInterface E) {
+    emitIntrinsicMacro(getIntrinsicIdentifier(E));
+    Tokens.emitOperator(CTE::Operator::LeftParenthesis);
+
+    emitType(E.getType());
+    Tokens.emitPunctuator(CTE::Punctuator::Comma);
+
+    rc_recur emitExpression(E.getValue());
+
+    Tokens.emitOperator(CTE::Operator::RightParenthesis);
+  }
+
+  RecursiveCoroutine<void> emitUsualIntrinsicExpression(mlir::Operation *E) {
+    // The precedence here must be comma, because an argument list cannot
+    // contain an unparenthesized comma expression. It would be parsed as two
+    // arguments instead.
+    CurrentPrecedence = OperatorPrecedence::Comma;
+
+    emitIntrinsicMacro(getIntrinsicIdentifier(E));
+    Tokens.emitOperator(CTE::Operator::LeftParenthesis);
+    for (auto [I, A] : llvm::enumerate(E->getOperands())) {
+      if (I != 0) {
+        Tokens.emitPunctuator(CTE::Punctuator::Comma);
+        Tokens.emitSpace();
+      }
+
+      rc_recur emitExpression(A);
+    }
+    Tokens.emitOperator(CTE::Operator::RightParenthesis);
+  }
+
+  RecursiveCoroutine<void> emitIntrinsicExpression(mlir::Value V) {
+    mlir::Operation *Op = V.getDefiningOp();
+
+    if (auto E = mlir::dyn_cast<ImmediateOp>(Op))
+      return emitIntrinsicImmediateExpression(E);
+
+    if (auto E = mlir::dyn_cast<CastOpInterface>(Op))
+      return emitIntrinsicCastExpression(E);
+
+    return emitUsualIntrinsicExpression(Op);
+  }
 
   RecursiveCoroutine<void> emitUndefExpression(mlir::Value V) {
     Tokens.emitMacro("undef");
@@ -143,11 +227,7 @@ public:
     mlir::Type Type = unwrapTypedefs(E.getType());
 
     if (auto Enum = mlir::dyn_cast<EnumType>(Type))
-      rc_return emitEnumImmediate(E.getValue(), Enum);
-
-    unsigned Radix = 10;
-    if (auto Attr = E->getAttr("clift.radix"))
-      Radix = mlir::cast<mlir::IntegerAttr>(Attr).getValue().getZExtValue();
+      rc_return emitEnumImmediate(E.getValue().getZExtValue(), Enum);
 
     auto IntType = mlir::cast<IntegerType>(Type);
     auto CType = CStandardType::Int;
@@ -163,7 +243,11 @@ public:
       CType = Range->first;
     }
 
-    emitIntegerLiteral(E.getValue(), IntType.isSigned(), CType, Radix);
+    emitIntegerLiteral(E.getValue(),
+                       IntType.isSigned(),
+                       CType,
+                       getConstantRadix(E));
+
     rc_return;
   }
 
@@ -540,6 +624,13 @@ public:
       }
 
       revng_abort("This operation is not supported.");
+    }
+
+    if (E->hasAttr("clift.intrinsic")) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CliftToCEmitter::emitIntrinsicExpression,
+      };
     }
 
     if (mlir::isa<UndefOp>(E)) {
@@ -1062,7 +1153,10 @@ public:
         Parent.emitCStyleCast(Type);
       }
 
-      Parent.emitIntegerLiteral(Value, IsSigned, CStandardType::Int, Radix);
+      Parent.emitIntegerLiteral(llvm::APInt(64, Value),
+                                IsSigned,
+                                CStandardType::Int,
+                                Radix);
     }
 
   private:
@@ -1078,10 +1172,6 @@ public:
   };
 
   RecursiveCoroutine<void> emitSwitchStatement(SwitchOp S) {
-    unsigned Radix = 10;
-    if (auto Attr = S->getAttr("clift.radix"))
-      Radix = mlir::cast<mlir::IntegerAttr>(Attr).getValue().getZExtValue();
-
     Tokens.emitKeyword(CTE::Keyword::Switch);
     Tokens.emitSpace();
     Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
@@ -1098,7 +1188,7 @@ public:
 
       Tokens.emitNewline();
 
-      CaseValueEmitter CVE(*this, S.getConditionType(), Radix);
+      CaseValueEmitter CVE(*this, S.getConditionType(), getConstantRadix(S));
       for (unsigned I = 0, Count = S.getNumCases(); I < Count; ++I) {
         Tokens.emitKeyword(CTE::Keyword::Case);
         Tokens.emitSpace();

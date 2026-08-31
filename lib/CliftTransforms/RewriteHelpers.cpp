@@ -56,7 +56,7 @@ void clift::mergeExpressionInto(mlir::PatternRewriter &Rewriter,
 bool clift::isTriviallyTrue(mlir::Region &Condition) {
   if (auto Yield = clift::getYieldOp(Condition)) {
     if (auto Immediate = Yield.getValue().getDefiningOp<clift::ImmediateOp>())
-      return static_cast<bool>(Immediate.getValue());
+      return not Immediate.getValue().isZero();
   }
   return false;
 }

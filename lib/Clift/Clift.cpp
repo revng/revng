@@ -1254,6 +1254,55 @@ void WhileOp::build(mlir::OpBuilder &Builder,
 
 //===----------------------------- Expressions ----------------------------===//
 
+//===----------------------------- ImmediateOp ----------------------------===//
+
+mlir::ParseResult ImmediateOp::parse(mlir::OpAsmParser &Parser,
+                                     mlir::OperationState &Result) {
+  llvm::APInt Value;
+  if (Parser.parseInteger(Value).failed())
+    return mlir::failure();
+
+  if (Parser.parseOptionalAttrDict(Result.attributes).failed())
+    return mlir::failure();
+
+  if (Parser.parseColon().failed())
+    return mlir::failure();
+
+  mlir::Type Type;
+  if (Parser.parseType(Type).failed())
+    return mlir::failure();
+
+  if (clift::unwrapped_isa<IntegralType>(Type)) {
+    unsigned Width = getObjectSize(Type) * 8;
+    if (Value.getActiveBits() <= Width)
+      Value = Value.sextOrTrunc(Width);
+  }
+
+  Result.addTypes(Type);
+  Result.addAttribute("value",
+                      mlir::IntegerAttr::get(Parser.getContext(),
+                                             llvm::APSInt(Value)));
+
+  return mlir::success();
+}
+
+void ImmediateOp::print(mlir::OpAsmPrinter &Printer) {
+  Printer << ' ';
+  Printer << getValue();
+  Printer.printOptionalAttrDict(getOperation()->getAttrs(), { "value" });
+  Printer << " : ";
+  Printer << getType();
+}
+
+mlir::LogicalResult ImmediateOp::verify() {
+  const llvm::APInt &Value = getValue();
+
+  if (Value.getBitWidth() != getObjectSize(getType()) * 8)
+    return emitOpError() << getOperationName() << " value out of range.";
+
+  return mlir::success();
+}
+
 //===------------------------------ StringOp ------------------------------===//
 
 mlir::LogicalResult StringOp::verify() {

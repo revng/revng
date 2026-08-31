@@ -22,6 +22,9 @@ public:
     DataModel(DataModel) {}
 
   void elide(mlir::Operation *Op) {
+    if (Op->hasAttr("clift.intrinsic"))
+      return;
+
     if (auto Yield = mlir::dyn_cast<YieldOp>(Op)) {
       if (mlir::isa<LocalVariableOp, ReturnOp>(Yield->getParentOp()))
         return elideCoercingContextCasts(Yield->getOpOperand(0));
