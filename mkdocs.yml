@@ -81,6 +81,8 @@ plugins:
         edge:
           color: "#cbd4da"
           fontcolor: "#cbd4da"
+  - toggle-sidebar:
+      toggle_button: all
 extra_css:
   - stylesheets/main.css
   - stylesheets/theme.css
