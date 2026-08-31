@@ -275,6 +275,55 @@ struct BranchEqualizationPattern : StatementRegionRewritePattern {
   }
 };
 
+struct JumpDuplicationPattern : StatementRegionRewritePattern {
+  using StatementRegionRewritePattern::StatementRegionRewritePattern;
+
+  void initialize() { setDebugName("jump-duplication"); }
+
+  mlir::LogicalResult
+  matchAndRewrite(mlir::Region &Region,
+                  mlir::PatternRewriter &Rewriter) const override {
+    revng_assert(Region.hasOneBlock());
+    mlir::Block *Outer = &Region.front();
+
+    auto Begin = Outer->begin();
+    auto End = Outer->end();
+
+    if (Begin == End)
+      return mlir::failure();
+
+    auto JumpOp = mlir::dyn_cast<JumpStatementOpInterface>(&*--End);
+    if (not JumpOp)
+      return mlir::failure();
+
+    if (Begin == End)
+      return mlir::failure();
+
+    auto BranchOp = mlir::dyn_cast<BranchOpInterface>(&*--End);
+    if (not BranchOp)
+      return mlir::failure();
+
+    llvm::SmallVector<mlir::Region *> Regions;
+    for (mlir::Region &R : BranchOp.getBranchRegions()) {
+      if (indirectlyFallsThrough(R))
+        Regions.push_back(&R);
+    }
+
+    if (Regions.size() < 2)
+      return mlir::failure();
+
+    Rewriter.updateRootInPlace(BranchOp, [&]() {
+      for (mlir::Region *R : llvm::ArrayRef(Regions).drop_front())
+        getOrEmplaceBlock(*R).getOperations().push_back(JumpOp->clone());
+
+      JumpOp->remove();
+      getOrEmplaceBlock(*Regions.front()).getOperations().push_back(JumpOp);
+    });
+
+    return mlir::success();
+  }
+};
+
 /// Inverts if-statements whose then-branches are empty.
 struct EmptyIfInversionPattern : mlir::OpRewritePattern<IfOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -486,6 +535,7 @@ struct OptimizeStatementsPass
 
     Set.add<IfAndCombiningPattern>(Context);
     Set.add<BranchEqualizationPattern>(Context);
+    Set.add<JumpDuplicationPattern>(Context);
     Set.add<EmptyIfInversionPattern>(Context);
     Set.add<TrivialJumpEliminationPattern>(Context);
     Set.add<DoWhileConversionPattern>(Context);

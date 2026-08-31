@@ -72,6 +72,10 @@ inline mlir::Block *extractOnlyBlock(mlir::Region &R) {
   return Block;
 }
 
+inline mlir::Block &getOrEmplaceBlock(mlir::Region &R) {
+  return R.empty() ? R.emplaceBlock() : R.front();
+}
+
 inline void setOnlyBlock(mlir::Region &R, mlir::Block *Block) {
   if (not R.empty())
     R.getBlocks().clear();
