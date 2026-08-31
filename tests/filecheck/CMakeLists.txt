@@ -371,6 +371,8 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/if-and-combining-with-else-2.mlir
     clift/statement-rewrites/if-and-combining-with-else-3.mlir
     clift/statement-rewrites/if-and-combining-without-else.mlir
+    clift/statement-rewrites/jump-duplication-if.mlir
+    clift/statement-rewrites/jump-duplication-switch.mlir
     clift/statement-rewrites/label-merging-assign-assign.mlir
     clift/statement-rewrites/label-merging-break-assign.mlir
     clift/statement-rewrites/label-merging-continue-assign.mlir
