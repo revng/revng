@@ -63,8 +63,6 @@ nav:
       - PTML: references/ptml.md
       - Pipeline: references/pipeline.md
 markdown_extensions:
-  - mkdocs_graphviz:
-      color: cbd4da
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
@@ -73,9 +71,18 @@ markdown_extensions:
   - admonition
   - pymdownx.details
   - footnotes
+plugins:
+  - search
+  - mkdocs_graphviz:
+      common:
+        node:
+          color: "#cbd4da"
+          fontcolor: "#cbd4da"
+        edge:
+          color: "#cbd4da"
+          fontcolor: "#cbd4da"
 extra_css:
   - stylesheets/main.css
   - stylesheets/theme.css
 extra_javascript:
   - javascripts/additional.js
-  - https://cdn.jsdelivr.net/gh/rod2ik/cdn@main/mkdocs/javascripts/mkdocs-graphviz.js

@@ -32,7 +32,7 @@ artifacts and analyses attached to each of them. It uses this notation:
 - a folder is an *artifact produced at a savepoint*;
 - a dashed box is an *analysis*.
 
-```graphviz dot pipeline.svg
+```dot
 digraph {
   bgcolor = transparent;
   node [shape=box,color="#6c7278",fontname="monospace",fillcolor="#24282f",fontcolor=white,style="filled",width="1.3"];
