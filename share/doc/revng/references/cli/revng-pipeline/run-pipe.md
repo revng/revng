@@ -15,12 +15,12 @@ SYNOPSIS
 DESCRIPTION
 -----------
 
-This command is a subcommand of [`revng pipeline`](revng-pipeline.md).
+This command is a subcommand of [`revng pipeline`](index.md).
 
 Runs the single pipe `PIPE` in isolation, reading and writing container files on disk.
 Without arguments, it report the list of known pipes.
 
-This is a plumbing command meant for debugging and tooling; most users should use [`revng project`](revng-project.md) or [`revng quick`](revng-quick.md) instead.
+This is a plumbing command meant for debugging and tooling; most users should use [`revng project`](../revng-project/index.md) or [`revng quick`](../revng-quick/index.md) instead.
 
 `MODEL` is the path to the model file; then, following the pipe's signature, each read container takes an input file argument and each write container takes an output file argument. Run `revng pipeline run-pipe --help` to list the available pipes, and `revng pipeline run-pipe PIPE --help` to see its exact arguments.
 
@@ -61,7 +61,7 @@ NATIVE VARIANT
 
 It takes no explicit file arguments: pass the native runner's own arguments after `--`. Use it for minimal-overhead runs, or under a debugger or profiler.
 
-The Python variant supports the [developer wrapper options](revng-common.md#developer-wrapper-options) and [pipebox arguments](revng-common.md#pipebox-arguments).
+The Python variant supports the [developer wrapper options](../revng-common.md#developer-wrapper-options) and [pipebox arguments](../revng-common.md#pipebox-arguments).
 
 EXAMPLES
 --------
@@ -75,4 +75,4 @@ revng pipeline run-pipe lift revng.yml input.tar output.tar
 SEE ALSO
 --------
 
-[`revng-pipeline`](revng-pipeline.md), [`revng-pipeline-run-analysis`](revng-pipeline-run-analysis.md), [`revng-project`](revng-project.md)
+[`revng-pipeline`](index.md), [`revng-pipeline-run-analysis`](run-analysis.md), [`revng-project`](../revng-project/index.md)

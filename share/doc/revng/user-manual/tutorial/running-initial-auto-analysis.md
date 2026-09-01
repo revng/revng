@@ -17,7 +17,7 @@ Let's compile it:
 $ gcc example.c -o example -O2
 ```
 
-We run the [`parse-binary` analysis](../../references/analyses.md#parse-binary-analysis) using [`revng project analyze`](../../references/cli/revng-project-analyze.md) to automatically collect all the loading information available in the ELF headers:
+We run the [`parse-binary` analysis](../../references/analyses.md#parse-binary-analysis) using [`revng project analyze`](../../references/cli/revng-project/analyze.md) to automatically collect all the loading information available in the ELF headers:
 
 ```{bash ignore="^.*(VirtualSize|FileSize):.*[0-9]+$"}
 $ mkdir project-dir
@@ -48,7 +48,7 @@ generic64_t main(generic64_t argument_0) {
 The commands above are *stateful*, they build on top of each other storing intermediate results into the directory specified by the `-C` parameter.
 The first command runs the set of initial autoanalyses of `revng` and the last one produces the decompiled code.
 
-Alternatively, you can run the `initial-auto-analysis` *and* produce the artifact with a single command, without a persistent project, using [`revng quick`](../../references/cli/revng-quick.md):
+Alternatively, you can run the `initial-auto-analysis` *and* produce the artifact with a single command, without a persistent project, using [`revng quick`](../../references/cli/revng-quick/index.md):
 
 ```bash
 $ revng quick artifact emit-c-as-single-file example \

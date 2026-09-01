@@ -64,4 +64,4 @@ revng ptml -p code.ptml -o code.c
 SEE ALSO
 --------
 
-[`revng-project-artifact`](revng-project-artifact.md), [`revng-merge-llvm`](revng-merge-llvm.md)
+[`revng-project-artifact`](revng-project/artifact.md), [`revng-merge-llvm`](revng-merge-llvm.md)

@@ -79,7 +79,7 @@ Several `revng` subcommands accept a `--debug DIR` option that records every pip
 `--debug RUNNER_CONTEXT`
 : Run the command in debug mode, using the specified directory (created if missing). Where possible, pipes and analyses are run as subcommands with their input and output files stored under that directory, as described below.
 
-With `--debug DIR`, a directory where you can easily reproduce each step of the invocation is created. Each pipe and analysis is run as a separate [`revng pipeline run-pipe`](revng-pipeline-run-pipe.md) / [`run-analysis`](revng-pipeline-run-analysis.md) subcommand, and its inputs and outputs are recorded under `DIR`. `DIR` gets one numbered subdirectory per executed step, in execution order:
+With `--debug DIR`, a directory where you can easily reproduce each step of the invocation is created. Each pipe and analysis is run as a separate [`revng pipeline run-pipe`](revng-pipeline/run-pipe.md) / [`run-analysis`](revng-pipeline/run-analysis.md) subcommand, and its inputs and outputs are recorded under `DIR`. `DIR` gets one numbered subdirectory per executed step, in execution order:
 
 ```
 0000-import-files/
@@ -125,4 +125,4 @@ The `revng project` subcommands that talk to a storage provider (`init`, `analyz
 SEE ALSO
 --------
 
-[`revng`](revng.md), [`revng-project`](revng-project.md), [`revng-quick`](revng-quick.md), [`revng-pipeline`](revng-pipeline.md)
+[`revng`](index.md), [`revng-project`](revng-project/index.md), [`revng-quick`](revng-quick/index.md), [`revng-pipeline`](revng-pipeline/index.md)

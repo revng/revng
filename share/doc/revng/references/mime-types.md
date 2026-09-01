@@ -1,4 +1,4 @@
-Each artifact that [`revng project artifact`](cli/revng-project-artifact.md) can produce has an associated [MIME type](https://en.wikipedia.org/wiki/Media_type):
+Each artifact that [`revng project artifact`](cli/revng-project/artifact.md) can produce has an associated [MIME type](https://en.wikipedia.org/wiki/Media_type):
 
 ```text
   lift                        - application/x.llvm.bc+zstd
