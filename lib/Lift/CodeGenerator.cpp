@@ -52,6 +52,7 @@
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/ADT/Queue.h"
 #include "revng/ADT/STLExtras.h"
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Lift/Helpers.h"
@@ -302,7 +303,7 @@ void CodeGenerator::translate(LibTcg &LibTcg,
 
   if (VirtualAddress.isValid()) {
     revng_assert(VirtualAddress.isCode());
-    JumpTargets.registerJT(VirtualAddress, JTReason::GlobalData);
+    JumpTargets.registerJT(VirtualAddress, JumpTargetReason::GlobalData);
 
     // Initialize the program counter
     PCH->initializePC(Builder, VirtualAddress);
@@ -489,8 +490,9 @@ void CodeGenerator::translate(LibTcg &LibTcg,
         // Sometimes libtinycode terminates a basic block with a call, in this
         // case force a fallthrough
         if (J == TranslationBlock->instruction_count - 1) {
-          BasicBlock *Target = JumpTargets.registerJT(EndPC,
-                                                      JTReason::PostHelper);
+          BasicBlock *Target = JumpTargets
+                                 .registerJT(EndPC,
+                                             JumpTargetReason::PostHelper);
           if (Target != nullptr) {
             Builder.CreateBr(&notNull(Target));
           } else {
@@ -665,10 +667,13 @@ void CodeGenerator::translate(LibTcg &LibTcg,
   revng_assert(Phis.begin() == Phis.end(),
                "A phi has appeared in the dispatcher");
 
-  GeneratedCodeBasicInfo GCBI(*Model, *TheModule);
+  class RootFunction Root(*TheModule);
+  CSVGlobals Globals(*Model, *TheModule);
   legacy::PassManager PostInstCombinePM;
-  PostInstCombinePM.add(new FunctionCallIdentification(GCBI));
-  PostInstCombinePM.add(new PruneRetSuccessors(GCBI));
+  PostInstCombinePM.add(new FunctionCallIdentification(Root,
+                                                       Globals,
+                                                       Model->Architecture()));
+  PostInstCombinePM.add(new PruneRetSuccessors(Root));
   PostInstCombinePM.add(createGlobalDCEPass());
   PostInstCombinePM.run(*TheModule);
 
@@ -679,7 +684,7 @@ void CodeGenerator::translate(LibTcg &LibTcg,
   EliminateUnreachableBlocks(*RootFunction, nullptr, false);
 
   T.advance("Create revng.jt.reason", true);
-  JumpTargets.createJTReasonMD();
+  JumpTargets.createJumpTargetReasonMD();
 
   T.advance("Finalization", true);
   ExternalJumpsHandler JumpOutHandler(*Model,

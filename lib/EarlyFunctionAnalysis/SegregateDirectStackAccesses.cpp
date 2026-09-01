@@ -12,7 +12,6 @@
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/PatternMatch.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRBuilder.h"
@@ -25,13 +24,13 @@ using SDSAPI = SegregateDirectStackAccessesPassImpl;
 
 class SegregateDirectStackAccessesPassImpl {
   LLVMContext *Context = nullptr;
-  GeneratedCodeBasicInfo &GCBI;
+  GlobalVariable *StackPointer = nullptr;
   std::vector<Instruction *> DirectStackAccesses;
   std::vector<Instruction *> NotDirectStackAccesses;
 
 public:
-  SegregateDirectStackAccessesPassImpl(GeneratedCodeBasicInfo &GCBI) :
-    GCBI(GCBI) {}
+  explicit SegregateDirectStackAccessesPassImpl(GlobalVariable *StackPointer) :
+    StackPointer(StackPointer) {}
   void run(Function &, FunctionAnalysisManager &);
 
 private:
@@ -40,7 +39,7 @@ private:
 };
 
 PreservedAnalyses SDSAP::run(Function &F, FunctionAnalysisManager &FAM) {
-  SegregateDirectStackAccessesPassImpl SDASP(GCBI);
+  SegregateDirectStackAccessesPassImpl SDASP(StackPointer);
   SDASP.run(F, FAM);
   return PreservedAnalyses::none();
 }
@@ -65,7 +64,7 @@ void SDSAPI::segregateAccesses(Function &F) {
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
       if (auto *LI = dyn_cast<LoadInst>(&I)) {
-        if (GCBI.isSPReg(skipCasts(LI->getPointerOperand()))) {
+        if (skipCasts(LI->getPointerOperand()) == StackPointer) {
           revng_assert(!Found);
           LoadSP = LI;
           Found = true;
@@ -91,7 +90,7 @@ void SDSAPI::segregateAccesses(Function &F) {
   // exists when operating on a instruction that directly accesses the stack.
   // Note that this problem will be addressed by opaque pointers in the future.
   auto *I8PtrTy = Builder.getInt8PtrTy();
-  auto *CE = ConstantExpr::getBitCast(GCBI.spReg(), I8PtrTy->getPointerTo());
+  auto *CE = ConstantExpr::getBitCast(StackPointer, I8PtrTy->getPointerTo());
   Value *SPI8Ptr = Builder.CreateLoad(I8PtrTy, CE);
 
   for (BasicBlock &BB : F) {

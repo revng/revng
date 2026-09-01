@@ -8,6 +8,7 @@
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/Lift/Helpers.h"
 #include "revng/Model/FunctionTags.h"
+#include "revng/Support/BlockType.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/NewPC.h"
@@ -37,7 +38,8 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   LLVMContext &C = M.getContext();
   PointerType *Int8PtrTy = Type::getInt8PtrTy(C);
   auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
-  auto *PCPtrTy = cast<PointerType>(GCBI.pcReg()->getType());
+  auto *PCPtrTy = cast<PointerType>(Globals.pcReg()->getType());
+  bool HasDelaySlot = model::Architecture::hasDelaySlot(Architecture);
   std::initializer_list<Type *> FunctionArgsTy = {
     Int8PtrTy, Int8PtrTy, Int8PtrTy, PCPtrTy
   };
@@ -57,7 +59,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   // Collect function calls
   for (BasicBlock &BB : F) {
 
-    if (BB.empty() or not GCBI.isTranslated(&BB))
+    if (BB.empty() or not isTranslated(&BB))
       continue;
 
     // Consider the basic block only if it's terminator is an actual jump and it
@@ -72,7 +74,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
       }
     }
 
-    if (not GCBI.isJump(Terminator))
+    if (not Root.isJump(Terminator))
       continue;
 
     // To be a function call we need to find:
@@ -87,7 +89,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
 
     public:
       BasicBlock *BB = nullptr;
-      const GeneratedCodeBasicInfo &GCBI;
+      const CSVGlobals &Globals;
       bool SaveRAFound;
       bool StorePCFound;
       Constant *LinkRegister = nullptr;
@@ -101,17 +103,18 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
 
     public:
       Visitor(BasicBlock *BB,
-              const GeneratedCodeBasicInfo &GCBI,
+              const CSVGlobals &Globals,
+              bool HasDelaySlot,
               MetaAddress ReturnPC,
               PointerType *PCPtrTy) :
         BB(BB),
-        GCBI(GCBI),
+        Globals(Globals),
         SaveRAFound(false),
         StorePCFound(false),
         LinkRegister(nullptr),
         ReturnPC(ReturnPC),
         LastPC(ReturnPC),
-        NewPCLeft(1 + GCBI.hasDelaySlot()),
+        NewPCLeft(1 + HasDelaySlot),
         PCPtrTy(PCPtrTy) {}
 
     public:
@@ -122,11 +125,11 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
             Value *Pointer = skipCasts(Store->getPointerOperand());
             auto *TargetCSV = dyn_cast<GlobalVariable>(Pointer);
 
-            if (GCBI.isPCReg(TargetCSV)) {
+            if (Globals.isPCReg(TargetCSV)) {
               if (TargetCSV != nullptr)
                 StorePCFound = true;
             } else if (TargetCSV != nullptr
-                       and not GCBI.isABIRegister(TargetCSV)) {
+                       and not Globals.isABIRegister(TargetCSV)) {
               // Ignore writes to non-ABI registers
             } else if (auto *Constant = dyn_cast<ConstantInt>(V)) {
               revng_assert(LastPC.isValid());
@@ -168,7 +171,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
                     if (auto *S = dyn_cast<StoreInst>(&I)) {
                       Value *Pointer = skipCasts(S->getPointerOperand());
                       auto *P = dyn_cast<GlobalVariable>(Pointer);
-                      if (P != nullptr && GCBI.isSPReg(P)) {
+                      if (P != nullptr && Globals.isSPReg(P)) {
                         LastStackPointer = Store->getPointerOperand();
                         break;
                       }
@@ -214,17 +217,17 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
       SuccessorsType successors(BasicBlock *BB) {
         SuccessorsType Successors;
         for (BasicBlock *Successor : make_range(pred_begin(BB), pred_end(BB)))
-          if (not BB->empty() and GCBI.isTranslated(Successor))
+          if (not BB->empty() and isTranslated(Successor))
             Successors.push_back(Successor);
         return Successors;
       }
     };
 
-    MetaAddress ReturnPC = GCBI.getNextPC(Terminator);
-    Visitor V(&BB, GCBI, ReturnPC, PCPtrTy);
+    MetaAddress ReturnPC = getNextPC(Terminator);
+    Visitor V(&BB, Globals, HasDelaySlot, ReturnPC, PCPtrTy);
     V.run(Terminator);
 
-    BasicBlock *ReturnBB = GCBI.getBlockAt(ReturnPC);
+    BasicBlock *ReturnBB = Root.getBlockAt(ReturnPC);
     if (V.SaveRAFound and V.StorePCFound and V.NewPCLeft == 0
         and ReturnBB != nullptr) {
       // It's a function call, register it
@@ -246,10 +249,10 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
       } else if (SuccessorsCount == 1) {
         auto *Succ = Terminator->getSuccessor(0);
 
-        if (Succ == GCBI.unexpectedPC())
+        if (Succ == Root.unexpectedPC())
           continue;
 
-        bool IsTranslated = GCBI.isTranslated(Succ);
+        bool IsTranslated = isTranslated(Succ);
         Callee = IsTranslated ? static_cast<Value *>(BlockAddress::get(Succ)) :
                                 static_cast<Value *>(Int8NullPtr);
       } else {
@@ -305,7 +308,7 @@ void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
   // * Function call edges proceed towards the fallthrough basic block
   for (BasicBlock &BB : F) {
 
-    if (BB.empty() or not GCBI.isTranslated(&BB))
+    if (BB.empty() or not isTranslated(&BB))
       continue;
 
     CustomCFGNode *Node = FilteredCFG.getNode(&BB);
@@ -325,7 +328,7 @@ void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
       auto SuccessorsRange = make_range(succ_begin(&BB), succ_end(&BB));
       for (llvm::BasicBlock *Successor : SuccessorsRange) {
 
-        if (Successor->empty() or not GCBI.isTranslated(Successor))
+        if (Successor->empty() or not isTranslated(Successor))
           continue;
 
         MetaAddress Address = getBasicBlockAddress(Successor);
@@ -337,7 +340,7 @@ void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
       if (not IsReturn) {
         for (BasicBlock *Successor : SuccessorsRange) {
 
-          if (Successor->empty() or not GCBI.isTranslated(Successor))
+          if (Successor->empty() or not isTranslated(Successor))
             continue;
 
           Node->addSuccessor(FilteredCFG.getNode(Successor));

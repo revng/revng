@@ -19,7 +19,8 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/Queue.h"
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/BasicAnalyses/CSVGlobals.h"
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
@@ -31,6 +32,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/InlineHelpers/InlineHelpers.h"
 #include "revng/InlineHelpers/LinkHelpersToInline.h"
+#include "revng/Lift/JumpTargetReason.h"
 #include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
@@ -127,7 +129,8 @@ private:
 private:
   llvm::Module &M;
   llvm::LLVMContext &Context;
-  GeneratedCodeBasicInfo &GCBI;
+  RootFunction &Root;
+  const CSVGlobals &Globals;
   ControlFlowGraphCache &FMC;
   TupleTree<model::Binary> &Binary;
   FunctionSummaryOracle &Oracle;
@@ -138,14 +141,16 @@ private:
 
 public:
   DetectABI(llvm::Module &M,
-            GeneratedCodeBasicInfo &GCBI,
+            RootFunction &Root,
+            const CSVGlobals &Globals,
             ControlFlowGraphCache &FMC,
             TupleTree<model::Binary> &Binary,
             FunctionSummaryOracle &Oracle,
             CFGAnalyzer &Analyzer) :
     M(M),
     Context(M.getContext()),
-    GCBI(GCBI),
+    Root(Root),
+    Globals(Globals),
     FMC(FMC),
     Binary(Binary),
     Oracle(Oracle),
@@ -232,7 +237,7 @@ void DetectABI::computeApproximateCallGraph() {
 
   // Create an over-approximated call graph
   for (const auto &Function : Binary->Functions()) {
-    auto *Entry = GCBI.getBlockAt(Function.Entry());
+    auto *Entry = Root.getBlockAt(Function.Entry());
     BasicBlockNode Node{ Function.Entry() };
     BasicBlockNode *GraphNode = ApproximateCallGraph.addNode(Node);
     BasicBlockNodeMap[Entry] = GraphNode;
@@ -240,7 +245,7 @@ void DetectABI::computeApproximateCallGraph() {
 
   for (const auto &Function : Binary->Functions()) {
     llvm::SmallSet<BasicBlock *, 8> Visited;
-    auto *Entry = GCBI.getBlockAt(Function.Entry());
+    auto *Entry = Root.getBlockAt(Function.Entry());
     revng_assert(Entry != nullptr);
 
     BasicBlockNode *StartNode = BasicBlockNodeMap[Entry];
@@ -512,7 +517,8 @@ void DetectABI::analyzeABI() {
       LoggerIndent Indent(Log);
       // The prototype of the function we analyzed has changed, reanalyze
       // callers
-      auto &FunctionNode = BasicBlockNodeMap[GCBI.getBlockAt(Function.Entry())];
+      auto *EntryBlock = Root.getBlockAt(Function.Entry());
+      auto &FunctionNode = BasicBlockNodeMap[EntryBlock];
       for (auto &CallerNode : FunctionNode->predecessors()) {
         if (CallerNode->Address.isValid()) {
           revng_log(Log, CallerNode->Address.toString());
@@ -830,9 +836,9 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
     //  - don't write stack pointer
     //  - don't write to callee arguments
     //  - every store instruction writes to registers (not memory)
-    llvm::BasicBlock *BB = GCBI.getBlockAt(Block.ID().start());
+    llvm::BasicBlock *BB = Root.getBlockAt(Block.ID().start());
 
-    GlobalVariable *StackPointer = GCBI.spReg();
+    GlobalVariable *StackPointer = Globals.spReg();
 
     // Check if wrapper writes to Stack Pointer
     const bool WritesSP = WrittenRegisters.contains(StackPointer);
@@ -994,9 +1000,7 @@ DetectABI::computePreservedRegisters(const CSVSet &ClobberedRegisters) const {
 
 static Logger FunctionFromCalleesLog("functions-from-callees-collection");
 
-static void collectFunctionsFromCallees(Module &M,
-                                        GeneratedCodeBasicInfo &GCBI,
-                                        model::Binary &Binary) {
+static void collectFunctionsFromCallees(Module &M, model::Binary &Binary) {
   Function &Root = *M.getFunction("root");
 
   // Static symbols have already been registered during lifting phase. Now
@@ -1009,8 +1013,8 @@ static void collectFunctionsFromCallees(Module &M,
     if (Binary.Functions().contains(Entry))
       continue;
 
-    uint32_t Reasons = GCBI.getJTReasons(&BB);
-    bool IsCallee = hasReason(Reasons, JTReason::Callee);
+    uint32_t Reasons = JumpTargetReason::getReasons(&BB);
+    bool IsCallee = hasReason(Reasons, JumpTargetReason::Callee);
 
     if (IsCallee) {
       // Create the function
@@ -1069,7 +1073,6 @@ Changes DetectABI::runAnalyses(MetaAddress EntryAddress,
 
   // Run ABI-independent data-flow analyses
   ABIResults = analyzeRegisterUsage(OutlinedFunction.Function.get(),
-                                    GCBI,
                                     Binary->Architecture(),
                                     Analyzer.preCallHook(),
                                     Analyzer.postCallHook(),
@@ -1133,13 +1136,14 @@ Changes DetectABI::runAnalyses(MetaAddress EntryAddress,
 }
 
 static void runDetectABI(Module &M,
-                         GeneratedCodeBasicInfo &GCBI,
+                         RootFunction &Root,
+                         const CSVGlobals &Globals,
                          ControlFlowGraphCache &FMC,
                          TupleTree<model::Binary> &Binary) {
   using FSOracle = FunctionSummaryOracle;
-  FSOracle Oracle = FSOracle::importFullPrototypes(M, GCBI, *Binary);
-  CFGAnalyzer Analyzer(M, GCBI, Binary, Oracle);
-  DetectABI ABIDetector(M, GCBI, FMC, Binary, Oracle, Analyzer);
+  FSOracle Oracle = FSOracle::importFullPrototypes(M, Globals, *Binary);
+  CFGAnalyzer Analyzer(M, Root, Globals, Binary, Oracle);
+  DetectABI ABIDetector(M, Root, Globals, FMC, Binary, Oracle, Analyzer);
   ABIDetector.run();
 }
 
@@ -1155,7 +1159,8 @@ llvm::Error DetectABI::run(Model &Model,
   TupleTree<model::Binary> &TupleModel = Model.get();
   model::Binary &Binary = *TupleModel;
 
-  GeneratedCodeBasicInfo GCBI(Binary, Module);
+  RootFunction Root(Module);
+  CSVGlobals Globals(Binary, Module);
   ControlFlowGraphCache FMC;
 
   // Link helper bodies once at the start of the analysis, to avoid relinking
@@ -1166,10 +1171,10 @@ llvm::Error DetectABI::run(Model &Model,
     PM.run(Module);
   }
 
-  efa::collectFunctionsFromCallees(Module, GCBI, Binary);
-  efa::runDetectABI(Module, GCBI, FMC, TupleModel);
-  collectFunctionsFromUnusedAddresses(Module, GCBI, Binary, FMC);
-  efa::runDetectABI(Module, GCBI, FMC, TupleModel);
+  efa::collectFunctionsFromCallees(Module, Binary);
+  efa::runDetectABI(Module, Root, Globals, FMC, TupleModel);
+  collectFunctionsFromUnusedAddresses(Module, Root, Binary, FMC);
+  efa::runDetectABI(Module, Root, Globals, FMC, TupleModel);
 
   return llvm::Error::success();
 }

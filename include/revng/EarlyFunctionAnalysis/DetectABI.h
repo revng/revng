@@ -6,8 +6,10 @@
 
 #include "llvm/Pass.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
+#include "revng/PipeboxCommon/Common.h"
+#include "revng/PipeboxCommon/LLVMContainer.h"
+#include "revng/PipeboxCommon/Model.h"
 
 namespace revng::pypeline::analyses {
 

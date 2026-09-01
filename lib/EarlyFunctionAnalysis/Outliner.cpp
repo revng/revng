@@ -12,11 +12,13 @@
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include "revng/ADT/Queue.h"
+#include "revng/BasicAnalyses/CSVGlobals.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/Lift/Helpers.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Support/BlockType.h"
 #include "revng/Support/EmitAbort.h"
 #include "revng/Support/FunctionCallMarker.h"
 #include "revng/Support/IRBuilder.h"
@@ -216,8 +218,8 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
         Pointer = CSV;
         PointeeType = CSV->getValueType();
       } else {
-        PointeeType = GCBI.spReg()->getValueType();
-        Pointer = Builder.CreateIntToPtr(Builder.createLoad(GCBI.spReg()),
+        PointeeType = Globals.spReg()->getValueType();
+        Pointer = Builder.CreateIntToPtr(Builder.createLoad(Globals.spReg()),
                                          PointeeType->getPointerTo());
       }
 
@@ -270,11 +272,11 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
   OnceQueue<BasicBlock *> Queue;
   std::vector<BasicBlock *> BlocksToClone;
 
-  auto *AnyPCBB = GCBI.anyPC();
-  auto *UnexpectedPCBB = GCBI.unexpectedPC();
+  auto *AnyPCBB = RootF.anyPC();
+  auto *UnexpectedPCBB = RootF.unexpectedPC();
   Function *Root = AnyPCBB->getParent();
 
-  BasicBlock *EntryBlock = GCBI.getBlockAt(FunctionAddress);
+  BasicBlock *EntryBlock = RootF.getBlockAt(FunctionAddress);
   bool HasEntryBlock = EntryBlock != nullptr;
 
   if (HasEntryBlock)

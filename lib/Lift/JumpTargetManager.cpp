@@ -15,6 +15,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/Lift/Helpers.h"
+#include "revng/Lift/JumpTargetReason.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/EmitAbort.h"
@@ -213,7 +214,8 @@ bool TDBP::pinMaterializedValues(Function &F) {
 void TDBP::pinConstantStoreInternal(MetaAddress Address, CallInst *ExitTBCall) {
   revng_assert(Address.isValid());
 
-  BasicBlock *TargetBlock = JTM->registerJT(Address, JTReason::DirectJump);
+  BasicBlock *TargetBlock = JTM->registerJT(Address,
+                                            JumpTargetReason::DirectJump);
 
   const Module *M = getModule(ExitTBCall);
   LLVMContext &Context = getContext(M);
@@ -375,7 +377,8 @@ bool TDBP::forceFallthroughAfterHelper(CallInst *Call) {
   // Get the fallthrough basic block and emit a conditional branch, if not
   // possible simply jump to anyPC
   BasicBlock *AnyPC = JTM->anyPC();
-  if (BasicBlock *NextPCBB = JTM->registerJT(NextPC, JTReason::PostHelper)) {
+  if (BasicBlock *NextPCBB = JTM->registerJT(NextPC,
+                                             JumpTargetReason::PostHelper)) {
     PCH->buildHotPath(Builder, { NextPC, NextPCBB }, AnyPC);
   } else {
     Builder.CreateBr(AnyPC);
@@ -545,7 +548,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
 void JumpTargetManager::harvestGlobalData() {
   // Register ExtraCodeAddresses
   for (MetaAddress Address : Model->ExtraCodeAddresses())
-    registerJT(Address, JTReason::GlobalData);
+    registerJT(Address, JumpTargetReason::GlobalData);
 
   for (auto &[Segment, Data] : BinaryView.segments()) {
     MetaAddress StartVirtualAddress = Segment.StartAddress();
@@ -606,7 +609,7 @@ void JumpTargetManager::findCodePointers(MetaAddress StartVirtualAddress,
     if (Value.isInvalid())
       continue;
 
-    BasicBlock *Result = registerJT(Value, JTReason::GlobalData);
+    BasicBlock *Result = registerJT(Value, JumpTargetReason::GlobalData);
 
     if (Result != nullptr)
       UnusedCodePointers.insert(StartVirtualAddress + (Cursor - Start));
@@ -651,7 +654,7 @@ BasicBlock *JumpTargetManager::newPC(MetaAddress PC) {
   // basic block (i.e., we have to split its basic block). This typically
   // happens with variable-length instruction encodings.
   if (OriginalInstructionAddresses.contains(PC)) {
-    return registerJT(PC, JTReason::AmbiguousInstruction);
+    return registerJT(PC, JumpTargetReason::AmbiguousInstruction);
   }
 
   // We don't know anything about this PC
@@ -924,7 +927,7 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
 
 // TODO: register Reason
 BasicBlock *JumpTargetManager::registerJT(MetaAddress PC,
-                                          JTReason::Values Reason) {
+                                          JumpTargetReason::Values Reason) {
   revng_check(PC.isValid());
 
   if (not isPC(PC))
@@ -932,7 +935,7 @@ BasicBlock *JumpTargetManager::registerJT(MetaAddress PC,
 
   revng_log(RegisterJTLog,
             "Registering bb." << nameForAddress(PC) << " for "
-                              << JTReason::getName(Reason));
+                              << JumpTargetReason::getName(Reason));
   LoggerIndent Indent(RegisterJTLog);
 
   // Do we already have a BasicBlock for this PC?
@@ -997,7 +1000,7 @@ BasicBlock *JumpTargetManager::registerJT(MetaAddress PC,
   NewJumpTarget = JumpTarget(NewBlock, Reason);
 
   if (AftedAddingFunctionEntries)
-    NewJumpTarget.setReason(JTReason::DependsOnModelFunction);
+    NewJumpTarget.setReason(JumpTargetReason::DependsOnModelFunction);
 
   // PC was not a jump target, record it as new
   ValueMaterializerPCWhiteList.insert(PC);
@@ -1199,8 +1202,8 @@ void JumpTargetManager::rebuildDispatcher(MetaAddressSet *Whitelist) {
       // Add to the switch all the unreachable jump targets whose reason is not
       // just direct jump
       if (not Reachable.contains(BB) and IsWhitelisted
-          and not JT.isOnlyReason(JTReason::DirectJump,
-                                  JTReason::DependsOnModelFunction)) {
+          and not JT.isOnlyReason(JumpTargetReason::DirectJump,
+                                  JumpTargetReason::DependsOnModelFunction)) {
         PCH->addCaseToDispatcher(DispatcherSwitch,
                                  { PC, BB },
                                  BlockType::RootDispatcherHelperBlock);
@@ -1251,7 +1254,7 @@ void JumpTargetManager::harvest() {
     HarvestingStats.push("harvest 1: SimpleLiterals");
     revng_log(JTCountLog, "Collecting simple literals");
     for (MetaAddress PC : SimpleLiterals)
-      registerJT(PC, JTReason::SimpleLiteral);
+      registerJT(PC, JumpTargetReason::SimpleLiteral);
     SimpleLiterals.clear();
   }
 
@@ -1326,7 +1329,7 @@ void JumpTargetManager::harvest() {
 
       DisableTracking Guard(*Model);
       for (const model::Function &Function : Model->Functions())
-        registerJT(Function.Entry(), JTReason::FunctionSymbol);
+        registerJT(Function.Entry(), JumpTargetReason::FunctionSymbol);
     }
 
     // TODO: eventually, `setCFGForm` should be replaced by using a CustomCFG

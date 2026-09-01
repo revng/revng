@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <memory>
+
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
@@ -10,10 +12,11 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/Queue.h"
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/BasicAnalyses/CSVGlobals.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
+#include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/EmitAbort.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
@@ -61,7 +64,8 @@ private:
   llvm::Module &Module;
   Function &LLVMFunction;
   OpaqueFunctionsPool<StringRef> CSVInitializers;
-  GeneratedCodeBasicInfo GCBI;
+  CSVGlobals Globals;
+  std::unique_ptr<ProgramCounterHandler> PCH;
   model::Architecture::Values Architecture;
   const model::NamingConfiguration &Configuration;
 
@@ -73,7 +77,8 @@ public:
     Module(*LLVMFunction.getParent()),
     LLVMFunction(LLVMFunction),
     CSVInitializers(&Module, false),
-    GCBI(Binary, Module),
+    Globals(Binary, Module),
+    PCH(ProgramCounterHandler::fromModule(Binary.Architecture(), &Module)),
     Architecture(Binary.Architecture()),
     Configuration(Binary.Configuration().Naming()) {}
 
@@ -102,7 +107,7 @@ private:
   /// A CSV that is neither an ABI register nor alive within \p F can only ever
   /// hold its opaque default value, so it needs no alloca/load/store.
   bool isDeadCSV(GlobalVariable *CSV, const DenseSet<GlobalVariable *> &Alive) {
-    return CSVs.contains(CSV) and not GCBI.isABIRegister(CSV)
+    return CSVs.contains(CSV) and not Globals.isABIRegister(CSV)
            and not Alive.contains(CSV);
   }
 };
@@ -114,12 +119,12 @@ void PromoteCSVs::run() {
   CSVInitializers.setTags({ &FunctionTags::OpaqueCSVValue });
 
   // Record existing initializers
-  const auto &PCCSVs = GCBI.programCounterHandler()->pcCSVs();
-  const auto &R = llvm::concat<GlobalVariable *const>(GCBI.csvs(), PCCSVs);
+  const auto &PCCSVs = PCH->pcCSVs();
+  const auto &R = llvm::concat<GlobalVariable *const>(Globals.csvs(), PCCSVs);
   SmallVector<GlobalVariable *> CSVsToSort{ R.begin(), R.end() };
   llvm::sort(CSVsToSort, CompareByName);
   for (GlobalVariable *CSV : CSVsToSort) {
-    if (GCBI.isSPReg(CSV))
+    if (Globals.isSPReg(CSV))
       continue;
 
     CSVs.insert(CSV);
@@ -486,7 +491,7 @@ CSVsUsageMap PromoteCSVs::getUsedCSVs(ArrayRef<CallInst *> CallsRange) {
   //
   // There are three types of calls: calls to helpers tagged by CSAA, calls to
   // isolated functions and other calls that do not touch CPU state. For the
-  // former, we ask GCBI to extract the information from metadata. For the
+  // former, we extract the information from metadata. For the
   // latter, we use a monotone framework to compute the set of read/written
   // registers by the callee.  Note that the former is more accurate thanks to
   // CSAA being call-site sensitive.

@@ -4,7 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/DepthFirstIterator.h"
+
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
+#include "revng/Support/BlockType.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/NewPC.h"
 
@@ -48,31 +51,30 @@ struct SuccessorsList {
   }
 };
 
-static SuccessorsList getSuccessors(GeneratedCodeBasicInfo &GCBI,
-                                    BasicBlock *BB) {
-  bool IsRoot = BB->getParent() == GCBI.root();
+static SuccessorsList getSuccessors(RootFunction &Root, BasicBlock *BB) {
+  bool IsRoot = BB->getParent() == Root.getFunction();
 
   SuccessorsList Result;
 
   df_iterator_default_set<BasicBlock *> Visited;
 
   if (IsRoot) {
-    Visited.insert(GCBI.anyPC());
-    Visited.insert(GCBI.unexpectedPC());
+    Visited.insert(Root.anyPC());
+    Visited.insert(Root.unexpectedPC());
   }
 
   for (BasicBlock *Block : depth_first_ext(BB, Visited)) {
     for (BasicBlock *Successor : successors(Block)) {
-      revng_assert(Successor != GCBI.dispatcher());
+      revng_assert(Successor != Root.dispatcher());
 
       MetaAddress Address = getBasicBlockID(Successor).start();
       const auto IBDHB = BlockType::IndirectBranchDispatcherHelperBlock;
       if (Address.isValid()) {
         Visited.insert(Successor);
         Result.Addresses.insert(Address);
-      } else if (IsRoot and Successor == GCBI.anyPC()) {
+      } else if (IsRoot and Successor == Root.anyPC()) {
         Result.AnyPC = true;
-      } else if (IsRoot and Successor == GCBI.unexpectedPC()) {
+      } else if (IsRoot and Successor == Root.unexpectedPC()) {
         Result.UnexpectedPC = true;
       } else if (getType(Successor) == IBDHB) {
         // Ignore
@@ -88,12 +90,11 @@ static SuccessorsList getSuccessors(GeneratedCodeBasicInfo &GCBI,
 bool PruneRetSuccessors::runOnModule(llvm::Module &M) {
   auto &FCI = getAnalysis<FunctionCallIdentification>();
 
-  for (BasicBlock &BB : *GCBI.root()) {
-    if (not GCBI.isTranslated(&BB)
-        or BB.getTerminator()->getNumSuccessors() < 2)
+  for (BasicBlock &BB : *Root.getFunction()) {
+    if (not isTranslated(&BB) or BB.getTerminator()->getNumSuccessors() < 2)
       continue;
 
-    auto Successors = getSuccessors(GCBI, &BB);
+    auto Successors = getSuccessors(Root, &BB);
     if (not Successors.UnexpectedPC or Successors.Other)
       continue;
 
@@ -107,7 +108,7 @@ bool PruneRetSuccessors::runOnModule(llvm::Module &M) {
 
     if (AllFallthrough) {
       Instruction *OldTerminator = BB.getTerminator();
-      auto *NewTerminator = BranchInst::Create(GCBI.anyPC(), &BB);
+      auto *NewTerminator = BranchInst::Create(Root.anyPC(), &BB);
       NewTerminator->copyMetadata(*OldTerminator);
       eraseFromParent(OldTerminator);
     }

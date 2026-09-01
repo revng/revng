@@ -8,13 +8,13 @@
 #include "llvm/Support/ModRef.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
 
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/EarlyFunctionAnalysis/TemporaryOpaqueFunction.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/NamedTypedRegister.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 #include "revng/Support/UniqueValuePtr.h"
-
-class GeneratedCodeBasicInfo;
 
 namespace efa {
 
@@ -78,7 +78,8 @@ public:
 class Outliner {
 private:
   llvm::Module &M;
-  GeneratedCodeBasicInfo &GCBI;
+  RootFunction &RootF;
+  const CSVGlobals &Globals;
   FunctionSummaryOracle &Oracle;
 
   /// UnexpectedPCMarker is used to indicate that `unexpectedpc` basic
@@ -92,10 +93,12 @@ private:
 
 public:
   Outliner(llvm::Module &M,
-           GeneratedCodeBasicInfo &GCBI,
+           RootFunction &RootF,
+           const CSVGlobals &Globals,
            FunctionSummaryOracle &Oracle) :
     M(M),
-    GCBI(GCBI),
+    RootF(RootF),
+    Globals(Globals),
     Oracle(Oracle),
     UnexpectedPCMarker(initializeUnexpectedPCMarker(M)),
     OpaqueReturnAddress(&M, false),

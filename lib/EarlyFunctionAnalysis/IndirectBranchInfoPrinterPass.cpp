@@ -10,7 +10,6 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/Support/CommandLine.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/IndirectBranchInfo.h"
 #include "revng/EarlyFunctionAnalysis/IndirectBranchInfoPrinterPass.h"
 #include "revng/Support/Assert.h"

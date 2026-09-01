@@ -4,9 +4,10 @@
 
 revng_add_analyses_library_internal(
   revngBasicAnalyses
+  CSVGlobals.cpp
   EmptyNewPC.cpp
   RemoveDbgMetadata.cpp
-  GeneratedCodeBasicInfo.cpp
+  RootFunction.cpp
   MaterializedValue.cpp
   RemoveNewPCCalls.cpp
   RemoveHelperCalls.cpp

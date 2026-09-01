@@ -14,7 +14,6 @@
 #include "llvm/Pass.h"
 
 #include "revng/ADT/Queue.h"
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/HelperInliningAnalyses/DetectUninlinableHelpers.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"

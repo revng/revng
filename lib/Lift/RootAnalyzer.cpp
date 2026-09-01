@@ -25,6 +25,7 @@
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/Model/ABI/Definition.h"
@@ -794,8 +795,9 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
     // Register the resulting addresses
     unsigned RegisteredAddresses = 0;
 
-    auto RegisterJT = [this, &RegisteredAddresses](MetaAddress Address,
-                                                   JTReason::Values Reason) {
+    auto RegisterJT = [this,
+                       &RegisteredAddresses](MetaAddress Address,
+                                             JumpTargetReason::Values Reason) {
       bool IsNew = not JTM.hasJT(Address);
       if (JTM.registerJT(Address, Reason) != nullptr and IsNew) {
         ++RegisteredAddresses;
@@ -805,20 +807,20 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
     switch (TIT) {
     case TrackedInstructionType::WrittenInPC:
       for (const MetaAddress &MA : Targets)
-        RegisterJT(MA, JTReason::PCStore);
+        RegisterJT(MA, JumpTargetReason::PCStore);
       WrittenInPCStatistics.push(RegisteredAddresses);
       break;
 
     case TrackedInstructionType::StoredInMemory:
       for (const MetaAddress &MA : Targets)
-        RegisterJT(MA, JTReason::MemoryStore);
+        RegisterJT(MA, JumpTargetReason::MemoryStore);
       StoredInMemoryStatistics.push(RegisteredAddresses);
       break;
 
     case TrackedInstructionType::StoreTarget:
     case TrackedInstructionType::LoadTarget:
       for (const MetaAddress &MA : Targets)
-        if (JTM.markJT(MA, JTReason::LoadAddress))
+        if (JTM.markJT(MA, JumpTargetReason::LoadAddress))
           ++RegisteredAddresses;
       LoadAddressStatistics.push(RegisteredAddresses);
       break;
@@ -859,7 +861,7 @@ void JTM2::collectValuesStoredIntoMemory(Function *F,
         auto MA = MetaAddress::fromPC(Address->getLimitedValue(),
                                       CommonFeatures);
         if (MA.isValid()) {
-          JTM.registerJT(MA, JTReason::MemoryStore);
+          JTM.registerJT(MA, JumpTargetReason::MemoryStore);
         }
       }
     }
@@ -888,9 +890,10 @@ static MetaAddress::Features findCommonFeatures(Function *F) {
 
 void RootAnalyzer::cloneOptimizeAndHarvest(Function *TheFunction) {
   // Re-run the identification of function calls
-  GeneratedCodeBasicInfo GCBI(*Model, *TheFunction->getParent());
+  RootFunction Root(*TheFunction->getParent());
+  CSVGlobals Globals(*Model, *TheFunction->getParent());
   legacy::PassManager PM;
-  PM.add(new FunctionCallIdentification(GCBI));
+  PM.add(new FunctionCallIdentification(Root, Globals, Model->Architecture()));
   PM.run(TheModule);
 
   ValueToValueMapTy OldToNew;

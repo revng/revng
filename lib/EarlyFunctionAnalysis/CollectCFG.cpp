@@ -6,7 +6,6 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/Queue.h"
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
@@ -85,11 +84,12 @@ CollectCFG::CollectCFG(const class Model &Model,
                        CFGMap &Output) :
   Model(Model),
   Output(Output),
-  GCBI(*Model.get().get(), Input.getModule()),
+  Root(Input.getModule()),
+  Globals(*Model.get().get(), Input.getModule()),
   Oracle(FSO::importBasicPrototypeData(Input.getModule(),
-                                       GCBI,
+                                       Globals,
                                        *Model.get().get())),
-  Analyzer(Input.getModule(), GCBI, Model.get(), Oracle) {
+  Analyzer(Input.getModule(), Root, Globals, Model.get(), Oracle) {
 }
 
 void CollectCFG::runOnFunction(const model::Function &Function) {

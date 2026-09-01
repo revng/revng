@@ -6,15 +6,19 @@
 
 #include "llvm/IR/PassManager.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
+
+namespace llvm {
+class GlobalVariable;
+}
 
 class RemoveHelperCallsPass
   : public llvm::PassInfoMixin<RemoveHelperCallsPass> {
-  GeneratedCodeBasicInfo &GCBI;
+  llvm::GlobalVariable *StackPointer = nullptr;
 
 public:
-  RemoveHelperCallsPass(GeneratedCodeBasicInfo &GCBI) : GCBI(GCBI){};
+  explicit RemoveHelperCallsPass(llvm::GlobalVariable *StackPointer) :
+    StackPointer(StackPointer) {}
 
   llvm::PreservedAnalyses run(llvm::Function &F,
                               llvm::FunctionAnalysisManager &FAM);

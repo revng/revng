@@ -8,13 +8,14 @@
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/ADT/GenericGraph.h"
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/EarlyFunctionAnalysis/FunctionBundle.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Ranks/IRHelpers.h"
+#include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/NewPC.h"
 
@@ -88,8 +89,7 @@ public:
   }
 };
 
-const efa::BasicBlock *ControlFlowGraph::findBlock(GeneratedCodeBasicInfo &GCBI,
-                                                   llvm::BasicBlock *BB) const {
+const efa::BasicBlock *ControlFlowGraph::findBlock(llvm::BasicBlock *BB) const {
   const llvm::BasicBlock *JumpTargetBB = getJumpTargetBlock(BB);
   if (JumpTargetBB == nullptr)
     return nullptr;
@@ -103,7 +103,7 @@ const efa::BasicBlock *ControlFlowGraph::findBlock(GeneratedCodeBasicInfo &GCBI,
     const llvm::BasicBlock *PredecessorJumpTargetBB = nullptr;
     for (const llvm::BasicBlock *Predecessor : predecessors(JumpTargetBB)) {
       auto IBDHB = BlockType::IndirectBranchDispatcherHelperBlock;
-      if (GCBI.isTranslated(Predecessor) or getType(Predecessor) == IBDHB) {
+      if (isTranslated(Predecessor) or getType(Predecessor) == IBDHB) {
         const llvm::BasicBlock *NewJT = getJumpTargetBlock(Predecessor);
         if (PredecessorJumpTargetBB != nullptr) {
           revng_assert(PredecessorJumpTargetBB == NewJT,
@@ -125,8 +125,7 @@ const efa::BasicBlock *ControlFlowGraph::findBlock(GeneratedCodeBasicInfo &GCBI,
 }
 
 std::pair<const efa::ControlFlowGraph *, const efa::BasicBlock *>
-FunctionBundle::findBlock(GeneratedCodeBasicInfo &GCBI,
-                          llvm::Instruction *I) const {
+FunctionBundle::findBlock(llvm::Instruction *I) const {
   // The location names the function owning the block, which is the one the
   // code was inlined from. Searching for the block instead would be ambiguous,
   // since two functions can share code.
@@ -141,14 +140,14 @@ FunctionBundle::findBlock(GeneratedCodeBasicInfo &GCBI,
   }
 
   const efa::ControlFlowGraph &Main = MainFunction();
-  return { &Main, Main.findBlock(GCBI, I->getParent()) };
+  return { &Main, Main.findBlock(I->getParent()) };
 }
 
-void ControlFlowGraph::serialize(GeneratedCodeBasicInfo &GCBI) const {
+void ControlFlowGraph::serialize(RootFunction &Root) const {
   using namespace llvm;
   using llvm::BasicBlock;
 
-  BasicBlock *BB = GCBI.getBlockAt(Entry());
+  BasicBlock *BB = Root.getBlockAt(Entry());
   LLVMContext &Context = getContext(BB);
   std::string Buffer;
   {
