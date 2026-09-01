@@ -42,8 +42,8 @@ digraph {
   size = "20";
 
 {#- One node per branch: a small empty circle; this is the branching backbone. #}
-{%- for branch_name, branch in data.branches.items() %}
-  "branch-{{branch_name}}" [label="",shape=circle,fixedsize=true,width="0.2",height="0.2",style=solid,URL="#/pipeline/branches/{{branch_name}}"];
+{%- for branch_name, branch in data.branches.items() if branch_has_successor(branch_name) %}
+  "branch-{{branch_name}}" [label="",shape=circle,fixedsize=true,width="0.2",height="0.2",style=solid];
 {%- endfor %}
 
 {#- Artifact and analysis nodes. Savepoints are not shown as nodes, but an
@@ -76,7 +76,7 @@ digraph {
 {%- set ns.prev = "artifact-" + artifact.name %}
 {%- endfor %}
 {%- endfor %}
-{%- if ns.prev is not none %}
+{%- if ns.prev is not none and branch_has_successor(branch_name) %}
 {{ emit_edge(ns.prev, "branch-" + branch_name) }}
 {%- endif %}
 {%- endfor %}

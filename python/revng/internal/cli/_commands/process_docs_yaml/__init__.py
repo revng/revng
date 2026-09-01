@@ -63,13 +63,20 @@ def process_docs_yaml(template: str) -> int:
 
         return result
 
+    def branch_has_successor(name: str):
+        return any(b.get("from") == name for b in data["branches"].values())
+
     template_path = Path(template)
     loader = jinja2.FileSystemLoader(searchpath=str(template_path.parent))
     environment = jinja2.Environment(loader=loader)
     environment.filters["link"] = link_filter
     jinja_template = environment.get_template(template_path.name)
 
-    print(jinja_template.render(data=data, emit_edge=emit_edge))
+    print(
+        jinja_template.render(
+            data=data, emit_edge=emit_edge, branch_has_successor=branch_has_successor
+        )
+    )
     return 0
 
 
