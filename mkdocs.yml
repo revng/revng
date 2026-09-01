@@ -12,6 +12,7 @@ theme:
     text: DM Sans
     code: DM Mono
   logo: assets/logo.svg
+  favicon: assets/logo.svg
   features:
     - navigation.footer
     - navigation.indexes
