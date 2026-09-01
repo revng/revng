@@ -51,6 +51,30 @@ static LTSN *addInstanceAtOffset(LayoutTypeSystem &TS,
   return Child;
 }
 
+// Adds a strided instance edge from Parent to Child, i.e. an array of TripCount
+// elements spaced Stride bytes apart, starting at ChildOffset inside Parent.
+static void addStridedInstance(LayoutTypeSystem &TS,
+                               LTSN *Parent,
+                               LTSN *Child,
+                               unsigned ChildOffset,
+                               unsigned Stride,
+                               unsigned TripCount) {
+  OffsetExpression OE{};
+  OE.Offset = ChildOffset;
+  OE.Strides.push_back(Stride);
+  OE.TripCounts.push_back(TripCount);
+  TS.addInstanceLink(Parent, Child, std::move(OE));
+}
+
+// Counts the instance edges going from Src to Tgt.
+static unsigned countInstanceEdges(const LTSN *Src, const LTSN *Tgt) {
+  unsigned Result = 0;
+  for (const auto &Edge : Src->Successors)
+    if (Edge.first == Tgt and isInstanceEdge(Edge))
+      ++Result;
+  return Result;
+}
+
 static LTSN *
 addEquality(LayoutTypeSystem &TS, LTSN *Parent, unsigned ChildSize = 0U) {
   LTSN *Child = TS.createArtificialLayoutType();
@@ -806,4 +830,111 @@ BOOST_AUTO_TEST_CASE(DeduplicateFields_commonNodeAsymmetricCollapse) {
   checkNode(TS, NodeB, 8, AllChildrenAreNonInterfering, { 2 });
   checkNode(TS, NodeC, 10, AllChildrenAreNonInterfering, { 3 });
   checkNode(TS, NodeA1, 8, AllChildrenAreNonInterfering, { 4, 5, 6, 7 });
+}
+
+// ----------------- ArrangeAccessesHierarchically ----------------
+
+// Runs the steps ArrangeAccessesHierarchically depends on, then the step
+// itself. VerifyLog is enabled, so the verifyDAG() assertions guarding the
+// beginning and the end of the step are active.
+static void runArrangeAccessesHierarchically(LayoutTypeSystem &TS) {
+  VerifyLog.enable();
+
+  dla::StepManager SM;
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
+  revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<DecomposeStridedEdges>());
+  revng_check(SM.addStep<ArrangeAccessesHierarchically>());
+  SM.run(TS);
+
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
+}
+
+/// Two edges describing the same bytes but ending on different nodes.
+///
+/// Parent reaches ChildA through a plain edge and ChildB through a strided one,
+/// both at offset 0. getFieldSize spans the whole array for the strided edge
+/// (3 * 16 + 8 = 56 bytes) rather than the 8-byte node, so the plain edge looks
+/// contained in the strided one. Projected into one element of the strided edge
+/// though, both are (offset 0, size 8), and ChildB is itself 8 bytes: the two
+/// edges describe the same bytes, so neither is nested in the other.
+///
+/// Pushing one through the other regardless makes ChildB a parent of ChildA.
+/// ChildA already reaches ChildB, so that closes a loop, and a loop here is
+/// what later makes the model type construction recurse forever.
+BOOST_AUTO_TEST_CASE(ArrangeAccessesHierarchically_sameBytesDifferentNodes) {
+  dla::LayoutTypeSystem TS;
+
+  // Build TS
+  LTSN *Parent = createRoot(TS, 56U);
+  LTSN *ChildA = addInstanceAtOffset(TS, Parent, /*offset=*/0U, /*size=*/8U);
+  LTSN *ChildB = createRoot(TS, 8U);
+  addStridedInstance(TS,
+                     Parent,
+                     ChildB,
+                     /*offset=*/0U,
+                     /*stride=*/16U,
+                     /*tripCount=*/4U);
+
+  // ChildA already reaches ChildB, so making ChildB a parent of ChildA would
+  // close a loop.
+  TS.addInstanceLink(ChildA, ChildB, OffsetExpression{});
+
+  // A child reached only by Parent through a single plain edge is volatile, and
+  // would be merged into Parent before any of this is looked at. A second
+  // parent pins ChildA in place. ChildB is already pinned by its strided edge.
+  LTSN *OtherParent = createRoot(TS, 8U);
+  TS.addInstanceLink(OtherParent, ChildA, OffsetExpression{});
+
+  // Neither child may be a leaf, otherwise the two edges are not comparable.
+  addInstanceAtOffset(TS, ChildA, /*offset=*/0U, /*size=*/8U);
+  addInstanceAtOffset(TS, ChildB, /*offset=*/0U, /*size=*/8U);
+
+  runArrangeAccessesHierarchically(TS);
+
+  // Both edges are still hanging off Parent, and ChildB has not become a
+  // parent of ChildA.
+  revng_check(countInstanceEdges(Parent, ChildA) == 1);
+  revng_check(countInstanceEdges(Parent, ChildB) == 1);
+  revng_check(countInstanceEdges(ChildB, ChildA) == 0);
+  revng_check(countInstanceEdges(ChildA, ChildB) == 1);
+}
+
+/// The same shape, but both edges end on the same node.
+///
+/// Here the plain edge really is redundant with the first element of the
+/// strided one, so the step drops it. This is intentionally left alone by the
+/// check that handles the case above, and adding a link would be a no-op
+/// anyway, since a node cannot be linked to itself.
+BOOST_AUTO_TEST_CASE(ArrangeAccessesHierarchically_sameBytesSameNode) {
+  dla::LayoutTypeSystem TS;
+
+  // Build TS
+  LTSN *Parent = createRoot(TS, 56U);
+  LTSN *Child = addInstanceAtOffset(TS, Parent, /*offset=*/0U, /*size=*/8U);
+  addStridedInstance(TS,
+                     Parent,
+                     Child,
+                     /*offset=*/0U,
+                     /*stride=*/16U,
+                     /*tripCount=*/4U);
+
+  // Child must not be a leaf, otherwise the two edges are not comparable.
+  LTSN *Leaf = addInstanceAtOffset(TS, Child, /*offset=*/0U, /*size=*/8U);
+
+  runArrangeAccessesHierarchically(TS);
+
+  // The plain edge has been dropped and the strided one survives.
+  revng_check(countInstanceEdges(Parent, Child) == 1);
+  for (const auto &[Successor, Tag] : Parent->Successors)
+    if (Successor == Child)
+      revng_check(Tag->getOffsetExpr().Strides.size() == 1);
+
+  // Child has not been made a child of itself.
+  revng_check(countInstanceEdges(Child, Child) == 0);
+
+  revng_check(Leaf != nullptr);
 }

@@ -17,6 +17,7 @@
 #include "llvm/ADT/iterator_range.h"
 
 #include "revng/ADT/GenericGraph.h"
+#include "revng/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng/Support/Debug.h"
 
 #include "DLAStep.h"
@@ -180,7 +181,9 @@ computeOffsetAfterPush(NeighborIterator ToBePushed,
 // Compare the edges *AIt and *BIt to check if any of them can be pushed through
 // the other. If so return proper info.
 static std::optional<PushThroughComparisonResult>
-canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
+canPushThrough(const LayoutTypeSystemNode *Parent,
+               const NeighborIterator &AIt,
+               const NeighborIterator &BIt) {
   revng_log(Log, "canPushThrough");
   LoggerIndent Indent{ Log };
 
@@ -285,6 +288,37 @@ canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
 
   auto OffsetInElem = OffsetAfterPush % OuterElemSize;
   auto EndByteInElem = OffsetInElem + InnerFieldSize;
+
+  // When the inner field starts at the beginning of the outer and it has the
+  // same size, it means that it spans the same exact bytes.
+  // In principle there is nothing wrong with pushing inner through outer, but
+  // that could close a instance loop, like in the following example if inner is
+  // A->B and outer is A->C:
+  //   A --> B --> C
+  //    `----------^
+  // So we detect this case and bail out.
+  if (OffsetInElem == 0 and InnerFieldSize == Outer->Size and Inner != Outer) {
+    // We do the search in inverse, so that it's cheap. Doing it forward would
+    // cost a lot because we couldn't use the parent to stop it.
+    using InstanceGraph = EdgeFilteredGraph<const dla::LayoutTypeSystemNode *,
+                                            dla::isInstanceEdge>;
+    using InverseInstance = llvm::Inverse<InstanceGraph>;
+    using LTSN = LayoutTypeSystemNode;
+    using DFVisitSet = llvm::df_iterator_default_set<const LTSN *, 8>;
+    DFVisitSet Visited;
+    Visited.insert(Parent);
+    for (const auto *Node :
+         llvm::depth_first_ext(InverseInstance(Outer), Visited)) {
+      if (Node == Inner) {
+        revng_log(Log,
+                  "nullopt: inner field covers a whole element of the "
+                  "outer, and pushing through would close an "
+                  "instance loop");
+        return std::nullopt;
+      }
+    }
+  }
+
   if (EndByteInElem > Outer->Size) {
     revng_log(Log,
               "nullopt: EndByteInElem: " << EndByteInElem << " > "
@@ -540,7 +574,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
                     "with BEdge: " << BEdgeIt->first->ID
                                    << " label: " << BEdgeIt->second);
 
-          auto MaybePushThrough = canPushThrough(AEdgeIt, BEdgeIt);
+          auto MaybePushThrough = canPushThrough(Parent, AEdgeIt, BEdgeIt);
           if (not MaybePushThrough.has_value())
             continue;
 
