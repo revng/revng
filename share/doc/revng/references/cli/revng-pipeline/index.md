@@ -6,7 +6,7 @@ NAME
 
 `revng pipeline` - Low-level (plumbing) commands to run a single pipe or analysis.
 
-These commands enable you to run individual pipes or analyses on plain containers, without having configured a pipeline (`--pipeline` in [`revng-project`](revng-project.md)).
+These commands enable you to run individual pipes or analyses on plain containers, without having configured a pipeline (`--pipeline` in [`revng-project`](../revng-project/index.md)).
 
 SYNOPSIS
 --------
@@ -16,12 +16,12 @@ SYNOPSIS
 DESCRIPTION
 -----------
 
-The `revng pipeline` command group is a subcommand of [`revng`](revng.md).
+The `revng pipeline` command group is a subcommand of [`revng`](../index.md).
 
 It runs a single pipe or a single analysis in isolation, reading and writing container files on disk.
 
 These are plumbing commands: they operate on raw containers and models rather than on a project, and are meant for debugging and for building higher-level tooling.
-Most users should use [`revng project`](revng-project.md) or [`revng quick`](revng-quick.md) instead.
+Most users should use [`revng project`](../revng-project/index.md) or [`revng quick`](../revng-quick/index.md) instead.
 
 Each command comes in two flavours:
 
@@ -33,13 +33,13 @@ The `-native` variant is a thin wrapper: it forwards the `--*-objects` selectors
 COMMANDS
 --------
 
-[`run-pipe`](revng-pipeline-run-pipe.md) (and `run-pipe-native`)
+[`run-pipe`](run-pipe.md) (and `run-pipe-native`)
 : Run a single pipe.
 
-[`run-analysis`](revng-pipeline-run-analysis.md) (and `run-analysis-native`)
+[`run-analysis`](run-analysis.md) (and `run-analysis-native`)
 : Run a single analysis.
 
 SEE ALSO
 --------
 
-[`revng`](revng.md), [`revng-pipeline-run-pipe`](revng-pipeline-run-pipe.md), [`revng-pipeline-run-analysis`](revng-pipeline-run-analysis.md), [`revng-project`](revng-project.md), [`revng-quick`](revng-quick.md)
+[`revng`](../index.md), [`revng-pipeline-run-pipe`](run-pipe.md), [`revng-pipeline-run-analysis`](run-analysis.md), [`revng-project`](../revng-project/index.md), [`revng-quick`](../revng-quick/index.md)

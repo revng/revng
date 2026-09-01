@@ -93,7 +93,7 @@ Note how here the type of the `MetaAddress` is not `Generic64` but `Code_x86_64`
 ### Step 3: Disassembly
 
 At this point, we provided rev.ng enough information to be able to show us the disassembly of our program.
-Let's produce the [`disassemble` artifact](../../references/artifacts.md#disassemble-artifact) using [`revng project artifact`](../../references/cli/revng-project-artifact.md).
+Let's produce the [`disassemble` artifact](../../references/artifacts.md#disassemble-artifact) using [`revng project artifact`](../../references/cli/revng-project/artifact.md).
 
 ```bash
 $ revng project artifact disassemble | revng ptml

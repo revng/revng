@@ -14,9 +14,9 @@ SYNOPSIS
 DESCRIPTION
 -----------
 
-The `revng project` command group is a subcommand of [`revng`](revng.md).
+The `revng project` command group is a subcommand of [`revng`](../index.md).
 
-It operates on a *project*: a directory holding a `revng.yml` file. Unlike the one-shot [`revng quick`](revng-quick.md) commands, the state produced by one invocation is preserved and reused by the next one.
+It operates on a *project*: a directory holding a `revng.yml` file. Unlike the one-shot [`revng quick`](../revng-quick/index.md) commands, the state produced by one invocation is preserved and reused by the next one.
 
 A typical workflow is:
 
@@ -31,16 +31,16 @@ revng project artifact emit-c-as-single-file -o decompiled.c.yml
 COMMANDS
 --------
 
-[`init`](revng-project-init.md)
+[`init`](init.md)
 : Initialize a new project.
 
-[`analyze`](revng-project-analyze.md)
+[`analyze`](analyze.md)
 : Run an analysis or analysis list.
 
-[`artifact`](revng-project-artifact.md)
+[`artifact`](artifact.md)
 : Produce an artifact.
 
-[`daemon`](revng-project-daemon.md)
+[`daemon`](daemon.md)
 : Start the HTTP daemon serving the project.
 
 OPTIONS
@@ -58,11 +58,11 @@ The available schemes are:
 
 - `local://` - store the project in the local directory. This is the default.
 - `local://?inline` - like `local://`, but keep the cache database in a `.cache` directory inside the project (next to `revng.yml`) instead of under `--cache-dir`. The cache is then co-located with the project and moves with it.
-- `temporary://` - like `local://`, but in a throwaway directory that is removed on exit. This is what [`revng quick`](revng-quick.md) uses.
+- `temporary://` - like `local://`, but in a throwaway directory that is removed on exit. This is what [`revng quick`](../revng-quick/index.md) uses.
 - `memory://` - keep the project in memory; nothing is written to disk.
 - `null://` - discard all writes.
 - `rss://HOST:PORT/?proto=http|https` - use a Remote Storage Server over HTTP(S).
-- `daemon://HOST:PORT` - do not compute anything locally; instead delegate every artifact and analysis to a running daemon (started with [`revng project daemon`](revng-project-daemon.md)) and exchange models and containers with it over HTTP. The daemon owns the project storage, so `init` is unavailable (the daemon manages its own project) and options that need local compute (`--debug`, `--invalidations`) are rejected.
+- `daemon://HOST:PORT` - do not compute anything locally; instead delegate every artifact and analysis to a running daemon (started with [`revng project daemon`](daemon.md)) and exchange models and containers with it over HTTP. The daemon owns the project storage, so `init` is unavailable (the daemon manages its own project) and options that need local compute (`--debug`, `--invalidations`) are rejected.
 
 `--cache-dir DIRECTORY`
 : Directory to use for caching. Defaults to `$XDG_CACHE_HOME/revng` or `~/.cache/revng`.
@@ -70,4 +70,4 @@ The available schemes are:
 SEE ALSO
 --------
 
-[`revng`](revng.md), [`revng-project-init`](revng-project-init.md), [`revng-project-analyze`](revng-project-analyze.md), [`revng-project-artifact`](revng-project-artifact.md), [`revng-project-daemon`](revng-project-daemon.md)
+[`revng`](../index.md), [`revng-project-init`](init.md), [`revng-project-analyze`](analyze.md), [`revng-project-artifact`](artifact.md), [`revng-project-daemon`](daemon.md)

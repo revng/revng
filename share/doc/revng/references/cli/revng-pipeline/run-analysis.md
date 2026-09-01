@@ -15,12 +15,12 @@ SYNOPSIS
 DESCRIPTION
 -----------
 
-This command is a subcommand of [`revng pipeline`](revng-pipeline.md).
+This command is a subcommand of [`revng pipeline`](index.md).
 
 Runs the single analysis `ANALYSIS` in isolation, reading container files on disk and writing out the modified model.
-Run without arguments to list the [available analyses](../analyses.md).
+Run without arguments to list the [available analyses](../../analyses.md).
 
-This is a plumbing command meant for debugging and tooling; most users should use [`revng project`](revng-project.md) or [`revng quick`](revng-quick.md) instead.
+This is a plumbing command meant for debugging and tooling; most users should use [`revng project`](../revng-project/index.md) or [`revng quick`](../revng-quick/index.md) instead.
 
 `MODEL` is the path to the model file, followed by one input file argument per container in the analysis' signature. Run `revng pipeline run-analysis --help` to list the available analyses, and `revng pipeline run-analysis ANALYSIS --help` to see its exact arguments.
 
@@ -46,7 +46,7 @@ NATIVE VARIANT
 
 It takes no explicit file arguments: pass the native runner's own arguments after `--`. Use it for minimal-overhead runs, or under a debugger or profiler.
 
-The python variant supports the [developer wrapper options](revng-common.md#developer-wrapper-options) and [pipebox arguments](revng-common.md#pipebox-arguments).
+The python variant supports the [developer wrapper options](../revng-common.md#developer-wrapper-options) and [pipebox arguments](../revng-common.md#pipebox-arguments).
 
 EXAMPLES
 --------
@@ -60,4 +60,4 @@ revng pipeline run-analysis detect-abi revng.yml llvm-root.tar -o revng.yml
 SEE ALSO
 --------
 
-[`revng-pipeline`](revng-pipeline.md), [`revng-pipeline-run-pipe`](revng-pipeline-run-pipe.md), [`revng-project-analyze`](revng-project-analyze.md)
+[`revng-pipeline`](index.md), [`revng-pipeline-run-pipe`](run-pipe.md), [`revng-project-analyze`](../revng-project/analyze.md)

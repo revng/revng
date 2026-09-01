@@ -4,7 +4,7 @@ This page describes the rev.ng Python scripting capabilities.
 
 ## Creating a project
 
-There are two project classes to use rev.ng from Python: `CLIProject`, which spawns `revng` as a subprocess for each command, and `DaemonProject`, which interacts with [`revng project daemon`](../references/cli/revng-project-daemon.md) over the network using the GraphQL API.
+There are two project classes to use rev.ng from Python: `CLIProject`, which spawns `revng` as a subprocess for each command, and `DaemonProject`, which interacts with [`revng project daemon`](../references/cli/revng-project/daemon.md) over the network using the GraphQL API.
 Apart from this difference, they offer the same programming interface.
 
 First, import the project of choice:

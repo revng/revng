@@ -10,7 +10,7 @@ An *artifact* is an output of the pipeline. Some artifacts are designed to be co
 
 For instance, the [`disassemble` artifact](../../references/artifacts.md#disassemble-artifact) produces a set of text files containing the disassembled code of each function.
 
-In order to produce an artifact, use the [`revng-project-artifact`](../../references/cli/revng-project-artifact.md) CLI tool.
+In order to produce an artifact, use the [`revng-project-artifact`](../../references/cli/revng-project/artifact.md) CLI tool.
 
 Artifacts can have different *granularity*.
 For instance, the [`render-svg-call-graph` artifact](../../references/artifacts.md#render-svg-call-graph-artifact), which represents the call graph of the whole input program, is a single file generated considering the input as a whole.

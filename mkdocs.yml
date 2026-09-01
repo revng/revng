@@ -42,22 +42,22 @@ nav:
       - Analyses: references/analyses.md
       - CLI:
           - revng:
-              - references/cli/revng.md
+              - references/cli/index.md
               - revng-common: references/cli/revng-common.md
               - revng-project:
-                  - references/cli/revng-project.md
-                  - revng-project-init: references/cli/revng-project-init.md
-                  - revng-project-analyze: references/cli/revng-project-analyze.md
-                  - revng-project-artifact: references/cli/revng-project-artifact.md
-                  - revng-project-daemon: references/cli/revng-project-daemon.md
+                  - references/cli/revng-project/index.md
+                  - revng-project-init: references/cli/revng-project/init.md
+                  - revng-project-analyze: references/cli/revng-project/analyze.md
+                  - revng-project-artifact: references/cli/revng-project/artifact.md
+                  - revng-project-daemon: references/cli/revng-project/daemon.md
               - revng-quick:
-                  - references/cli/revng-quick.md
-                  - revng-quick-analyze: references/cli/revng-quick-analyze.md
-                  - revng-quick-artifact: references/cli/revng-quick-artifact.md
+                  - references/cli/revng-quick/index.md
+                  - revng-quick-analyze: references/cli/revng-quick/analyze.md
+                  - revng-quick-artifact: references/cli/revng-quick/artifact.md
               - revng-pipeline:
-                  - references/cli/revng-pipeline.md
-                  - revng-pipeline-run-pipe: references/cli/revng-pipeline-run-pipe.md
-                  - revng-pipeline-run-analysis: references/cli/revng-pipeline-run-analysis.md
+                  - references/cli/revng-pipeline/index.md
+                  - revng-pipeline-run-pipe: references/cli/revng-pipeline/run-pipe.md
+                  - revng-pipeline-run-analysis: references/cli/revng-pipeline/run-analysis.md
           - revng-merge-llvm: references/cli/revng-merge-llvm.md
           - revng-ptml: references/cli/revng-ptml.md
       - "MIME types": references/mime-types.md

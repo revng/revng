@@ -19,13 +19,13 @@ DESCRIPTION
 COMMANDS
 --------
 
-[`project`](revng-project.md)
+[`project`](revng-project/index.md)
 : Porcelain commands operating on a persistent project, i.e., a directory holding a `revng.yml` and the input binaries.
 
-[`quick`](revng-quick.md)
+[`quick`](revng-quick/index.md)
 : One-shot commands operating directly on a binary, without a persistent project.
 
-[`pipeline`](revng-pipeline.md)
+[`pipeline`](revng-pipeline/index.md)
 : Low-level, plumbing commands to run a single pipe or analysis in isolation.
 
 OPTIONS
@@ -45,4 +45,4 @@ These options are accepted by `revng` itself and, being group options, must appe
 SEE ALSO
 --------
 
-[`revng-project`](revng-project.md), [`revng-quick`](revng-quick.md), [`revng-pipeline`](revng-pipeline.md)
+[`revng-project`](revng-project/index.md), [`revng-quick`](revng-quick/index.md), [`revng-pipeline`](revng-pipeline/index.md)
