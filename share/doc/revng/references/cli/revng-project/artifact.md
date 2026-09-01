@@ -14,7 +14,7 @@ SYNOPSIS
 DESCRIPTION
 -----------
 
-This command is a subcommand of [`revng project`](revng-project.md).
+This command is a subcommand of [`revng project`](index.md).
 
 Produces the artifact `ARTIFACT` from the project in the current directory.
 
@@ -30,9 +30,9 @@ Run without arguments to list all the available artifacts.
 Use `--list` to see the available objects together with their names.
 
 `ARTIFACT` is a subcommand: run `revng project artifact --help` to list the available artifacts.
-The documentation describes [what an artifact is](../../user-manual/key-concepts/artifacts-and-analyses.md#artifacts) and the [available artifacts](../artifacts.md).
+The documentation describes [what an artifact is](../../../user-manual/key-concepts/artifacts-and-analyses.md#artifacts) and the [available artifacts](../../artifacts.md).
 
-The project must have been created with [`revng project init`](revng-project-init.md) first, so that a `revng.yml` is present in the working directory.
+The project must have been created with [`revng project init`](init.md) first, so that a `revng.yml` is present in the working directory.
 
 OPTIONS
 -------
@@ -53,12 +53,12 @@ OPTIONS
 : Shortcut for `--format tar`.
 
 `--debug RUNNER_CONTEXT`
-: Run the command in debug mode, recording each pipeline step under the given directory. See [`revng-common`](revng-common.md#debug).
+: Run the command in debug mode, recording each pipeline step under the given directory. See [`revng-common`](../revng-common.md#debug).
 
 `--help-full`
 : Show the help including the hidden artifacts and per-pipe `--*-configuration` options, then exit.
 
-This command supports the [developer wrapper options](revng-common.md#developer-wrapper-options) and [pipebox arguments](revng-common.md#pipebox-arguments).
+This command supports the [developer wrapper options](../revng-common.md#developer-wrapper-options) and [pipebox arguments](../revng-common.md#pipebox-arguments).
 
 EXAMPLES
 --------
@@ -79,4 +79,4 @@ revng project artifact disassemble Sum
 SEE ALSO
 --------
 
-[`revng-project`](revng-project.md), [`revng-project-analyze`](revng-project-analyze.md), [`revng-project-init`](revng-project-init.md)
+[`revng-project`](index.md), [`revng-project-analyze`](analyze.md), [`revng-project-init`](init.md)

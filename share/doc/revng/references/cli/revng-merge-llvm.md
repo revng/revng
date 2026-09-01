@@ -40,4 +40,4 @@ revng project artifact isolate | revng merge llvm -o merged.bc
 SEE ALSO
 --------
 
-[`revng-project-artifact`](revng-project-artifact.md), [`revng-ptml`](revng-ptml.md)
+[`revng-project-artifact`](revng-project/artifact.md), [`revng-ptml`](revng-ptml.md)

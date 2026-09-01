@@ -14,11 +14,11 @@ SYNOPSIS
 DESCRIPTION
 -----------
 
-This command is a subcommand of [`revng project`](revng-project.md).
+This command is a subcommand of [`revng project`](index.md).
 
 Starts an HTTP daemon serving the project in the current directory. The daemon exposes the analyses and artifacts of the project over HTTP, and is what the rev.ng UI and the Python client (`DaemonProject`) talk to.
 
-The project must already contain a `revng.yml`: create it with [`revng project init`](revng-project-init.md) before starting the daemon, otherwise the API returns an error.
+The project must already contain a `revng.yml`: create it with [`revng project init`](init.md) before starting the daemon, otherwise the API returns an error.
 
 By default the daemon binds to `127.0.0.1:8000`.
 
@@ -31,7 +31,7 @@ OPTIONS
 `--production`
 : Enable production settings.
 
-This command supports [pipebox arguments](revng-common.md#pipebox-arguments).
+This command supports [pipebox arguments](../revng-common.md#pipebox-arguments).
 
 EXAMPLES
 --------
@@ -52,4 +52,4 @@ revng project daemon --bind 0.0.0.0:9000
 SEE ALSO
 --------
 
-[`revng-project`](revng-project.md), [`revng-project-init`](revng-project-init.md), [`revng-project-artifact`](revng-project-artifact.md)
+[`revng-project`](index.md), [`revng-project-init`](init.md), [`revng-project-artifact`](artifact.md)
