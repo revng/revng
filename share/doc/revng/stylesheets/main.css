@@ -215,12 +215,6 @@ table.highlighttable td.linenos + td.code pre {
   width: 32px;
 }
 
-@media screen and (min-width: 76.25em) {
-  .md-sidebar.md-sidebar--primary .md-nav__link {
-    margin-top: 0.8rem;
-  }
-}
-
 /*
 *   SEARCH
 */
