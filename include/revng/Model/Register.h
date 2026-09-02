@@ -292,6 +292,15 @@ inline uint64_t getSize(Values V) {
   switch (V) {
   case st0_x86:
     return 10;
+  case zmm0_x86_64:
+  case zmm1_x86_64:
+  case zmm2_x86_64:
+  case zmm3_x86_64:
+  case zmm4_x86_64:
+  case zmm5_x86_64:
+  case zmm6_x86_64:
+  case zmm7_x86_64:
+    return 64;
   case f0_mips:
   case f1_mips:
   case f2_mips:
@@ -329,7 +338,8 @@ inline uint64_t getSize(Values V) {
     break;
   }
 
-  // TODO: this does not account for vector registers, but it should eventually.
+  // TODO: this does not account for most of the vector registers.
+
   switch (Architecture) {
   case model::Architecture::x86:
   case model::Architecture::arm:
