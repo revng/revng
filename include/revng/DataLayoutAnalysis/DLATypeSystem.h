@@ -31,7 +31,7 @@ namespace dla {
 
 /// Class used to mark InstanceLinkTags between LayoutTypes
 struct OffsetExpression {
-  uint64_t Offset;
+  uint64_t Offset = 0;
   llvm::SmallVector<uint64_t, 4> Strides;
   llvm::SmallVector<std::optional<uint64_t>, 4> TripCounts;
 
