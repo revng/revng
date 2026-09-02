@@ -474,18 +474,26 @@ inline std::optional<unsigned> getMContextIndex(Values V) {
 }
 
 /// Return the name of the CSV corresponding to \param V.
+///
+/// Important: this function can only be called on registers for which
+/// \ref getCSVCount returns 1.
 std::string singleCSVName(Values V);
 
 /// Return the register corresponding to the \param Name
 Values fromCSVName(llvm::StringRef Name,
                    model::Architecture::Values Architecture);
 
+/// Returns how many CSVs are needed to represent register \param V.
+uint64_t getCSVCount(Values V);
+
 /// One of the CSVs (the LLVM globals representing slices of CPU state)
 /// composing a register, identified by its name plus its placement within
 /// the register.
 ///
-/// Registers spanning multiple CSVs (e.g. a 512-bit `zmm`) are described by
-/// several `CSV` entries covering consecutive portions.
+/// Most registers are represented by a single CSV (call \ref getCSVCount to
+/// confirm this on a per-register basis).
+///
+/// An example of a register that requires multiple CSVs is a 512-bit `zmm0`.
 struct CSV {
   /// The name of this CSV.
   std::string Name;
