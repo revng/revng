@@ -411,6 +411,21 @@ revng_add_test(
 )
 
 #
+# test_early_type_shrinking
+#
+# On its own: instcombine rewrites `sext(trunc x)` straight back into the shift
+# pair this pass replaces it with.
+#
+revng_add_test(
+  NAME
+  test_early_type_shrinking
+  COMMAND
+  bash
+  -c
+  "${CMAKE_BINARY_DIR}/bin/revng opt -S -early-type-shrinking ${SRC}/EarlyTypeShrinking.ll | FileCheck ${SRC}/EarlyTypeShrinking.ll"
+)
+
+#
 # test_mfp
 #
 
