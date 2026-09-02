@@ -7,6 +7,8 @@
 #define UnknownCSVPrefix "state_"
 
 std::string model::Register::singleCSVName(Values V) {
+  revng_assert(getCSVCount(V) == 1);
+
   // TODO: handle xmm0_x86
 
   switch (V) {
@@ -70,6 +72,10 @@ model::Register::fromCSVName(llvm::StringRef Name,
 }
 
 #undef UnknownCSVPrefix
+
+uint64_t model::Register::getCSVCount(Values V) {
+  return 1;
+}
 
 cppcoro::generator<model::Register::CSV> model::Register::getCSVs(Values V) {
   // Every register currently maps to exactly one CSV.
