@@ -232,12 +232,11 @@ static GlobalVariable *tryGetCSV(Module *M, model::Register::Values Register) {
 }
 
 static Value *loadCSVOrUndef(revng::IRBuilder &Builder,
-                             Module *M,
                              model::Register::Values Register) {
-  GlobalVariable *CSV = tryGetCSV(M, Register);
+  GlobalVariable *CSV = tryGetCSV(Builder.getModule(), Register);
   if (CSV == nullptr) {
     auto Size = model::Register::getSize(Register);
-    auto *Type = IntegerType::get(M->getContext(), Size * 8);
+    auto *Type = IntegerType::get(Builder.getContext(), Size * 8);
     return UndefValue::get(Type);
   } else {
     return Builder.createLoad(CSV);
@@ -417,7 +416,7 @@ CallInst *EnforceABI::generateCall(revng::IRBuilder &Builder,
   // Collect arguments and returns
   //
   for (model::Register::Values Register : Registers.Arguments)
-    Arguments.push_back(loadCSVOrUndef(Builder, &M, Register));
+    Arguments.push_back(loadCSVOrUndef(Builder, Register));
 
   for (model::Register::Values Register : Registers.ReturnValues)
     ReturnCSVs.push_back(getCSVOrUndef(&M, Register).second);
