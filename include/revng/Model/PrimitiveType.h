@@ -81,6 +81,51 @@ public:
 
 public:
   ///
+  /// \name Verification
+  /// @{
+
+  static constexpr std::array ValidNumericSizes{ 1, 2, 4, 8, 16, 32, 64 };
+  static constexpr std::array ValidFloatSizes{ 2, 4, 8, 10, 12, 16 };
+  // NOTE: We are supporting floats that are 10 bytes long, since we found
+  //       such cases in some PDB files by using VS on Windows platforms.
+  //       The source code of those cases could be written in some language
+  //       other than C/C++ (probably Swift). We faced some struct fields by
+  //       using this (10b long float) type, so by ignoring it we would not
+  //       have accurate layout for the structs.
+
+  static constexpr bool isSizeValid(model::PrimitiveKind::Values Kind,
+                                    uint8_t Size) {
+    switch (Kind) {
+    case PrimitiveKind::Invalid:
+      return false;
+
+    case PrimitiveKind::Void:
+      return Size == 0;
+
+    case PrimitiveKind::PointerOrNumber:
+    case PrimitiveKind::Number:
+    case PrimitiveKind::Unsigned:
+    case PrimitiveKind::Signed:
+      return std::ranges::binary_search(ValidNumericSizes, Size);
+
+    case PrimitiveKind::Float:
+      return std::ranges::binary_search(ValidFloatSizes, Size);
+
+    case PrimitiveKind::Generic:
+      return std::ranges::binary_search(ValidNumericSizes, Size)
+             || std::ranges::binary_search(ValidFloatSizes, Size);
+
+    default:
+      revng_abort("Unsupported primitive kind");
+    }
+  }
+
+  bool isValid() const { return isSizeValid(PrimitiveKind(), Size()); }
+
+  /// @}
+
+public:
+  ///
   /// \name Register-based construction
   /// @{
 
