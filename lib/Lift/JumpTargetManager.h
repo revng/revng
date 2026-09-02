@@ -231,6 +231,25 @@ public:
   void setCFGForm(CFGForm::Values NewForm,
                   MetaAddressSet *JumpTargetsWhitelist = nullptr);
 
+  /// Record the fallthroughs detached because their call never returns and, if
+  /// any of them is new, ask for \p InvalidatedBranches to be analyzed again.
+  ///
+  /// The set converges -- a call does not stop being noreturn -- so this widens
+  /// the whitelist once per newly detached fallthrough, not once per round.
+  void
+  recordDetachedFallthroughs(llvm::ArrayRef<llvm::BasicBlock *> Fallthroughs,
+                             const std::set<MetaAddress> &InvalidatedBranches) {
+    bool Changed = false;
+    for (llvm::BasicBlock *BB : Fallthroughs)
+      if (MetaAddress Address = getBasicBlockAddress(BB); Address.isValid())
+        Changed = DetachedFallthroughs.insert(Address).second or Changed;
+
+    if (Changed) {
+      ValueMaterializerPCWhiteList.insert(InvalidatedBranches.begin(),
+                                          InvalidatedBranches.end());
+    }
+  }
+
   CFGForm::Values cfgForm() const { return CurrentCFGForm; }
 
   /// Collect jump targets from the program's segments
@@ -592,6 +611,7 @@ private:
   ProgramCounterHandler *PCH = nullptr;
 
   MetaAddressSet ValueMaterializerPCWhiteList;
+  std::set<MetaAddress> DetachedFallthroughs;
   const TupleTree<model::Binary> &Model;
   const RawBinaryView &BinaryView;
   bool AftedAddingFunctionEntries = false;

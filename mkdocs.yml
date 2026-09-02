@@ -35,6 +35,7 @@ nav:
   - "Developer's manual":
       - developer-manual/index.md
       - "QEMU helpers": "developer-manual/qemu-helpers.md"
+      - "The code discovery process": "developer-manual/code-discovery.md"
       - "ABI definition": "references/abi-definition.md"
   - "References":
       - "Model": references/model.md

@@ -21,21 +21,7 @@ TYPE_DEFINITION_REFERENCE_PATTERN = re.compile(r"/TypeDefinitions/(\d+)-(\w+)")
 TRANSFERABLE_SYMBOL_FIELDS = ("Comment", "Attributes")
 
 
-class _BodyDumper(yaml.SafeDumper):
-    """Indent block sequences, so that a body is emitted as:
-
-        Attributes:
-          - NoReturn
-
-    rather than the default:
-
-        Attributes:
-        - NoReturn
-
-    Both parse the same, but the importer splices this into a larger document,
-    where the un-indented form is harder to read.
-    """
-
+class IndentBlockSequencesDumper(yaml.SafeDumper):
     def increase_indent(self, flow=False, indentless=False):
         return super().increase_indent(flow, False)
 
@@ -49,7 +35,7 @@ def symbol_body(function: dict) -> str:
 
     return yaml.dump(
         fields,
-        Dumper=_BodyDumper,
+        Dumper=IndentBlockSequencesDumper,
         default_flow_style=False,
         allow_unicode=True,
         sort_keys=False,

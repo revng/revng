@@ -369,11 +369,6 @@ public:
         if (not Match.has_value())
           continue;
 
-        // Only the prototype is guarded: an existing one comes from the user or
-        // from a more precise importer and must not be overwritten. Attributes
-        // and the comment are additive, so they are applied either way --
-        // guarding them on the prototype too would mean a prototype imported
-        // earlier silently suppresses them.
         if (Function.prototype() == nullptr) {
           Function.Prototype() = Copier.copyTypeInto(Match->Prototype);
           ++ImportedCount;
