@@ -9,6 +9,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/NamingConfiguration.h"
+#include "revng/Model/PrimitiveType.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/Configuration.h"
 #include "revng/Support/Error.h"
@@ -329,17 +330,40 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
 // Types
 //
 
-static constexpr bool isValidPrimitiveSize(PrimitiveKind::Values Kind,
-                                           uint8_t Size) {
-  constexpr std::array ValidGenericPrimitives{ 1, 2, 4, 8, 16, 32, 64 };
-  constexpr std::array ValidFloatPrimitives{ 2, 4, 8, 10, 12, 16 };
-  // NOTE: We are supporting floats that are 10 bytes long, since we found such
-  //       cases in some PDB files by using VS on Windows platforms. The source
-  //       code of those cases could be written in some language other than
-  //       C/C++ (probably Swift). We faced some struct fields by using this
-  //       (10b long float) type, so by ignoring it we would not have accurate
-  //       layout for the structs.
+static constexpr std::array ValidNumericPrimitives{ 1, 2, 4, 8, 16, 32, 64 };
+static constexpr std::array ValidFloatPrimitives{ 2, 4, 8, 10, 12, 16 };
+// NOTE: We are supporting floats that are 10 bytes long, since we found such
+//       cases in some PDB files by using VS on Windows platforms. The source
+//       code of those cases could be written in some language other than
+//       C/C++ (probably Swift). We faced some struct fields by using this
+//       (10b long float) type, so by ignoring it we would not have accurate
+//       layout for the structs.
 
+uint64_t
+model::PrimitiveType::maximumValidSize(model::PrimitiveKind::Values Kind) {
+  switch (Kind) {
+  case PrimitiveKind::Void:
+    return 0;
+
+  case PrimitiveKind::PointerOrNumber:
+  case PrimitiveKind::Number:
+  case PrimitiveKind::Unsigned:
+  case PrimitiveKind::Signed:
+    return ValidNumericPrimitives.back();
+
+  case PrimitiveKind::Float:
+    return ValidFloatPrimitives.back();
+
+  case PrimitiveKind::Generic:
+    return std::max(ValidNumericPrimitives.back(), ValidFloatPrimitives.back());
+
+  default:
+    revng_abort("Unsupported primitive kind");
+  }
+}
+
+bool model::PrimitiveType::isSizeValid(PrimitiveKind::Values Kind,
+                                       uint8_t Size) {
   switch (Kind) {
   case PrimitiveKind::Invalid:
     return false;
@@ -351,13 +375,13 @@ static constexpr bool isValidPrimitiveSize(PrimitiveKind::Values Kind,
   case PrimitiveKind::Number:
   case PrimitiveKind::Unsigned:
   case PrimitiveKind::Signed:
-    return std::ranges::binary_search(ValidGenericPrimitives, Size);
+    return std::ranges::binary_search(ValidNumericPrimitives, Size);
 
   case PrimitiveKind::Float:
     return std::ranges::binary_search(ValidFloatPrimitives, Size);
 
   case PrimitiveKind::Generic:
-    return std::ranges::binary_search(ValidGenericPrimitives, Size)
+    return std::ranges::binary_search(ValidNumericPrimitives, Size)
            || std::ranges::binary_search(ValidFloatPrimitives, Size);
 
   default:
@@ -434,8 +458,7 @@ RecursiveCoroutine<bool> model::Type::verify(VerifyHelper &VH) const {
         rc_return VH.fail("Every primitive must have a valid kind.",
                           *Primitive);
 
-      if (not isValidPrimitiveSize(Primitive->PrimitiveKind(),
-                                   Primitive->Size()))
+      if (not Primitive->isValid())
         rc_return VH.fail("Primitive size is not allowed.", *Primitive);
 
       rc_return true;

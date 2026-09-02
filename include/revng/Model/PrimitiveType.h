@@ -81,6 +81,19 @@ public:
 
 public:
   ///
+  /// \name Verification
+  /// @{
+
+  static uint64_t maximumValidSize(model::PrimitiveKind::Values Kind);
+  static bool isSizeValid(model::PrimitiveKind::Values Kind, uint8_t Size);
+
+public:
+  bool isValid() const { return isSizeValid(PrimitiveKind(), Size()); }
+
+  /// @}
+
+public:
+  ///
   /// \name Register-based construction
   /// @{
 
