@@ -152,14 +152,14 @@ function(tuple_tree_generator_compute_generated_cpp_files SCHEMA_PATH
     PROPERTY CMAKE_CONFIGURE_DEPENDS "${SCHEMA_PATH}")
   execute_process(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp-paths.py" "--forward-decls"
-      "--early" "--late" "${SCHEMA_PATH}" "${HEADERS_DIR}"
+      python3 "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp-paths.py"
+      "--forward-decls" "--early" "--late" "${SCHEMA_PATH}" "${HEADERS_DIR}"
     COMMAND "tr" "\n" ";"
     OUTPUT_VARIABLE LOCAL_GENERATED_HEADERS_VARIABLE COMMAND_ERROR_IS_FATAL ANY)
 
   execute_process(
-    COMMAND "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp-paths.py" "--impl"
-            "${SCHEMA_PATH}" "${HEADERS_DIR}"
+    COMMAND python3 "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp-paths.py"
+            "--impl" "${SCHEMA_PATH}" "${HEADERS_DIR}"
     COMMAND "tr" "\n" ";"
     OUTPUT_VARIABLE LOCAL_GENERATED_IMPLS_VARIABLE COMMAND_ERROR_IS_FATAL ANY)
 
@@ -225,8 +225,9 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" docs ${SCALAR_TYPE_ARGS}
-      "${YAML_DEFINITIONS}" > "${EXPECTED_GENERATED_MARKDOWN}"
+      python3 "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" docs
+      ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}" >
+      "${EXPECTED_GENERATED_MARKDOWN}"
     OUTPUT "${EXPECTED_GENERATED_MARKDOWN}"
     DEPENDS "${YAML_DEFINITIONS}" "${TEMPLATES_DIR}/docs.md.tpl"
             ${TUPLE_TREE_GENERATOR_SOURCES})
@@ -273,7 +274,7 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" cpp --namespace
+      python3 "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" cpp --namespace
       "${NAMESPACE}" --include-path-prefix "${INCLUDE_PATH_PREFIX}"
       ${STRING_TYPE_ARGS} ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
       "${OUTPUT_DIR}" ${TRACKING} ${TRACKING_DEBUG}
@@ -310,7 +311,7 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" jsonschema --output
+      python3 "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" jsonschema --output
       "${OUTPUT_PATH}" ${STRING_TYPE_ARGS} ${SEPARATE_STRING_TYPE_ARGS}
       ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
@@ -358,7 +359,7 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" typescript --output
+      python3 "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" typescript --output
       "${OUTPUT_PATH}" --global-name "${GLOBAL_NAME}" ${INCLUDE_FILE_ARGS}
       ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS} ${SCALAR_TYPE_ARGS}
       "${YAML_DEFINITIONS}"
@@ -406,7 +407,7 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" python --output
+      python3 "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" python --output
       "${OUTPUT_PATH}" ${PYTHON_MIXINS_ARGS} ${STRING_TYPE_ARGS}
       ${EXTERNAL_TYPE_ARGS} ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
@@ -472,6 +473,8 @@ function(target_tuple_tree_generator TARGET_ID)
     set(GEN_HEADERS_PATH
         "${CMAKE_BINARY_DIR}/include/revng/${GEN_HEADER_DIRECTORY}/Generated")
   endif()
+
+  make_directory("${GEN_HEADERS_PATH}")
 
   # Choose a target name that's available
   set(INDEX 1)

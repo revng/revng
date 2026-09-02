@@ -5,6 +5,7 @@
 //
 
 #include <concepts>
+#include <memory>
 #include <utility>
 
 /// Temporarily assigns a new value over the specified object for the duration

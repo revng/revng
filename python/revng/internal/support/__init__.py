@@ -4,6 +4,7 @@
 
 import os
 import sys
+import tempfile
 from collections.abc import Iterable as CIterable
 from ctypes import CDLL
 from functools import lru_cache
@@ -68,11 +69,23 @@ def configuration():
     return result
 
 
+_cache_directory_fallback: tempfile.TemporaryDirectory | None = None
+
+
 def cache_directory() -> Path:
+    global _cache_directory_fallback
     if "cache-path" in configuration():
         return Path("cache-path")
-    else:
-        return xdg_cache_home() / "revng"
+    candidate = xdg_cache_home() / "revng"
+    try:
+        candidate.mkdir(parents=True, exist_ok=True)
+        return candidate
+    except OSError:
+        # If we can't create a directory, typically for permission reasons, use
+        # a temporary directory
+        if _cache_directory_fallback is None:
+            _cache_directory_fallback = tempfile.TemporaryDirectory(prefix="revng-cache-")
+        return Path(_cache_directory_fallback.name)
 
 
 def import_pipebox(libraries: Iterable[str | Path]) -> tuple[Any, list[Any]]:

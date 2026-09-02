@@ -309,10 +309,10 @@ void unknown_pc() {
   fprintf(stderr, "\n");
 
   for (arg = 0; arg < saved_argc; arg++) {
-    write(2, saved_argv[arg], strlen(saved_argv[arg]));
-    write(2, " ", 1);
+    (void) write(2, saved_argv[arg], strlen(saved_argv[arg]));
+    (void) write(2, " ", 1);
   }
-  write(2, "\n", 1);
+  (void) write(2, "\n", 1);
 
   abort();
 }
@@ -380,7 +380,7 @@ static void flush_trace_buffer(void) {
     return;
 
   // Write the all buffer out and reset the counter
-  write(trace_fd, trace_buffer, sizeof(uint64_t) * trace_buffer_index);
+  (void) write(trace_fd, trace_buffer, sizeof(uint64_t) * trace_buffer_index);
   trace_buffer_index = 0;
 }
 

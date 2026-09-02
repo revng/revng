@@ -34,7 +34,7 @@ entryPoints(GraphType &&Graph) {
   std::vector<NodeRef> Result;
 
   // First, find all SCCs reachable from nodes without predecessors
-  std::set<const NodeRef> Visited;
+  std::set<NodeRef> Visited;
   for (const auto &Node : llvm::nodes(Graph)) {
     const auto &Preds = llvm::children<llvm::Inverse<NodeRef>>(Node);
     // If the Node has predecessors, skip it for now. It will be reached by a

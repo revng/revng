@@ -38,7 +38,14 @@ class CLIProject(Project):
 
     def upload_binary(self, binary_path: Union[str, Path]) -> str:
         binary_path = Path(binary_path)
-        shutil.copy(binary_path, self._cli_helper.project_directory / binary_path.name)
+        dst = self._cli_helper.project_directory / binary_path.name
+
+        # If the destination already exists, remove it so shutil.copy produces a
+        # file with the same permissions as the source file.
+        if dst.exists():
+            dst.unlink()
+        shutil.copy(binary_path, dst)
+
         with open(binary_path, "rb") as f:
             return hashlib.file_digest(f, "sha256").hexdigest()
 
