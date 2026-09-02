@@ -474,6 +474,8 @@ function(target_tuple_tree_generator TARGET_ID)
         "${CMAKE_BINARY_DIR}/include/revng/${GEN_HEADER_DIRECTORY}/Generated")
   endif()
 
+  make_directory("${GEN_HEADERS_PATH}")
+
   # Choose a target name that's available
   set(INDEX 1)
   set(GENERATOR_TARGET_NAME generate-${TARGET_ID}-tuple-tree-code)
