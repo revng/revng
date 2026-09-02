@@ -220,8 +220,8 @@ Function *EnforceABI::recreateFunction(Function &OldFunction,
   auto *Result = changeFunctionType(OldFunction, NewReturnType, NewArguments);
   revng_assert(Result->arg_size() == Registers.Arguments.size());
 
-  for (const auto &[Index, Register] : llvm::enumerate(Registers.Arguments))
-    Result->getArg(Index)->setName(model::Register::getName(Register));
+  for (const auto &[Index, Portion] : llvm::enumerate(Registers.Arguments))
+    Result->getArg(Index)->setName(model::Register::getName(Portion.Register));
 
   return Result;
 }
@@ -263,10 +263,10 @@ void EnforceABI::createPrologue(Function *NewFunction,
 
   // We sort arguments by their CSV name
   auto &&[ArgumentRegisters, ReturnValueRegisters] = UsedRegisters;
-  for (model::Register::Values Register : ArgumentRegisters)
-    ArgumentCSVs.push_back(getCSVOrUndef(&M, Register).second);
-  for (model::Register::Values Register : ReturnValueRegisters)
-    ReturnCSVs.push_back(getCSVOrUndef(&M, Register));
+  for (const model::Register::Portion &P : ArgumentRegisters)
+    ArgumentCSVs.push_back(getCSVOrUndef(&M, P.Register).second);
+  for (const model::Register::Portion &P : ReturnValueRegisters)
+    ReturnCSVs.push_back(getCSVOrUndef(&M, P.Register));
 
   // Store arguments to CSVs
   BasicBlock &Entry = NewFunction->getEntryBlock();
@@ -415,11 +415,11 @@ CallInst *EnforceABI::generateCall(revng::IRBuilder &Builder,
   //
   // Collect arguments and returns
   //
-  for (model::Register::Values Register : Registers.Arguments)
-    Arguments.push_back(loadCSVOrUndef(Builder, Register));
+  for (const model::Register::Portion &P : Registers.Arguments)
+    Arguments.push_back(loadCSVOrUndef(Builder, P.Register));
 
-  for (model::Register::Values Register : Registers.ReturnValues)
-    ReturnCSVs.push_back(getCSVOrUndef(&M, Register).second);
+  for (const model::Register::Portion &P : Registers.ReturnValues)
+    ReturnCSVs.push_back(getCSVOrUndef(&M, P.Register).second);
 
   //
   // Produce the call

@@ -11,6 +11,7 @@
 #include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
+#include "revng/Model/Register.h"
 #include "revng/Support/Debug.h"
 #include "revng/TupleTree/NamedEnumScalarTraits.h"
 
@@ -676,7 +677,23 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
   DistributedValue RV;
   if (!Function.ReturnType().isEmpty())
     RV = ToRawConverter(ABI).distributeReturnValue(*Function.ReturnType());
-  std::ranges::move(RV.Registers, std::back_inserter(Result.ReturnValues));
+
+  auto SetMaximumPortionSize = std::views::transform([](model::Register::Values
+                                                          Register) {
+    // TODO: we can be a bit smarter when setting the sizes here, but it's
+    //       not trivial, requires extensive testing, and is not *that*
+    //       impactful (it only triggers for structs that a bigger than a word
+    //       while also not having a size that's a multiple of the word size),
+    //       so use a simple fallback for now.
+    return model::Register::Portion(Register,
+                                    model::Register::getSize(Register));
+  });
+
+  if (RV.Registers.size() == 1)
+    Result.ReturnValues.emplace_back(RV.Registers[0], RV.Size);
+  else
+    std::ranges::move(RV.Registers | SetMaximumPortionSize,
+                      std::back_inserter(Result.ReturnValues));
 
   // Handle shadow pointer return value gracefully.
   ArgumentDistributor Distributor(ABI);
@@ -686,10 +703,13 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
     revng_assert(Result.ReturnValues.empty());
     const auto &GPRs = ABI.GeneralPurposeReturnValueRegisters();
     revng_assert(!GPRs.empty());
-    Result.ReturnValues.emplace_back(GPRs[0]);
+
+    // SPTAR is guaranteed to be a pointer, so the size is set as such.
+    Result.ReturnValues.emplace_back(GPRs[0], ABI.getPointerSize());
 
     if (ABI.ReturnValueLocationRegister() != model::Register::Invalid)
-      Result.Arguments.emplace_back(ABI.ReturnValueLocationRegister());
+      Result.Arguments.emplace_back(ABI.ReturnValueLocationRegister(),
+                                    ABI.getPointerSize());
   }
 
   if (ABI.GeneralPurposeArgumentRegisters().empty()
@@ -703,10 +723,16 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
   // any registers.
   for (const model::Argument &Argument : Function.Arguments().asVector()) {
     auto Distributed = Distributor.nextArgument(*Argument.Type());
-    for (DistributedValue SingleEntry : Distributed)
-      if (!SingleEntry.RepresentsPadding)
-        std::ranges::move(SingleEntry.Registers,
-                          std::back_inserter(Result.Arguments));
+    for (DistributedValue SingleArg : Distributed)
+      if (!SingleArg.RepresentsPadding) {
+        if (SingleArg.Registers.size() == 1) {
+          Result.Arguments.emplace_back(SingleArg.Registers[0], SingleArg.Size);
+
+        } else {
+          std::ranges::move(SingleArg.Registers | SetMaximumPortionSize,
+                            std::back_inserter(Result.Arguments));
+        }
+      }
 
     if (!Distributor.canNextArgumentUseRegisters())
       break;

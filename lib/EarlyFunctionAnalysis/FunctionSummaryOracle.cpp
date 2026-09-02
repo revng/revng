@@ -9,6 +9,7 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/BasicAnalyses/CSVGlobals.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
+#include "revng/Model/Register.h"
 
 static Logger Log("efa-import-model");
 
@@ -51,14 +52,14 @@ PrototypeImporter::prototype(const AttributesSet &Attributes,
   auto &&[ArgumentRegisters,
           ReturnValueRegisters] = abi::FunctionType::usedRegisters(*Prototype);
 
-  for (const auto &ArgumentRegister : ArgumentRegisters) {
-    model::Register::Values Reg = ArgumentRegister;
+  for (const model::Register::Portion &RegisterPortion : ArgumentRegisters) {
+    model::Register::Values Reg = RegisterPortion.Register;
     for (auto *CSV : model::Register::getCSVs(Reg) | MakeVar | IgnoreNullptr)
       Summary.ABIResults.ArgumentsRegisters.insert(CSV);
   }
 
-  for (const auto &ReturnValueRegister : ReturnValueRegisters) {
-    model::Register::Values Reg = ReturnValueRegister;
+  for (const model::Register::Portion &RegisterPortion : ReturnValueRegisters) {
+    model::Register::Values Reg = RegisterPortion.Register;
     for (auto *CSV : model::Register::getCSVs(Reg) | MakeVar | IgnoreNullptr)
       Summary.ABIResults.ReturnValuesRegisters.insert(CSV);
   }
