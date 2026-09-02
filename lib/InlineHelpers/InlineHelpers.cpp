@@ -91,7 +91,7 @@ bool InlineHelpers::shouldInline(const CallInst *Call) const {
   if (Callee == nullptr)
     return false;
 
-  if (Callee->getSection() != InlineHelpersSection)
+  if (not isInlineHelper(*Callee))
     return false;
 
   InliningPolicy P = deserializeInliningPolicy(*Callee);

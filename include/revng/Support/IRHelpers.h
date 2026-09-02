@@ -73,8 +73,15 @@ constexpr const char *FunctionEntryMDName = "revng.function.entry";
 constexpr const char *ControlFlowGraphMDName = "revng.function.metadata";
 constexpr const char *ExplicitParenthesesMDName = "revng.explicit_parentheses";
 constexpr llvm::StringRef InlineHelpersSection = "revng_inline";
+constexpr llvm::StringRef NoOpHelpersSection = "revng_noop";
 constexpr llvm::StringRef HelpersListName = "helpers_list";
 constexpr llvm::StringRef QemuArchitectureMD = "revng.qemu_architecture";
+
+/// True if \p F is an inline helper. `revng_noop` implies `revng_inline`.
+inline bool isInlineHelper(const llvm::Function &F) {
+  llvm::StringRef Section = F.getSection();
+  return Section == InlineHelpersSection or Section == NoOpHelpersSection;
+}
 
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {

@@ -18,6 +18,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/Support/IRHelpers.h"
+
 #include "AnnotationWriter.h"
 #include "ArgumentUsageAnalysis.h"
 #include "CPUStateUsage.h"
@@ -159,7 +161,7 @@ public:
         AbortFunctions.push_back(F);
 
     for (Function &F : M) {
-      if (F.getSection() == "revng_noop") {
+      if (F.getSection() == NoOpHelpersSection) {
         NoOpFunctions.push_back(&F);
       } else if (F.getSection() == "revng_abort") {
         AbortFunctions.push_back(&F);

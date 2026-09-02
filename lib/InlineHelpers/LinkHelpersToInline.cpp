@@ -51,7 +51,7 @@ bool LinkHelpersToInlinePass::runOnModule(llvm::Module &M) {
   // therefore need to be cloned from the per-architecture to-inline bitcode.
   SmallVector<StringRef, 32> MissingBodies;
   for (llvm::Function &F : M) {
-    if (F.isDeclaration() and F.getSection() == InlineHelpersSection) {
+    if (F.isDeclaration() and isInlineHelper(F)) {
       MissingBodies.push_back(F.getName());
     }
   }

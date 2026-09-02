@@ -134,7 +134,7 @@ public:
             Recursive.insert(F);
 
     for (Function &F : M) {
-      if (F.getSection() != InlineHelpersSection)
+      if (not isInlineHelper(F))
         continue;
 
       if (mustNotInline(F, Recursive)) {

@@ -13,11 +13,11 @@
 
 using namespace llvm;
 
-// Drop the body of every `revng_inline`-tagged function in `M`, turning each
-// one back into a declaration.
+// Drop the body of every inline helper in `M` -- `revng_inline`, or
+// `revng_noop` which implies it -- turning each one back into a declaration.
 static void deleteHelperBodies(llvm::Module &M) {
   for (llvm::Function &F : M) {
-    if (F.getSection() == InlineHelpersSection)
+    if (isInlineHelper(F))
       deleteOnlyBody(F);
   }
 }

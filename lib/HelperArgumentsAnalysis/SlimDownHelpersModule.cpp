@@ -31,8 +31,9 @@ public:
       if (F.isDeclaration() or F.isIntrinsic())
         continue;
 
-      // Remove the body of all the functions *not* tagged with `revng_inline`
-      if (F.getSection() != InlineHelpersSection) {
+      // Remove the body of all the functions that are not inline helpers
+      // (`revng_inline`, or `revng_noop` which implies it)
+      if (not isInlineHelper(F)) {
         deleteOnlyBody(F);
       } else {
         llvm::stripDebugInfo(F);
@@ -92,7 +93,7 @@ public:
     // attribute, to avoid the module failing verification remove the
     // `AlwaysInline` attribute.
     for (llvm::Function &F : M) {
-      if (F.getSection() == InlineHelpersSection)
+      if (isInlineHelper(F))
         F.removeFnAttr(Attribute::AlwaysInline);
     }
 
