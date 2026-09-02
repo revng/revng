@@ -227,7 +227,7 @@ Function *EnforceABI::recreateFunction(Function &OldFunction,
 }
 
 static GlobalVariable *tryGetCSV(Module *M, model::Register::Values Register) {
-  auto Name = model::Register::getCSVName(Register);
+  auto Name = model::Register::singleCSVName(Register);
   return M->getGlobalVariable(Name, true);
 }
 

@@ -412,7 +412,7 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
     for (const model::Segment &Segment : Model->Segments()) {
       if (Segment.contains(getBasicBlockAddress(BB))) {
         for (const auto &CanonicalValue : Segment.CanonicalRegisterValues()) {
-          auto Name = model::Register::getCSVName(CanonicalValue.Register());
+          auto Name = model::Register::singleCSVName(CanonicalValue.Register());
           if (auto *CSV = M->getGlobalVariable(Name)) {
             auto *Type = getCSVType(CSV);
             Builder.CreateStore(ConstantInt::get(Type, CanonicalValue.Value()),

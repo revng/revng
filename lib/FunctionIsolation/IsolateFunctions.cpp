@@ -454,7 +454,7 @@ public:
     // Also preserve every register CSV, later passes might want to use them
     std::set<std::string> RegisterNames;
     for (auto Register : model::Architecture::registers(Architecture))
-      RegisterNames.insert(model::Register::getCSVName(Register));
+      RegisterNames.insert(model::Register::singleCSVName(Register));
 
     auto IsRegister = [&PCH, &RegisterNames](llvm::GlobalVariable &GV) {
       return PCH->affectsPC(&GV) or RegisterNames.contains(GV.getName().str());
