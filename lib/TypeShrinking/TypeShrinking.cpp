@@ -123,17 +123,61 @@ static bool runTypeShrinking(Function &F,
         NewResultSize = NewOperandsSize;
 
       if (NewOperandsSize < OldSize) {
-        B.SetInsertPoint(I);
+        // Shrink an operand to the operand type and widen it back to the
+        // result type, wherever the builder is currently inserting.
+        auto Shrink = [&B, NewOperandsType, NewResultType](Value *Operand) {
+          return B.CreateZExt(B.CreateTrunc(Operand, NewOperandsType),
+                              NewResultType);
+        };
 
-        // Shrink operands
-        Value *LHS = B.CreateTrunc(I->getOperand(0), NewOperandsType);
-        Value *RHS = B.CreateTrunc(I->getOperand(1), NewOperandsType);
+        Value *Result = nullptr;
 
-        // Recreate instruction
-        LHS = B.CreateZExt(LHS, NewResultType);
-        RHS = B.CreateZExt(RHS, NewResultType);
-        auto Opcode = static_cast<Instruction::BinaryOps>(I->getOpcode());
-        Value *Result = B.CreateBinOp(Opcode, LHS, RHS);
+        if (auto *Phi = dyn_cast<PHINode>(I)) {
+          // A phi cannot be rebuilt like a binary operator: it has one operand
+          // per incoming edge rather than two, and nothing may be inserted
+          // between the phis at the top of a block. Build the narrow phi in
+          // place and shrink each incoming value at the end of the block it
+          // arrives from, which is the only point that dominates the edge.
+          B.SetInsertPoint(Phi);
+          auto *NewPhi = B.CreatePHI(NewResultType,
+                                     Phi->getNumIncomingValues());
+
+          for (unsigned Index = 0; Index < Phi->getNumIncomingValues();
+               ++Index) {
+            BasicBlock *Predecessor = Phi->getIncomingBlock(Index);
+
+            // A block reaching this one along two edges is listed once per
+            // edge, and a phi requires the *same* value on each of them, so
+            // the one built for the first edge is reused for the rest.
+            if (int First = NewPhi->getBasicBlockIndex(Predecessor);
+                First >= 0) {
+              NewPhi->addIncoming(NewPhi->getIncomingValue(First), Predecessor);
+              continue;
+            }
+
+            B.SetInsertPoint(Predecessor,
+                             Predecessor->getTerminator()->getIterator());
+            NewPhi->addIncoming(Shrink(Phi->getIncomingValue(Index)),
+                                Predecessor);
+          }
+
+          Result = NewPhi;
+        } else if (auto *Select = dyn_cast<SelectInst>(I)) {
+          B.SetInsertPoint(I);
+
+          // The condition picks between the two values rather than being one
+          // of them, so it is carried over untouched.
+          Value *True = Shrink(Select->getTrueValue());
+          Value *False = Shrink(Select->getFalseValue());
+          Result = B.CreateSelect(Select->getCondition(), True, False);
+        } else {
+          B.SetInsertPoint(I);
+
+          Value *LHS = Shrink(I->getOperand(0));
+          Value *RHS = Shrink(I->getOperand(1));
+          auto Opcode = static_cast<Instruction::BinaryOps>(I->getOpcode());
+          Result = B.CreateBinOp(Opcode, LHS, RHS);
+        }
 
         // Emit ZExts, as late as possible
         SmallVector<std::pair<Use *, Value *>, 6> Replacements;

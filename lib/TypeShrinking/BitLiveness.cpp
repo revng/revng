@@ -254,6 +254,8 @@ uint32_t BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L,
   case Instruction::Add:
   case Instruction::Sub:
   case Instruction::Mul:
+  case Instruction::PHI:
+  case Instruction::Select:
     return std::min(E, getMaxOperandSize(L->Instruction));
   case Instruction::Shl:
     return transferShiftLeft(Ins, E);
