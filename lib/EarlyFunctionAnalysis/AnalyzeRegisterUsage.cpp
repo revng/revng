@@ -249,11 +249,10 @@ RUAResults analyzeRegisterUsage(Function *F,
   auto GetRegisterName = model::Register::getRegisterName;
 
   auto *M = F->getParent();
-  auto GetCSV = [&M](model::Register::Values Register) {
-    auto *Result = M->getGlobalVariable(model::Register::getCSVName(Register),
-                                        true);
-    revng_assert(Result != nullptr);
-    return Result;
+  auto GetCSV = [&M](model::Register::Values Reg) {
+    auto *R = M->getGlobalVariable(model::Register::singleCSVName(Reg), true);
+    revng_assert(R != nullptr);
+    return R;
   };
 
   {

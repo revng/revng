@@ -6,7 +6,7 @@
 
 #define UnknownCSVPrefix "state_"
 
-std::string model::Register::getCSVName(Values V) {
+std::string model::Register::singleCSVName(Values V) {
   // TODO: handle xmm0_x86
 
   switch (V) {

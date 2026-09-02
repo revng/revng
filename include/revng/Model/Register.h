@@ -470,8 +470,10 @@ inline std::optional<unsigned> getMContextIndex(Values V) {
     revng_abort("Not supported for this architecture");
 }
 
-std::string getCSVName(Values V);
+/// Return the name of the CSV corresponding to \param V.
+std::string singleCSVName(Values V);
 
+/// Return the register corresponding to the \param Name
 Values fromCSVName(llvm::StringRef Name,
                    model::Architecture::Values Architecture);
 

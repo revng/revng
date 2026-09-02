@@ -169,7 +169,7 @@ public:
         auto Layout = abi::FunctionType::Layout::make(*ThePrototype);
         for (const auto &ArgumentLayout : Layout.Arguments) {
           for (model::Register::Values Register : ArgumentLayout.Registers) {
-            auto Name = model::Register::getCSVName(Register);
+            auto Name = model::Register::singleCSVName(Register);
             GlobalVariable *CSV = RootModule.getGlobalVariable(Name, true);
             revng_assert(CSV != nullptr);
             Arguments.push_back(Builder.createLoad(CSV));

@@ -66,7 +66,7 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
 
   // Deserialize the ABI registers
   for (auto Register : registers(Model.Architecture())) {
-    auto Name = getCSVName(Register);
+    auto Name = singleCSVName(Register);
     GlobalVariable *CSV = TheModule.getGlobalVariable(Name);
 
     // Not all the registers have a corresponding CSV
@@ -143,7 +143,7 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
   for (model::Register::Values Register : registers(Model.Architecture())) {
     using namespace model::Architecture;
     using namespace model::Register;
-    GlobalVariable *CSV = TheModule.getGlobalVariable(getCSVName(Register));
+    GlobalVariable *CSV = TheModule.getGlobalVariable(singleCSVName(Register));
 
     // Not all the registers have a corresponding CSV
     if (CSV == nullptr)

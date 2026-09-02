@@ -56,7 +56,7 @@ public:
 
   llvm::StoreInst *clobber(revng::IRBuilder &Builder,
                            model::Register::Values Value) {
-    if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
+    if (auto *CSV = M->getGlobalVariable(model::Register::singleCSVName(Value)))
       return clobber(Builder, CSV);
     else
       return nullptr;
@@ -68,7 +68,7 @@ public:
 
   llvm::StoreInst *write(revng::IRBuilder &Builder,
                          model::Register::Values Value) {
-    if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
+    if (auto *CSV = M->getGlobalVariable(model::Register::singleCSVName(Value)))
       return write(Builder, CSV);
     else
       return nullptr;
@@ -94,7 +94,7 @@ public:
 
   llvm::Instruction *read(revng::IRBuilder &Builder,
                           model::Register::Values Value) {
-    if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
+    if (auto *CSV = M->getGlobalVariable(model::Register::singleCSVName(Value)))
       return read(Builder, CSV);
     else
       return nullptr;

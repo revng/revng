@@ -23,7 +23,7 @@ PrototypeImporter::prototype(const AttributesSet &Attributes,
 
   // Drop known to be preserved registers from `Summary.ClobberedRegisters`.
   auto TransformToCSV = std::views::transform([this](Register Register) {
-    return M.getGlobalVariable(model::Register::getCSVName(Register), true);
+    return M.getGlobalVariable(model::Register::singleCSVName(Register), true);
   });
   auto IgnoreNullptr = std::views::filter([](const auto *Pointer) -> bool {
     return Pointer != nullptr;
@@ -52,13 +52,13 @@ PrototypeImporter::prototype(const AttributesSet &Attributes,
   auto &&[ArgumentRegisters,
           ReturnValueRegisters] = abi::FunctionType::usedRegisters(*Prototype);
   for (Register ArgumentRegister : ArgumentRegisters) {
-    auto Name = model::Register::getCSVName(ArgumentRegister);
+    auto Name = model::Register::singleCSVName(ArgumentRegister);
     if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
       Summary.ABIResults.ArgumentsRegisters.insert(CSV);
   }
 
   for (Register ReturnValueRegister : ReturnValueRegisters) {
-    auto Name = model::Register::getCSVName(ReturnValueRegister);
+    auto Name = model::Register::singleCSVName(ReturnValueRegister);
     if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
       Summary.ABIResults.ReturnValuesRegisters.insert(CSV);
   }
