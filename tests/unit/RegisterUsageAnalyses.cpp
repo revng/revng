@@ -17,144 +17,143 @@ bool init_unit_test();
 using namespace rua;
 using namespace llvm;
 
-// Two distinct dummy CSVs, used purely as opaque tokens to populate the rua
-// index space (indices 0 and 1); the tests below address them by raw index.
-// They are owned by the static module and never dereferenced by the analyses.
-static llvm::GlobalVariable *testCSV(unsigned Index) {
-  static llvm::LLVMContext Context;
-  static llvm::Module Module("rua-unit-test", Context);
-  static llvm::GlobalVariable *CSVs[2] = {
-    new llvm::GlobalVariable(Module,
-                             llvm::Type::getInt64Ty(Context),
-                             false,
-                             llvm::GlobalValue::ExternalLinkage,
-                             nullptr,
-                             "csv0"),
-    new llvm::GlobalVariable(Module,
-                             llvm::Type::getInt64Ty(Context),
-                             false,
-                             llvm::GlobalValue::ExternalLinkage,
-                             nullptr,
-                             "csv1"),
+struct TestGraphManager {
+  llvm::LLVMContext Context;
+  llvm::Module Module{ "rua-unit-test", Context };
+
+  /// Two distinct dummy CSVs, used purely as opaque tokens to populate the rua
+  /// index space (indices 0 and 1); the tests below address them by raw index.
+  /// They are owned by the module above and never dereferenced by the analyses.
+  std::unique_ptr<llvm::GlobalVariable> CSVs[2] = {
+    std::make_unique<llvm::GlobalVariable>(Module,
+                                           llvm::Type::getInt64Ty(Context),
+                                           false,
+                                           llvm::GlobalValue::ExternalLinkage,
+                                           nullptr,
+                                           "csv0"),
+    std::make_unique<llvm::GlobalVariable>(Module,
+                                           llvm::Type::getInt64Ty(Context),
+                                           false,
+                                           llvm::GlobalValue::ExternalLinkage,
+                                           nullptr,
+                                           "csv1"),
   };
-  revng_assert(Index < 2);
-  return CSVs[Index];
-}
 
-struct TestAnalysisResult {
-  TestAnalysisResult() = delete;
-  TestAnalysisResult(rua::Function &&Function,
-                     rua::BlockNode *Entry,
-                     rua::BlockNode *Exit,
-                     rua::BlockNode *Sink) :
-    Function(std::move(Function)), Entry(Entry), Exit(Exit), Sink(Sink) {}
-  rua::Function Function;
-  rua::BlockNode *Entry = nullptr;
-  rua::BlockNode *Exit = nullptr;
-  rua::BlockNode *Sink = nullptr;
+  struct Graph {
+    Graph() = delete;
+    Graph(rua::Function &&Function,
+          rua::BlockNode *Entry,
+          rua::BlockNode *Exit,
+          rua::BlockNode *Sink) :
+      Function(std::move(Function)), Entry(Entry), Exit(Exit), Sink(Sink) {}
+    rua::Function Function;
+    rua::BlockNode *Entry = nullptr;
+    rua::BlockNode *Exit = nullptr;
+    rua::BlockNode *Sink = nullptr;
+  };
+
+  Graph singleNode(rua::Block::OperationsVector &&Operations) {
+    rua::Function F;
+    F.csvIndex(CSVs[0].get());
+    F.csvIndex(CSVs[1].get());
+    auto *Entry = F.addNode();
+    F.setEntryNode(Entry);
+    Entry->Operations = Operations;
+    return { std::move(F), Entry, Entry, Entry };
+  }
+
+  Graph diamond(rua::Block::OperationsVector &&Header,
+                rua::Block::OperationsVector &&Left,
+                rua::Block::OperationsVector &&Right,
+                rua::Block::OperationsVector &&Footer) {
+    rua::Function F;
+    F.csvIndex(CSVs[0].get());
+    F.csvIndex(CSVs[1].get());
+
+    auto *HeaderBlock = F.addNode();
+    F.setEntryNode(HeaderBlock);
+    HeaderBlock->Operations = Header;
+
+    auto *LeftBlock = F.addNode();
+    LeftBlock->Operations = Left;
+
+    auto *RightBlock = F.addNode();
+    RightBlock->Operations = Right;
+
+    auto *FooterBlock = F.addNode();
+    FooterBlock->Operations = Footer;
+
+    HeaderBlock->addSuccessor(LeftBlock);
+    HeaderBlock->addSuccessor(RightBlock);
+    LeftBlock->addSuccessor(FooterBlock);
+    RightBlock->addSuccessor(FooterBlock);
+
+    return { std::move(F), HeaderBlock, FooterBlock, FooterBlock };
+  }
+
+  Graph loop(rua::Block::OperationsVector &&Header,
+             rua::Block::OperationsVector &&LoopHeader,
+             rua::Block::OperationsVector &&LoopBody,
+             rua::Block::OperationsVector &&Footer) {
+    rua::Function F;
+    F.csvIndex(CSVs[0].get());
+    F.csvIndex(CSVs[1].get());
+
+    auto *HeaderBlock = F.addNode();
+    F.setEntryNode(HeaderBlock);
+    HeaderBlock->Operations = Header;
+
+    auto *LoopHeaderBlock = F.addNode();
+    LoopHeaderBlock->Operations = LoopHeader;
+
+    auto *LoopBodyBlock = F.addNode();
+    LoopBodyBlock->Operations = LoopBody;
+
+    auto *FooterBlock = F.addNode();
+    FooterBlock->Operations = Footer;
+
+    // digraph {
+    //   Header -> LoopHeader -> LoopBody -> LoopHeader -> Footer;
+    // }
+    HeaderBlock->addSuccessor(LoopHeaderBlock);
+    LoopHeaderBlock->addSuccessor(LoopBodyBlock);
+    LoopHeaderBlock->addSuccessor(FooterBlock);
+    LoopBodyBlock->addSuccessor(LoopHeaderBlock);
+
+    return { std::move(F), HeaderBlock, FooterBlock, FooterBlock };
+  };
+
+  Graph noReturn(rua::Block::OperationsVector &&Header,
+                 rua::Block::OperationsVector &&NoReturn,
+                 rua::Block::OperationsVector &&Exit) {
+    rua::Function F;
+    F.csvIndex(CSVs[0].get());
+    F.csvIndex(CSVs[1].get());
+
+    auto *HeaderBlock = F.addNode();
+    F.setEntryNode(HeaderBlock);
+    HeaderBlock->Operations = Header;
+
+    auto *NoReturnBlock = F.addNode();
+    NoReturnBlock->Operations = NoReturn;
+
+    auto *ExitBlock = F.addNode();
+    ExitBlock->Operations = Exit;
+
+    HeaderBlock->addSuccessor(NoReturnBlock);
+    HeaderBlock->addSuccessor(ExitBlock);
+
+    auto *SinkBlock = F.addNode();
+    NoReturnBlock->addSuccessor((SinkBlock));
+    ExitBlock->addSuccessor((SinkBlock));
+
+    return { std::move(F), HeaderBlock, ExitBlock, SinkBlock };
+  }
 };
-
-static TestAnalysisResult
-createSingleNode(rua::Block::OperationsVector &&Operations) {
-  rua::Function F;
-  F.csvIndex(testCSV(0));
-  F.csvIndex(testCSV(1));
-  auto *Entry = F.addNode();
-  F.setEntryNode(Entry);
-  Entry->Operations = Operations;
-  return { std::move(F), Entry, Entry, Entry };
-}
-
-static TestAnalysisResult createDiamond(rua::Block::OperationsVector &&Header,
-                                        rua::Block::OperationsVector &&Left,
-                                        rua::Block::OperationsVector &&Right,
-                                        rua::Block::OperationsVector &&Footer) {
-  rua::Function F;
-  F.csvIndex(testCSV(0));
-  F.csvIndex(testCSV(1));
-
-  auto *HeaderBlock = F.addNode();
-  F.setEntryNode(HeaderBlock);
-  HeaderBlock->Operations = Header;
-
-  auto *LeftBlock = F.addNode();
-  LeftBlock->Operations = Left;
-
-  auto *RightBlock = F.addNode();
-  RightBlock->Operations = Right;
-
-  auto *FooterBlock = F.addNode();
-  FooterBlock->Operations = Footer;
-
-  HeaderBlock->addSuccessor(LeftBlock);
-  HeaderBlock->addSuccessor(RightBlock);
-  LeftBlock->addSuccessor(FooterBlock);
-  RightBlock->addSuccessor(FooterBlock);
-
-  return { std::move(F), HeaderBlock, FooterBlock, FooterBlock };
-}
-
-static TestAnalysisResult createLoop(rua::Block::OperationsVector &&Header,
-                                     rua::Block::OperationsVector &&LoopHeader,
-                                     rua::Block::OperationsVector &&LoopBody,
-                                     rua::Block::OperationsVector &&Footer) {
-  rua::Function F;
-  F.csvIndex(testCSV(0));
-  F.csvIndex(testCSV(1));
-
-  auto *HeaderBlock = F.addNode();
-  F.setEntryNode(HeaderBlock);
-  HeaderBlock->Operations = Header;
-
-  auto *LoopHeaderBlock = F.addNode();
-  LoopHeaderBlock->Operations = LoopHeader;
-
-  auto *LoopBodyBlock = F.addNode();
-  LoopBodyBlock->Operations = LoopBody;
-
-  auto *FooterBlock = F.addNode();
-  FooterBlock->Operations = Footer;
-
-  // digraph {
-  //   Header -> LoopHeader -> LoopBody -> LoopHeader -> Footer;
-  // }
-  HeaderBlock->addSuccessor(LoopHeaderBlock);
-  LoopHeaderBlock->addSuccessor(LoopBodyBlock);
-  LoopHeaderBlock->addSuccessor(FooterBlock);
-  LoopBodyBlock->addSuccessor(LoopHeaderBlock);
-
-  return { std::move(F), HeaderBlock, FooterBlock, FooterBlock };
-};
-
-static TestAnalysisResult
-createNoReturn(rua::Block::OperationsVector &&Header,
-               rua::Block::OperationsVector &&NoReturn,
-               rua::Block::OperationsVector &&Exit) {
-  rua::Function F;
-  F.csvIndex(testCSV(0));
-  F.csvIndex(testCSV(1));
-
-  auto *HeaderBlock = F.addNode();
-  F.setEntryNode(HeaderBlock);
-  HeaderBlock->Operations = Header;
-
-  auto *NoReturnBlock = F.addNode();
-  NoReturnBlock->Operations = NoReturn;
-
-  auto *ExitBlock = F.addNode();
-  ExitBlock->Operations = Exit;
-
-  HeaderBlock->addSuccessor(NoReturnBlock);
-  HeaderBlock->addSuccessor(ExitBlock);
-
-  auto *SinkBlock = F.addNode();
-  NoReturnBlock->addSuccessor((SinkBlock));
-  ExitBlock->addSuccessor((SinkBlock));
-
-  return { std::move(F), HeaderBlock, ExitBlock, SinkBlock };
-}
 
 BOOST_AUTO_TEST_CASE(LivenessTest) {
+  TestGraphManager Manager;
+
   auto RunAnalysis = [](rua::Function &Function, BlockNode *Entry) {
     Liveness LA(Function);
     auto DefaultValue = LA.defaultValue();
@@ -174,8 +173,9 @@ BOOST_AUTO_TEST_CASE(LivenessTest) {
   };
 
   auto RunOnSingleNode =
-    [&RunAnalysis](rua::Block::OperationsVector &&Operations) -> BitVector {
-    auto Graph = createSingleNode(std::move(Operations));
+    [&RunAnalysis,
+     &Manager](rua::Block::OperationsVector &&Operations) -> BitVector {
+    auto Graph = Manager.singleNode(std::move(Operations));
     return RunAnalysis(Graph.Function, Graph.Entry)[Graph.Entry].OutValue;
   };
 
@@ -215,14 +215,15 @@ BOOST_AUTO_TEST_CASE(LivenessTest) {
   revng_check(not Result[1]);
 
   auto RunOnDiamond =
-    [&RunAnalysis](rua::Block::OperationsVector &&Header,
-                   rua::Block::OperationsVector &&Left,
-                   rua::Block::OperationsVector &&Right,
-                   rua::Block::OperationsVector &&Footer) -> BitVector {
-    auto Graph = createDiamond(std::move(Header),
-                               std::move(Left),
-                               std::move(Right),
-                               std::move(Footer));
+    [&RunAnalysis,
+     &Manager](rua::Block::OperationsVector &&Header,
+               rua::Block::OperationsVector &&Left,
+               rua::Block::OperationsVector &&Right,
+               rua::Block::OperationsVector &&Footer) -> BitVector {
+    auto Graph = Manager.diamond(std::move(Header),
+                                 std::move(Left),
+                                 std::move(Right),
+                                 std::move(Footer));
     return RunAnalysis(Graph.Function, Graph.Exit)[Graph.Entry].OutValue;
   };
 
@@ -261,14 +262,15 @@ BOOST_AUTO_TEST_CASE(LivenessTest) {
   revng_assert(Result.size() == 1 and Result[0]);
 
   auto RunOnLoop =
-    [&RunAnalysis](rua::Block::OperationsVector &&Header,
-                   rua::Block::OperationsVector &&LoopHeader,
-                   rua::Block::OperationsVector &&LoopBody,
-                   rua::Block::OperationsVector &&Footer) -> BitVector {
-    auto Graph = createLoop(std::move(Header),
-                            std::move(LoopHeader),
-                            std::move(LoopBody),
-                            std::move(Footer));
+    [&RunAnalysis,
+     &Manager](rua::Block::OperationsVector &&Header,
+               rua::Block::OperationsVector &&LoopHeader,
+               rua::Block::OperationsVector &&LoopBody,
+               rua::Block::OperationsVector &&Footer) -> BitVector {
+    auto Graph = Manager.loop(std::move(Header),
+                              std::move(LoopHeader),
+                              std::move(LoopBody),
+                              std::move(Footer));
     return RunAnalysis(Graph.Function, Graph.Exit)[Graph.Entry].OutValue;
   };
 
@@ -287,12 +289,12 @@ BOOST_AUTO_TEST_CASE(LivenessTest) {
   revng_assert(Result.size() == 1 and not Result[0]);
 
   auto RunOnNoReturn =
-    [&RunAnalysis](rua::Block::OperationsVector &&Header,
-                   rua::Block::OperationsVector &&NoReturn,
-                   rua::Block::OperationsVector &&Exit) -> BitVector {
-    auto Graph = createNoReturn(std::move(Header),
-                                std::move(NoReturn),
-                                std::move(Exit));
+    [&RunAnalysis, &Manager](rua::Block::OperationsVector &&Header,
+                             rua::Block::OperationsVector &&NoReturn,
+                             rua::Block::OperationsVector &&Exit) -> BitVector {
+    auto Graph = Manager.noReturn(std::move(Header),
+                                  std::move(NoReturn),
+                                  std::move(Exit));
     return RunAnalysis(Graph.Function, Graph.Exit)[Graph.Entry].OutValue;
   };
 
@@ -310,7 +312,9 @@ BOOST_AUTO_TEST_CASE(LivenessTest) {
 }
 
 BOOST_AUTO_TEST_CASE(ReachingDefinitionsTest) {
-  auto RunAnalysis = [](TestAnalysisResult &&F) {
+  TestGraphManager Manager;
+
+  auto RunAnalysis = [](TestGraphManager::Graph &&F) {
     ReachingDefinitions RD(F.Function);
     auto DefaultValue = RD.defaultValue();
     std::vector ExtremalLabels{ F.Entry };
@@ -329,10 +333,10 @@ BOOST_AUTO_TEST_CASE(ReachingDefinitionsTest) {
                                         Results[F.Sink].OutValue);
   };
 
-  auto RunOnSingleNode =
-    [&RunAnalysis](rua::Block::OperationsVector &&Operations) {
-      return RunAnalysis(createSingleNode(std::move(Operations)));
-    };
+  auto RunOnSingleNode = [&RunAnalysis,
+                          &Manager](rua::Block::OperationsVector &&Operations) {
+    return RunAnalysis(Manager.singleNode(std::move(Operations)));
+  };
 
   auto Result = RunOnSingleNode({ Operation(OperationType::Write, 0) });
   revng_assert(Result[0]);
@@ -346,14 +350,15 @@ BOOST_AUTO_TEST_CASE(ReachingDefinitionsTest) {
                              Operation(OperationType::Write, 0) });
   revng_assert(Result[0]);
 
-  auto RunOnDiamond = [&RunAnalysis](rua::Block::OperationsVector &&Header,
-                                     rua::Block::OperationsVector &&Left,
-                                     rua::Block::OperationsVector &&Right,
-                                     rua::Block::OperationsVector &&Footer) {
-    return RunAnalysis(createDiamond(std::move(Header),
-                                     std::move(Left),
-                                     std::move(Right),
-                                     std::move(Footer)));
+  auto RunOnDiamond = [&RunAnalysis,
+                       &Manager](rua::Block::OperationsVector &&Header,
+                                 rua::Block::OperationsVector &&Left,
+                                 rua::Block::OperationsVector &&Right,
+                                 rua::Block::OperationsVector &&Footer) {
+    return RunAnalysis(Manager.diamond(std::move(Header),
+                                       std::move(Left),
+                                       std::move(Right),
+                                       std::move(Footer)));
   };
 
   // Write read on all paths
@@ -381,14 +386,15 @@ BOOST_AUTO_TEST_CASE(ReachingDefinitionsTest) {
   Result = RunOnDiamond({}, {}, { Operation(OperationType::Write, 0) }, {});
   revng_assert(Result[0]);
 
-  auto RunOnLoop = [&RunAnalysis](rua::Block::OperationsVector &&Header,
-                                  rua::Block::OperationsVector &&LoopHeader,
-                                  rua::Block::OperationsVector &&LoopBody,
-                                  rua::Block::OperationsVector &&Footer) {
-    return RunAnalysis(createLoop(std::move(Header),
-                                  std::move(LoopHeader),
-                                  std::move(LoopBody),
-                                  std::move(Footer)));
+  auto RunOnLoop = [&RunAnalysis,
+                    &Manager](rua::Block::OperationsVector &&Header,
+                              rua::Block::OperationsVector &&LoopHeader,
+                              rua::Block::OperationsVector &&LoopBody,
+                              rua::Block::OperationsVector &&Footer) {
+    return RunAnalysis(Manager.loop(std::move(Header),
+                                    std::move(LoopHeader),
+                                    std::move(LoopBody),
+                                    std::move(Footer)));
   };
 
   // We read in the loop header, the write in the loop is always read
@@ -413,12 +419,13 @@ BOOST_AUTO_TEST_CASE(ReachingDefinitionsTest) {
                      {});
   revng_assert(Result[0]);
 
-  auto RunOnNoReturn = [&RunAnalysis](rua::Block::OperationsVector &&Header,
-                                      rua::Block::OperationsVector &&NoReturn,
-                                      rua::Block::OperationsVector &&Exit) {
-    return RunAnalysis(createNoReturn(std::move(Header),
-                                      std::move(NoReturn),
-                                      std::move(Exit)));
+  auto RunOnNoReturn = [&RunAnalysis,
+                        &Manager](rua::Block::OperationsVector &&Header,
+                                  rua::Block::OperationsVector &&NoReturn,
+                                  rua::Block::OperationsVector &&Exit) {
+    return RunAnalysis(Manager.noReturn(std::move(Header),
+                                        std::move(NoReturn),
+                                        std::move(Exit)));
   };
 
   // Dead write in the function entry
