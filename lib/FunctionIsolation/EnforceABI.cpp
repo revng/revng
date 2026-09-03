@@ -220,8 +220,8 @@ Function *EnforceABI::recreateFunction(Function &OldFunction,
   auto *Result = changeFunctionType(OldFunction, NewReturnType, NewArguments);
   revng_assert(Result->arg_size() == Registers.Arguments.size());
 
-  for (size_t Index = 0; model::Register::Values Register : Registers.Arguments)
-    Result->getArg(Index++)->setName(model::Register::getName(Register));
+  for (const auto &[Index, Register] : llvm::enumerate(Registers.Arguments))
+    Result->getArg(Index)->setName(model::Register::getName(Register));
 
   return Result;
 }
