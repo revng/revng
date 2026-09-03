@@ -33,11 +33,9 @@ parseRequest(llvm::ArrayRef<ContainerArgument> Signature,
              std::vector<std::unique_ptr<ObjectID>> &ObjectsPool,
              Request &Outgoing) {
   llvm::StringMap<size_t> ObjectMapping;
-  size_t Index = 0;
-  for (auto &Argument : Signature) {
+  for (auto &&[Index, Argument] : llvm::enumerate(Signature)) {
     std::string Name = normalizeName(Argument.Name);
     ObjectMapping[Name] = Index;
-    Index++;
   }
 
   size_t ObjectsIndex = 0;
