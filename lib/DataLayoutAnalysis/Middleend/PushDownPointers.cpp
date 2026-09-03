@@ -23,7 +23,7 @@ static bool isInstanceAtOffset0(const GT::EdgeRef &E) {
 }
 
 using Instance0Graph = EdgeFilteredGraph<dla::LayoutTypeSystemNode *,
-                                         isInstanceEdge>;
+                                         isInstanceAtOffset0>;
 
 using CInstance0Graph = EdgeFilteredGraph<const dla::LayoutTypeSystemNode *,
                                           isInstanceAtOffset0>;
