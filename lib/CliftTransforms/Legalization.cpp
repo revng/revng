@@ -581,7 +581,6 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   // * Resize pointer operands.
   // * Apply arithmetic promotions.
   // * Canonicalize boolean result types.
-  // * Emit casts around unrepresentable literals.
   {
     mlir::RewritePatternSet Set(Context);
 
@@ -620,11 +619,22 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     Set.add<ShiftPromotionPattern<SarOp>>(Context, DataModel);
     Set.add<ShiftPromotionPattern<ShrOp>>(Context, DataModel);
 
-    Set.add<ImmediateCastPattern>(Context, DataModel);
-
     // Cast canonicalisation is used to collapse casts introduced by the
     // other rewrites.
     populateWithCastCanonicalizations(Set);
+
+    auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
+    if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
+      return mlir::failure();
+  }
+
+  // Emit casts around unrepresentable immediates. This should only be done
+  // after promotions and pointer resizing, because those rewrites may surface
+  // opportunities for immediate canonicalisations.
+  {
+    mlir::RewritePatternSet Set(Context);
+
+    Set.add<ImmediateCastPattern>(Context, DataModel);
 
     auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
     if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
