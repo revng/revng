@@ -17,6 +17,7 @@
 #include "llvm/ADT/iterator_range.h"
 
 #include "revng/ADT/GenericGraph.h"
+#include "revng/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng/Support/Debug.h"
 
 #include "DLAStep.h"
@@ -177,10 +178,41 @@ computeOffsetAfterPush(NeighborIterator ToBePushed,
   return Final;
 }
 
+// Returns true if adding an instance edge from Source to Target would close an
+// instance loop.
+static bool wouldCloseInstanceLoop(const LayoutTypeSystemNode *Parent,
+                                   const LayoutTypeSystemNode *Source,
+                                   const LayoutTypeSystemNode *Target) {
+  // Self loops are never added in the first place.
+  if (Source == Target)
+    return false;
+
+  // This function is expected to be called only in situations where Parent is
+  // has instance edges going to both Source and Target.
+  // For this reason, we do the reachability test on the Inverse. In this way we
+  // we can use the Parent as a guard to keep the search quick and short.
+  using InstanceGraph = EdgeFilteredGraph<const dla::LayoutTypeSystemNode *,
+                                          dla::isInstanceEdge>;
+  using InverseInstance = llvm::Inverse<InstanceGraph>;
+  using LTSN = LayoutTypeSystemNode;
+  using DFVisitSet = llvm::df_iterator_default_set<const LTSN *, 8>;
+
+  DFVisitSet Visited;
+  Visited.insert(Parent);
+  for (const auto *Node :
+       llvm::depth_first_ext(InverseInstance(Source), Visited))
+    if (Node == Target)
+      return true;
+
+  return false;
+}
+
 // Compare the edges *AIt and *BIt to check if any of them can be pushed through
 // the other. If so return proper info.
 static std::optional<PushThroughComparisonResult>
-canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
+canPushThrough(const LayoutTypeSystemNode *Parent,
+               const NeighborIterator &AIt,
+               const NeighborIterator &BIt) {
   revng_log(Log, "canPushThrough");
   LoggerIndent Indent{ Log };
 
@@ -285,6 +317,24 @@ canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
 
   auto OffsetInElem = OffsetAfterPush % OuterElemSize;
   auto EndByteInElem = OffsetInElem + InnerFieldSize;
+
+  // When the inner field starts at the beginning of the outer and it has the
+  // same size, it means that it spans the same exact bytes.
+  // In principle there is nothing wrong with pushing inner through outer, but
+  // that could close a instance loop, like in the following example if inner is
+  // A->B and outer is A->C:
+  //   A --> B --> C
+  //    `----------^
+  // So we detect this case and bail out.
+  if (OffsetInElem == 0 and InnerFieldSize == Outer->Size
+      and wouldCloseInstanceLoop(Parent, Outer, Inner)) {
+    revng_log(Log,
+              "nullopt: inner field covers a whole element of the "
+              "outer, and pushing through would close an "
+              "instance loop");
+    return std::nullopt;
+  }
+
   if (EndByteInElem > Outer->Size) {
     revng_log(Log,
               "nullopt: EndByteInElem: " << EndByteInElem << " > "
@@ -540,7 +590,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
                     "with BEdge: " << BEdgeIt->first->ID
                                    << " label: " << BEdgeIt->second);
 
-          auto MaybePushThrough = canPushThrough(AEdgeIt, BEdgeIt);
+          auto MaybePushThrough = canPushThrough(Parent, AEdgeIt, BEdgeIt);
           if (not MaybePushThrough.has_value())
             continue;
 
@@ -617,8 +667,40 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
           ToAnalyze.insert(ToPushThrough);
 
           for (auto &[PushedEdgeIt, FinalOE] : EdgesToPush) {
-            EdgesToErase.insert(PushedEdgeIt);
             auto *ToPushDown = PushedEdgeIt->first;
+
+            // We already checked that we don't close an instance loop, but we
+            // did it on the graph before any push happened, and edges were only
+            // compared pairwise.
+            // Two individual pushes, each individually harmless, can still
+            // close a loop when they are both applied.
+            // This check is meant to detect this case.
+            //
+            // A loop is only closed if ToPushDown already reaches
+            // ToPushThrough via instance edges, which means ToPushThrough is
+            // not larger than ToPushDown itself. But at the same time, the fact
+            // that ToPushDown is being pushed down ToPushThrough means that the
+            // size of the pushed field will not be larger than ToPushThrough.
+            // This can only happen when the field that is being pushed down
+            // will end up covering the whole ToPushThrough.
+            // This is cheap to check and more rarely requires a visit.
+            uint64_t PushedFieldSize = getFieldSize(ToPushDown,
+                                                    PushedEdgeIt->second);
+            if (FinalOE.Offset == 0 and PushedFieldSize == ToPushThrough->Size
+                and wouldCloseInstanceLoop(Parent, ToPushThrough, ToPushDown)) {
+              revng_log(Log,
+                        "skip: " << ToPushThrough->ID << " -> "
+                                 << ToPushDown->ID
+                                 << " would close an instance loop");
+              continue;
+            }
+
+            // An edge can be pused through many edges. It is enough that we
+            // manage to push it through one to decide that we want to get rid
+            // of the original edge, because in the very moment we push it
+            // through at least one other edge we are preserving the information
+            // it represents, just reshaping it into another form.
+            EdgesToErase.insert(PushedEdgeIt);
 
             revng_assert(not isLeaf(ToPushThrough));
             TS.addInstanceLink(ToPushThrough, ToPushDown, std::move(FinalOE));

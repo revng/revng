@@ -18,6 +18,7 @@
 #include "revng/Model/ABI/Definition.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/Segment.h"
+#include "revng/Model/VerifyHelper.h"
 #include "revng/Ranks/Location.h"
 #include "revng/Ranks/Ranks.h"
 
@@ -32,6 +33,8 @@ class CliftConverter {
 
   llvm::DenseMap<uint64_t, clift::DefinedType> Cache;
   llvm::DenseMap<uint64_t, const model::TypeDefinition *> IncompleteTypes;
+
+  model::VerifyHelper VH;
 
   llvm::SmallSet<uint64_t, 16> DefinitionGuardSet;
 
@@ -553,7 +556,7 @@ private:
     if (const auto It = Cache.find(ModelType.ID()); It != Cache.end())
       rc_return It->second;
 
-    if (not ModelType.verify()) {
+    if (not ModelType.verify(VH)) {
       if (EmitError)
         EmitError() << "Invalid model type definition";
 
@@ -572,7 +575,7 @@ private:
 
   RecursiveCoroutine<mlir::Type> fromType(const model::Type &ModelType,
                                           bool RequireComplete = false) {
-    if (not ModelType.verify()) {
+    if (not ModelType.verify(VH)) {
       if (EmitError)
         EmitError() << "Invalid model type";
 
