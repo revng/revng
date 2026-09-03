@@ -5,6 +5,7 @@
 revng_add_library_internal(
   revngCliftTransforms
   SHARED
+  BooleanCastElimination.cpp
   BooleanNegations.cpp
   EmitFieldAccesses.cpp
   EmitFieldAccesses/BestTraversal.cpp

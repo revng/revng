@@ -466,6 +466,7 @@ branches:
             - promote-break-continue
             - c-legalization
             - elide-implicit-casts
+            - eliminate-boolean-casts
             - deduce-immediate-radices
       - pipe: verify-function-against-model
         arguments: [clift-functions]
