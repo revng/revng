@@ -1,0 +1,15 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Check global variables, their users, string metadata, and references from
+# inlined code for binaries tagged `for-global-references`.
+
+commands:
+  - type: revng.global-references
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-global-references
+    suffix: /
+    command: |-
+      "${SOURCES_ROOT}/share/revng/test/tests/analysis/GlobalReferences/run-global-references" "${INPUT}" "${OUTPUT}"

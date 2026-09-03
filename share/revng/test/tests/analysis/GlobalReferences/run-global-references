@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+set -euo pipefail
+
+# Check the globals and function references reported for the test fixture,
+# including unreferenced data, strings and references inlined into a caller.
+
+BINARY="$1"
+PROJECT="$2"
+
+fail() {
+  echo "global-references: $1" >&2
+  exit 1
+}
+
+# The entry address of a function.
+function_address() {
+  yq -r ".Functions[] | select(.Name == \"$1\") | .Entry" "$PROJECT/revng.yml"
+}
+
+# The global variables a function is recorded as using, one location per line.
+globals_used_by() {
+  yq -r ".Globals[]
+         | select(.Users // [] | index(\"/function/$(function_address "$1")\"))
+         | .Location" "$PROJECT/cross-relations.yml"
+}
+
+# Assert a named global records the given function as a user.
+assert_used_by() {
+  local count location
+  count="$(yq -r "[.Globals[] | select(.Name == \"$1\")] | length" \
+             "$PROJECT/cross-relations.yml")"
+  [ "$count" = "1" ] || fail "$1: expected exactly one global variable"
+  location="$(yq -r ".Globals[] | select(.Name == \"$1\") | .Location" \
+                "$PROJECT/cross-relations.yml")"
+  grep -qxF "$location" <<< "$(globals_used_by "$2")" \
+    || fail "$1: $2 is not recorded as a user"
+}
+
+mkdir -p "$PROJECT"
+revng -C "$PROJECT" project init --overwrite "$BINARY"
+revng -C "$PROJECT" project artifact cross-relations \
+  > "$PROJECT/cross-relations.yml"
+
+# Both directions of access have to be reported.
+assert_used_by first_global reads_globals
+assert_used_by second_global reads_globals
+assert_used_by first_global writes_globals
+assert_used_by second_global writes_globals
+
+[ -z "$(globals_used_by touches_nothing)" ] \
+  || fail "a global records touches_nothing as a user"
+
+# Check addresses against the binary's symbols. Read-only globals can share
+# a segment with code.
+SYMBOLS="$(llvm-nm --defined-only --format=posix "$BINARY")"
+for GLOBAL in first_global second_global greeting unused_global; do
+  ADDRESS="$(yq -r ".Globals[] | select(.Name == \"$GLOBAL\")
+                    | .Address | split(\":\")[0]" "$PROJECT/cross-relations.yml")"
+  [ -n "$ADDRESS" ] || fail "$GLOBAL was not listed"
+  EXPECTED_ADDRESS="$(awk -v name="$GLOBAL" '$1 == name { print "0x" $3 }' \
+                          <<< "$SYMBOLS")"
+  [ -n "$EXPECTED_ADDRESS" ] || fail "$GLOBAL has no symbol"
+  [ "$((ADDRESS))" -eq "$((EXPECTED_ADDRESS))" ] \
+    || fail "$GLOBAL has address $ADDRESS instead of $EXPECTED_ADDRESS"
+done
+
+# The string is listed with what it says. `reads_string` reaches it twice, once
+# from its start and once from the middle, and both are references to this one
+# global variable, so it is listed once and named once as its user.
+STRING="$(yq -r '[.Globals[] | select(.Name == "greeting")] | .[0]' \
+            "$PROJECT/cross-relations.yml")"
+[ "$STRING" != "null" ] || fail "the string global variable was not listed"
+
+[ "$(yq -r '.Encoding' <<< "$STRING")" = "UTF8" ] \
+  || fail "the string was not reported as UTF-8"
+[ "$(yq -r '.Preview' <<< "$STRING")" = "hello glorious world" ] \
+  || fail "the string does not carry what it says"
+[ "$(yq -r '.CodePoints' <<< "$STRING")" = "20" ] \
+  || fail "the string does not carry its length"
+
+[ "$(yq -r '[.Users[]] | length' <<< "$STRING")" = "1" ] \
+  || fail "the string is not used by exactly one function"
+[ "$(yq -r '.Users[0]' <<< "$STRING")" \
+    = "/function/$(function_address reads_string)" ] \
+  || fail "the string does not record the function reading it"
+
+# Globals without references are listed with no users.
+UNUSED="$(yq -r '[.Globals[] | select(.Name == "unused_global")]' \
+           "$PROJECT/cross-relations.yml")"
+[ "$(yq -r 'length' <<< "$UNUSED")" = "1" ] \
+  || fail "the unreferenced global variable was not listed exactly once"
+[ "$(yq -r '.[0].Users // [] | length' <<< "$UNUSED")" = "0" ] \
+  || fail "the unreferenced global variable has users"
+
+# Inlined references belong to the caller, even though their instruction
+# addresses still identify code from the original function.
+yq -y -i '.Functions |= map(
+  if .Name == "reads_globals" then
+    .Attributes = ((.Attributes // []) + ["AlwaysInline"] | unique)
+  else . end)' "$PROJECT/revng.yml"
+revng -C "$PROJECT" project artifact cross-relations \
+  > "$PROJECT/cross-relations.yml"
+assert_used_by first_global main
+assert_used_by second_global main
+assert_used_by first_global reads_globals
+assert_used_by second_global reads_globals
