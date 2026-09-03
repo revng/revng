@@ -134,6 +134,10 @@ void PromoteStackPointer::runOnLLVMFunction(const model::Function &Function,
   InitLocalSP->addFnAttr(Attribute::NoUnwind);
   InitLocalSP->addFnAttr(Attribute::WillReturn);
   InitLocalSP->setOnlyReadsMemory();
+  // This is needed to avoid valid LLVM passes to move sink calls to it in
+  // conditional code.
+  InitLocalSP->addFnAttr(Attribute::Convergent);
+
   FunctionTags::OpaqueCSVValue.addTo(InitLocalSP);
 
   // Create an alloca to represent the local value of the stack pointer.
