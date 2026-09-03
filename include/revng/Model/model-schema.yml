@@ -1390,14 +1390,14 @@ definitions:
       - name: r13_x86_64
       - name: r14_x86_64
       - name: r15_x86_64
-      - name: xmm0_x86_64
-      - name: xmm1_x86_64
-      - name: xmm2_x86_64
-      - name: xmm3_x86_64
-      - name: xmm4_x86_64
-      - name: xmm5_x86_64
-      - name: xmm6_x86_64
-      - name: xmm7_x86_64
+      - name: zmm0_x86_64
+      - name: zmm1_x86_64
+      - name: zmm2_x86_64
+      - name: zmm3_x86_64
+      - name: zmm4_x86_64
+      - name: zmm5_x86_64
+      - name: zmm6_x86_64
+      - name: zmm7_x86_64
       - name: fs_x86_64
       # ARM registers
       - name: r0_arm

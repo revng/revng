@@ -73,20 +73,20 @@ private:
 public:
   ReachingDefinitions(const Function &F) {
     // Populate WriteToIndex
-    llvm::SmallVector<int> RegisterWriteIndex(F.registersCount(), 0);
+    llvm::SmallVector<int> CSVWriteIndex(F.csvCount(), 0);
     for (const Block *Block : F.nodes()) {
       for (const Operation &Operation : Block->Operations) {
         if (Operation.Type == OperationType::Write) {
-          WriteToIndex[&Operation] = RegisterWriteIndex[Operation.Target];
-          RegisterWriteIndex[Operation.Target] += 1;
+          WriteToIndex[&Operation] = CSVWriteIndex[Operation.Target];
+          CSVWriteIndex[Operation.Target] += 1;
         }
       }
     }
 
-    Default.resize(RegisterWriteIndex.size());
-    for (unsigned I = 0; I < RegisterWriteIndex.size(); ++I) {
-      Default[I].Reaching.resize(RegisterWriteIndex[I]);
-      Default[I].Read.resize(RegisterWriteIndex[I]);
+    Default.resize(CSVWriteIndex.size());
+    for (unsigned I = 0; I < CSVWriteIndex.size(); ++I) {
+      Default[I].Reaching.resize(CSVWriteIndex[I]);
+      Default[I].Read.resize(CSVWriteIndex[I]);
     }
   }
 

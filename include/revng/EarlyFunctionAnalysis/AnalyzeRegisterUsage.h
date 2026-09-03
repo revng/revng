@@ -18,7 +18,6 @@
 
 namespace efa {
 
-// TODO: switch to model::Register?
 using CSVSet = std::set<llvm::GlobalVariable *>;
 
 class RUAResults {

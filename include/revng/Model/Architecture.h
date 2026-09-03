@@ -243,9 +243,14 @@ inline bool hasELFRelocationAddend(Values V) {
   }
 }
 
-inline llvm::StringRef getReadRegisterAssembly(Values V) {
+inline llvm::StringRef getReadRegisterAssembly(Values V,
+                                               uint64_t RegisterSize) {
   switch (V) {
   case model::Architecture::x86_64:
+    // `movq` can only move a quadword (8 bytes); wider registers such as the
+    // `zmm` registers have no `movq` form, so we emit no assembly for them.
+    if (RegisterSize > 8)
+      return "";
     return "movq %REGISTER, $0";
 
   case model::Architecture::systemz:
@@ -261,9 +266,14 @@ inline llvm::StringRef getReadRegisterAssembly(Values V) {
   }
 }
 
-inline llvm::StringRef getWriteRegisterAssembly(Values V) {
+inline llvm::StringRef getWriteRegisterAssembly(Values V,
+                                                uint64_t RegisterSize) {
   switch (V) {
   case model::Architecture::x86_64:
+    // `movq` can only move a quadword (8 bytes); wider registers such as the
+    // `zmm` registers have no `movq` form, so we emit no assembly for them.
+    if (RegisterSize > 8)
+      return "";
     return "movq $0, %REGISTER";
 
   case model::Architecture::systemz:

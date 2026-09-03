@@ -412,7 +412,16 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
     for (const model::Segment &Segment : Model->Segments()) {
       if (Segment.contains(getBasicBlockAddress(BB))) {
         for (const auto &CanonicalValue : Segment.CanonicalRegisterValues()) {
-          auto Name = model::Register::getCSVName(CanonicalValue.Register());
+          uint64_t C = model::Register::getCSVCount(CanonicalValue.Register());
+          if (C != 1) {
+            revng_log(Log,
+                      "Ignoring canonical value for register "
+                        << model::Register::getName(CanonicalValue.Register())
+                        << ": it is composed of " << C << " CSVs");
+            continue;
+          }
+
+          auto Name = model::Register::singleCSVName(CanonicalValue.Register());
           if (auto *CSV = M->getGlobalVariable(Name)) {
             auto *Type = getCSVType(CSV);
             Builder.CreateStore(ConstantInt::get(Type, CanonicalValue.Value()),

@@ -4,6 +4,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <string>
+#include <vector>
+
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 
@@ -56,14 +59,14 @@ getReferenceArchitecture(Values V) {
   case r13_x86_64:
   case r14_x86_64:
   case r15_x86_64:
-  case xmm0_x86_64:
-  case xmm1_x86_64:
-  case xmm2_x86_64:
-  case xmm3_x86_64:
-  case xmm4_x86_64:
-  case xmm5_x86_64:
-  case xmm6_x86_64:
-  case xmm7_x86_64:
+  case zmm0_x86_64:
+  case zmm1_x86_64:
+  case zmm2_x86_64:
+  case zmm3_x86_64:
+  case zmm4_x86_64:
+  case zmm5_x86_64:
+  case zmm6_x86_64:
+  case zmm7_x86_64:
   case fs_x86_64:
     return model::Architecture::x86_64;
   case r0_arm:
@@ -289,6 +292,15 @@ inline uint64_t getSize(Values V) {
   switch (V) {
   case st0_x86:
     return 10;
+  case zmm0_x86_64:
+  case zmm1_x86_64:
+  case zmm2_x86_64:
+  case zmm3_x86_64:
+  case zmm4_x86_64:
+  case zmm5_x86_64:
+  case zmm6_x86_64:
+  case zmm7_x86_64:
+    return 64;
   case f0_mips:
   case f1_mips:
   case f2_mips:
@@ -326,7 +338,8 @@ inline uint64_t getSize(Values V) {
     break;
   }
 
-  // TODO: this does not account for vector registers, but it should eventually.
+  // TODO: this does not account for most of the vector registers.
+
   switch (Architecture) {
   case model::Architecture::x86:
   case model::Architecture::arm:
@@ -470,10 +483,64 @@ inline std::optional<unsigned> getMContextIndex(Values V) {
     revng_abort("Not supported for this architecture");
 }
 
-std::string getCSVName(Values V);
+/// Return the name of the CSV corresponding to \param V.
+///
+/// Important: this function can only be called on registers for which
+/// \ref getCSVCount returns 1.
+std::string singleCSVName(Values V);
 
+/// Return the register corresponding to the \param Name
 Values fromCSVName(llvm::StringRef Name,
                    model::Architecture::Values Architecture);
+
+/// Returns how many CSVs are needed to represent register \param V.
+uint64_t getCSVCount(Values V);
+
+/// One of the CSVs (the LLVM globals representing slices of CPU state)
+/// composing a register, identified by its name plus its placement within
+/// the register.
+///
+/// Most registers are represented by a single CSV (call \ref getCSVCount to
+/// confirm this on a per-register basis).
+///
+/// An example of a register that requires multiple CSVs is a 512-bit `zmm0`.
+struct CSV {
+  /// The name of this CSV.
+  std::string Name;
+
+  /// Its byte offset within the register.
+  uint64_t StartOffset;
+
+  /// Its size in bytes.
+  uint64_t Size;
+};
+
+/// \return the ordered list of CSVs composing register \p V.
+cppcoro::generator<model::Register::CSV> getCSVs(Values V);
+
+/// A portion of a register.
+struct Portion {
+  Values Register = Values::Invalid;
+  uint64_t StartOffset = 0;
+  uint64_t Size = 0;
+
+  /// This constructor is for sub-word register portions only,
+  /// and as only one of these is allowed per register, \ref StartOffset
+  /// is intentionally forced to 0.
+  Portion(model::Register::Values Register, uint64_t Size) :
+    Register(Register), StartOffset(0), Size(Size) {
+
+    revng_assert(Size <= model::Register::getSize(Register));
+  }
+
+  /// This constructor initializes a register portion from the matching CSV.
+  ///
+  /// The `Register` field is set to `Invalid` when \p Name is not a known
+  /// register CSV. Each CSV currently covers a whole register,
+  /// so `StartOffset` is always 0 and `Size` equals the register size.
+  explicit Portion(llvm::StringRef CSVName,
+                   model::Architecture::Values Architecture);
+};
 
 constexpr inline model::PrimitiveKind::Values primitiveKind(Values V) {
   switch (V) {
@@ -604,14 +671,14 @@ constexpr inline model::PrimitiveKind::Values primitiveKind(Values V) {
   case xmm5_x86:
   case xmm6_x86:
   case xmm7_x86:
-  case xmm0_x86_64:
-  case xmm1_x86_64:
-  case xmm2_x86_64:
-  case xmm3_x86_64:
-  case xmm4_x86_64:
-  case xmm5_x86_64:
-  case xmm6_x86_64:
-  case xmm7_x86_64:
+  case zmm0_x86_64:
+  case zmm1_x86_64:
+  case zmm2_x86_64:
+  case zmm3_x86_64:
+  case zmm4_x86_64:
+  case zmm5_x86_64:
+  case zmm6_x86_64:
+  case zmm7_x86_64:
   case q0_arm:
   case q1_arm:
   case q2_arm:

@@ -49,29 +49,19 @@ public:
   }
 
 public:
-  llvm::StoreInst *clobber(revng::IRBuilder &Builder,
-                           llvm::GlobalVariable *CSV) {
-    return writeImpl(Builder, CSV, "clobber_", Clobberers);
+  void clobber(revng::IRBuilder &Builder, llvm::GlobalVariable *CSV) {
+    writeImpl(Builder, CSV, "clobber_", Clobberers);
   }
 
-  llvm::StoreInst *clobber(revng::IRBuilder &Builder,
-                           model::Register::Values Value) {
-    if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
-      return clobber(Builder, CSV);
-    else
-      return nullptr;
+  /// Clobbering a register clobbers every CSV composing it.
+  void clobber(revng::IRBuilder &Builder, model::Register::Values Value) {
+    for (const model::Register::CSV &RegCSV : model::Register::getCSVs(Value))
+      if (auto *CSV = M->getGlobalVariable(RegCSV.Name))
+        clobber(Builder, CSV);
   }
 
   llvm::StoreInst *write(revng::IRBuilder &Builder, llvm::GlobalVariable *CSV) {
     return writeImpl(Builder, CSV, "write_", Writers);
-  }
-
-  llvm::StoreInst *write(revng::IRBuilder &Builder,
-                         model::Register::Values Value) {
-    if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
-      return write(Builder, CSV);
-    else
-      return nullptr;
   }
 
   llvm::Instruction *read(revng::IRBuilder &Builder,
@@ -90,14 +80,6 @@ public:
     Created.push_back(Load);
 
     return OpaqueCall;
-  }
-
-  llvm::Instruction *read(revng::IRBuilder &Builder,
-                          model::Register::Values Value) {
-    if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
-      return read(Builder, CSV);
-    else
-      return nullptr;
   }
 
   void purgeCreated() {

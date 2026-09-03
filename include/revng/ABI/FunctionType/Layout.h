@@ -11,6 +11,7 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Register.h"
 #include "revng/Support/YAMLTraits.h"
 
 namespace abi::FunctionType {
@@ -262,8 +263,8 @@ inline uint64_t finalStackOffset(const model::UpcastableType &Prototype) {
 }
 
 struct UsedRegisters {
-  llvm::SmallVector<model::Register::Values> Arguments;
-  llvm::SmallVector<model::Register::Values> ReturnValues;
+  llvm::SmallVector<model::Register::Portion> Arguments;
+  llvm::SmallVector<model::Register::Portion> ReturnValues;
 };
 UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Prototype);
 
@@ -271,9 +272,11 @@ inline UsedRegisters
 usedRegisters(const model::RawFunctionDefinition &Prototype) {
   UsedRegisters Result;
   for (const model::NamedTypedRegister &Register : Prototype.Arguments())
-    Result.Arguments.emplace_back(Register.Location());
+    Result.Arguments.emplace_back(Register.Location(),
+                                  *Register.Type()->size());
   for (const model::NamedTypedRegister &Register : Prototype.ReturnValues())
-    Result.ReturnValues.emplace_back(Register.Location());
+    Result.ReturnValues.emplace_back(Register.Location(),
+                                     *Register.Type()->size());
   return Result;
 }
 

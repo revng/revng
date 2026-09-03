@@ -212,6 +212,9 @@ public:
     IRBuilder(BB->getContext()) {
     SetInsertPoint(BB, I);
   }
+
+  // Helpers specific to our wrapper start here!
+  llvm::Module *getModule() { return GetInsertBlock()->getModule(); }
 };
 
 } // namespace revng

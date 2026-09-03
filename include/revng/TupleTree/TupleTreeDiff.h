@@ -615,9 +615,7 @@ inline llvm::Error TupleTreeDiff<T>::apply(TupleTree<T> &M) const {
   M.disableReferenceCaching();
 
   auto Error = std::make_unique<revng::DiffError>();
-  size_t Index = 0;
-  for (const Change &C : Changes) {
-
+  for (const auto &[Index, C] : llvm::enumerate(Changes)) {
     if (C.Path.size() == 0) {
       Error->addReason("Could not deserialize path",
                        DiffLocation(Index, DiffLocation::KindType::Path));
@@ -630,8 +628,6 @@ inline llvm::Error TupleTreeDiff<T>::apply(TupleTree<T> &M) const {
                          + pathAsString<T>(C.Path).value_or("(unavailable)"),
                        DiffLocation(Index, DiffLocation::KindType::Path));
     }
-
-    Index++;
   }
 
   M.initializeReferences();

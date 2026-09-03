@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Model/PrimitiveKind.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
 
@@ -81,6 +82,51 @@ public:
 
 public:
   ///
+  /// \name Verification
+  /// @{
+
+  static constexpr std::array ValidNumericSizes{ 1, 2, 4, 8, 16, 32, 64 };
+  static constexpr std::array ValidFloatSizes{ 2, 4, 8, 10, 12, 16 };
+  // NOTE: We are supporting floats that are 10 bytes long, since we found
+  //       such cases in some PDB files by using VS on Windows platforms.
+  //       The source code of those cases could be written in some language
+  //       other than C/C++ (probably Swift). We faced some struct fields by
+  //       using this (10b long float) type, so by ignoring it we would not
+  //       have accurate layout for the structs.
+
+  static constexpr bool isSizeValid(model::PrimitiveKind::Values Kind,
+                                    uint8_t Size) {
+    switch (Kind) {
+    case PrimitiveKind::Invalid:
+      return false;
+
+    case PrimitiveKind::Void:
+      return Size == 0;
+
+    case PrimitiveKind::PointerOrNumber:
+    case PrimitiveKind::Number:
+    case PrimitiveKind::Unsigned:
+    case PrimitiveKind::Signed:
+      return std::ranges::binary_search(ValidNumericSizes, Size);
+
+    case PrimitiveKind::Float:
+      return std::ranges::binary_search(ValidFloatSizes, Size);
+
+    case PrimitiveKind::Generic:
+      return std::ranges::binary_search(ValidNumericSizes, Size)
+             || std::ranges::binary_search(ValidFloatSizes, Size);
+
+    default:
+      revng_abort("Unsupported primitive kind");
+    }
+  }
+
+  bool isValid() const { return isSizeValid(PrimitiveKind(), Size()); }
+
+  /// @}
+
+public:
+  ///
   /// \name Register-based construction
   /// @{
 
@@ -91,6 +137,66 @@ public:
 
   static UpcastableType makeGeneric(Register::Values Register) {
     return makeGeneric(model::Register::getSize(Register));
+  }
+
+  /// @}
+
+  ///
+  /// \name Dynamic size construction
+  /// @{
+
+private:
+  static std::optional<size_t> closestNumericSize(uint64_t Size) {
+    auto Iterator = std::ranges::lower_bound(ValidNumericSizes, Size);
+    if (Iterator == ValidNumericSizes.end())
+      return std::nullopt;
+    return *Iterator;
+  }
+  static std::optional<size_t> closestFloatSize(uint64_t Size) {
+    auto Iterator = std::ranges::lower_bound(ValidFloatSizes, Size);
+    if (Iterator == ValidFloatSizes.end())
+      return std::nullopt;
+    return *Iterator;
+  }
+
+public:
+  static UpcastableType makeBigEnoughFor(PrimitiveKind::Values Kind,
+                                         uint64_t Size) {
+    uint64_t SelectedSize = -1;
+    switch (Kind) {
+    case PrimitiveKind::PointerOrNumber:
+    case PrimitiveKind::Number:
+    case PrimitiveKind::Unsigned:
+    case PrimitiveKind::Signed:
+      SelectedSize = closestNumericSize(Size).value_or(-1u);
+      break;
+
+    case PrimitiveKind::Float:
+      SelectedSize = closestFloatSize(Size).value_or(-1u);
+      break;
+
+    case PrimitiveKind::Generic:
+      SelectedSize = std::min(closestNumericSize(Size).value_or(-1u),
+                              closestFloatSize(Size).value_or(-1u));
+      break;
+
+    default:
+      revng_abort("Unsupported primitive kind");
+      break;
+    };
+
+    if (SelectedSize == -1u) {
+      std::string Error = "Requested size (" + std::to_string(Size)
+                          + ") is bigger than the largest allowed `"
+                          + ::toString(Kind) + "` primitive.\n";
+      revng_abort(Error.c_str());
+    }
+
+    return make(Kind, SelectedSize);
+  }
+
+  static UpcastableType makeGenericBigEnoughFor(uint64_t Size) {
+    return makeBigEnoughFor(model::PrimitiveKind::Generic, Size);
   }
 
   /// @}
