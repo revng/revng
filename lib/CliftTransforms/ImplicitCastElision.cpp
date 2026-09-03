@@ -163,6 +163,15 @@ private:
     Cast->setAttr("clift.implicit", mlir::UnitAttr::get(Cast->getContext()));
   }
 
+  bool isNullPointerConstant(mlir::Value Value) {
+    if (auto Immediate = Value.getDefiningOp<ImmediateOp>()) {
+      return Immediate.getValue().isZero()
+             and mlir::isa<IntegerType>(Value.getType());
+    }
+
+    return false;
+  }
+
   bool isImplicitConversion(CastOpInterface Cast) {
     mlir::Type DstT = unwrapTypedefs(Cast.getType());
     mlir::Type SrcT = unwrapTypedefs(Cast.getValueType());
@@ -171,23 +180,37 @@ private:
       return true;
 
     if (mlir::isa<BitCastOp>(Cast)) {
-      auto DstPtrT = mlir::dyn_cast<PointerType>(DstT);
-      auto SrcPtrT = mlir::dyn_cast<PointerType>(SrcT);
+      if (auto DstPtrT = mlir::dyn_cast<PointerType>(DstT)) {
 
-      if (DstPtrT and SrcPtrT) {
-        auto DstPointeeT = collapseTypedefs(DstPtrT.getPointeeType());
-        auto SrcPointeeT = collapseTypedefs(SrcPtrT.getPointeeType());
+        // Conversion from a null pointer constant is implicit:
+        // * Integer literal with value zero.
+        if (isNullPointerConstant(Cast.getValue()))
+          return true;
 
-        if (isConst(SrcPointeeT) and not isConst(DstPointeeT))
+        if (auto SrcPtrT = mlir::dyn_cast<PointerType>(SrcT)) {
+          auto DstPointeeT = collapseTypedefs(DstPtrT.getPointeeType());
+          auto SrcPointeeT = collapseTypedefs(SrcPtrT.getPointeeType());
+
+          // Conversions between function pointer types are not implicit.
+          if (mlir::isa<FunctionType>(DstPointeeT)
+              or mlir::isa<FunctionType>(SrcPointeeT))
+            return false;
+
+          // Conversion which remove qualifiers are not implicit.
+          if (isConst(SrcPointeeT) and not isConst(DstPointeeT))
+            return false;
+
+          // Otherwise, conversions between pointers with equivalent pointee
+          // types are implicit.
+          if (equivalent(SrcPointeeT, DstPointeeT))
+            return true;
+
+          // Conversion to a pointer with pointee type void is implicit.
+          if (mlir::isa<VoidType>(DstPointeeT))
+            return true;
+
           return false;
-
-        if (equivalent(SrcPointeeT, DstPointeeT))
-          return true;
-
-        if (mlir::isa<VoidType>(DstPointeeT))
-          return true;
-
-        return false;
+        }
       }
     }
 
