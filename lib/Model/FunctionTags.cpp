@@ -54,13 +54,6 @@ FunctionPoolTag<TypePair>
                        }
                      });
 
-FunctionPoolTag<llvm::Type *>
-  Parentheses("parentheses",
-              { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-              llvm::MemoryEffects::none(),
-              { &FunctionTags::UniquedByPrototype },
-              InitializationMode::InitializeFromReturnType);
-
 /// Tag for global variables representing segments
 Tag SegmentGlobal("segment-global");
 
@@ -170,15 +163,12 @@ getConstQualifiedExtractedValuesFromInstruction(T *I) {
   // Find extract value uses transitively, traversing PHIs and markers
   CallPtrSet<T> Calls;
   for (auto *TheUser : I->users()) {
-    if (auto *ExtractV = getCallToTagged(TheUser,
-                                         FunctionTags::OpaqueExtractValue)) {
-      Calls.insert(ExtractV);
-    } else {
-      if (auto *Call = dyn_cast<llvm::CallInst>(TheUser)) {
-        if (not isCallToTagged(Call, FunctionTags::Parentheses))
-          continue;
+    if (auto *Call = dyn_cast<llvm::CallInst>(TheUser)) {
+      if (auto *ExtractV = getCallToTagged(TheUser,
+                                           FunctionTags::OpaqueExtractValue)) {
+        Calls.insert(ExtractV);
       }
-
+    } else {
       // traverse PHIS and markers until we find extractvalues
       llvm::SmallPtrSet<ValueT<T> *, 8> Visited = {};
       llvm::SmallPtrSet<ValueT<T> *, 8> ToVisit = { TheUser };
@@ -194,9 +184,6 @@ getConstQualifiedExtractedValuesFromInstruction(T *I) {
             using FunctionTags::OpaqueExtractValue;
             if (auto *EV = getCallToTagged(User, OpaqueExtractValue)) {
               Calls.insert(EV);
-            } else if (auto *IdentUser = llvm::dyn_cast<llvm::CallInst>(User)) {
-              if (isCallToTagged(IdentUser, FunctionTags::Parentheses))
-                NextToVisit.insert(IdentUser);
             } else if (auto *PHIUser = llvm::dyn_cast<llvm::PHINode>(User)) {
               if (not Visited.contains(PHIUser))
                 NextToVisit.insert(PHIUser);
