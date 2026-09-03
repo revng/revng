@@ -19,7 +19,7 @@ model::Type::trySize(model::VerifyHelper &VH) const {
       rc_return std::nullopt;
 
   } else if (auto *Defined = llvm::dyn_cast<model::DefinedType>(this)) {
-    rc_return Defined->unwrap().trySize(VH);
+    rc_return rc_recur Defined->unwrap().trySize(VH);
 
   } else if (auto *Pointer = llvm::dyn_cast<model::PointerType>(this)) {
     rc_return Pointer->PointerSize();
