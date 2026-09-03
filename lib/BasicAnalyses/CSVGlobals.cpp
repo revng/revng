@@ -17,9 +17,11 @@ CSVGlobals::CSVGlobals(const model::Binary &Binary, llvm::Module &M) {
     RA = M.getGlobalVariable(singleCSVName(ReturnAddressRegister), true);
 
   for (model::Register::Values Register : registers(Architecture)) {
-    GlobalVariable *CSV = M.getGlobalVariable(singleCSVName(Register), true);
-    ABIRegisters.push_back(CSV);
-    ABIRegistersSet.insert(CSV);
+    for (const model::Register::CSV &CSV : model::Register::getCSVs(Register)) {
+      GlobalVariable *Variable = M.getGlobalVariable(CSV.Name, true);
+      ABIRegisters.push_back(Variable);
+      ABIRegistersSet.insert(Variable);
+    }
   }
 
   for (GlobalVariable &CSV : FunctionTags::CSV.globals(&M))
