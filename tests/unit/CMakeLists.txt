@@ -266,6 +266,18 @@ revng_add_test(NAME test_model_type COMMAND test_model_type)
 set_tests_properties(test_model_type PROPERTIES LABELS "unit")
 
 #
+# test_primitivetype
+#
+
+revng_add_test_executable(test_primitivetype "${SRC}/PrimitiveType.cpp")
+target_compile_definitions(test_primitivetype PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_primitivetype PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_primitivetype revngSupport revngUnitTestHelpers
+                      revngModel Boost::unit_test_framework ${LLVM_LIBRARIES})
+revng_add_test(NAME test_primitivetype COMMAND test_primitivetype)
+set_tests_properties(test_primitivetype PROPERTIES LABELS "unit")
+
+#
 # test_tuple_tree_generator
 #
 
