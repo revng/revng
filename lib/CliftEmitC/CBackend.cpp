@@ -657,16 +657,16 @@ public:
     }
 
     if (auto Immediate = mlir::dyn_cast<ImmediateOp>(E.getOperation())) {
-      if (isNullPointerConstant(Immediate)) {
-        return {
-          .Precedence = OperatorPrecedence::Primary,
-          .Emit = &CliftToCEmitter::emitNullPointerConstant,
-        };
-      }
-
       return {
         .Precedence = OperatorPrecedence::Primary,
         .Emit = &CliftToCEmitter::emitImmediateExpression,
+      };
+    }
+
+    if (auto Null = mlir::dyn_cast<NullOp>(E.getOperation())) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CliftToCEmitter::emitNullPointerConstant,
       };
     }
 

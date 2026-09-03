@@ -186,6 +186,9 @@ private:
   }
 
   bool isNullPointerConstant(mlir::Value Value) {
+    if (Value.getDefiningOp<NullOp>())
+      return true;
+
     if (auto Immediate = Value.getDefiningOp<ImmediateOp>()) {
       return Immediate.getValue().isZero()
              and mlir::isa<IntegerType>(Value.getType());
@@ -207,7 +210,8 @@ private:
     if (mlir::isa<BitCastOp>(Cast)) {
       if (auto DstPtrT = mlir::dyn_cast<PointerType>(DstT)) {
 
-        // Conversion from a null pointer constant is implicit:
+        // Conversion from a null pointer constant is implicit.
+        // * NULL
         // * Integer literal with value zero.
         if (isNullPointerConstant(Cast.getValue()))
           return true;

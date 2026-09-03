@@ -167,6 +167,15 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
   }
 };
 
+struct ResizeNullPattern : PointerResizePattern<NullOp> {
+  using PointerResizePattern::PointerResizePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(NullOp Op, mlir::PatternRewriter &Rewriter) const override {
+    return replacePointerResult(Rewriter, Op);
+  }
+};
+
 template<typename OpT>
 struct ResizePointerArithmeticPattern : PointerResizePattern<OpT> {
   using PointerResizePattern<OpT>::PointerResizePattern;
@@ -577,6 +586,7 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   {
     mlir::RewritePatternSet Set(Context);
 
+    Set.add<ResizeNullPattern>(Context, DataModel);
     Set.add<ResizePtrAddPattern>(Context, DataModel);
     Set.add<ResizePtrSubPattern>(Context, DataModel);
     Set.add<ResizePtrDiffPattern>(Context, DataModel);
