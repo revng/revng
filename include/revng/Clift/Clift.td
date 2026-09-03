@@ -780,6 +780,28 @@ def Clift_ImmediateOp : Clift_ExpressionOp<"imm"> {
   let hasVerifier = 1;
 }
 
+def Clift_NullOp : Clift_ExpressionOp<"null"> {
+  let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
+
+  let assemblyFormat = [{
+    attr-dict `:` type($result)
+  }];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] PointerType getPointerType() {
+      return clift::unwrapped_dyn_cast<PointerType>(getType());
+    }
+
+    [[nodiscard]] uint64_t getPointerSize() {
+      return getPointerType().getPointerSize();
+    }
+
+    [[nodiscard]] mlir::Type getPointeeType() {
+      return getPointerType().getPointeeType();
+    }
+  }];
+}
+
 def Clift_TrueOp : Clift_ExpressionOp<"true"> {
   let results = (outs Clift_BoolType:$result);
 
