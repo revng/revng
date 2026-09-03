@@ -17,8 +17,16 @@ def TypesAreEquivalent
 def TypesAreNotEquivalent
   : Constraint<CPred<[{ not clift::equivalent($0.getType(), $1.getType()) }]>>;
 
+def getType : NativeCodeCall<[{
+  $0.getType()
+}]>;
+
 def getPointeeType : NativeCodeCall<[{
   clift::unwrapped_cast<clift::PointerType>($0.getType()).getPointeeType()
+}]>;
+
+def removeConst : NativeCodeCall<[{
+  clift::removeConst($0)
 }]>;
 
 def makeInteger : NativeCodeCall<[{

@@ -17,4 +17,7 @@ mlir_tablegen(Expressions.h.inc -gen-rewriters)
 set(LLVM_TARGET_DEFINITIONS ExpressionPostProcessing.td)
 mlir_tablegen(ExpressionPostProcessing.h.inc -gen-rewriters)
 
+set(LLVM_TARGET_DEFINITIONS BooleanCastElimination.td)
+mlir_tablegen(BooleanCastElimination.h.inc -gen-rewriters)
+
 add_public_tablegen_target(MLIRCliftTransformsIncGen)
