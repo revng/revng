@@ -41,6 +41,12 @@ getFormattingReplacements(llvm::StringRef Code) {
   // it; keep it rather than replaying its removal as a whitespace edit.
   Style.SpaceAfterCStyleCast = true;
 
+  // Neither can occur in C, and each costs a whole extra pass over the
+  // document: clang-format lexes and annotates it again, then copies it to feed
+  // the next pass.
+  Style.FixNamespaceComments = false;
+  Style.SortUsingDeclarations = clang::format::FormatStyle::SUD_Never;
+
   // Teach clang-format the attribute-like macros the emitter writes, from their
   // single registry, so it parses the declarations they decorate rather than
   // misreading the run of macros. In particular this keeps the space before the
