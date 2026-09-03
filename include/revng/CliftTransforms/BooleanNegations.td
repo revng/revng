@@ -68,4 +68,23 @@ def LogicalNotNotPattern
   : Pat<(Clift_LogicalNotOp:$outer (Clift_LogicalNotOp $arg)),
         (forceBooleanResult $outer, $arg)>;
 
+// !x && !y -> x || y
+def DeMorganConjunctionPattern
+  : Pat<(Clift_LogicalNotOp (Clift_LogicalAndOp (Clift_LogicalNotOp $lhs),
+                                                (Clift_LogicalNotOp $rhs))),
+        (Clift_LogicalOrOp $lhs, $rhs)>;
+
+// !x || !y -> x && y
+def DeMorganDisjunctionPattern
+  : Pat<(Clift_LogicalNotOp (Clift_LogicalOrOp (Clift_LogicalNotOp $lhs),
+                                               (Clift_LogicalNotOp $rhs))),
+        (Clift_LogicalAndOp $lhs, $rhs)>;
+
+// !x ? y : z -> x ? z : y
+def TernaryInversionPattern
+  : Pat<(Clift_TernaryOp (Clift_LogicalNotOp $condition),
+                         $lhs,
+                         $rhs),
+        (Clift_TernaryOp $condition, $rhs, $lhs)>;
+
 #endif
