@@ -60,11 +60,21 @@ def CmpEqWithZeroPattern
         (Clift_LogicalNotOp (Clift_TestOp $arg)),
         [(Constraint<CPred<"$0.getValue().isZero()">> $value)]>;
 
+// x == NULL -> !test(x)
+def CmpEqWithNullPattern
+  : Pat<(Clift_CmpEqOp $arg, (Clift_NullOp)),
+        (Clift_LogicalNotOp (Clift_TestOp $arg))>;
+
 // x != 0 -> test(x)
 def CmpNeWithZeroPattern
   : Pat<(Clift_CmpNeOp $arg, (Clift_ImmediateOp $value)),
         (Clift_TestOp $arg),
         [(Constraint<CPred<"$0.getValue().isZero()">> $value)]>;
+
+// x != NULL -> test(x)
+def CmpNeWithNullPattern
+  : Pat<(Clift_CmpNeOp $arg, (Clift_NullOp)),
+        (Clift_TestOp $arg)>;
 
 //===--------------------------- Math identities --------------------------===//
 
@@ -81,6 +91,13 @@ def ZeroSubPattern
         [(Constraint<CPred<[{ $0.getValue().isZero() }]>> $value)]>;
 
 //===---------------------------- Miscellaneous ---------------------------===//
+
+// (T *)0 -> NULL
+def NullImmediatePattern
+  : Pat<(Clift_BitCastOp:$res (Clift_ImmediateOp $value)),
+        (Clift_NullOp),
+        [(Clift_AnyPointerType $res),
+         (Constraint<CPred<[{ $0.getValue().isZero() }]>> $value)]>;
 
 // (T)123 -> 123
 // Constraint: T is an integer type.
