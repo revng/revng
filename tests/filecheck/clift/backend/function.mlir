@@ -27,6 +27,16 @@ module attributes {clift.module} {
       handle = "/local-variable/0x40001001:Code_x86_64/0",
       name = "var_0"
     }
+
+    // CHECK: fun_0x40001001_t *var_1 = fun_0x40001001;
+    clift.local : !f$ptr = {
+      %f = clift.use @fun_0x40001001 : !f
+      %r = clift.implicit_cast %f : !f -> !f$ptr
+      clift.yield %r : !f$ptr
+    } attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/1",
+      name = "var_1"
+    }
   }
   // CHECK: }
 }

@@ -14,9 +14,9 @@ module attributes {clift.module} {
   clift.func @f<!f>(%arg0 : !uint8_t) -> !void {
     // CHECK: clift.expr {
     clift.expr {
-      // CHECK: %0 = clift.zext %arg0 {clift.implicit} : !uint8_t -> !int32_t
+      // CHECK: %0 = clift.implicit_cast %arg0 : !uint8_t -> !int32_t
       %0 = clift.zext %arg0 : !uint8_t -> !int32_t
-      // CHECK: %1 = clift.zext %arg0 {clift.implicit} : !uint8_t -> !int32_t
+      // CHECK: %1 = clift.implicit_cast %arg0 : !uint8_t -> !int32_t
       %1 = clift.zext %arg0 : !uint8_t -> !int32_t
       // CHECK: %2 = clift.add %0, %1 : !int32_t
       %2 = clift.add %0, %1 : !int32_t
