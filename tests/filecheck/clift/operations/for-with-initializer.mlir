@@ -9,7 +9,8 @@
 clift.for init : !int32_t {
   clift.local : !int32_t
 } cond (%i) {
-  clift.yield %i : !int32_t
+  %0 = clift.test %i : !int32_t
+  clift.yield %0 : !clift.bool
 } next (%i) {
   %0 = clift.inc %i : !int32_t
   clift.yield %0 : !int32_t

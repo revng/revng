@@ -59,13 +59,6 @@ public:
                                     " implementation.";
     }
 
-    if (isBooleanOp(E)) {
-      if (not isCanonicalBooleanType(E.getType()))
-        return Op->emitOpError() << " - not yielding the canonical boolean type"
-                                 << " - is not representable in the target"
-                                 << " implementation.";
-    }
-
     if (hasMismatchedSignedness(E))
       return Op->emitOpError() << " operand signedness does not match operation"
                                   " semantics.";
@@ -97,22 +90,6 @@ private:
                      SarOp>(Op);
   }
 
-  static bool isBooleanOp(mlir::Operation *Op) {
-    return mlir::isa<LogicalNotOp,
-                     LogicalAndOp,
-                     LogicalOrOp,
-                     CmpEqOp,
-                     CmpNeOp,
-                     SCmpLtOp,
-                     UCmpLtOp,
-                     SCmpGtOp,
-                     UCmpGtOp,
-                     SCmpLeOp,
-                     UCmpLeOp,
-                     SCmpGeOp,
-                     UCmpGeOp>(Op);
-  }
-
   static bool hasMismatchedSignedness(mlir::Operation *Op) {
     if (mlir::isa<ShrOp,
                   UDivOp,
@@ -138,12 +115,6 @@ private:
   bool isPotentiallyPromotingType(mlir::Type Type) {
     if (auto IntType = clift::unwrapped_dyn_cast<IntegerType>(Type))
       return IntType.getSize() < DataModel->getIntSize();
-    return false;
-  }
-
-  bool isCanonicalBooleanType(mlir::Type Type) {
-    if (auto IntType = clift::unwrapped_dyn_cast<IntegerType>(Type))
-      return IntType.getSize() == DataModel->getIntSize();
     return false;
   }
 };

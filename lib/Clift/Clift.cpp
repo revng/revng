@@ -11,6 +11,7 @@
 
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftAttributes.h"
+#include "revng/Clift/CliftC.h"
 #include "revng/Clift/CliftOpHelpers.h"
 
 std::unique_ptr<mlir::MLIRContext> clift::makeContext() {
@@ -103,17 +104,6 @@ static void printCliftPointerArithmeticOpTypes(mlir::OpAsmPrinter &Parser,
                                                mlir::Type Lhs,
                                                mlir::Type Rhs);
 
-static mlir::ParseResult parseCliftTernaryOpTypes(mlir::OpAsmParser &Parser,
-                                                  mlir::Type &Condition,
-                                                  mlir::Type &Lhs,
-                                                  mlir::Type &Rhs);
-
-static void printCliftTernaryOpTypes(mlir::OpAsmPrinter &Printer,
-                                     mlir::Operation *Op,
-                                     mlir::Type Condition,
-                                     mlir::Type Lhs,
-                                     mlir::Type Rhs);
-
 #define GET_OP_CLASSES
 #include "revng/Clift/Clift.cpp.inc"
 
@@ -145,10 +135,14 @@ const CDataModel &clift::getDataModel(mlir::ModuleOp Module) {
   revng_abort("The module does not specify a data model.");
 }
 
-const CDataModel &clift::getDataModel(FunctionOp Function) {
-  auto Module = Function->getParentOfType<mlir::ModuleOp>();
-  revng_assert(Module, "The function must be contained within a module.");
+const CDataModel &clift::getDataModel(mlir::Operation *Op) {
+  auto Module = Op->getParentOfType<mlir::ModuleOp>();
+  revng_assert(Module, "The operation must be contained within a module.");
   return getDataModel(Module);
+}
+
+const CDataModel &clift::getDataModel(mlir::Value Value) {
+  return getDataModel(Value.getParentRegion()->getParentOp());
 }
 
 void clift::setDataModel(mlir::ModuleOp Module, const CDataModel &DataModel) {
@@ -217,7 +211,8 @@ bool clift::impl::verifyExpressionRegion(mlir::Region &R) {
 }
 
 bool clift::impl::verifyConditionRegion(mlir::Region &R) {
-  return verifyExpressionRegion(R) and isScalarType(getExpressionType(R));
+  return verifyExpressionRegion(R)
+         and mlir::isa<BoolType>(getExpressionType(R));
 }
 
 //===-------------------------- Operation parsing -------------------------===//
@@ -1254,6 +1249,29 @@ void WhileOp::build(mlir::OpBuilder &Builder,
 
 //===----------------------------- Expressions ----------------------------===//
 
+//===------------------------------- TestOp -------------------------------===//
+
+mlir::LogicalResult TestOp::canonicalize(TestOp Op,
+                                         mlir::PatternRewriter &Rewriter) {
+  mlir::Value Operand = Op.getValue();
+
+  if (not mlir::isa<BoolType>(Operand.getType()))
+    return mlir::failure();
+
+  Rewriter.replaceAllUsesWith(Op, Operand);
+  return mlir::success();
+}
+
+//===--------------------------- ImplicitCastOp ---------------------------===//
+
+mlir::LogicalResult ImplicitCastOp::verify() {
+  if (!c::isImplicitlyConvertible(getValue().getType(), getType()))
+    return emitOpError() << getOperationName()
+                         << " conversion is not implicit.";
+
+  return mlir::success();
+}
+
 //===----------------------------- ImmediateOp ----------------------------===//
 
 mlir::ParseResult ImmediateOp::parse(mlir::OpAsmParser &Parser,
@@ -1452,33 +1470,6 @@ LvalueToRvalueConversion
 DecayOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
   revng_assert(Operand.getOwner() == getOperation());
   return LvalueToRvalueConversion::No;
-}
-
-mlir::LogicalResult DecayOp::verify() {
-  auto ArgT = collapseTypedefs(getValueType());
-
-  auto PtrT = clift::unwrapped_dyn_cast<PointerType>(getType());
-  if (not PtrT)
-    return emitOpError() << getOperationName()
-                         << " result must have pointer type.";
-
-  if (auto ArrayT = mlir::dyn_cast<ArrayType>(ArgT)) {
-    if (PtrT.getPointeeType() != ArrayT.getElementType())
-      return emitOpError() << getOperationName()
-                           << " the pointee type of the result type must be"
-                              " equal to the element type of the argument"
-                              " type.";
-  } else if (auto FunctionT = mlir::dyn_cast<FunctionType>(ArgT)) {
-    if (PtrT.getPointeeType() != FunctionT)
-      return emitOpError() << getOperationName()
-                           << " the pointee type of the result type must be"
-                              " equal to the argument type.";
-  } else {
-    return emitOpError() << getOperationName()
-                         << " argument must have array or function type.";
-  }
-
-  return mlir::success();
 }
 
 //===----------------------------- PtrResizeOp ----------------------------===//
@@ -1825,46 +1816,6 @@ mlir::LogicalResult CallOp::verify() {
                             " function, ignoring qualifiers.";
 
   return mlir::success();
-}
-
-//===------------------------------ TernaryOp -----------------------------===//
-
-static mlir::ParseResult parseCliftTernaryOpTypes(mlir::OpAsmParser &Parser,
-                                                  mlir::Type &Condition,
-                                                  mlir::Type &Lhs,
-                                                  mlir::Type &Rhs) {
-  if (Parser.parseType(Condition).failed())
-    return mlir::failure();
-
-  if (Parser.parseComma().failed())
-    return mlir::failure();
-
-  if (Parser.parseType(Lhs).failed())
-    return mlir::failure();
-
-  if (Parser.parseOptionalComma().succeeded()) {
-    if (Parser.parseType(Rhs).failed())
-      return mlir::failure();
-  } else {
-    Rhs = Lhs;
-  }
-
-  return mlir::success();
-}
-
-static void printCliftTernaryOpTypes(mlir::OpAsmPrinter &Printer,
-                                     mlir::Operation *Op,
-                                     mlir::Type Condition,
-                                     mlir::Type Lhs,
-                                     mlir::Type Rhs) {
-  Printer << Condition;
-  Printer << ',';
-  Printer << Lhs;
-
-  if (Lhs != Rhs) {
-    Printer << ',';
-    Printer << Rhs;
-  }
 }
 
 //===----------------------------- AggregateOp ----------------------------===//

@@ -46,8 +46,3 @@ bool clift::isDiscardedOperand(mlir::OpOperand &Operand) {
   return testOperandUsage<&StatementOpInterface::isDiscardedExpression,
                           &ExpressionOpInterface::isDiscardedOperand>(Operand);
 }
-
-bool clift::isBooleanTested(mlir::Value Value) {
-  return testValueUsage<&StatementOpInterface::isBooleanTestedExpression,
-                        &ExpressionOpInterface::isBooleanTestedOperand>(Value);
-}

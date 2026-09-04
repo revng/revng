@@ -19,8 +19,8 @@ module attributes {clift.module} {
     %L = clift.local : !int32_t
     // CHECK: clift.if {
     clift.if {
-      %0 = clift.imm 1 : !int32_t
-      clift.yield %0 : !int32_t
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     // CHECK: } then {
     } then {
       // CHECK: [[L:%[0-9]+]] = clift.local : !int32_t

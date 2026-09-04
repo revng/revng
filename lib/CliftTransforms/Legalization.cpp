@@ -167,6 +167,15 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
   }
 };
 
+struct ResizeNullPattern : PointerResizePattern<NullOp> {
+  using PointerResizePattern::PointerResizePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(NullOp Op, mlir::PatternRewriter &Rewriter) const override {
+    return replacePointerResult(Rewriter, Op);
+  }
+};
+
 template<typename OpT>
 struct ResizePointerArithmeticPattern : PointerResizePattern<OpT> {
   using PointerResizePattern<OpT>::PointerResizePattern;
@@ -264,31 +273,6 @@ struct PointerComparisonPattern : mlir::OpRewritePattern<OpT> {
   }
 };
 
-struct BooleanCanonicalizationPattern
-  : mlir::OpTraitRewritePattern<clift::ReturnsBoolean> {
-  IntegerType IntType;
-
-  explicit BooleanCanonicalizationPattern(mlir::MLIRContext *Context,
-                                          const CDataModel &DataModel) :
-    mlir::OpTraitRewritePattern<clift::ReturnsBoolean>(Context),
-    IntType(getIntType(Context, DataModel)) {}
-
-  mlir::LogicalResult
-  matchAndRewrite(mlir::Operation *Op,
-                  mlir::PatternRewriter &Rewriter) const override {
-    mlir::Value Result = Op->getResult(0);
-
-    auto T = clift::unwrapped_cast<IntegerType>(Result.getType());
-
-    if (T.getSize() == IntType.getSize())
-      return mlir::failure();
-
-    modifyResultType(Rewriter, Op, IntType, not clift::isBooleanTested(Result));
-
-    return mlir::success();
-  }
-};
-
 template<typename OpT>
 struct ArithmeticPromotionPattern : mlir::OpRewritePattern<OpT> {
   IntegerType IntType;
@@ -341,6 +325,24 @@ struct ShiftPromotionPattern : ArithmeticPromotionPattern<OpT> {
   mlir::LogicalResult
   matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
     return this->tryPromoteTypes(Rewriter, Op, { 0 });
+  }
+};
+
+struct BooleanCanonicalizationPattern : mlir::OpRewritePattern<BoolExtendOp> {
+  IntegerType IntType;
+
+  explicit BooleanCanonicalizationPattern(mlir::MLIRContext *Context,
+                                          const CDataModel &DataModel) :
+    OpRewritePattern(Context), IntType(getIntType(Context, DataModel)) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(BoolExtendOp Op,
+                  mlir::PatternRewriter &Rewriter) const override {
+    if (Op.getType() == IntType)
+      return mlir::failure();
+
+    modifyResultType(Rewriter, Op, IntType);
+    return mlir::success();
   }
 };
 
@@ -581,10 +583,10 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   // * Resize pointer operands.
   // * Apply arithmetic promotions.
   // * Canonicalize boolean result types.
-  // * Emit casts around unrepresentable literals.
   {
     mlir::RewritePatternSet Set(Context);
 
+    Set.add<ResizeNullPattern>(Context, DataModel);
     Set.add<ResizePtrAddPattern>(Context, DataModel);
     Set.add<ResizePtrSubPattern>(Context, DataModel);
     Set.add<ResizePtrDiffPattern>(Context, DataModel);
@@ -620,11 +622,22 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     Set.add<ShiftPromotionPattern<SarOp>>(Context, DataModel);
     Set.add<ShiftPromotionPattern<ShrOp>>(Context, DataModel);
 
-    Set.add<ImmediateCastPattern>(Context, DataModel);
-
     // Cast canonicalisation is used to collapse casts introduced by the
     // other rewrites.
     populateWithCastCanonicalizations(Set);
+
+    auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
+    if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
+      return mlir::failure();
+  }
+
+  // Emit casts around unrepresentable immediates. This should only be done
+  // after promotions and pointer resizing, because those rewrites may surface
+  // opportunities for immediate canonicalisations.
+  {
+    mlir::RewritePatternSet Set(Context);
+
+    Set.add<ImmediateCastPattern>(Context, DataModel);
 
     auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
     if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())

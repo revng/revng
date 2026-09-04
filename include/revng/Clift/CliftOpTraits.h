@@ -60,10 +60,4 @@ public:
   }
 };
 
-template<typename ConcreteType>
-class ReturnsBoolean
-  : public mlir::OpTrait::TraitBase<ConcreteType, ReturnsBoolean> {
-  using Base = mlir::OpTrait::TraitBase<ConcreteType, ReturnsBoolean>;
-};
-
 } // namespace clift

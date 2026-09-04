@@ -27,10 +27,10 @@ module attributes {clift.module} {
     // CHECK: }
     }
 
-    // CHECK: if (2) {
+    // CHECK: if (true) {
     clift.if {
-      %0 = clift.imm 2 : !int32_t
-      clift.yield %0 : !int32_t
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     } then {
       clift.block {
         // CHECK: {

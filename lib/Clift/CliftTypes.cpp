@@ -1599,11 +1599,6 @@ bool clift::isScalarType(mlir::Type Type) {
                               PointerType>(Type);
 }
 
-bool clift::isBooleanType(mlir::Type Type) {
-  auto T = clift::unwrapped_dyn_cast<IntegerType>(Type);
-  return T and T.isSigned();
-}
-
 clift::FunctionType
 clift::getFunctionOrFunctionPointerFunctionType(mlir::Type Type) {
   Type = unwrapTypedefs(Type);

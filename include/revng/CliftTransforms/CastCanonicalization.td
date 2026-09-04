@@ -18,6 +18,11 @@ def BitcastBitcastPattern
   : Pat<(Clift_BitCastOp:$res (Clift_BitCastOp $arg)),
         (Clift_BitCastOp $arg)>;
 
+def BitcastDecayPattern
+  : Pat<(Clift_BitCastOp:$res (Clift_DecayOp $arg)),
+        (Clift_DecayOp $arg),
+        [(Clift_AnyPointerType $res)]>;
+
 def BitcastZeroExtendPattern
   : Pat<(Clift_BitCastOp:$res (Clift_ZeroExtendOp $arg)),
         (Clift_ZeroExtendOp $arg),

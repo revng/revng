@@ -124,11 +124,7 @@ static void createLoop(FunctionOp Function,
   auto Loop = Builder.create<WhileOp>(LoopLoc);
 
   Builder.setInsertionPointToStart(&Loop.getCondition().emplaceBlock());
-
-  auto Bool = getBooleanType(Builder.getContext());
-  auto True = Builder.create<ImmediateOp>(LoopLoc, Bool, 1);
-
-  Builder.create<YieldOp>(LoopLoc, True);
+  Builder.create<YieldOp>(LoopLoc, Builder.create<TrueOp>(LoopLoc));
 
   Loop.getBody().push_back(BodyBlock);
 

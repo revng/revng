@@ -117,6 +117,12 @@ def CliftImplicitCastElision : Clift_Pass<"elide-implicit-casts",
   let constructor = "clift::createImplicitCastElisionPass()";
 }
 
+def CliftBooleanCastElimination : Clift_Pass<"eliminate-boolean-casts",
+                                             "clift::FunctionOp"> {
+  let summary = "Convert explicit boolean casts to comparisons against zero.";
+  let constructor = "clift::createBooleanCastEliminationPass()";
+}
+
 def CliftVerifyC : Clift_Pass<"verify-c", "mlir::ModuleOp"> {
   let summary = "Verify that the Clift semantics correspond to C semantics " #
                 "in the specified target implementation.";

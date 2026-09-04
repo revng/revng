@@ -7,6 +7,7 @@ revng_add_library_internal(
   SHARED
   Clift.cpp
   CliftAttributes.cpp
+  CliftC.cpp
   CliftDialect.cpp
   CliftEnums.cpp
   CliftInterfaces.cpp

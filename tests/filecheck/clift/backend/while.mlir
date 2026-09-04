@@ -17,10 +17,10 @@ module attributes {clift.module} {
   clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    // CHECK: while (2) {
+    // CHECK: while (true) {
     clift.while cond {
-      %2 = clift.imm 2 : !int32_t
-      clift.yield %2 : !int32_t
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     } body {
       // CHECK: 3;
       clift.expr {

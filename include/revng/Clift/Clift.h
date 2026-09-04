@@ -117,10 +117,23 @@ bool isCliftModule(mlir::ModuleOp Module);
 /// \note The module must have an associated data model.
 const CDataModel &getDataModel(mlir::ModuleOp Module);
 
-/// Returns the data model for the specified function.
-/// \note The function must be contained within a module, and that module must
+/// Returns the data model for the specified operation.
+/// \note The operation must be contained within a module, and that module must
 ///       have an associated data model.
-const CDataModel &getDataModel(FunctionOp Function);
+const CDataModel &getDataModel(mlir::Operation *Op);
+
+/// Returns the data model for the specified operation.
+/// \note The operation must be contained within a module, and that module must
+///       have an associated data model.
+template<std::derived_from<mlir::OpState> OpT>
+const CDataModel &getDataModel(OpT Op) {
+  return getDataModel(Op.getOperation());
+}
+
+/// Returns the data model for the specified value.
+/// \note The value must be contained within a module, and that module must
+///       have an associated data model.
+const CDataModel &getDataModel(mlir::Value Value);
 
 /// Assigns the module data model.
 void setDataModel(mlir::ModuleOp Module, const CDataModel &DataModel);

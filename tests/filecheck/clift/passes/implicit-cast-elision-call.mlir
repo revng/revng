@@ -19,7 +19,7 @@ module attributes {clift.module} {
     clift.expr {
       // CHECK: %0 = clift.use @g : !g
       %0 = clift.use @g : !g
-      // CHECK: %1 = clift.truncate %arg0 {clift.implicit} : !int32_t -> !uint8_t
+      // CHECK: %1 = clift.implicit_cast %arg0 : !int32_t -> !uint8_t
       %1 = clift.truncate %arg0 : !int32_t -> !uint8_t
       // CHECK: %2 = clift.call %0(%1) : !g
       %2 = clift.call %0(%1) : !g

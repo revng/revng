@@ -26,7 +26,11 @@ class Clift_Op<string mnemonic, list<Trait> traits = []>
 
 def Clift_AnyAddressableType
   : Type<CPred<"mlir::isa<clift::AddressableType>($_self)">,
-         "value type">;
+         "addressable type">;
+
+def Clift_AnyExpressionType
+  : Type<Or<[Clift_AnyAddressableType.predicate, Clift_BoolType.predicate]>,
+         "addressable or boolean type">;
 
 def Clift_AnyObjectType
   : Type<CPred<"clift::unwrapped_isa<clift::ObjectType>($_self)">,
@@ -36,13 +40,13 @@ def Clift_AnyValueType
   : Type<CPred<"clift::unwrapped_isa<clift::ValueType>($_self)">,
          "value type">;
 
-def Clift_AnyBooleanType
-  : Type<CPred<"clift::isBooleanType($_self)">,
-         "boolean type">;
-
 def Clift_AnyScalarType
   : Type<CPred<"clift::isScalarType($_self)">,
          "scalar type">;
+
+def Clift_AnyScalarTypeOrBool
+  : Type<Or<[Clift_AnyScalarType.predicate, Clift_BoolType.predicate]>,
+         "scalar type or bool">;
 
 def Clift_AnyIntegerType
   : Type<CPred<"clift::unwrapped_isa<clift::IntegralType>($_self)">,
@@ -56,9 +60,17 @@ def Clift_AnyPointerType
   : Type<CPred<"clift::unwrapped_isa<clift::PointerType>($_self)">,
          "pointer type">;
 
+def Clift_AnyArrayType
+  : Type<CPred<"clift::unwrapped_isa<clift::ArrayType>($_self)">,
+         "array type">;
+
 def Clift_AnyFunctionType
   : Type<CPred<"clift::unwrapped_isa<clift::FunctionType>($_self)">,
          "function type">;
+
+def Clift_AnyArrayOrFunctionType
+  : Type<Or<[Clift_AnyArrayType.predicate, Clift_AnyFunctionType.predicate]>,
+         "array or function type">;
 
 def Clift_AnyNonVoidType
   : Type<CPred<"not clift::unwrapped_isa<clift::VoidType>($_self)">,
@@ -425,10 +437,6 @@ def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
   }];
 
   let extraClassDeclaration = [{
-    [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
-      return &R == &getCondition();
-    }
-
     unsigned getStatementRegionCount() {
       return 1;
     }
@@ -490,10 +498,6 @@ def Clift_ForOp
   let extraClassDeclaration = [{
     [[nodiscard]] bool isDiscardedExpression(mlir::Region &R);
 
-    [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
-      return &R == &getCondition();
-    }
-
     unsigned getStatementRegionCount() {
       return 1;
     }
@@ -533,10 +537,6 @@ def Clift_IfOp : Clift_BasicStatementOp<"if", Clift_BranchOpInterface> {
 
   let extraClassDeclaration = [{
     clift::NoFallthroughKind isIndirectlyNoFallthrough() const;
-
-    [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
-      return &R == &getCondition();
-    }
 
     unsigned getStatementRegionCount() {
       return 2;
@@ -703,10 +703,6 @@ def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
   }];
 
   let extraClassDeclaration = [{
-    [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
-      return &R == &getCondition();
-    }
-
     unsigned getStatementRegionCount() {
       return 1;
     }
@@ -749,7 +745,7 @@ def Clift_UndefOp : Clift_ExpressionOp<"undef"> {
 
 def Clift_YieldOp : Clift_Op<"yield", [Terminator]> {
 
-  let arguments = (ins Clift_AnyAddressableType:$value);
+  let arguments = (ins Clift_AnyExpressionType:$value);
 
   let assemblyFormat = [{
     $value attr-dict `:` type($value)
@@ -790,6 +786,44 @@ def Clift_ImmediateOp : Clift_ExpressionOp<"imm"> {
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
+}
+
+def Clift_NullOp : Clift_ExpressionOp<"null"> {
+  let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
+
+  let assemblyFormat = [{
+    attr-dict `:` type($result)
+  }];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] PointerType getPointerType() {
+      return clift::unwrapped_dyn_cast<PointerType>(getType());
+    }
+
+    [[nodiscard]] uint64_t getPointerSize() {
+      return getPointerType().getPointerSize();
+    }
+
+    [[nodiscard]] mlir::Type getPointeeType() {
+      return getPointerType().getPointeeType();
+    }
+  }];
+}
+
+def Clift_TrueOp : Clift_ExpressionOp<"true"> {
+  let results = (outs Clift_BoolType:$result);
+
+  let assemblyFormat = [{
+    attr-dict
+  }];
+}
+
+def Clift_FalseOp : Clift_ExpressionOp<"false"> {
+  let results = (outs Clift_BoolType:$result);
+
+  let assemblyFormat = [{
+    attr-dict
+  }];
 }
 
 def Clift_StringOp : Clift_ExpressionOp<"str"> {
@@ -870,23 +904,14 @@ class Clift_PointerArithmeticOp<string mnemonic, list<Trait> traits = []>
   }];
 }
 
-class Clift_BinaryLogicalOp<string mnemonic>
-  : Clift_ExpressionOp<mnemonic, [Clift_ReturnsBoolean]> {
+class Clift_BinaryLogicalOp<string mnemonic> : Clift_ExpressionOp<mnemonic> {
+  let arguments = (ins Clift_BoolType:$lhs,
+                       Clift_BoolType:$rhs);
 
-  let arguments = (ins Clift_AnyScalarType:$lhs,
-                       Clift_AnyScalarType:$rhs);
-
-  let results = (outs Clift_AnyNonConstType<Clift_AnyBooleanType>:$result);
+  let results = (outs Clift_BoolType:$result);
 
   let assemblyFormat = [{
-    $lhs `,` $rhs attr-dict `:`
-    custom<CliftOpOperandTypes>(type($lhs), type($rhs)) `->` type($result)
-  }];
-
-  let extraClassDeclaration = [{
-    [[nodiscard]] bool isBooleanTestedOperand(mlir::OpOperand &Operand) {
-      return true;
-    }
+    $lhs `,` $rhs attr-dict
   }];
 }
 
@@ -907,17 +932,16 @@ class Clift_ShiftOp<string mnemonic>
 class Clift_ComparisonOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
                        [Commutative,
-                        Clift_ReturnsBoolean,
                         Clift_AllTypesMatch<["lhs", "rhs"]>]> {
 
   let arguments = (ins Clift_AnyScalarType:$lhs,
                        Clift_AnyScalarType:$rhs);
 
-  let results = (outs Clift_AnyNonConstType<Clift_AnyBooleanType>:$result);
+  let results = (outs Clift_BoolType:$result);
 
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:`
-    custom<CliftOpOperandTypes>(type($lhs), type($rhs)) `->` type($result)
+    custom<CliftOpOperandTypes>(type($lhs), type($rhs))
   }];
 }
 
@@ -971,20 +995,12 @@ def Clift_PtrDiffOp : Clift_ExpressionOp<"ptr_diff"> {
   let hasVerifier = 1;
 }
 
-def Clift_LogicalNotOp
-  : Clift_ExpressionOp<"not", [Clift_ReturnsBoolean]> {
-
-  let arguments = (ins Clift_AnyIntegerType:$value);
-  let results = (outs Clift_AnyNonConstType<Clift_AnyBooleanType>:$result);
+def Clift_LogicalNotOp : Clift_ExpressionOp<"not"> {
+  let arguments = (ins Clift_BoolType:$value);
+  let results = (outs Clift_BoolType:$result);
 
   let assemblyFormat = [{
-    $value attr-dict `:` type($value) `->` type($result)
-  }];
-
-  let extraClassDeclaration = [{
-    [[nodiscard]] bool isBooleanTestedOperand(mlir::OpOperand &Operand) {
-      return true;
-    }
+    $value attr-dict
   }];
 }
 
@@ -1026,15 +1042,34 @@ def Clift_DecayOp
                            [DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
                                                       ["lvalueToRvalueConversion"]>]> {
 
-  let arguments = (ins AnyType:$value);
-
-  let results = (outs Clift_AnyNonConstType<AnyType>:$result);
+  let arguments = (ins Clift_AnyArrayOrFunctionType:$value);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
 
   let assemblyFormat = [{
     $value attr-dict `:` type($value) `->` type($result)
   }];
+}
 
-  let hasVerifier = 1;
+def Clift_TestOp : Clift_CastExpressionOp<"test"> {
+  let arguments = (ins Clift_AnyScalarTypeOrBool:$value);
+
+  let results = (outs Clift_BoolType:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($value)
+  }];
+
+  let hasCanonicalizeMethod = 1;
+}
+
+def Clift_BoolExtendOp : Clift_CastExpressionOp<"bext"> {
+  let arguments = (ins Clift_BoolType:$value);
+
+  let results = (outs Clift_AnyIntegerType:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($result)
+  }];
 }
 
 def Clift_BitCastOp
@@ -1094,6 +1129,17 @@ def Clift_PtrResizeOp
 
   let arguments = (ins Clift_AnyPointerType:$value);
   let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($value) `->` type($result)
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_ImplicitCastOp : Clift_ExpressionOp<"implicit_cast"> {
+  let arguments = (ins Clift_AnyExpressionType:$value);
+  let results = (outs Clift_AnyExpressionType:$result);
 
   let assemblyFormat = [{
     $value attr-dict `:` type($value) `->` type($result)
@@ -1264,21 +1310,15 @@ def Clift_TernaryOp
                        [Clift_AllTypesMatch<["lhs", "rhs"]>,
                         Clift_UnqualifiedTypeMatches<"lhs", "result">]> {
 
-  let arguments = (ins Clift_AnyScalarType:$condition,
+  let arguments = (ins Clift_BoolType:$condition,
                        AnyType:$lhs,
                        AnyType:$rhs);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyAddressableType>:$result);
 
   let assemblyFormat = [{
-    $condition `,` $lhs `,` $rhs attr-dict `:` `(`
-    custom<CliftTernaryOpTypes>(type($condition), type($lhs), type($rhs)) `)`
-  }];
-
-  let extraClassDeclaration = [{
-    [[nodiscard]] bool isBooleanTestedOperand(mlir::OpOperand &Operand) {
-      return &Operand == &getOperation()->getOpOperand(0);
-    }
+    $condition `,` $lhs `,` $rhs attr-dict `:`
+    custom<CliftOpOperandTypes>(type($lhs), type($rhs))
   }];
 }
 
