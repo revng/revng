@@ -203,7 +203,8 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
   for (const ImportedSymbolRef &I : Range) {
     StringRef Sym;
     if (Error E = I.getSymbolName(Sym)) {
-      revng_log(Log, "Found an imported symbol without a name.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log, "Found an imported symbol without a name: " << Message);
       continue;
     }
 
@@ -211,7 +212,9 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
     // so consider this info then.
     uint16_t Ordinal;
     if (Error E = I.getOrdinal(Ordinal)) {
-      revng_log(Log, "Found an imported symbol without an ordinal.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log,
+                "Found an imported symbol without an ordinal: " << Message);
       continue;
     }
 
@@ -244,7 +247,8 @@ void PECOFFImporter::parseImportedSymbols() {
        TheBinary.ObjectFile.import_directories()) {
     StringRef Name;
     if (Error E = I.getName(Name)) {
-      revng_log(Log, "Found an imported library without a name.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log, "Found an imported library without a name: " << Message);
       continue;
     }
 
@@ -263,13 +267,17 @@ void PECOFFImporter::parseImportedSymbols() {
     uint32_t ImportLookupTableEntry = 0;
     bool HasImportLookupTableEntry = true;
     if (Error E = I.getImportLookupTableRVA(ImportLookupTableEntry)) {
-      revng_log(Log, "No ImportLookupTableRVA found for an import");
+      std::string Message = toString(std::move(E));
+      revng_log(Log,
+                "No ImportLookupTableRVA found for an import: " << Message);
       HasImportLookupTableEntry = false;
     }
 
     uint32_t ImportAddressTableEntry;
     if (Error E = I.getImportAddressTableRVA(ImportAddressTableEntry)) {
-      revng_log(Log, "No ImportAddressTableRVA found for an import");
+      std::string Message = toString(std::move(E));
+      revng_log(Log,
+                "No ImportAddressTableRVA found for an import: " << Message);
       continue;
     }
 
@@ -296,7 +304,9 @@ void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
   for (const ImportedSymbolRef &S : Range) {
     StringRef Sym;
     if (Error E = S.getSymbolName(Sym)) {
-      revng_log(Log, "Found a delay imported symbol without a name.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log,
+                "Found a delay imported symbol without a name: " << Message);
       continue;
     }
 
@@ -304,13 +314,19 @@ void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
     // so consider this info then.
     uint16_t Ordinal;
     if (Error E = S.getOrdinal(Ordinal)) {
-      revng_log(Log, "Found a delay imported symbol without an ordinal.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log,
+                "Found a delay imported symbol without an ordinal: "
+                  << Message);
       continue;
     }
 
     uint64_t Addr;
     if (Error E = I.getImportAddress(Index++, Addr)) {
-      revng_log(Log, "Found a delay imported symbol without an address.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log,
+                "Found a delay imported symbol without an address: "
+                  << Message);
       continue;
     }
 
@@ -335,13 +351,15 @@ void PECOFFImporter::parseDelayImportedSymbols() {
   for (DelayDirectoryRef &I : TheBinary.ObjectFile.delay_import_directories()) {
     StringRef Name;
     if (Error E = I.getName(Name)) {
-      revng_log(Log, "No name of a delay imported dll.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log, "No name of a delay imported dll: " << Message);
       continue;
     }
 
     const delay_import_directory_table_entry *Table;
     if (Error E = I.getDelayImportTable(Table)) {
-      revng_log(Log, "No delay import table found for a dll.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log, "No delay import table found for a dll: " << Message);
       continue;
     }
 
