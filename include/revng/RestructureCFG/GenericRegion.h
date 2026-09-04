@@ -61,6 +61,8 @@ public:
     return llvm::make_range(block_begin(), block_end());
   }
 
+  auto size() { return Blocks.size(); }
+
   NodeT getHead() { return Head; }
 
   void setHead(NodeT Head) { this->Head = Head; }

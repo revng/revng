@@ -336,3 +336,70 @@ exit:
 ; CHECK-LABEL: Generic Region Info Results:
 ; CHECK: Region 0:
 ; CHECK-NEXT: Elected head: five_incoming
+
+; a head candidate whose successors are all late entries of a child region
+; cannot be elected: after the child region is dagified those successors are
+; only reachable through `goto`s, so such a head would not reach the rest of
+; the region. Here `only_reaches_inner` must be discarded in favour of
+; `outer_head`.
+
+define void @t() #0 {
+entry:
+  br i1 undef, label %only_reaches_inner, label %other_entry
+
+only_reaches_inner:
+  br label %inner_late_entry
+
+other_entry:
+  br label %outer_head
+
+inner_pred:
+  br i1 undef, label %inner_head, label %inner_head
+
+inner_late_entry:
+  br label %inner_head
+
+outer_head:
+  br i1 undef, label %only_reaches_inner, label %inner_pred
+
+inner_head:
+  br i1 undef, label %outer_head, label %inner_late_entry
+}
+
+; CHECK-LABEL: Generic Region Info Results:
+; CHECK: Region 0:
+; CHECK-NEXT: Elected head: outer_head
+
+; the check on whether a head candidate reaches the whole region must be
+; transitive. Here `reaches_only_late_entry` is not a late entry of the child
+; region itself, and neither is its only successor `late_entry_pred`, but
+; `late_entry_pred` only leads to `inner_late_entry`, which is one. So
+; `reaches_only_late_entry` would reach nothing but `late_entry_pred` once the
+; child region is dagified, and `outer_head` must be elected instead.
+
+define void @u() #0 {
+entry:
+  br i1 undef, label %reaches_only_late_entry, label %other_entry
+
+reaches_only_late_entry:
+  br label %late_entry_pred
+
+late_entry_pred:
+  br label %inner_late_entry
+
+other_entry:
+  br label %outer_head
+
+inner_late_entry:
+  br label %inner_head
+
+outer_head:
+  br i1 undef, label %reaches_only_late_entry, label %inner_head
+
+inner_head:
+  br i1 undef, label %outer_head, label %inner_late_entry
+}
+
+; CHECK-LABEL: Generic Region Info Results:
+; CHECK: Region 0:
+; CHECK-NEXT: Elected head: outer_head
