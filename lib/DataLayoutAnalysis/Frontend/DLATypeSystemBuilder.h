@@ -136,6 +136,10 @@ private:
   llvm::SmallVector<std::pair<LayoutTypeSystemNode *, bool>, 2>
   getOrCreateLayoutTypes(const llvm::Value &V);
 
+  /// Returns a function whose type on the model is \p Prototype, if any
+  const llvm::Function *
+  getFunctionWithPrototype(const model::TypeDefinition *Prototype) const;
+
 private:
   /// Create one shared artificial node per model segment.
   void initializeSegments(SegmentNodeMapT &Segments);

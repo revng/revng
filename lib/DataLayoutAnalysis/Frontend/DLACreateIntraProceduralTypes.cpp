@@ -479,8 +479,18 @@ public:
           const auto *Prototype = getCallSitePrototype(Model, C);
           revng_assert(Prototype);
 
-          // FIXME TODO WIP: what are we gonna do for indirect calls
-          const Function *Callee = getCallee(C);
+          // Let's see if there is a function with the call site's prototype.
+          // Let's call this callee, even if strictly speaking it may not be the
+          // callee but just another function whose model type matches the call
+          // site's prototype.
+          // If Callee is null here it means that there is no isolated function
+          // with the exact prototype of the call site.
+          // This can happen is the call site is indirect, or if it was indirect
+          // but was at some point devirtualized without updating the call site
+          // metadata. If the latter happens we have no way of mapping the call
+          // site prototype arguments and return types to the callee return type
+          // and in some cases we have to bail out.
+          const Function *Callee = Builder.getFunctionWithPrototype(Prototype);
           revng_assert(not Callee or not Callee->isVarArg());
 
           // Add entry in SCEVToLayoutType map for actual arguments of CallInst.

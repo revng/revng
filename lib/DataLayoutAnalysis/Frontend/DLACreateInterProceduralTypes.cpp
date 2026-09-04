@@ -39,6 +39,24 @@ void TSBuilder::initializeSegments(SegmentNodeMapT &Segments) {
   }
 }
 
+/// Return the model type for \p F.
+/// \p F must be either isolated or dynamic.
+static const model::TypeDefinition *
+getFunctionPrototype(const model::Binary &Model, const Function &F) {
+  if (FunctionTags::Isolated.isTagOf(&F)) {
+    const model::Function *ModelFunction = llvmToModelFunction(Model, F);
+    revng_assert(ModelFunction);
+    return Model.prototypeOrDefault(ModelFunction->prototype());
+  }
+
+  revng_assert(FunctionTags::DynamicFunction.isTagOf(&F));
+  llvm::StringRef SymbolName = F.getName().drop_front(strlen("dynamic_"));
+
+  auto It = Model.ImportedDynamicFunctions().find(SymbolName.str());
+  revng_assert(It != Model.ImportedDynamicFunctions().end());
+  return Model.prototypeOrDefault(It->prototype());
+}
+
 bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                                            const SegmentNodeMapT
                                              &SegmentNodeMap) {
@@ -56,17 +74,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
 
     revng_assert(not F.isVarArg());
 
-    const model::TypeDefinition *Prototype = nullptr;
-    if (FunctionTags::Isolated.isTagOf(&F)) {
-      const model::Function *ModelFunc = llvmToModelFunction(Model, F);
-      Prototype = Model.prototypeOrDefault(ModelFunc->prototype());
-    } else {
-      llvm::StringRef SymbolName = F.getName().drop_front(strlen("dynamic_"));
-
-      auto It = Model.ImportedDynamicFunctions().find(SymbolName.str());
-      revng_assert(It != Model.ImportedDynamicFunctions().end());
-      Prototype = Model.prototypeOrDefault(It->prototype());
-    }
+    const model::TypeDefinition *Prototype = getFunctionPrototype(Model, F);
     revng_assert(Prototype);
 
     const auto *RFT = dyn_cast<model::RawFunctionDefinition>(Prototype);
@@ -170,6 +178,17 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
           if (not Callee)
             continue;
 
+          // If the call site and the callee don't agree on the prototype, it
+          // means that the call was made direct at some point of the pipeline,
+          // thanks to some LLVM optimizations that managed to devirtualize the
+          // call. While doing that, the call site metadata was not updated.
+          // If this happens, there is no way we can in general map arguments
+          // and return types from the callee to the call site, so we bail out.
+          const auto &CallPrototype = getCallSitePrototype(Model, Call);
+          const auto &CalleePrototype = getFunctionPrototype(Model, *Callee);
+          if (CallPrototype != CalleePrototype)
+            continue;
+
           unsigned ArgNo = 0U;
           for (const Use &ArgUse : Call->args()) {
 
@@ -189,7 +208,8 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
             revng_assert(isa<IntegerType>(FormalArg->getType())
                          or isa<PointerType>(FormalArg->getType()));
             auto FormalTypes = getOrCreateLayoutTypes(*FormalArg);
-            revng_assert(1ULL == ActualTypes.size() == FormalTypes.size());
+            revng_assert(1ULL == ActualTypes.size());
+            revng_assert(1ULL == FormalTypes.size());
 
             auto FieldNum = FormalTypes.size();
             if (not isa<ConstantInt>(ActualArg)) {

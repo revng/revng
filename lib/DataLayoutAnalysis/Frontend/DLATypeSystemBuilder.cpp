@@ -232,6 +232,22 @@ DLATypeSystemLLVMBuilder::getLayoutTypes(const Value &V) {
   return Results;
 }
 
+const Function *
+DLATypeSystemLLVMBuilder::getFunctionWithPrototype(const model::TypeDefinition
+                                                     *Prototype) const {
+  if (Prototype == nullptr)
+    return nullptr;
+
+  auto It = VisitedPrototypes.find(Prototype);
+  if (It == VisitedPrototypes.end())
+    return nullptr;
+
+  // Given that we create interprocedural types first, the VisitedPrototype
+  // should always give a Function, unless the Prototype is used only on a call
+  // site.
+  return dyn_cast<Function>(It->second.getVal());
+}
+
 SmallVector<std::pair<LayoutTypeSystemNode *, bool>, 2>
 DLATypeSystemLLVMBuilder::getOrCreateLayoutTypes(const Value &V) {
   assertGetLayoutTypePreConditions(V);
