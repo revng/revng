@@ -1,0 +1,5 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+edit-c-type failed: `_CAN_CONTAIN_CODE` is only meaningful on a `_SINGLETON` struct.

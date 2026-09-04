@@ -1,0 +1,126 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Version: 11
+
+Segments:
+  # An executable segment with nested singleton structs and sibling data sections.
+  - StartAddress: "0x1000:Generic64"
+    VirtualSize: 4096
+    StartOffset: 0
+    FileSize: 4096
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
+    Type:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/0-StructDefinition"
+
+  # A segment holding no code, so nothing tells its section apart from the
+  # objects in it.
+  - StartAddress: "0x2000:Generic64"
+    VirtualSize: 4096
+    StartOffset: 4096
+    FileSize: 4096
+    IsReadable: true
+    IsWriteable: true
+    IsExecutable: false
+    Type:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/2-StructDefinition"
+
+Functions:
+  - Entry: "0x1000:Code_aarch64"
+    StackFrame:
+      Type:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/5-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/4-CABIFunctionDefinition"
+
+TypeDefinitions:
+  - Kind: StructDefinition
+    ID: 0
+    Size: 4096
+    CanContainCode: true
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/6-StructDefinition"
+      - Offset: 3072
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/8-StructDefinition"
+
+  - Kind: StructDefinition
+    ID: 1
+    Size: 2048
+    CanContainCode: true
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/10-StructDefinition"
+
+  - Kind: StructDefinition
+    ID: 2
+    Size: 4096
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3-StructDefinition"
+
+  - Kind: StructDefinition
+    ID: 3
+    Size: 1024
+
+  - Kind: CABIFunctionDefinition
+    ID: 4
+    ABI: AAPCS64
+
+  - Kind: StructDefinition
+    ID: 5
+    Size: 16
+
+  # An unmarked parent of a code-capable section, with a data section beside it.
+  - Kind: StructDefinition
+    ID: 6
+    Size: 3072
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1-StructDefinition"
+      - Offset: 2048
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/7-StructDefinition"
+
+  - Kind: StructDefinition
+    ID: 7
+    Size: 1024
+
+  # A sibling of the enclosing singleton struct, containing an ordinary object.
+  - Kind: StructDefinition
+    ID: 8
+    Size: 1024
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/9-StructDefinition"
+
+  - Kind: StructDefinition
+    ID: 9
+    Size: 16
+
+  # An ordinary object within a code-capable section.
+  - Kind: StructDefinition
+    ID: 10
+    Size: 16
+
+Architecture: aarch64

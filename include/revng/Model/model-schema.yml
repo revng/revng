@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 11
+version: 12
 root_type: Binary
 
 definitions:
@@ -415,11 +415,29 @@ definitions:
         doc: The size, in bytes, of the `struct`.
         type: uint64_t
 
+      - name: IsSingleton
+        doc: |-
+          A "singleton" `struct` is a `struct` that can only be used as a field
+          of another singleton `struct` or as the type of a segment or a stack
+          frame. It cannot be instantiated anywhere else.
+
+          The main use case is making the hierarchy of `struct`s composing
+          segments and sections (or similar concepts) in the type of a
+          `Segment`.
+
+          This also introduces an informal definition of "global variable",
+          i.e., a field in the innermost singleton `struct` representing the
+          type of segment.
+        type: bool
+
       - name: CanContainCode
         doc: |-
           When this field is set to `true` *and* this `struct` is reachable for
           a segment's root type without traversing pointers, arrays or other
           qualifiers, the padding of the struct is treated as if it contains code.
+
+          A model with `CanContainCode` set to `true` and `IsSingleton` set to
+          `false` is invalid.
         type: bool
 
       - name: Fields

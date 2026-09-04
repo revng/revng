@@ -408,6 +408,9 @@ private:
 
     clift::CAttributeListBuilder Attributes(Context);
 
+    if (ModelType.IsSingleton())
+      Attributes.setOrUpdate<"_SINGLETON">();
+
     if (ModelType.CanContainCode())
       Attributes.setOrUpdate<"_CAN_CONTAIN_CODE">();
 
