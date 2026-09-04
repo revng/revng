@@ -121,10 +121,12 @@ public:
     // We keep a global index of the processed region to easy debug
     size_t RegionIndex = 0;
     for (auto &TopLevelRegion : RegionInfo.top_level_regions()) {
+      LoggerIndent IndentRegion{ Log };
       for (auto *Region : post_order(&TopLevelRegion)) {
         revng_log(Log,
                   "DAGify processing region with index: "
                     << std::to_string(RegionIndex) << "\n");
+        LoggerIndent MoreIndentRegion{ Log };
 
         revng_log(Log,
                   "The elected head for this region is block: "
@@ -138,7 +140,9 @@ public:
         // starts from the elected `Head` of each identified `GenericRegion`.
         SmallPtrSet<BasicBlock *, 4> RegionNodes;
         for (auto &RegionNode : Region->blocks()) {
+          LoggerIndent IndentBlock{ Log };
           RegionNodes.insert(RegionNode);
+          revng_log(Log, "block: " << RegionNode->getName());
         }
 
         // 1. Process the retreating edges of the `GenericRegion`
