@@ -11,6 +11,7 @@
 
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftAttributes.h"
+#include "revng/Clift/CliftC.h"
 #include "revng/Clift/CliftOpHelpers.h"
 
 std::unique_ptr<mlir::MLIRContext> clift::makeContext() {
@@ -1258,6 +1259,16 @@ mlir::LogicalResult TestOp::canonicalize(TestOp Op,
     return mlir::failure();
 
   Rewriter.replaceAllUsesWith(Op, Operand);
+  return mlir::success();
+}
+
+//===--------------------------- ImplicitCastOp ---------------------------===//
+
+mlir::LogicalResult ImplicitCastOp::verify() {
+  if (!c::isImplicitlyConvertible(getValue().getType(), getType()))
+    return emitOpError() << getOperationName()
+                         << " conversion is not implicit.";
+
   return mlir::success();
 }
 

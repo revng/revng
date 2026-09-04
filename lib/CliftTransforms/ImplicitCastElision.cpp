@@ -3,6 +3,8 @@
 //
 
 #include "revng/ADT/ScopedExchange.h"
+#include "revng/Clift/CliftC.h"
+#include "revng/Clift/CliftOpHelpers.h"
 #include "revng/CliftTransforms/Passes.h"
 
 namespace clift {
@@ -24,74 +26,52 @@ static bool isBooleanTestedRegion(mlir::Region *R) {
 class ImplicitCastElider {
   const CDataModel &DataModel;
 
+  llvm::SmallVector<CastOpInterface> ImplicitConversions;
+
 public:
-  explicit ImplicitCastElider(const CDataModel &DataModel) :
-    DataModel(DataModel) {}
-
-  void elide(mlir::Operation *Op) {
-    if (Op->hasAttr("clift.intrinsic"))
-      return;
-
-    if (auto Yield = mlir::dyn_cast<YieldOp>(Op)) {
-      if (isBooleanTestedRegion(Yield->getParentRegion()))
-        return elideBooleanTestingCasts(Yield->getOpOperand(0));
-
-      if (mlir::isa<LocalVariableOp, ReturnOp>(Yield->getParentOp()))
-        return elideCoercingContextCasts(Yield->getOpOperand(0));
-    }
-
-    if (auto Extend = mlir::dyn_cast<BoolExtendOp>(Op))
-      return elideBooleanExtensionCasts(Extend);
-
-    if (mlir::isa<TernaryOp, LogicalNotOp>(Op))
-      return elideBooleanTestingCasts(Op->getOpOperand(0));
-
-    if (mlir::isa<LogicalAndOp, LogicalOrOp>(Op)) {
-      elideBooleanTestingCasts(Op->getOpOperand(0));
-      elideBooleanTestingCasts(Op->getOpOperand(1));
-      return;
-    }
-
-    if (auto Assignment = mlir::dyn_cast<AssignOp>(Op))
-      return elideAssignmentCasts(Assignment);
-
-    if (auto Call = mlir::dyn_cast<CallOp>(Op))
-      return elideArgumentCasts(Call);
-
-    if (mlir::isa<NegOp,
-                  AddOp,
-                  SubOp,
-                  MulOp,
-                  SDivOp,
-                  UDivOp,
-                  SRemOp,
-                  URemOp,
-                  BitwiseNotOp,
-                  BitwiseAndOp,
-                  BitwiseOrOp,
-                  BitwiseXorOp,
-                  ShlOp,
-                  ShrOp,
-                  SarOp>(Op))
-      return elideArithmeticCasts(Op);
-
-    if (mlir::isa<CmpEqOp,
-                  CmpNeOp,
-                  SCmpLtOp,
-                  UCmpLtOp,
-                  SCmpGtOp,
-                  UCmpGtOp,
-                  SCmpLeOp,
-                  UCmpLeOp,
-                  SCmpGeOp,
-                  UCmpGeOp>(Op)) {
-      if (clift::unwrapped_isa<IntegralType>(Op->getOperand(0).getType()))
-        elideArithmeticCasts(Op);
-    }
+  static void elide(FunctionOp Function) {
+    ImplicitCastElider(getDataModel(Function)).walkAndElide(Function);
   }
 
 private:
+  explicit ImplicitCastElider(const CDataModel &DataModel) :
+    DataModel(DataModel) {}
+
+  mlir::Type getIntType(mlir::MLIRContext *Context) {
+    return IntegerType::get(Context,
+                            IntegerKind::Signed,
+                            DataModel.getIntSize());
+  }
+
+  void addImplicitConversion(CastOpInterface Cast) {
+    ImplicitConversions.push_back(Cast);
+  }
+
+  bool isVoidToNonVoidPointerCast(CastOpInterface Cast) {
+    if (not mlir::isa<BitCastOp>(Cast))
+      return false;
+
+    auto TP = clift::unwrapped_dyn_cast<PointerType>(Cast.getType());
+    if (not TP or clift::unwrapped_isa<VoidType>(TP.getPointeeType()))
+      return false;
+
+    auto SP = clift::unwrapped_dyn_cast<PointerType>(Cast.getValueType());
+    return SP and clift::unwrapped_isa<VoidType>(SP.getPointeeType());
+  }
+
+  bool isImplicitConversion(CastOpInterface Cast) {
+    if (not c::isImplicitConversion(Cast))
+      return false;
+
+    // TODO: Add a configuration to enable elision of void* to T* casts.
+    if (isVoidToNonVoidPointerCast(Cast))
+      return false;
+
+    return true;
+  }
+
   class OperatorType {
+  public:
     mlir::Type T1;
     mlir::Type T2;
 
@@ -110,11 +90,8 @@ private:
 
   mlir::Type promote(mlir::Type T) {
     auto IntType = getUnderlyingIntegerType(T);
-    if (IntType.getSize() < DataModel.getIntSize()) {
-      T = IntegerType::get(T.getContext(),
-                           IntegerKind::Signed,
-                           DataModel.getIntSize());
-    }
+    if (IntType.getSize() < DataModel.getIntSize())
+      T = getIntType(T.getContext());
 
     return T;
   }
@@ -181,90 +158,35 @@ private:
     revng_abort();
   }
 
-  void markAsImplicit(CastOpInterface Cast) {
-    Cast->setAttr("clift.implicit", mlir::UnitAttr::get(Cast->getContext()));
-  }
-
-  bool isNullPointerConstant(mlir::Value Value) {
-    if (Value.getDefiningOp<NullOp>())
-      return true;
-
-    if (auto Immediate = Value.getDefiningOp<ImmediateOp>()) {
-      return Immediate.getValue().isZero()
-             and mlir::isa<IntegerType>(Value.getType());
-    }
-
-    return false;
-  }
-
-  bool isImplicitConversion(CastOpInterface Cast) {
-    mlir::Type DstT = unwrapTypedefs(Cast.getType());
-    mlir::Type SrcT = unwrapTypedefs(Cast.getValueType());
-
-    if (mlir::isa<BoolType>(SrcT) and mlir::isa<IntegralType>(DstT))
-      return true;
-
-    if (mlir::isa<IntegralType>(SrcT) and mlir::isa<IntegralType>(DstT))
-      return true;
-
-    if (mlir::isa<BitCastOp>(Cast)) {
-      if (auto DstPtrT = mlir::dyn_cast<PointerType>(DstT)) {
-
-        // Conversion from a null pointer constant is implicit.
-        // * NULL
-        // * Integer literal with value zero.
-        if (isNullPointerConstant(Cast.getValue()))
-          return true;
-
-        if (auto SrcPtrT = mlir::dyn_cast<PointerType>(SrcT)) {
-          auto DstPointeeT = collapseTypedefs(DstPtrT.getPointeeType());
-          auto SrcPointeeT = collapseTypedefs(SrcPtrT.getPointeeType());
-
-          // Conversions between function pointer types are not implicit.
-          if (mlir::isa<FunctionType>(DstPointeeT)
-              or mlir::isa<FunctionType>(SrcPointeeT))
-            return false;
-
-          // Conversion which remove qualifiers are not implicit.
-          if (isConst(SrcPointeeT) and not isConst(DstPointeeT))
-            return false;
-
-          // Otherwise, conversions between pointers with equivalent pointee
-          // types are implicit.
-          if (equivalent(SrcPointeeT, DstPointeeT))
-            return true;
-
-          // Conversion to a pointer with pointee type void is implicit.
-          if (mlir::isa<VoidType>(DstPointeeT))
-            return true;
-
-          return false;
-        }
-      }
-    }
-
-    return false;
-  }
-
   void elideBooleanTestingCasts(mlir::OpOperand &Operand) {
     if (auto Test = Operand.get().getDefiningOp<TestOp>())
-      markAsImplicit(Test);
+      addImplicitConversion(Test);
+  }
+
+  /// Returns true if the expression is a real boolean expression, potentially
+  /// having type bool in C, as opposed to a boolean expression with type int.
+  bool isRealBooleanExpression(mlir::Value Value) {
+    revng_assert(mlir::isa<BoolType>(Value.getType()));
+
+    mlir::Operation *Op = Value.getDefiningOp();
+
+    // Boolean values always have a defining operation.
+    revng_assert(Op != nullptr);
+
+    return mlir::isa<TestOp, TrueOp, FalseOp>(Op);
   }
 
   void elideBooleanExtensionCasts(BoolExtendOp Extend) {
-    if (not Extend.getValue().getDefiningOp<TestOp>()) {
-      if (auto Type = mlir::dyn_cast<IntegerType>(Extend.getType())) {
-        if (Type.getKind() == IntegerKind::Signed
-            and Type.getSize() == DataModel.getIntSize())
-          markAsImplicit(Extend);
-      }
+    if (not isRealBooleanExpression(Extend.getValue())) {
+      if (Extend.getType() == getIntType(Extend.getContext()))
+        addImplicitConversion(Extend);
     }
   }
 
   void elideCoercingContextCasts(mlir::OpOperand &Operand) {
     if (auto Cast = Operand.get().getDefiningOp<CastOpInterface>()) {
       if (isImplicitConversion(Cast))
-        markAsImplicit(Cast);
+        addImplicitConversion(Cast);
     }
   }
 
@@ -297,7 +219,93 @@ private:
         continue;
 
       Transaction.commit();
-      markAsImplicit(Cast);
+      addImplicitConversion(Cast);
+    }
+  }
+
+  void elideCastsInContext(mlir::Operation *Op) {
+    if (Op->hasAttr("clift.intrinsic"))
+      return;
+
+    if (auto Yield = mlir::dyn_cast<YieldOp>(Op)) {
+      if (isBooleanTestedRegion(Yield->getParentRegion()))
+        return elideBooleanTestingCasts(Yield->getOpOperand(0));
+
+      if (mlir::isa<LocalVariableOp, ReturnOp>(Yield->getParentOp()))
+        return elideCoercingContextCasts(Yield->getOpOperand(0));
+    }
+
+    if (auto Extend = mlir::dyn_cast<BoolExtendOp>(Op))
+      return elideBooleanExtensionCasts(Extend);
+
+    if (mlir::isa<TernaryOp, LogicalNotOp>(Op))
+      return elideBooleanTestingCasts(Op->getOpOperand(0));
+
+    if (mlir::isa<LogicalAndOp, LogicalOrOp>(Op)) {
+      elideBooleanTestingCasts(Op->getOpOperand(0));
+      elideBooleanTestingCasts(Op->getOpOperand(1));
+      return;
+    }
+
+    if (auto E = mlir::dyn_cast<AssignOp>(Op))
+      return elideAssignmentCasts(E);
+
+    if (auto E = mlir::dyn_cast<CallOp>(Op))
+      return elideArgumentCasts(E);
+
+    if (mlir::isa<NegOp,
+                  AddOp,
+                  SubOp,
+                  MulOp,
+                  SDivOp,
+                  UDivOp,
+                  SRemOp,
+                  URemOp,
+                  BitwiseNotOp,
+                  BitwiseAndOp,
+                  BitwiseOrOp,
+                  BitwiseXorOp,
+                  ShlOp,
+                  ShrOp,
+                  SarOp>(Op))
+      return elideArithmeticCasts(Op);
+
+    if (mlir::isa<CmpEqOp,
+                  CmpNeOp,
+                  SCmpLtOp,
+                  UCmpLtOp,
+                  SCmpGtOp,
+                  UCmpGtOp,
+                  SCmpLeOp,
+                  UCmpLeOp,
+                  SCmpGeOp,
+                  UCmpGeOp>(Op)) {
+      if (clift::unwrapped_isa<IntegralType>(Op->getOperand(0).getType()))
+        elideArithmeticCasts(Op);
+    }
+  }
+
+  void walkAndElide(FunctionOp Function) {
+    Function->walk([this](mlir::Operation *Op) { elideCastsInContext(Op); });
+
+    if (ImplicitConversions.empty())
+      return;
+
+    std::ranges::sort(ImplicitConversions);
+    ImplicitConversions.erase(std::unique(ImplicitConversions.begin(),
+                                          ImplicitConversions.end()),
+                              ImplicitConversions.end());
+
+    mlir::OpBuilder Builder(Function.getContext());
+    for (CastOpInterface Cast : ImplicitConversions) {
+      mlir::OpOperand *Use = getOnlyUse(Cast);
+      revng_assert(Use != nullptr);
+
+      Builder.setInsertionPoint(Cast);
+      Use->set(Builder.create<ImplicitCastOp>(Cast->getLoc(),
+                                              Cast.getType(),
+                                              Cast.getValue()));
+      Cast->erase();
     }
   }
 };
@@ -306,12 +314,7 @@ template<typename T>
 using PassBase = clift::impl::CliftImplicitCastElisionBase<T>;
 
 struct ImplicitCastElisionPass : PassBase<ImplicitCastElisionPass> {
-  void runOnOperation() override {
-    FunctionOp Function = getOperation();
-    ImplicitCastElider Elider(getDataModel(Function));
-
-    Function->walk([&](mlir::Operation *Op) { Elider.elide(Op); });
-  }
+  void runOnOperation() override { ImplicitCastElider::elide(getOperation()); }
 };
 
 } // namespace
