@@ -1461,33 +1461,6 @@ DecayOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
   return LvalueToRvalueConversion::No;
 }
 
-mlir::LogicalResult DecayOp::verify() {
-  auto ArgT = collapseTypedefs(getValueType());
-
-  auto PtrT = clift::unwrapped_dyn_cast<PointerType>(getType());
-  if (not PtrT)
-    return emitOpError() << getOperationName()
-                         << " result must have pointer type.";
-
-  if (auto ArrayT = mlir::dyn_cast<ArrayType>(ArgT)) {
-    if (PtrT.getPointeeType() != ArrayT.getElementType())
-      return emitOpError() << getOperationName()
-                           << " the pointee type of the result type must be"
-                              " equal to the element type of the argument"
-                              " type.";
-  } else if (auto FunctionT = mlir::dyn_cast<FunctionType>(ArgT)) {
-    if (PtrT.getPointeeType() != FunctionT)
-      return emitOpError() << getOperationName()
-                           << " the pointee type of the result type must be"
-                              " equal to the argument type.";
-  } else {
-    return emitOpError() << getOperationName()
-                         << " argument must have array or function type.";
-  }
-
-  return mlir::success();
-}
-
 //===----------------------------- PtrResizeOp ----------------------------===//
 
 mlir::LogicalResult PtrResizeOp::verify() {
