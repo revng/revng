@@ -190,11 +190,20 @@ private:
     }
   }
 
+  void elideDecayCasts(mlir::OpOperand &Operand) {
+    if (auto Cast = Operand.get().getDefiningOp<DecayOp>()) {
+      if (c::isImplicitConversion(Cast))
+        addImplicitConversion(Cast);
+    }
+  }
+
   void elideAssignmentCasts(AssignOp Op) {
     elideCoercingContextCasts(Op->getOpOperand(1));
   }
 
-  void elideArgumentCasts(CallOp Op) {
+  void elideCallCasts(CallOp Op) {
+    elideDecayCasts(Op->getOpOperand(0));
+
     auto FuncType = Op.getFunctionType();
     for (auto [I, T] : llvm::enumerate(FuncType.getArgumentTypes()))
       elideCoercingContextCasts(Op->getOpOperand(I + 1));
@@ -247,11 +256,14 @@ private:
       return;
     }
 
+    if (mlir::isa<IndirectionOp, IndirectAccessOp, SubscriptOp>(Op))
+      return elideDecayCasts(Op->getOpOperand(0));
+
     if (auto E = mlir::dyn_cast<AssignOp>(Op))
       return elideAssignmentCasts(E);
 
     if (auto E = mlir::dyn_cast<CallOp>(Op))
-      return elideArgumentCasts(E);
+      return elideCallCasts(E);
 
     if (mlir::isa<NegOp,
                   AddOp,
