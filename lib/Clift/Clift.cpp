@@ -145,10 +145,14 @@ const CDataModel &clift::getDataModel(mlir::ModuleOp Module) {
   revng_abort("The module does not specify a data model.");
 }
 
-const CDataModel &clift::getDataModel(FunctionOp Function) {
-  auto Module = Function->getParentOfType<mlir::ModuleOp>();
-  revng_assert(Module, "The function must be contained within a module.");
+const CDataModel &clift::getDataModel(mlir::Operation *Op) {
+  auto Module = Op->getParentOfType<mlir::ModuleOp>();
+  revng_assert(Module, "The operation must be contained within a module.");
   return getDataModel(Module);
+}
+
+const CDataModel &clift::getDataModel(mlir::Value Value) {
+  return getDataModel(Value.getParentRegion()->getParentOp());
 }
 
 void clift::setDataModel(mlir::ModuleOp Module, const CDataModel &DataModel) {
