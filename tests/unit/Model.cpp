@@ -27,6 +27,112 @@ auto ARM1000 = MetaAddress::fromString("0x1000:Code_arm");
 auto ARM2000 = MetaAddress::fromString("0x2000:Code_arm");
 auto ARM3000 = MetaAddress::fromString("0x3000:Code_arm");
 
+BOOST_AUTO_TEST_CASE(TestSingletonContainment) {
+  TupleTree<model::Binary> Model;
+  Model->Architecture() = model::Architecture::x86_64;
+  auto &&[Parent, ParentType] = Model->makeStructDefinition();
+  Parent.Size() = 16;
+  Parent.IsSingleton() = true;
+  auto &&[Child, ChildType] = Model->makeStructDefinition();
+  Child.Size() = 8;
+  Child.IsSingleton() = true;
+  Parent.Fields()[0].Type() = ChildType.copy();
+  revng_check(Model->verify(true));
+
+  Parent.Fields()[0].Type() = PointerType::make(ChildType.copy(), 8);
+  revng_check(not Model->verify());
+  Parent.Fields()[0].Type() = ArrayType::make(ChildType.copy(), 1);
+  revng_check(not Model->verify());
+
+  Parent.Fields()[0].Type() = ChildType.copy();
+  Parent.IsSingleton() = false;
+  revng_check(not Model->verify());
+  Child.IsSingleton() = false;
+  revng_check(Model->verify(true));
+
+  Child.CanContainCode() = true;
+  revng_check(not Model->verify());
+  Child.IsSingleton() = true;
+  Parent.IsSingleton() = true;
+  revng_check(Model->verify(true));
+}
+
+BOOST_AUTO_TEST_CASE(TestSingletonTypedef) {
+  TupleTree<model::Binary> Model;
+  Model->Architecture() = model::Architecture::x86_64;
+  auto &&[Struct, StructType] = Model->makeStructDefinition();
+  Struct.Size() = 8;
+  Struct.IsSingleton() = true;
+  auto &&[Alias, AliasType] = Model->makeTypedefDefinition(StructType.copy());
+  revng_check(not Model->verify());
+
+  auto &&[Parent, ParentType] = Model->makeStructDefinition();
+  Parent.Size() = 8;
+  Parent.IsSingleton() = true;
+  Parent.Fields()[0].Type() = AliasType.copy();
+  revng_check(not Model->verify());
+
+  Struct.IsSingleton() = false;
+  revng_check(Model->verify(true));
+}
+
+BOOST_AUTO_TEST_CASE(TestSingletonPrototypeTypes) {
+  TupleTree<model::Binary> Model;
+  Model->Architecture() = model::Architecture::x86_64;
+  auto &&[Struct, StructType] = Model->makeStructDefinition();
+  Struct.Size() = 8;
+  Struct.IsSingleton() = true;
+  auto &&[Prototype, PrototypeType] = Model->makeCABIFunctionDefinition();
+  Prototype.ABI() = model::ABI::SystemV_x86_64;
+  Prototype.ReturnType() = StructType.copy();
+  Model->DefaultPrototype() = PrototypeType.copy();
+  revng_check(not Model->verify());
+
+  Prototype.ReturnType() = model::UpcastableType{};
+  Prototype.addArgument(StructType.copy());
+  revng_check(not Model->verify());
+  Struct.IsSingleton() = false;
+  revng_check(Model->verify(true));
+}
+
+BOOST_AUTO_TEST_CASE(TestSingletonFunctionTypes) {
+  TupleTree<model::Binary> Model;
+  Model->Architecture() = model::Architecture::x86_64;
+  auto &&[Code, CodeType] = Model->makeStructDefinition();
+  Code.Size() = 4096;
+  Code.IsSingleton() = true;
+  Code.CanContainCode() = true;
+  auto &Segment = Model->Segments()[MetaAddress::fromString("0x1000:"
+                                                            "Generic64")];
+  Segment.VirtualSize() = Code.Size();
+  Segment.FileSize() = Code.Size();
+  Segment.IsExecutable() = true;
+  Segment.Type() = CodeType.copy();
+
+  auto Entry = MetaAddress::fromString("0x1000:Code_x86_64");
+  auto &Function = Model->Functions()[Entry];
+  auto &&[Frame, FrameType] = Model->makeStructDefinition();
+  Frame.Size() = 8;
+  Frame.IsSingleton() = true;
+  Function.StackFrame().Type() = FrameType.copy();
+  revng_check(Model->verify(true));
+
+  auto &&[Struct, StructType] = Model->makeStructDefinition();
+  Struct.Size() = 8;
+  Struct.IsSingleton() = true;
+  auto &Variable = Function.LocalVariables()["local"];
+  Variable.Location().insert(Entry);
+  Variable.Type() = StructType.copy();
+  revng_check(not Model->verify());
+  Variable.Type() = PointerType::make(StructType.copy(), 8);
+  revng_check(not Model->verify());
+  Struct.IsSingleton() = false;
+  revng_check(Model->verify(true));
+
+  Code.IsSingleton() = false;
+  revng_check(not Model->verify());
+}
+
 BOOST_AUTO_TEST_CASE(TestIntrospection) {
   using namespace llvm;
 
