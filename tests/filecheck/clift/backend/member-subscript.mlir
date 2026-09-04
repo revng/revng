@@ -38,6 +38,15 @@ module attributes {clift.module} {
       %3 = clift.subscript %1, %2 : (!clift.ptr<8 to !int32_t>, !int32_t)
       clift.yield %3 : !int32_t
     }
+
+    // CHECK: var_0.x[1];
+    clift.expr {
+      %0 = clift.access<0> %var0 : !s -> !clift.array<2 x !int32_t>
+      %1 = clift.implicit_cast %0 : !clift.array<2 x !int32_t> -> !clift.ptr<8 to !int32_t>
+      %2 = clift.imm 1 : !int32_t
+      %3 = clift.subscript %1, %2 : (!clift.ptr<8 to !int32_t>, !int32_t)
+      clift.yield %3 : !int32_t
+    }
   }
   // CHECK: }
 }

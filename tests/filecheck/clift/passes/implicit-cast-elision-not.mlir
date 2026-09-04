@@ -14,7 +14,7 @@ module attributes {clift.module} {
   clift.func @f<!f>(%arg0 : !uint8_t) -> !void {
     // CHECK: clift.expr {
     clift.expr {
-      // CHECK: %0 = clift.test %arg0 {clift.implicit} : !uint8_t
+      // CHECK: %0 = clift.implicit_cast %arg0 : !uint8_t
       %0 = clift.test %arg0 : !uint8_t
       // CHECK: %1 = clift.not %0
       %1 = clift.not %0

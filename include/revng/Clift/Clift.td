@@ -1137,6 +1137,17 @@ def Clift_PtrResizeOp
   let hasVerifier = 1;
 }
 
+def Clift_ImplicitCastOp : Clift_ExpressionOp<"implicit_cast"> {
+  let arguments = (ins Clift_AnyExpressionType:$value);
+  let results = (outs Clift_AnyExpressionType:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($value) `->` type($result)
+  }];
+
+  let hasVerifier = 1;
+}
+
 def Clift_AddressofOp
   : Clift_ExpressionOp<"addressof",
                        [Clift_PointeeTypeMatches<"result", "object">,

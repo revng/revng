@@ -425,23 +425,6 @@ public:
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
   }
 
-  static bool isHiddenCast(CastOpInterface Cast) {
-    return Cast->hasAttr("clift.implicit");
-  }
-
-  static mlir::Value unwrapHiddenCasts(CastOpInterface Cast) {
-    revng_assert(isHiddenCast(Cast));
-
-    while (true) {
-      auto Inner = Cast.getValue().getDefiningOp<CastOpInterface>();
-      if (not Inner or not isHiddenCast(Inner))
-        break;
-      Cast = Inner;
-    }
-
-    return Cast.getValue();
-  }
-
   static bool requiresExplicitBitCast(BitCastOp Op) {
     auto IsCastableType = [](mlir::Type T) {
       return clift::unwrapped_isa<IntegerType, EnumType, PointerType>(T);
@@ -478,10 +461,12 @@ public:
     rc_recur emitExpression(E.getValue());
   }
 
-  RecursiveCoroutine<void> emitHiddenCastExpression(mlir::Value V) {
-    auto E = V.getDefiningOp<CastOpInterface>();
+  RecursiveCoroutine<void> emitImplicitCastExpression(mlir::Value V) {
+    while (auto E = V.getDefiningOp<ImplicitCastOp>())
+      V = E.getValue();
+
     CurrentPrecedence = decrementPrecedence(CurrentPrecedence);
-    return emitExpression(unwrapHiddenCasts(E));
+    return emitExpression(V);
   }
 
   RecursiveCoroutine<void> emitTernaryExpression(mlir::Value V) {
@@ -726,16 +711,16 @@ public:
       };
     }
 
+    if (auto Cast = mlir::dyn_cast<ImplicitCastOp>(E.getOperation())) {
+      auto Info = getExpressionEmitInfo(Cast.getValue());
+
+      return {
+        .Precedence = Info.Precedence,
+        .Emit = &CliftToCEmitter::emitImplicitCastExpression,
+      };
+    }
+
     if (auto Cast = mlir::dyn_cast<CastOpInterface>(E.getOperation())) {
-      if (isHiddenCast(Cast)) {
-        auto Info = getExpressionEmitInfo(unwrapHiddenCasts(Cast));
-
-        return {
-          .Precedence = Info.Precedence,
-          .Emit = &CliftToCEmitter::emitHiddenCastExpression,
-        };
-      }
-
       if (auto BitCast = mlir::dyn_cast<BitCastOp>(E.getOperation())) {
         if (requiresExplicitBitCast(BitCast)) {
           return {
