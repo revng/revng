@@ -60,11 +60,18 @@ makeLocalVariableEdit(clift::LocalVariableOp Variable,
                       const std::optional<std::string> &NewTypeName,
                       const ResolvedTypeMap &ResolvedTypes,
                       const AmbiguousLocations &Ambiguous) {
-  if (not Variable
-      or not pipeline::locationFromString(rr::LocalVariable,
-                                          Variable.getHandle())) {
+  if (not Variable) {
     return revng::createError("`RENAME`/`RETYPE` can only be applied to a "
                               "local variable declaration");
+  }
+
+  // The stack frame and the reserved variables are identified by their handle,
+  // not by addresses, so an edit has nothing to locate them by.
+  if (not pipeline::locationFromString(rr::LocalVariable,
+                                       Variable.getHandle())) {
+    return revng::createError("rev.ng does not identify this variable by the "
+                              "addresses of the instructions using it, so it "
+                              "cannot be edited");
   }
 
   SortedVector<MetaAddress> Location = //
@@ -89,7 +96,7 @@ makeLocalVariableEdit(clift::LocalVariableOp Variable,
   if (NewTypeName.has_value()) {
     auto Iterator = ResolvedTypes.find(*NewTypeName);
     if (Iterator == ResolvedTypes.end() or Iterator->second.isEmpty())
-      return revng::createError("unknown type in `RETYPE`: " + *NewTypeName);
+      return revng::createError("unknown type: " + *NewTypeName);
     Result.Type() = Iterator->second.copy();
   }
   Result.Location() = std::move(Location);
@@ -102,8 +109,12 @@ makeGotoLabelEdit(clift::MakeLabelOp Label,
                   const AmbiguousLocations &Ambiguous) {
   revng_assert(Label);
 
-  if (not pipeline::locationFromString(rr::GotoLabel, Label.getHandle()))
-    return revng::createError("`RENAME` can only be applied to a goto label");
+  // A label the C backend synthesizes has no counterpart in the model.
+  if (not pipeline::locationFromString(rr::GotoLabel, Label.getHandle())) {
+    return revng::createError("rev.ng does not identify this label by the "
+                              "addresses of the instructions using it, so it "
+                              "cannot be edited");
+  }
 
   SortedVector<MetaAddress> Location = //
     clift::getUserAddressSet(Label.getResult());
