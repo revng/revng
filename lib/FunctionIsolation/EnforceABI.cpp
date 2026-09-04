@@ -397,15 +397,19 @@ CallInst *EnforceABI::generateCall(revng::IRBuilder &Builder,
   revng_assert(Prototype != nullptr);
   auto Registers = abi::FunctionType::usedRegisters(*Prototype);
 
-  bool IsIndirect = (Callee.getCallee() == FunctionDispatcher);
+  auto &&[ReturnType, ArgumentTypes] = getLLVMReturnTypeAndArguments(&M,
+                                                                     Registers);
+  auto *CallSiteType = FunctionType::get(ReturnType, ArgumentTypes, false);
+
+  // A call is direct only if we have a callee *and* the prototype of caller and
+  // callee are the same
+  bool IsIndirect = Callee.getCallee() == FunctionDispatcher
+                    or Callee.getFunctionType() != CallSiteType;
   if (IsIndirect) {
     // Create a new `indirect_placeholder` function with the specific function
     // type we need
     Value *PC = PCH->loadJumpablePC(Builder);
-    auto &&[ReturnType, Arguments] = getLLVMReturnTypeAndArguments(&M,
-                                                                   Registers);
-    auto *NewType = FunctionType::get(ReturnType, Arguments, false);
-    Callee = toFunctionPointer(Builder, PC, NewType);
+    Callee = toFunctionPointer(Builder, PC, CallSiteType);
   } else {
     BasicBlock *InsertBlock = Builder.GetInsertPoint()->getParent();
     revng_log(EnforceABILog,
