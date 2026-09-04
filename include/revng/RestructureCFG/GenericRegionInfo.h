@@ -54,6 +54,11 @@ public:
 private:
   void initializeRegions(GraphT F);
   void electHead(GraphT F);
+
+  /// A head is valid only if it still reaches the whole \p CurrentRegion once
+  /// the children regions have been dagified, i.e. once the edges entering
+  /// them in a block which is not their head have become `goto`s
+  bool isValidHead(Region &CurrentRegion, NodeT Candidate);
   std::string print() const;
 };
 
