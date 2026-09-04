@@ -264,20 +264,39 @@ void PECOFFImporter::parseImportedSymbols() {
     // the ILT. One could debate which one is more reliable, we choose to first
     // use the ILT, if absent, we use the IAT.
 
+    // A table can be reported as absent in two distinct ways: the getter can
+    // fail, or it can succeed and hand back a zero RVA.
+
     uint32_t ImportLookupTableEntry = 0;
     bool HasImportLookupTableEntry = true;
     if (Error E = I.getImportLookupTableRVA(ImportLookupTableEntry)) {
+      // Consume eagerly: revng_log does not evaluate its argument unless the
+      // logger is enabled, and an unconsumed Error aborts on destruction.
       std::string Message = toString(std::move(E));
       revng_log(Log,
                 "No ImportLookupTableRVA found for an import: " << Message);
       HasImportLookupTableEntry = false;
+    } else if (ImportLookupTableEntry == 0) {
+      revng_log(Log, "The ImportLookupTableRVA of an import is zero");
+      HasImportLookupTableEntry = false;
     }
 
-    uint32_t ImportAddressTableEntry;
+    uint32_t ImportAddressTableEntry = 0;
+    bool HasImportAddressTableEntry = true;
     if (Error E = I.getImportAddressTableRVA(ImportAddressTableEntry)) {
       std::string Message = toString(std::move(E));
       revng_log(Log,
                 "No ImportAddressTableRVA found for an import: " << Message);
+      HasImportAddressTableEntry = false;
+    } else if (ImportAddressTableEntry == 0) {
+      revng_log(Log, "The ImportAddressTableRVA of an import is zero");
+      HasImportAddressTableEntry = false;
+    }
+
+    // The IAT is not optional: whichever table we enumerate the names from, its
+    // RVA is the base we compute the address of each entry from.
+    if (not HasImportAddressTableEntry) {
+      revng_log(Log, "The IAT of " << Name.str() << " is missing, skipping");
       continue;
     }
 
