@@ -60,9 +60,17 @@ def Clift_AnyPointerType
   : Type<CPred<"clift::unwrapped_isa<clift::PointerType>($_self)">,
          "pointer type">;
 
+def Clift_AnyArrayType
+  : Type<CPred<"clift::unwrapped_isa<clift::ArrayType>($_self)">,
+         "array type">;
+
 def Clift_AnyFunctionType
   : Type<CPred<"clift::unwrapped_isa<clift::FunctionType>($_self)">,
          "function type">;
+
+def Clift_AnyArrayOrFunctionType
+  : Type<Or<[Clift_AnyArrayType.predicate, Clift_AnyFunctionType.predicate]>,
+         "array or function type">;
 
 def Clift_AnyNonVoidType
   : Type<CPred<"not clift::unwrapped_isa<clift::VoidType>($_self)">,
@@ -1034,15 +1042,12 @@ def Clift_DecayOp
                            [DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
                                                       ["lvalueToRvalueConversion"]>]> {
 
-  let arguments = (ins AnyType:$value);
-
-  let results = (outs Clift_AnyNonConstType<AnyType>:$result);
+  let arguments = (ins Clift_AnyArrayOrFunctionType:$value);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
 
   let assemblyFormat = [{
     $value attr-dict `:` type($value) `->` type($result)
   }];
-
-  let hasVerifier = 1;
 }
 
 def Clift_TestOp : Clift_CastExpressionOp<"test"> {
