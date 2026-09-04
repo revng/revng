@@ -262,6 +262,7 @@ void GenericRegionInfo<GraphT, GT>::electHead(GraphT F) {
           if (HeadIt != HeadEnd) {
             const auto &[HeadCandidate, NumIncoming] = *HeadIt;
             if (NumIncoming > MaxNHead) {
+              MaxNHead = NumIncoming;
               Head = HeadCandidate;
             } else if (NumIncoming == MaxNHead) {
 

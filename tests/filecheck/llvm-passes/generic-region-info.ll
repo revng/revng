@@ -272,3 +272,67 @@ block_d:
 ; CHECK-NEXT: block_b
 ; CHECK-NEXT: block_d
 ; CHECK-NEXT: block_c
+
+; head election with three candidates. `five_incoming` must win, since it has
+; the highest number of incoming edges from outside the region. It is visited
+; before `three_incoming` in RPOT, and the first candidate of the region is
+; `one_incoming`, so a maximum that is not kept up to date would let the later
+; `three_incoming` overwrite the correct head.
+
+define void @s() #0 {
+entry:
+  switch i32 undef, label %o1 [ i32 1, label %o2
+                                i32 2, label %o3
+                                i32 3, label %o4
+                                i32 4, label %o5
+                                i32 5, label %o6
+                                i32 6, label %o7
+                                i32 7, label %o8
+                                i32 8, label %o9 ]
+
+o1:
+  br label %three_incoming
+
+o2:
+  br label %three_incoming
+
+o3:
+  br label %three_incoming
+
+o4:
+  br label %five_incoming
+
+o5:
+  br label %five_incoming
+
+o6:
+  br label %five_incoming
+
+o7:
+  br label %five_incoming
+
+o8:
+  br label %five_incoming
+
+o9:
+  br label %one_incoming
+
+no_incoming:
+  br label %three_incoming
+
+three_incoming:
+  br label %five_incoming
+
+five_incoming:
+  br label %one_incoming
+
+one_incoming:
+  br i1 undef, label %no_incoming, label %exit
+
+exit:
+  ret void
+}
+
+; CHECK-LABEL: Generic Region Info Results:
+; CHECK: Region 0:
+; CHECK-NEXT: Elected head: five_incoming
