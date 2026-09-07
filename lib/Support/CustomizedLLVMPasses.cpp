@@ -33,8 +33,7 @@ public:
     PassBuilder PB;
     PB.registerFunctionAnalyses(FAM);
 
-    FPM.run(F, FAM);
-    return true;
+    return not FPM.run(F, FAM).areAllPreserved();
   }
 };
 
@@ -75,10 +74,10 @@ public:
     PassBuilder PB;
     PB.registerFunctionAnalyses(FAM);
 
-    FPM.run(F, FAM);
+    bool Changed = not FPM.run(F, FAM).areAllPreserved();
 
     SROANoArrays = OriginalSROANoArrays;
-    return true;
+    return Changed;
   }
 };
 
@@ -107,10 +106,10 @@ public:
     unsigned OriginalMaxArraySize = MaxArraySize;
     MaxArraySize = 0;
 
-    InstructionCombiningPass::runOnFunction(F);
+    bool Result = InstructionCombiningPass::runOnFunction(F);
 
     MaxArraySize = OriginalMaxArraySize;
-    return true;
+    return Result;
   }
 };
 
