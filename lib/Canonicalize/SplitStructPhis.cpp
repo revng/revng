@@ -18,6 +18,72 @@
 
 using namespace llvm;
 
+using PerFieldPhisMap = DenseMap<PHINode *, SmallVector<PHINode *, 2>>;
+
+/// Computes the value that each per-field PHINode of Phi takes on the edges
+/// coming from the incoming block at the given index.
+static SmallVector<Value *, 2>
+computeIncomingFields(PHINode *Phi,
+                      unsigned Index,
+                      const PerFieldPhisMap &PerFieldPhis,
+                      OpaqueFunctionsPool<FunctionTags::TypePair> &Pool) {
+  auto *ST = cast<StructType>(Phi->getType());
+  Type *Int64Ty = IntegerType::getInt64Ty(Phi->getContext());
+  BasicBlock *Pred = Phi->getIncomingBlock(Index);
+  Value *Incoming = Phi->getIncomingValue(Index);
+  SmallVector<Value *, 2> Values;
+
+  // Undef / poison: propagate the same to every per-field phi.
+  if (isa<UndefValue>(Incoming) or isa<PoisonValue>(Incoming)) {
+    for (Type *FieldType : ST->elements())
+      Values.push_back(isa<PoisonValue>(Incoming) ?
+                         cast<Value>(PoisonValue::get(FieldType)) :
+                         UndefValue::get(FieldType));
+    return Values;
+  }
+
+  // Chained struct phi: reuse the producer's per-field phis directly.
+  if (auto *IncomingPhi = dyn_cast<PHINode>(Incoming)) {
+    auto It = PerFieldPhis.find(IncomingPhi);
+    if (It != PerFieldPhis.end()) {
+      for (PHINode *Src : It->second)
+        Values.push_back(Src);
+      return Values;
+    }
+  }
+
+  // If the incoming is a `struct_initializer` call, use its arguments directly
+  // instead of materializing `OpaqueExtractvalue` calls that would just undo
+  // the packing. The `struct_initializer` call becomes dead afterwards and DCE
+  // will clean it up.
+  if (auto *Call = dyn_cast<CallInst>(Incoming);
+      Call != nullptr
+      and isCallToTagged(Call, FunctionTags::StructInitializer)) {
+    revng_assert(Call->arg_size() == ST->getNumElements());
+    for (Use &Arg : Call->args())
+      Values.push_back(Arg.get());
+    return Values;
+  }
+
+  // General case: materialize one OpaqueExtractvalue per field at the end of
+  // the predecessor block.
+  Instruction *InsertBefore = Pred->getTerminator();
+  IRBuilder<> Builder(InsertBefore);
+  for (auto &&[Idx, FieldType] : llvm::enumerate(ST->elements())) {
+    auto *FT = FunctionType::get(FieldType,
+                                 { Incoming->getType(), Int64Ty },
+                                 false);
+    FunctionTags::TypePair Key = { FieldType, Incoming->getType() };
+    auto *EVFn = Pool.get(Key, FT, "OpaqueExtractvalue");
+    auto *Index = ConstantInt::get(Int64Ty, Idx);
+    CallInst *Extract = Builder.CreateCall(EVFn, { Incoming, Index });
+    Extract->setDebugLoc(InsertBefore->getDebugLoc());
+    Values.push_back(Extract);
+  }
+
+  return Values;
+}
+
 /// This pass eliminates phi nodes of `StructType` by splitting them into one
 /// phi per struct field.
 ///
@@ -92,82 +158,46 @@ public:
     auto OpaqueEVPool = FunctionTags::OpaqueExtractValue
                           .getPool(*F.getParent());
     LLVMContext &Ctx = F.getContext();
-    Type *Int64Ty = IntegerType::getInt64Ty(Ctx);
 
     // Step 1: pre-create empty per-field phis for every struct phi, so we can
     // resolve cross-references (including cycles) between chained struct phis.
-    DenseMap<PHINode *, SmallVector<PHINode *, 2>> PerFieldPhis;
+    PerFieldPhisMap PerFieldPhis;
     for (PHINode *Phi : MultiIncoming) {
       auto *ST = cast<StructType>(Phi->getType());
-      unsigned NumIncoming = Phi->getNumIncomingValues();
-      SmallVector<PHINode *, 2> Fields;
+      unsigned NumIncomings = Phi->getNumIncomingValues();
+      SmallVector<PHINode *, 2> FieldPHIs;
       for (Type *FieldType : ST->elements()) {
-        auto *NewPhi = PHINode::Create(FieldType, NumIncoming, "", Phi);
-        NewPhi->setDebugLoc(Phi->getDebugLoc());
-        Fields.push_back(NewPhi);
+        auto *FieldPHI = PHINode::Create(FieldType, NumIncomings, "", Phi);
+        FieldPHI->setDebugLoc(Phi->getDebugLoc());
+        FieldPHIs.push_back(FieldPHI);
       }
-      PerFieldPhis[Phi] = std::move(Fields);
+      PerFieldPhis[Phi] = std::move(FieldPHIs);
     }
 
     // Step 2: fill in the incoming values for each per-field phi.
     for (PHINode *Phi : MultiIncoming) {
-      auto *ST = cast<StructType>(Phi->getType());
-      auto &Fields = PerFieldPhis[Phi];
+      auto &FieldPHIs = PerFieldPhis[Phi];
 
+      // An incoming block shows up once per edge, e.g. when a switch has
+      // several cases targeting this block, and all its entries have to carry
+      // the same value. Compute the values the first time we run into an
+      // incoming block and reuse them for its remaining edges.
+      DenseMap<BasicBlock *, SmallVector<Value *, 2>> IncomingFields;
       for (unsigned I = 0, N = Phi->getNumIncomingValues(); I < N; ++I) {
-        Value *Incoming = Phi->getIncomingValue(I);
         BasicBlock *Pred = Phi->getIncomingBlock(I);
 
-        // Undef / poison: propagate the same to every per-field phi.
-        if (isa<UndefValue>(Incoming) or isa<PoisonValue>(Incoming)) {
-          for (auto &&[FieldType, NewPhi] : zip(ST->elements(), Fields)) {
-            Value *V = isa<PoisonValue>(Incoming) ?
-                         cast<Value>(PoisonValue::get(FieldType)) :
-                         UndefValue::get(FieldType);
-            NewPhi->addIncoming(V, Pred);
-          }
-          continue;
-        }
+        auto It = IncomingFields.find(Pred);
+        if (It == IncomingFields.end())
+          It = IncomingFields
+                 .try_emplace(Pred,
+                              computeIncomingFields(Phi,
+                                                    I,
+                                                    PerFieldPhis,
+                                                    OpaqueEVPool))
+                 .first;
 
-        // Chained struct phi: reuse the producer's per-field phis directly.
-        if (auto *IncomingPhi = dyn_cast<PHINode>(Incoming)) {
-          auto It = PerFieldPhis.find(IncomingPhi);
-          if (It != PerFieldPhis.end()) {
-            for (auto &&[Src, Dst] : zip(It->second, Fields))
-              Dst->addIncoming(Src, Pred);
-            continue;
-          }
-        }
-
-        // If the incoming is a `struct_initializer` call, use its arguments
-        // directly instead of materializing `OpaqueExtractvalue` calls that
-        // would just undo the packing. The `struct_initializer` call becomes
-        // dead afterwards and DCE will clean it up.
-        if (auto *Call = dyn_cast<CallInst>(Incoming);
-            Call != nullptr
-            and isCallToTagged(Call, FunctionTags::StructInitializer)) {
-          revng_assert(Call->arg_size() == Fields.size());
-          for (auto &&[Arg, FieldNewPhi] : zip(Call->args(), Fields))
-            FieldNewPhi->addIncoming(Arg.get(), Pred);
-          continue;
-        }
-
-        // General case: materialize one OpaqueExtractvalue per field at the
-        // end of the predecessor block.
-        Instruction *InsertBefore = Pred->getTerminator();
-        IRBuilder<> Builder(InsertBefore);
-        for (auto &&[Idx, FieldNewPhi] : llvm::enumerate(Fields)) {
-          Type *FieldType = ST->getElementType(Idx);
-          auto *FT = FunctionType::get(FieldType,
-                                       { Incoming->getType(), Int64Ty },
-                                       false);
-          FunctionTags::TypePair Key = { FieldType, Incoming->getType() };
-          auto *EVFn = OpaqueEVPool.get(Key, FT, "OpaqueExtractvalue");
-          auto *Index = ConstantInt::get(Int64Ty, Idx);
-          CallInst *Extract = Builder.CreateCall(EVFn, { Incoming, Index });
-          Extract->setDebugLoc(InsertBefore->getDebugLoc());
-          FieldNewPhi->addIncoming(Extract, Pred);
-        }
+        for (auto &&[FieldValue, FieldNewPhi] : zip(It->second, FieldPHIs))
+          FieldNewPhi->addIncoming(FieldValue, Pred);
       }
     }
 
@@ -183,7 +213,7 @@ public:
     StructInitializers Initializers(F.getParent(), /* EmitBody */ false);
 
     for (PHINode *Phi : MultiIncoming) {
-      auto &Fields = PerFieldPhis[Phi];
+      auto &FieldPHIs = PerFieldPhis[Phi];
 
       for (User *U : llvm::make_early_inc_range(Phi->users())) {
         auto *Call = dyn_cast<CallInst>(U);
@@ -191,8 +221,8 @@ public:
             and isCallToTagged(Call, FunctionTags::OpaqueExtractValue)) {
           auto *IndexConst = cast<ConstantInt>(Call->getArgOperand(1));
           uint64_t Index = IndexConst->getZExtValue();
-          revng_assert(Index < Fields.size());
-          Call->replaceAllUsesWith(Fields[Index]);
+          revng_assert(Index < FieldPHIs.size());
+          Call->replaceAllUsesWith(FieldPHIs[Index]);
           Call->eraseFromParent();
         }
       }
@@ -213,7 +243,7 @@ public:
         revng::IRBuilder ReconstructBuilder(Ctx);
         ReconstructBuilder.SetInsertPoint(InsertionPoint, Phi->getDebugLoc());
 
-        SmallVector<Value *, 4> FieldValues(Fields.begin(), Fields.end());
+        SmallVector<Value *, 4> FieldValues(FieldPHIs.begin(), FieldPHIs.end());
         auto *ST = cast<StructType>(Phi->getType());
         CallInst *Reconstructed = Initializers.createCall(ReconstructBuilder,
                                                           ST,

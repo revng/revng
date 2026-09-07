@@ -457,6 +457,7 @@ set(FILECHECK_TESTS
     llvm-passes/scope-graph-dumper.ll
     llvm-passes/select-scope.ll
     llvm-passes/split-exponential-dataflow.ll
+    llvm-passes/split-struct-phis.ll
     llvm-passes/switch-to-statements.ll
     model/drop-types/ArrayPropagation.yml
     model/drop-types/DropStructField.yml
