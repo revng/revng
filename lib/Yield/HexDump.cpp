@@ -101,9 +101,9 @@ static void outputHexDump(const model::Binary &Binary,
   Output << DivTag.open();
 
   MetaAddress CurrentAddress;
-  Map::const_iterator Current = Instructions.begin();
-  Map::const_iterator Next = std::next(Current);
   const Map::const_iterator End = Instructions.end();
+  Map::const_iterator Current = Instructions.begin();
+  Map::const_iterator Next = Current == End ? End : std::next(Current);
 
   std::stack<ptml::Tag> OpenedTags;
   for (const auto &[Segment, SegmentBinary] : BinaryView.segments()) {

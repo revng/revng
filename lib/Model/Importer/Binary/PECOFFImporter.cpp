@@ -203,7 +203,8 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
   for (const ImportedSymbolRef &I : Range) {
     StringRef Sym;
     if (Error E = I.getSymbolName(Sym)) {
-      revng_log(Log, "Found an imported symbol without a name.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log, "Found an imported symbol without a name: " << Message);
       continue;
     }
 
@@ -211,7 +212,9 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
     // so consider this info then.
     uint16_t Ordinal;
     if (Error E = I.getOrdinal(Ordinal)) {
-      revng_log(Log, "Found an imported symbol without an ordinal.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log,
+                "Found an imported symbol without an ordinal: " << Message);
       continue;
     }
 
@@ -244,7 +247,8 @@ void PECOFFImporter::parseImportedSymbols() {
        TheBinary.ObjectFile.import_directories()) {
     StringRef Name;
     if (Error E = I.getName(Name)) {
-      revng_log(Log, "Found an imported library without a name.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log, "Found an imported library without a name: " << Message);
       continue;
     }
 
@@ -260,16 +264,39 @@ void PECOFFImporter::parseImportedSymbols() {
     // the ILT. One could debate which one is more reliable, we choose to first
     // use the ILT, if absent, we use the IAT.
 
+    // A table can be reported as absent in two distinct ways: the getter can
+    // fail, or it can succeed and hand back a zero RVA.
+
     uint32_t ImportLookupTableEntry = 0;
     bool HasImportLookupTableEntry = true;
     if (Error E = I.getImportLookupTableRVA(ImportLookupTableEntry)) {
-      revng_log(Log, "No ImportLookupTableRVA found for an import");
+      // Consume eagerly: revng_log does not evaluate its argument unless the
+      // logger is enabled, and an unconsumed Error aborts on destruction.
+      std::string Message = toString(std::move(E));
+      revng_log(Log,
+                "No ImportLookupTableRVA found for an import: " << Message);
+      HasImportLookupTableEntry = false;
+    } else if (ImportLookupTableEntry == 0) {
+      revng_log(Log, "The ImportLookupTableRVA of an import is zero");
       HasImportLookupTableEntry = false;
     }
 
-    uint32_t ImportAddressTableEntry;
+    uint32_t ImportAddressTableEntry = 0;
+    bool HasImportAddressTableEntry = true;
     if (Error E = I.getImportAddressTableRVA(ImportAddressTableEntry)) {
-      revng_log(Log, "No ImportAddressTableRVA found for an import");
+      std::string Message = toString(std::move(E));
+      revng_log(Log,
+                "No ImportAddressTableRVA found for an import: " << Message);
+      HasImportAddressTableEntry = false;
+    } else if (ImportAddressTableEntry == 0) {
+      revng_log(Log, "The ImportAddressTableRVA of an import is zero");
+      HasImportAddressTableEntry = false;
+    }
+
+    // The IAT is not optional: whichever table we enumerate the names from, its
+    // RVA is the base we compute the address of each entry from.
+    if (not HasImportAddressTableEntry) {
+      revng_log(Log, "The IAT of " << Name.str() << " is missing, skipping");
       continue;
     }
 
@@ -296,7 +323,9 @@ void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
   for (const ImportedSymbolRef &S : Range) {
     StringRef Sym;
     if (Error E = S.getSymbolName(Sym)) {
-      revng_log(Log, "Found a delay imported symbol without a name.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log,
+                "Found a delay imported symbol without a name: " << Message);
       continue;
     }
 
@@ -304,13 +333,19 @@ void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
     // so consider this info then.
     uint16_t Ordinal;
     if (Error E = S.getOrdinal(Ordinal)) {
-      revng_log(Log, "Found a delay imported symbol without an ordinal.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log,
+                "Found a delay imported symbol without an ordinal: "
+                  << Message);
       continue;
     }
 
     uint64_t Addr;
     if (Error E = I.getImportAddress(Index++, Addr)) {
-      revng_log(Log, "Found a delay imported symbol without an address.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log,
+                "Found a delay imported symbol without an address: "
+                  << Message);
       continue;
     }
 
@@ -335,13 +370,15 @@ void PECOFFImporter::parseDelayImportedSymbols() {
   for (DelayDirectoryRef &I : TheBinary.ObjectFile.delay_import_directories()) {
     StringRef Name;
     if (Error E = I.getName(Name)) {
-      revng_log(Log, "No name of a delay imported dll.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log, "No name of a delay imported dll: " << Message);
       continue;
     }
 
     const delay_import_directory_table_entry *Table;
     if (Error E = I.getDelayImportTable(Table)) {
-      revng_log(Log, "No delay import table found for a dll.");
+      std::string Message = toString(std::move(E));
+      revng_log(Log, "No delay import table found for a dll: " << Message);
       continue;
     }
 
