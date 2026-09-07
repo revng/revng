@@ -94,10 +94,14 @@ public:
     return mlir::success();
   }
 
-  mlir::LogicalResult visitClassType(ClassType Type, ClassType RootType) {
-    for (FieldAttr Field : Type.getFields()) {
-      if (visitFieldType(Field.getType(), RootType).failed())
-        return mlir::failure();
+  mlir::LogicalResult visitClassType(ClassType Type,
+                                     ClassType RootType,
+                                     bool CheckRecursion = true) {
+    if (not CheckRecursion or not equivalent(Type, RootType)) {
+      for (FieldAttr Field : Type.getFields()) {
+        if (visitFieldType(Field.getType(), RootType).failed())
+          return mlir::failure();
+      }
     }
     return mlir::success();
   }
@@ -115,7 +119,7 @@ public:
                                          << UnqualifiedType.getHandle() << '\'';
 
     if (auto Class = mlir::dyn_cast<ClassType>(Type)) {
-      if (visitClassType(Class, Class).failed())
+      if (visitClassType(Class, Class, /*CheckRecursion=*/false).failed())
         return mlir::failure();
 
       ClassTypes.insert(Class);
