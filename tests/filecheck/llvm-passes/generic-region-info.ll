@@ -403,3 +403,36 @@ inner_head:
 ; CHECK-LABEL: Generic Region Info Results:
 ; CHECK: Region 0:
 ; CHECK-NEXT: Elected head: outer_head
+
+; a candidate that is already the head of a child region must still be checked
+; for validity. Here `self_loop_head` is the head of its own child region, but
+; it only reaches the rest of the outer region through `inner_body`, which is a
+; late entry of the other child region. `shared_head` is the head of that other
+; child region and does reach everything, so it has to be elected instead.
+
+define void @v() #0 {
+entry:
+  br label %dispatch
+
+dispatch:
+  br i1 undef, label %second_dispatch, label %outer_body
+
+second_dispatch:
+  br i1 undef, label %self_loop_head, label %shared_head
+
+inner_body:
+  br label %shared_head
+
+outer_body:
+  br label %self_loop_head
+
+shared_head:
+  br i1 undef, label %inner_body, label %outer_body
+
+self_loop_head:
+  br i1 undef, label %inner_body, label %self_loop_head
+}
+
+; CHECK-LABEL: Generic Region Info Results:
+; CHECK: Region 0:
+; CHECK-NEXT: Elected head: shared_head

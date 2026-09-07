@@ -306,14 +306,21 @@ void GenericRegionInfo<GraphT, GT>::electHead(GraphT F) {
         revng_assert(ChildHead);
 
         // If one of our candidate heads is already the elected head of a child
-        // region, we elect it as our head
+        // region, we elect it as our head, but only if it would still reach the
+        // whole region. Otherwise we leave the election to the criterion below,
+        // which takes validity into account.
         for (auto &[HeadCandidate, _] : HeadCandidates) {
-          if (HeadCandidate == ChildHead) {
+          if (HeadCandidate == ChildHead
+              and isValidHead(*CurrentRegion, HeadCandidate)) {
             CurrentRegion->setHead(HeadCandidate);
             revng_log(Log, "setHead: " << HeadCandidate->getName());
             break;
           }
         }
+
+        // The head of the first child that is a valid candidate wins
+        if (CurrentRegion->getHead())
+          break;
       }
 
       // If we elected a `Head` of a child, we can move on to the next region.
