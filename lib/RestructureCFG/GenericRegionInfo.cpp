@@ -21,7 +21,7 @@
 using namespace llvm;
 
 // Debug logger
-Logger Log("generic-region-info");
+static Logger Log("generic-region-info");
 
 /// Helper function which mimics the `at` behavior for a `llvm::SmallDenseMap`
 template<class KeyT, class ValueT>
