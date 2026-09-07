@@ -477,7 +477,7 @@ struct ExpressionForwardRefinementPattern
       if (not Constraint(RefinedType))
         return mlir::failure();
 
-      if (not isMoreRefined(RefinedType, Op.getType()))
+      if (not isMoreRefined(RefinedType, Op->getOperand(0).getType()))
         return mlir::failure();
 
       RefinedType = removeConst(RefinedType);
