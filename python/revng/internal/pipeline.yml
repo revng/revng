@@ -378,6 +378,9 @@ branches:
             - loop-simplify
             - instcombine-noarrays
             - remove-extractvalues
+            # We need to re-run type shrinking after instcombine.
+            - early-type-shrinking
+            - type-shrinking
             - early-cse
             - split-overflow-intrinsics
             - remove-llvmassume-calls
@@ -753,6 +756,10 @@ branches:
         configuration:
           passes:
             - instcombine
+            # We need to re-run type shrinking after instcombine.
+            - early-type-shrinking
+            - type-shrinking
+            - early-cse
             - dce
             - inline-segment-global-getters
 
