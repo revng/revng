@@ -400,7 +400,7 @@ nodesBetweenReverse(GraphT Source, GraphT Destination) {
 
 /// Helper function which checks that the `ScopeGraph` is a DAG
 template<class GraphT, class NodeT>
-bool isDAG(GraphT Graph) {
+bool isDAG(GraphT Graph, Logger *Log = nullptr) {
 
   using NodeRef = llvm::GraphTraits<GraphT>::NodeRef;
   llvm::SmallSet<NodeRef, 4> VisitedNodes;
@@ -419,6 +419,13 @@ bool isDAG(GraphT Graph) {
          I != IE;
          ++I) {
       if (I.hasCycle()) {
+        if (Log and Log->isEnabled()) {
+          revng_log(*Log, "LOOP!");
+          LoggerIndent Indent{ *Log };
+          for (NodeRef Node : *I) {
+            revng_log(*Log, Node->getName());
+          }
+        }
         return false;
       }
 
