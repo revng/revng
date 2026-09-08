@@ -41,7 +41,7 @@ $ revng -C project-dir project artifact emit-c-as-single-file \
         | grep -A2 -B1 -F ' main('
 _ABI(SystemV_x86_64)
 generic64_t main(generic64_t argument_0) {
-  return argument_0 * 3UL & 0xFFFFFFFFUL;
+  return (generic32_t) argument_0 * 3U;
 }
 ```
 
@@ -56,6 +56,6 @@ $ revng quick artifact emit-c-as-single-file example \
         | grep -A2 -B1 -F ' main('
 _ABI(SystemV_x86_64)
 generic64_t main(generic64_t argument_0) {
-  return argument_0 * 3UL & 0xFFFFFFFFUL;
+  return (generic32_t) argument_0 * 3U;
 }
 ```
