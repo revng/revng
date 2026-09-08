@@ -847,12 +847,20 @@ branches:
             filename: clean-ir.bc
 
   process-call-graph:
-    from: collect-cfg
+    from: isolate
     tasks:
       - pipe: process-call-graph
         arguments: [cfg-map, cross-relations]
+      - pipe: collect-globals
+        arguments: [binaries-container, llvm-functions, cross-relations]
         artifacts:
           - name: cross-relations
+            description: |-
+              This artifact describes how the entities of the input program
+              relate to each other: which functions call a function, and which
+              global variables the program has, together with the functions
+              using each of them. A global variable holding a string also
+              carries what it says.
             container: cross-relations
             category: metadata
             filename: cross-relations.yml

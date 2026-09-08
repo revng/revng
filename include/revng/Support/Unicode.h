@@ -5,6 +5,7 @@
 //
 
 #include <concepts>
+#include <string>
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Unicode.h"
@@ -66,6 +67,12 @@ public:
   llvm::StringRef data() const { return Data; }
   Encoding encoding() const { return TheEncoding; }
   size_t codePointCount() const { return CodePointCount; }
+
+  /// Return the text as UTF-8, without the terminator.
+  std::string toUTF8() const;
+
+  /// Return at most \p Limit code points as UTF-8, without the terminator.
+  std::string truncate(size_t Limit) const;
 
   /// \return 1 for UTF8, 2 for UTF16.
   unsigned charSize() const {

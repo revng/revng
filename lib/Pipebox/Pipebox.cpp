@@ -54,6 +54,7 @@
 #include "revng/SegmentReferences/EmitSegmentReferences.h"
 #include "revng/SegmentReferences/EmitStringConstants.h"
 #include "revng/Yield/HexDump.h"
+#include "revng/Yield/Pipes/CollectGlobals.h"
 #include "revng/Yield/Pipes/ProcessAssembly.h"
 #include "revng/Yield/Pipes/ProcessCallGraph.h"
 #include "revng/Yield/Pipes/YieldAssembly.h"
@@ -128,6 +129,7 @@ REGISTER(FunctionPipeRun, YieldAssembly);
 REGISTER(FunctionPipeRun, YieldCallGraphSlice);
 REGISTER(FunctionPipeRun, YieldCFG);
 
+REGISTER(SingleOutputPipeRun, CollectGlobals);
 REGISTER(SingleOutputPipeRun, CompileRootModule);
 REGISTER(SingleOutputPipeRun, EmitCAsDirectory);
 REGISTER(SingleOutputPipeRun, EmitCAsSingleFile);

@@ -72,8 +72,8 @@ template<typename AddNodeCallable, typename AddEdgeCallable>
 static void conversionHelper(const CR::CrossRelations &Input,
                              const AddNodeCallable &AddNode,
                              const AddEdgeCallable &AddEdge) {
-  for (const auto &[LocationString, Related] : Input.Relations())
-    AddNode(LocationString);
+  for (const CR::RelationDescription &Relation : Input.Relations())
+    AddNode(Relation.Location());
 
   for (const CR::RelationDescription &Relation : Input.Relations())
     for (llvm::StringRef CallerLocation : Relation.IsCalledFrom())
