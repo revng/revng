@@ -462,7 +462,7 @@ void DetectABI::analyzeABI() {
   Task.advance("Inline helpers");
   {
     llvm::legacy::PassManager PM;
-    PM.add(new InlineHelpersPass());
+    PM.add(new InlineHelpersLegacyPass());
     PM.run(M);
   }
 

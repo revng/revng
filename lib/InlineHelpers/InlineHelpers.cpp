@@ -68,9 +68,9 @@ static void dumpFunctionToDir(const Function &F, StringRef Dir) {
   F.print(OS, nullptr);
 }
 
-char InlineHelpersPass::ID = 0;
+char InlineHelpersLegacyPass::ID = 0;
 
-using Register = RegisterPass<InlineHelpersPass>;
+using Register = RegisterPass<InlineHelpersLegacyPass>;
 static Register X("inline-helpers", "Inline Helpers Pass", true, true);
 
 class InlineHelpers {
@@ -188,7 +188,7 @@ void InlineHelpers::run(Function *F) {
     dumpFunctionToDir(*F, DumpAfterDir);
 }
 
-bool InlineHelpersPass::runOnModule(llvm::Module &M) {
+void inlineHelpers(llvm::Module &M) {
   // Inline `revng_inline` helper calls into the `Isolated` functions, where the
   // per-call critical arguments are constant at the call site.
   SmallVector<Function *, 32> Isolated;
@@ -202,6 +202,15 @@ bool InlineHelpersPass::runOnModule(llvm::Module &M) {
     InlineHelpers IH;
     IH.run(F);
   }
+}
 
+llvm::PreservedAnalyses InlineHelpersPass::run(llvm::Module &M,
+                                               llvm::ModuleAnalysisManager &) {
+  inlineHelpers(M);
+  return llvm::PreservedAnalyses::none();
+}
+
+bool InlineHelpersLegacyPass::runOnModule(llvm::Module &M) {
+  inlineHelpers(M);
   return true;
 }
