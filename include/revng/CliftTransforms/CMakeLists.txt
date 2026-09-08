@@ -11,6 +11,9 @@ mlir_tablegen(BooleanNegations.h.inc -gen-rewriters)
 set(LLVM_TARGET_DEFINITIONS CastCanonicalization.td)
 mlir_tablegen(CastCanonicalization.h.inc -gen-rewriters)
 
+set(LLVM_TARGET_DEFINITIONS ImmediateCanonicalization.td)
+mlir_tablegen(ImmediateCanonicalization.h.inc -gen-rewriters)
+
 set(LLVM_TARGET_DEFINITIONS Expressions.td)
 mlir_tablegen(Expressions.h.inc -gen-rewriters)
 
