@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <compare>
+
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/GenericCycleImpl.h"
 #include "llvm/ADT/GenericCycleInfo.h"
@@ -124,21 +126,91 @@ computeShortesPath(GraphT F) {
   return ShortestPathFromEntry;
 }
 
+struct HeadScoreInfo {
+  size_t NumEdgesFromAncestors = 0;
+  size_t NumEdgesFromDirectParent = 0;
+  size_t NumEdgesFromSelf = 0;
+  size_t NumEdgesFromChildren = 0;
+  bool IsInChild = false;
+  bool IsChildHead = false;
+};
+
+static void logScoreInfo(const HeadScoreInfo &Info) {
+  if (Log.isEnabled()) {
+    LoggerIndent Indent{ Log };
+    revng_log(Log, "NumEdgesFromAncestors:    " << Info.NumEdgesFromAncestors);
+    revng_log(Log,
+              "NumEdgesFromDirectParent: " << Info.NumEdgesFromDirectParent);
+    revng_log(Log, "IsInChild:                " << Info.IsInChild);
+    revng_log(Log, "IsChildHead:              " << Info.IsChildHead);
+    revng_log(Log, "NumEdgesFromSelf:         " << Info.NumEdgesFromSelf);
+    revng_log(Log, "NumEdgesFromChildren:     " << Info.NumEdgesFromChildren);
+  }
+}
+
 /// Helper static function which computes the `Head` candidates for a given
 /// region
 template<class NodeT>
-static llvm::SmallVector<NodeT>
-getHeadCandidates(GenericRegion<NodeT> &Region) {
-  llvm::SmallVector<NodeT> HeadCandidates;
+static llvm::SmallMapVector<NodeT, HeadScoreInfo, 4>
+getHeadCandidatesInfo(GenericRegion<NodeT> &Region) {
+  llvm::SmallMapVector<NodeT, HeadScoreInfo, 4> HeadCandidatesInfo;
+  GenericRegion<NodeT> *Parent = Region.getParent();
   for (NodeT Block : Region.blocks()) {
     for (NodeT Predecessor : graph_predecessors(Block)) {
+      // If the Region does not contain the Predecessor, and the Predecessor is
+      // strictly in the Parent region, the Block is a Candidate.
+      // Predecessors not strictly in the parent region but just in an ancestor
+      // don't count to make the Block a candidate.
+      // The reason why they don't is that if we pick a head that has no
+      // predecessors in in the parent region, all edges from parent region to
+      // this region will become late entris, hence gotos.
+      // So, if the head of the parent region is then elected to be a node that
+      // is *not* in the current child region, it will not be possible to reach
+      // the child from the elected head of the parent, except via gotos. Hence,
+      // that would disconnect the child from the parent, which is something we
+      // want to avoid by design.
       if (not Region.containsBlock(Predecessor)) {
-        HeadCandidates.push_back(Block);
+        if (not Parent or Parent->containsBlock(Predecessor)) {
+          HeadCandidatesInfo[Block].NumEdgesFromDirectParent++;
+        }
+      }
+    }
+  }
+  revng_assert(not HeadCandidatesInfo.empty());
+
+  for (auto &[Node, Info] : HeadCandidatesInfo) {
+    for (auto *ChildRegion : Region.children()) {
+      if (ChildRegion->containsBlock(Node)) {
+        Info.IsInChild = true;
+        for (auto &GrandChild : post_order(ChildRegion)) {
+          if (ChildRegion->getHead() == Node)
+            Info.IsChildHead = true;
+        }
+      }
+    }
+    for (NodeT Predecessor : graph_predecessors(Node)) {
+      bool PredecessorInChild = false;
+
+      if (GenericRegion<NodeT> *Parent = Region.getParent();
+          Parent and not Parent->containsBlock(Predecessor)) {
+        Info.NumEdgesFromAncestors++;
+      }
+
+      for (auto *ChildRegion : Region.children()) {
+        if (ChildRegion->containsBlock(Predecessor)) {
+          Info.NumEdgesFromChildren++;
+          PredecessorInChild = true;
+        }
+      }
+      if (not PredecessorInChild) {
+        if (Region.containsBlock(Predecessor)) {
+          Info.NumEdgesFromSelf++;
+        }
       }
     }
   }
 
-  return HeadCandidates;
+  return HeadCandidatesInfo;
 }
 
 /// Stateful visitor used to explore a `GenericRegion` starting from a
@@ -208,6 +280,107 @@ bool GenericRegionInfo<GraphT, GT>::isValidHead(Region &CurrentRegion,
   return RegionVisitor<GraphT, GT>(CurrentRegion).isValidHead(Candidate);
 }
 
+/// Stateful visitor used to explore a `GenericRegion` starting from a
+/// candidate head.
+///
+/// The visit never leaves the region, and it never traverses edges go to a Node
+/// inside a child region. If it reaches the child regions in its elected head,
+/// the head is valid also for the parent. If it reaches the child region in a
+/// node that is different from its elected head, the head is not valid.
+static HeadScoreInfo worst() {
+  return HeadScoreInfo{
+    .NumEdgesFromAncestors = 0,
+    .NumEdgesFromDirectParent = 0,
+    .NumEdgesFromSelf = 0,
+    .NumEdgesFromChildren = 0,
+    .IsInChild = true,
+    .IsChildHead = true,
+  };
+}
+
+static std::strong_ordering isLess(const HeadScoreInfo &CurrentBest,
+                                   const HeadScoreInfo &Candidate) {
+
+  // We want to pick a head that, in a way that has the best chances of
+  // reducing the number of gotos we emit when dagifying.
+  // DAGify emits gotos for late entries and for retreating edges.
+  // At this stage, we can't reason about retreating edges that point to a
+  // node that is different from head, because that would require
+  // effectively removing edges and performing new visits.
+  //
+  // In general, gotos on retreating edges are considered worse than gotos
+  // on forward edges. So we use first criteria that reduce the number of
+  // gotos on retreating edges and then criteria that reduce the number of
+  // gotos on forward edges.
+  // Also, among retreating edges, turning a goto into a continue_to is
+  // considered worse than turning it into a proper continue.
+  //
+  // We consider the following criteria, in this order
+  // 1. We try to maximize the number of incoming edges to the head from
+  //    within the region or one of its children. These are all rendered as
+  //    `continue` or `continue_to` and are all strictly better than just
+  //    `goto`.
+  auto CurrentInnerBackedges = CurrentBest.NumEdgesFromSelf
+                               + CurrentBest.NumEdgesFromChildren;
+  auto CandidateInnerBackedges = Candidate.NumEdgesFromSelf
+                                 + Candidate.NumEdgesFromChildren;
+  if (auto Cmp = CurrentInnerBackedges <=> CandidateInnerBackedges; Cmp != 0) {
+    return Cmp;
+  }
+
+  // 2. We try to maximize the number of incoming edges to the head from
+  //    strictly within the region. These are all rendered as `continue`
+  //    and are all strictly better than just `goto`.
+  //    The reason why we consider this only after 1. is that we consider
+  //    less forward `goto`s always better, even if some are `continue_to`
+  //    and not proper `continue`.
+  if (auto Cmp = CurrentBest.NumEdgesFromSelf <=> Candidate.NumEdgesFromSelf;
+      Cmp != 0) {
+    return Cmp;
+  }
+
+  // 3. We try to maximize the number of incoming edges to the head from its
+  //    parent region or an ancestor region. These will turn a forward
+  //    `goto` for a late entry in a regular entry in the region.
+  auto CurrentAncestorEntries = CurrentBest.NumEdgesFromAncestors
+                                + CurrentBest.NumEdgesFromDirectParent;
+  auto CandidateAncestorEntries = Candidate.NumEdgesFromAncestors
+                                  + Candidate.NumEdgesFromDirectParent;
+  if (auto Cmp = CurrentAncestorEntries <=> CandidateAncestorEntries;
+      Cmp != 0) {
+    return Cmp;
+  }
+
+  // 4. We try to maximize the number of incoming edges to the head from its
+  //    strict parent region. These will turn a forward `goto` for a late
+  //    entry in a regular entry in the region.
+  auto CurrentFromDirect = CurrentBest.NumEdgesFromDirectParent;
+  auto CandidateFromDirect = Candidate.NumEdgesFromDirectParent;
+  if (auto Cmp = CurrentFromDirect <=> CandidateFromDirect; Cmp != 0) {
+    return Cmp;
+  }
+
+  // 5. We favor heads that are not nested in children.
+  //    If we pick a head that is nested in a children, all the backedges
+  //    inside the children that point to that head will become
+  //    `continue_to`, which is strictly worse than a `continue`. This would
+  //    subvert a choice of a child region, and we try to avoid it if
+  //    possible because the consequences are not clear.
+  if (auto Cmp = CurrentBest.IsInChild <=> Candidate.IsInChild; Cmp != 0) {
+    if (Cmp == std::strong_ordering::less)
+      return std::strong_ordering::greater;
+    else
+      return std::strong_ordering::less;
+  }
+
+  revng_assert(CurrentBest.IsChildHead == Candidate.IsChildHead);
+
+  // TODO: in case all head candidates are inside a child region we didn't
+  // put much effort in improving this heuristic. See the TODO in criterion
+  // 5, which is the only one considering head candidates inside a child.
+  return std::strong_ordering::equivalent;
+}
+
 template<class GraphT, class GT>
 void GenericRegionInfo<GraphT, GT>::electHead(GraphT F) {
 
@@ -229,11 +402,18 @@ void GenericRegionInfo<GraphT, GT>::electHead(GraphT F) {
                   << std::to_string(RegionIndex++) << "\n");
       LoggerIndent MoreIndentRegion{ Log };
 
+      if (Log.isEnabled()) {
+        revng_log(Log, "Blocks:");
+        for (NodeT Block : CurrentRegion->blocks()) {
+          LoggerIndent BlockIndent{ Log };
+          revng_log(Log, Block->getName());
+        }
+      }
+
       // The `Head` election phase works in a bottom-up fashion and it must
       // guarantee that the decision we take when processing a region, is
       // coherent with all the children region it contains. Specifically, we
-      // must guarantee the following properties.
-      // * We must be coherent in terms of _late entries_. This means that if a
+      // must be coherent in terms of _late entries_. This means that if a
       // node is considered a late entry for a child region, it must be a late
       // entry for its parent region as well. So it may not be elected as a head
       // for the parent. If a late entry for a child is elected as head for the
@@ -241,27 +421,17 @@ void GenericRegionInfo<GraphT, GT>::electHead(GraphT F) {
       // In practice, this means that when electing the `Head` of a region, we
       // must exclude from the candidates all the nodes that happens to be late
       // entries for its children regions.
-      // * If a child region elected a `Head` is also a candidate head for the
-      // current region, we must take the same decision for parent region too.
-      // If this is not done, we may end up disconnecting nodes from the entry,
-      // because we do not have a single entry point into the tree of nested
-      // regions. In other words, suppose that we elect for the outer `Region` A
-      // as `Head`. If A is also contained in the inner child region, and we
-      // elect another block, say B, as its `Head`, it would mean that A becomes
-      // a late entry for the inner region, causing it to be disconnected (late
-      // entry edges are transformed into `goto` edges).
-      //
-      // Once we have guaranteed these properties, we can pick whatever
-      // candidate head is left with a logic of our choice.
+      // Once we have guaranteed this, we can pick whatever candidate head is
+      // left with a logic of our choice.
 
-      // All the blocks which have an incoming edge from a block not part of the
-      // region itself, are considered as head candidates
-      revng_log(Log, "Head candidates:");
-      llvm::SmallMapVector<NodeT, size_t, 4> HeadCandidates;
-      for (NodeT Block : getHeadCandidates(*CurrentRegion)) {
-        LoggerIndent CandidateIndent{ Log };
-        revng_log(Log, Block->getName());
-        HeadCandidates[Block]++;
+      // All the blocks which have an incoming edge from the direct parent
+      // region are considered head candidates.
+      auto HeadCandidatesInfo = getHeadCandidatesInfo(*CurrentRegion);
+      revng_log(Log, "Head candidates info:");
+      for (auto &[Node, Info] : HeadCandidatesInfo) {
+        LoggerIndent CandidateInfoIndent{ Log };
+        revng_log(Log, Node->getName());
+        logScoreInfo(Info);
       }
 
       // Filter away children's late entries. If there are any children, their
@@ -274,108 +444,80 @@ void GenericRegionInfo<GraphT, GT>::electHead(GraphT F) {
       // outermost regions the property is guaranteed by induction.
       revng_log(Log,
                 "Purging childrens' late entries from parent's candidates");
-      for (auto ChildRegion : CurrentRegion->children()) {
-        LoggerIndent ChildrenIndent{ Log };
-        NodeT ChildHead = ChildRegion->getHead();
-        revng_assert(ChildHead);
+      {
+        LoggerIndent PurgeIndent{ Log };
 
-        for (NodeT Block : getHeadCandidates(*ChildRegion)) {
-          if (Block != ChildHead) {
-            HeadCandidates.erase(Block);
-            revng_log(Log,
-                      "child's late entry block can't be head of parent: "
-                        << Block->getName());
+        SmallVector<NodeT> CandidatesToPurge;
+        for (auto &[Node, Info] : HeadCandidatesInfo) {
+          if (Info.IsInChild and not Info.IsChildHead) {
+            CandidatesToPurge.push_back(Node);
           }
         }
-        revng_log(Log, "Remaining Head candidates:");
-        for (const auto &[Block, _] : HeadCandidates) {
-          LoggerIndent CandidateIndent{ Log };
-          revng_log(Log, Block->getName());
+        for (NodeT ToPurge : CandidatesToPurge) {
+          LoggerIndent ToPurgeIndent{ Log };
+          revng_log(Log,
+                    "child's late entry block can't be head of parent: "
+                      << ToPurge->getName());
+          HeadCandidatesInfo.erase(ToPurge);
         }
-      }
-
-      // If one of the HeadCandidates is already an elected head of a child
-      // region, pick it as a head for the parent region as well.
-      // Notice that again we iterate only on direct children regions and not on
-      // grandchildren but given that we work from the innermost to the
-      // outermost regions the property is guaranteed by induction.
-      revng_log(Log, "Pick head that is already a head of a child");
-      for (auto ChildRegion : CurrentRegion->children()) {
-        LoggerIndent ChildrenIndent{ Log };
-        NodeT ChildHead = ChildRegion->getHead();
-        revng_assert(ChildHead);
-
-        // If one of our candidate heads is already the elected head of a child
-        // region, we elect it as our head, but only if it would still reach the
-        // whole region. Otherwise we leave the election to the criterion below,
-        // which takes validity into account.
-        for (auto &[HeadCandidate, _] : HeadCandidates) {
-          if (HeadCandidate == ChildHead
-              and isValidHead(*CurrentRegion, HeadCandidate)) {
-            CurrentRegion->setHead(HeadCandidate);
-            revng_log(Log, "setHead: " << HeadCandidate->getName());
-            break;
+        revng_assert(not HeadCandidatesInfo.empty());
+        if (not CandidatesToPurge.empty()) {
+          revng_log(Log, "Remaining Head candidates:");
+          for (const auto &[Block, _] : HeadCandidatesInfo) {
+            LoggerIndent CandidateIndent{ Log };
+            revng_log(Log, Block->getName());
           }
         }
-
-        // The head of the first child that is a valid candidate wins
-        if (CurrentRegion->getHead())
-          break;
       }
 
-      // If we elected a `Head` of a child, we can move on to the next region.
-      if (CurrentRegion->getHead()) {
-        continue;
-      }
-
-      // Elect the `Head` as the candidate head with the largest number of
-      // incoming edges from outside the region.
-      // If there is a tie, i.e., there are 2 or more candidate heads with the
-      // same number of incoming edges from outside the region itself, we select
-      // the entry with the minimal shortest path from entry. If it is still a
-      // tie, i.e., there are 2 or more candidate heads with, also, the same
-      // minimal shortest path from entry, then we disambiguate by picking the
-      // head that comes first in RPOT.
-      // A candidate that would not reach the whole region once the children
-      // regions have been dagified cannot be elected. We only check this for
-      // the candidate we are about to pick, and, if it turns out to be
-      // invalid, we drop it and pick again.
       revng_log(Log, "Pick the best head");
       NodeT CurrentHead = nullptr;
+      HeadScoreInfo Best = worst();
+
       size_t MaxIncomings = 0;
       for (NodeT Block : RPOT) {
         LoggerIndent IndentRPOT{ Log };
 
-        auto HeadIt = HeadCandidates.find(Block);
-        if (HeadIt == HeadCandidates.end())
+        auto HeadIt = HeadCandidatesInfo.find(Block);
+        if (HeadIt == HeadCandidatesInfo.end())
           continue;
 
-        const auto &[HeadCandidate, NumIncoming] = *HeadIt;
-        if (NumIncoming < MaxIncomings)
+        auto &[Candidate, CandidateScore] = *HeadIt;
+        auto Cmp = isLess(Best, CandidateScore);
+        // If Best is still larger than CandidateScore, go to next
+        if (Cmp > 0)
           continue;
 
-        if (NumIncoming > MaxIncomings) {
-          if (isValidHead(*CurrentRegion, HeadCandidate)) {
-            MaxIncomings = NumIncoming;
-            CurrentHead = HeadCandidate;
-            revng_log(Log, "New Max Incomings: " << MaxIncomings);
-            revng_log(Log, "New Head: " << CurrentHead->getName());
+        if (Cmp < 0) {
+          if (isValidHead(*CurrentRegion, Candidate)) {
+            revng_log(Log, "New Head: " << Candidate->getName());
+            revng_log(Log, "New Best:");
+            logScoreInfo(CandidateScore);
+            Best = CandidateScore;
+            CurrentHead = Candidate;
+          } else {
+            revng_log(Log, "Invalid head: " << Candidate->getName());
           }
-        } else if (NumIncoming == MaxIncomings) {
+        } else {
+          // 6. As a fallback, we pick the node with the shortest path from
+          // entry.
+          //
           // Compute the `ShortestPathFromEntry` map since we need to
           // break a tie here
           if (not ShortestPathFromEntry.has_value()) {
             ShortestPathFromEntry = computeShortesPath(F);
           }
           size_t CurrentShortest = mapAt(*ShortestPathFromEntry, CurrentHead);
-          size_t CandidateShortest = mapAt(*ShortestPathFromEntry,
-                                           HeadCandidate);
+          size_t CandidateShortest = mapAt(*ShortestPathFromEntry, Candidate);
           if (CandidateShortest < CurrentShortest) {
-            if (isValidHead(*CurrentRegion, HeadCandidate)) {
-              CurrentHead = HeadCandidate;
+            if (isValidHead(*CurrentRegion, Candidate)) {
               revng_log(Log,
-                        "New Head coming first in RPOT: "
-                          << HeadCandidate->getName());
+                        "New Head with shortest path from entry: "
+                          << Candidate->getName() << ": " << CandidateShortest);
+
+              CurrentHead = Candidate;
+            } else {
+              revng_log(Log, "Invalid head: " << Candidate->getName());
             }
           }
         }
