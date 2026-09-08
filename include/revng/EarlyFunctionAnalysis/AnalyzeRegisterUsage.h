@@ -8,6 +8,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -17,6 +18,20 @@
 #include "revng/Support/MetaAddress.h"
 
 namespace efa {
+
+/// Instructions carrying this are left out of the register usage analysis, as
+/// if they touched no register at all.
+constexpr const char *IgnoreMDName = "revng.register-usage.ignore";
+
+/// Leave \p I out of the register usage analysis.
+inline void ignoreInRegisterUsage(llvm::Instruction &I) {
+  I.setMetadata(IgnoreMDName, llvm::MDNode::get(I.getContext(), {}));
+}
+
+/// \return whether \p I was left out of the register usage analysis.
+inline bool isIgnoredInRegisterUsage(const llvm::Instruction &I) {
+  return I.getMetadata(IgnoreMDName) != nullptr;
+}
 
 // TODO: switch to model::Register?
 using CSVSet = std::set<llvm::GlobalVariable *>;

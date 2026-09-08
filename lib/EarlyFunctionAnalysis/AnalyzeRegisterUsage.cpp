@@ -150,6 +150,12 @@ fromLLVMFunction(llvm::Function &F,
 
     // Translate the basic block
     for (llvm::Instruction &I : *BB) {
+      // A sub-register write reads the register back only in order to keep the
+      // bits it does not touch. `IgnorePreservedBitsPass` marks that read: it
+      // is not something the program does with the register.
+      if (isIgnoredInRegisterUsage(I))
+        continue;
+
       auto Call = dyn_cast<CallInst>(&I);
 
       if (auto *Load = dyn_cast<LoadInst>(&I)) {

@@ -14,6 +14,7 @@ revng_add_analyses_library_internal(
   ControlFlowGraph.cpp
   DetectABI.cpp
   FunctionSummaryOracle.cpp
+  IgnorePreservedBits.cpp
   IndirectBranchInfoPrinterPass.cpp
   Outliner.cpp
   PromoteGlobalToLocalVars.cpp
