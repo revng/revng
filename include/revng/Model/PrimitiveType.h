@@ -101,7 +101,7 @@ public:
   /// @{
 
   static UpcastableType make(Register::Values Register) {
-    return make(model::Register::primitiveKind(Register),
+    return make(model::Register::getPrimitiveKind(Register),
                 model::Register::getSize(Register));
   }
 

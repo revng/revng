@@ -541,7 +541,7 @@ struct Portion {
                    model::Architecture::Values Architecture);
 };
 
-constexpr inline model::PrimitiveKind::Values primitiveKind(Values V) {
+constexpr inline model::PrimitiveKind::Values getPrimitiveKind(Values V) {
   switch (V) {
   case eax_x86:
   case ebx_x86:
