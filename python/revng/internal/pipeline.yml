@@ -496,6 +496,7 @@ branches:
             # Note that the production of non-canonical forms means that these
             # rewrites cannot be applied at fixed point with canonicalization.
             - post-process-expressions
+            - promote-while-conditions
             - promote-do-while-conditions
             - canonicalize
             - terminal-branch-complement-hoisting

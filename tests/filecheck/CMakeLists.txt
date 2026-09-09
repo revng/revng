@@ -415,6 +415,10 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/trivial-return-elimination.mlir
     clift/statement-rewrites/variable-initializer-hoisting-with-self-assignment.mlir
     clift/statement-rewrites/variable-initializer-hoisting.mlir
+    clift/statement-rewrites/while-conversion-with-empty-else.mlir
+    clift/statement-rewrites/while-conversion-with-empty-then.mlir
+    clift/statement-rewrites/while-conversion-with-hoisted-else.mlir
+    clift/statement-rewrites/while-conversion-with-hoisted-then.mlir
     clift/type-refinement/backward-add-refinement.mlir
     clift/type-refinement/backward-neg-refinement.mlir
     clift/type-refinement/backward-ternary-refinement.mlir
