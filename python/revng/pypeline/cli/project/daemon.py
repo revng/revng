@@ -6,13 +6,12 @@ import socket
 from pathlib import Path
 
 import click
-from hypercorn.config import Config
 
 import revng.pypeline.daemon.app as app
 from revng.pypeline.cli.backend import backend_factory_for
 from revng.pypeline.cli.backend.daemon_backend import DaemonBackendFactory
 from revng.pypeline.cli.context import ClickContext, pass_context
-from revng.pypeline.cli.hypercorn import hypercorn_command, run_hypercorn
+from revng.pypeline.cli.hypercorn import hypercorn_command, is_bind_default, run_hypercorn
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.daemon.daemon import Daemon
 
@@ -68,7 +67,7 @@ def run_daemon(ctx: ClickContext, production: bool, socket_location_file: Path |
     socket_in_use = False
     # Check if the `--bind` option has been specified by checking if the value
     # is the default one
-    if hypercorn_config.bind is Config._bind:
+    if is_bind_default(hypercorn_config):
         # Get the default path of the unix socket from the daemon. If the
         # result is none (e.g. model is in-memory) then the hypercorn default
         # of `127.0.0.1:8000` will be used.
