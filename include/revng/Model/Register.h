@@ -287,11 +287,53 @@ inline llvm::StringRef getRegisterName(Values V) {
 
 /// Return the size of the register in bytes
 inline uint64_t getSize(Values V) {
-  model::Architecture::Values Architecture = getReferenceArchitecture(V);
-
   switch (V) {
+  case eax_x86:
+  case ebx_x86:
+  case ecx_x86:
+  case edx_x86:
+  case esi_x86:
+  case edi_x86:
+  case ebp_x86:
+  case esp_x86:
+    return 4;
+
   case st0_x86:
     return 10;
+
+  case zmm0_x86:
+  case zmm1_x86:
+  case zmm2_x86:
+  case zmm3_x86:
+  case zmm4_x86:
+  case zmm5_x86:
+  case zmm6_x86:
+  case zmm7_x86:
+    // Setting this to anything bigger than `8` leads to
+    // ```
+    // libtcg-helpers-full-i386.bc: error: Unterminated VBR
+    // ```
+    // TODO: set the register size to its real value.
+    return 8;
+
+  case rax_x86_64:
+  case rbx_x86_64:
+  case rcx_x86_64:
+  case rdx_x86_64:
+  case rbp_x86_64:
+  case rsp_x86_64:
+  case rsi_x86_64:
+  case rdi_x86_64:
+  case r8_x86_64:
+  case r9_x86_64:
+  case r10_x86_64:
+  case r11_x86_64:
+  case r12_x86_64:
+  case r13_x86_64:
+  case r14_x86_64:
+  case r15_x86_64:
+    return 8;
+
   case zmm0_x86_64:
   case zmm1_x86_64:
   case zmm2_x86_64:
@@ -301,6 +343,138 @@ inline uint64_t getSize(Values V) {
   case zmm6_x86_64:
   case zmm7_x86_64:
     return 64;
+
+  case fs_x86_64:
+    // FS register is 16 bits (2 bytes), even if `FS.base` can be used to access
+    // more than that.
+    return 2;
+
+  case r0_arm:
+  case r1_arm:
+  case r2_arm:
+  case r3_arm:
+  case r4_arm:
+  case r5_arm:
+  case r6_arm:
+  case r7_arm:
+  case r8_arm:
+  case r9_arm:
+  case r10_arm:
+  case r11_arm:
+  case r12_arm:
+  case r13_arm:
+  case r14_arm:
+  case r15_arm:
+    return 4;
+
+  case q0_arm:
+  case q1_arm:
+  case q2_arm:
+  case q3_arm:
+  case q4_arm:
+  case q5_arm:
+  case q6_arm:
+  case q7_arm:
+    return 16;
+
+  case x0_aarch64:
+  case x1_aarch64:
+  case x2_aarch64:
+  case x3_aarch64:
+  case x4_aarch64:
+  case x5_aarch64:
+  case x6_aarch64:
+  case x7_aarch64:
+  case x8_aarch64:
+  case x9_aarch64:
+  case x10_aarch64:
+  case x11_aarch64:
+  case x12_aarch64:
+  case x13_aarch64:
+  case x14_aarch64:
+  case x15_aarch64:
+  case x16_aarch64:
+  case x17_aarch64:
+  case x18_aarch64:
+  case x19_aarch64:
+  case x20_aarch64:
+  case x21_aarch64:
+  case x22_aarch64:
+  case x23_aarch64:
+  case x24_aarch64:
+  case x25_aarch64:
+  case x26_aarch64:
+  case x27_aarch64:
+  case x28_aarch64:
+  case x29_aarch64:
+  case lr_aarch64:
+  case sp_aarch64:
+    return 8;
+
+  case v0_aarch64:
+  case v1_aarch64:
+  case v2_aarch64:
+  case v3_aarch64:
+  case v4_aarch64:
+  case v5_aarch64:
+  case v6_aarch64:
+  case v7_aarch64:
+  case v8_aarch64:
+  case v9_aarch64:
+  case v10_aarch64:
+  case v11_aarch64:
+  case v12_aarch64:
+  case v13_aarch64:
+  case v14_aarch64:
+  case v15_aarch64:
+  case v16_aarch64:
+  case v17_aarch64:
+  case v18_aarch64:
+  case v19_aarch64:
+  case v20_aarch64:
+  case v21_aarch64:
+  case v22_aarch64:
+  case v23_aarch64:
+  case v24_aarch64:
+  case v25_aarch64:
+  case v26_aarch64:
+  case v27_aarch64:
+  case v28_aarch64:
+  case v29_aarch64:
+  case v30_aarch64:
+  case v31_aarch64:
+    return 16;
+
+  case v0_mips:
+  case v1_mips:
+  case a0_mips:
+  case a1_mips:
+  case a2_mips:
+  case a3_mips:
+  case s0_mips:
+  case s1_mips:
+  case s2_mips:
+  case s3_mips:
+  case s4_mips:
+  case s5_mips:
+  case s6_mips:
+  case s7_mips:
+  case t0_mips:
+  case t1_mips:
+  case t2_mips:
+  case t3_mips:
+  case t4_mips:
+  case t5_mips:
+  case t6_mips:
+  case t7_mips:
+  case t8_mips:
+  case t9_mips:
+  case gp_mips:
+  case sp_mips:
+  case fp_mips:
+  case ra_mips:
+    return 4;
+
   case f0_mips:
   case f1_mips:
   case f2_mips:
@@ -333,25 +507,54 @@ inline uint64_t getSize(Values V) {
   case f29_mips:
   case f30_mips:
   case f31_mips:
+    // These registers are actually 32-bit BUT qemu models them as 64-bit.
+    //
+    // Most likely to reuse the same logic for both 32-bit and 64-bit MIPS.
+    //
+    // TODO: set the real size.
     return 8;
+
+  case r0_systemz:
+  case r1_systemz:
+  case r2_systemz:
+  case r3_systemz:
+  case r4_systemz:
+  case r5_systemz:
+  case r6_systemz:
+  case r7_systemz:
+  case r8_systemz:
+  case r9_systemz:
+  case r10_systemz:
+  case r11_systemz:
+  case r12_systemz:
+  case r13_systemz:
+  case r14_systemz:
+  case r15_systemz:
+    return 8;
+
+  case f0_systemz:
+  case f1_systemz:
+  case f2_systemz:
+  case f3_systemz:
+  case f4_systemz:
+  case f5_systemz:
+  case f6_systemz:
+  case f7_systemz:
+  case f8_systemz:
+  case f9_systemz:
+  case f10_systemz:
+  case f11_systemz:
+  case f12_systemz:
+  case f13_systemz:
+  case f14_systemz:
+  case f15_systemz:
+    return 16;
+
   default:
-    break;
+    revng_abort("Unsupported register!");
   }
 
-  // TODO: this does not account for all of the float registers.
-
-  switch (Architecture) {
-  case model::Architecture::x86:
-  case model::Architecture::arm:
-  case model::Architecture::mips:
-    return 4;
-  case model::Architecture::x86_64:
-  case model::Architecture::aarch64:
-  case model::Architecture::systemz:
-    return 8;
-  default:
-    revng_abort();
-  }
+  revng_abort("Unreachable!");
 }
 
 template<model::Architecture::Values Architecture>
