@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng clift-opt %s --optimize-statements | FileCheck %s
+// RUN: %root/bin/revng clift-opt %s --optimize-statements --promote-do-while-conditions --canonicalize | FileCheck %s
 
 !void = !clift.void
 !int8_t = !clift.int<signed 1>

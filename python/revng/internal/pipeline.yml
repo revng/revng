@@ -470,6 +470,8 @@ branches:
 
             # Post processing phase
             - post-process-expressions
+            - promote-do-while-conditions
+            - canonicalize
             - terminal-branch-complement-hoisting
 
             # Backend phase. In this phase, in preparation for the emission of
