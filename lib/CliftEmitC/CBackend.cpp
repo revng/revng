@@ -1190,13 +1190,18 @@ public:
       Tokens.emitNewline();
 
       CaseValueEmitter CVE(*this, S.getConditionType(), getConstantRadix(S));
-      for (unsigned I = 0, Count = S.getNumCases(); I < Count; ++I) {
-        Tokens.emitKeyword(CTE::Keyword::Case);
-        Tokens.emitSpace();
+      for (unsigned I = 0, Count = S.getCaseRegionCount(); I < Count; ++I) {
+        for (auto [J, CaseValue] : llvm::enumerate(S.getCaseValues(I))) {
+          if (J != 0)
+            Tokens.emitNewline();
 
-        CVE.emit(S.getCaseValue(I));
+          Tokens.emitKeyword(CTE::Keyword::Case);
+          Tokens.emitSpace();
 
-        Tokens.emitPunctuator(CTE::Punctuator::Colon);
+          CVE.emit(CaseValue);
+          Tokens.emitPunctuator(CTE::Punctuator::Colon);
+        }
+
         rc_recur emitCaseRegion(S.getCaseRegion(I));
       }
 

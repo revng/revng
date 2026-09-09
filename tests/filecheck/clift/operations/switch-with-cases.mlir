@@ -10,6 +10,6 @@ clift.switch {
   %0 = clift.undef : !int32_t
   clift.yield %0 : !int32_t
 } case 1 {
-} case 0 {
+} case (0, 2) {
 } default {
 }

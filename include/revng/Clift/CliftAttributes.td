@@ -188,4 +188,32 @@ def Clift_TypedefAttr
   let genVerifyDecl = 1;
 }
 
+def Clift_SwitchCaseArrayAttr : Clift_Attr<"SwitchCaseArray", "switch"> {
+  let parameters = (ins ArrayRefParameter<"clift::SwitchCase">:$cases);
+
+  let hasCustomAssemblyFormat = 1;
+  let genVerifyDecl = 1;
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] size_t getCaseCount() const {
+      return getCases().size();
+    }
+
+    [[nodiscard]] unsigned getRegionCount() const {
+      if (getCases().empty())
+        return 0;
+
+      return getCases().back().Region + 1;
+    }
+
+    [[nodiscard]] llvm::ArrayRef<SwitchCase>::iterator begin() const {
+      return getCases().begin();
+    }
+
+    [[nodiscard]] llvm::ArrayRef<SwitchCase>::iterator end() const {
+      return getCases().end();
+    }
+  }];
+}
+
 #endif

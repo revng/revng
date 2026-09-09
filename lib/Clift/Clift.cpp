@@ -1152,11 +1152,8 @@ mlir::Type SwitchOp::getConditionType() {
 
 void SwitchOp::build(mlir::OpBuilder &OdsBuilder,
                      mlir::OperationState &OdsState,
-                     const llvm::ArrayRef<uint64_t> CaseValues) {
-  llvm::SmallVector<int64_t> SignedCaseValues;
-  SignedCaseValues.resize_for_overwrite(CaseValues.size());
-  std::copy(CaseValues.begin(), CaseValues.end(), SignedCaseValues.begin());
-  build(OdsBuilder, OdsState, SignedCaseValues, CaseValues.size());
+                     SwitchCaseArrayAttr CaseAttribute) {
+  build(OdsBuilder, OdsState, CaseAttribute, CaseAttribute.getRegionCount());
 }
 
 mlir::ParseResult SwitchOp::parse(mlir::OpAsmParser &Parser,
@@ -1171,20 +1168,37 @@ mlir::ParseResult SwitchOp::parse(mlir::OpAsmParser &Parser,
     return Parser.emitError(Parser.getCurrentLocation(),
                             "Expected switch condition region");
 
-  llvm::SmallVector<int64_t, 16> CaseValues;
+  unsigned CaseRegionIndex = 0;
+  llvm::SmallVector<SwitchCase, 16> Cases;
+
   while (Parser.parseOptionalKeyword("case").succeeded()) {
-    uint64_t CaseValue;
-    if (Parser.parseInteger(CaseValue).failed())
-      return Parser.emitError(Parser.getCurrentLocation(),
-                              "Expected switch case value");
+    auto ParseCase = [&]() -> mlir::LogicalResult {
+      uint64_t CaseValue;
+      if (Parser.parseInteger(CaseValue).failed())
+        return mlir::failure();
+
+      Cases.emplace_back(CaseRegionIndex, CaseValue);
+      return mlir::success();
+    };
+
+    if (Parser.parseOptionalLParen().succeeded()) {
+      if (Parser.parseCommaSeparatedList(ParseCase).failed())
+        return mlir::failure();
+
+      if (Parser.parseRParen().failed())
+        return mlir::failure();
+    } else {
+      if (ParseCase().failed())
+        return mlir::failure();
+    }
 
     auto R = std::make_unique<mlir::Region>();
     if (Parser.parseRegion(*R).failed())
       return Parser.emitError(Parser.getCurrentLocation(),
                               "Expected switch case region");
 
-    CaseValues.push_back(static_cast<uint64_t>(CaseValue));
     Result.addRegion(std::move(R));
+    ++CaseRegionIndex;
   }
 
   if (Parser.parseOptionalKeyword("default").succeeded()) {
@@ -1193,12 +1207,14 @@ mlir::ParseResult SwitchOp::parse(mlir::OpAsmParser &Parser,
                               "Expected switch default region");
   }
 
-  Result.attributes.set("case_values",
-                        mlir::DenseI64ArrayAttr::get(Parser.getContext(),
-                                                     CaseValues));
+  Result.attributes.set("cases",
+                        SwitchCaseArrayAttr::get(Parser.getContext(), Cases));
 
   if (Parser.parseOptionalAttrDictWithKeyword(Result.attributes).failed())
     return mlir::failure();
+
+  auto A = SwitchCaseArrayAttr::get(Parser.getContext(), Cases);
+  revng_assert(Result.regions.size() == A.getRegionCount() + 2);
 
   return mlir::success();
 }
@@ -1207,8 +1223,23 @@ void SwitchOp::print(mlir::OpAsmPrinter &Printer) {
   Printer << ' ';
   Printer.printRegion(getConditionRegion());
 
-  for (unsigned I = 0, C = getNumCases(); I < C; ++I) {
-    Printer << " case " << getCaseValue(I) << ' ';
+  for (unsigned I = 0, C = getCaseRegionCount(); I < C; ++I) {
+    Printer << " case ";
+
+    auto CaseValues = getCaseValues(I);
+    if (CaseValues.size() == 1) {
+      Printer << CaseValues.front();
+    } else {
+      Printer << '(';
+      for (auto [J, V] : llvm::enumerate(CaseValues)) {
+        if (J != 0)
+          Printer << ", ";
+        Printer << V;
+      }
+      Printer << ')';
+    }
+
+    Printer << ' ';
     Printer.printRegion(getCaseRegion(I));
   }
 
@@ -1217,10 +1248,7 @@ void SwitchOp::print(mlir::OpAsmPrinter &Printer) {
     Printer.printRegion(getDefaultCaseRegion());
   }
 
-  static constexpr llvm::StringRef Elided[] = {
-    "case_values",
-  };
-
+  static constexpr llvm::StringRef Elided[] = { "cases" };
   Printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(), Elided);
 }
 
@@ -1230,16 +1258,9 @@ mlir::LogicalResult SwitchOp::verify() {
                          << " condition requires an integer type.";
 
   // One region for the condition, one for the default case and N for others.
-  if (getNumRegions() != 2 + getCaseValues().size())
+  if (getNumRegions() != 2 + getCases().getRegionCount())
     return emitOpError() << getOperationName()
                          << " must have a case value for each case region.";
-
-  llvm::SmallSet<uint64_t, 16> CaseValueSet;
-  for (uint64_t const CaseValue : getCaseValues()) {
-    if (not CaseValueSet.insert(CaseValue).second)
-      return emitOpError() << getOperationName()
-                           << " case values must be unique.";
-  }
 
   return mlir::success();
 }

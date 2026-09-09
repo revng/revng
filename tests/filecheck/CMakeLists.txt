@@ -19,6 +19,7 @@ endfunction()
 
 set(FILECHECK_TESTS
     clift/attributes/data-model.mlir
+    clift/attributes/switch.mlir
     clift/backend-transforms/immediate-radix-switch.mlir
     clift/backend-transforms/immediate-radix.mlir
     clift/backend/access.mlir
