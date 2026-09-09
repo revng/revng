@@ -480,6 +480,8 @@ branches:
             # more readable forms, without maintaining any notion of a canonical
             # form. Usual Clift invariants are still maintained, however.
             - post-process-expressions
+            - promote-do-while-conditions
+            - canonicalize
             - terminal-branch-complement-hoisting
 
             # == Context-sensitive post-processing phase ==

@@ -7,6 +7,7 @@ revng_add_library_internal(
   SHARED
   BooleanCastElimination.cpp
   BooleanNegations.cpp
+  DoWhileConditionPromotion.cpp
   EmitFieldAccesses.cpp
   EmitFieldAccesses/BestTraversal.cpp
   EmitFieldAccesses/FieldAccessReplacement.cpp
