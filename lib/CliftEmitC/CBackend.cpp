@@ -891,6 +891,23 @@ public:
 
   //===---------------------------- Statements ----------------------------===//
 
+  /// Emit the comment the model attached to \p Op, if it attached one.
+  ///
+  /// This is the comment belonging to the entity itself, as opposed to the
+  /// statement comments of `clift.comments`, which belong to a point in the
+  /// code and are emitted by \ref emitStatement.
+  void emitEntityComment(mlir::Operation *Op) {
+    auto Comment = Op->getAttrOfType<mlir::StringAttr>("clift.comment");
+    if (not Comment or Comment.getValue().empty())
+      return;
+
+    // A plain `//`, as the statement comments around it use: this one sits
+    // inside a body, not on a declaration a reader meets on its own.
+    auto CommentEmitter = Tokens.emitComment(CTE::CommentKind::Line);
+    CommentEmitter.emit(Comment.getValue());
+    CommentEmitter.emit("\n");
+  }
+
   RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp Var,
                                                         bool OnSeparateLine) {
     if (OnSeparateLine) {
@@ -899,6 +916,8 @@ public:
           Tokens.emitNewline();
       }
     }
+
+    emitEntityComment(Var);
 
     mlir::Type Type = Var.getType();
     DeclaratorInfo Declarator{
@@ -972,6 +991,8 @@ public:
   }
 
   void emitLabelStatementImpl(MakeLabelOp Label, bool RequiresEmptyExpression) {
+    emitEntityComment(Label);
+
     Tokens.emitIdentifier(Label.getName(),
                           Label.getHandle(),
                           CTE::EntityKind::Label,

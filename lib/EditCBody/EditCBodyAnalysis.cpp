@@ -82,12 +82,14 @@ static llvm::Expected<model::LocalVariable>
 makeLocalVariableEditAt(mlir::Operation *Op,
                         const std::optional<std::string> &NewName,
                         const std::optional<std::string> &NewTypeName,
+                        const std::optional<std::string> &NewComment,
                         const ResolvedTypeMap &ResolvedTypes,
                         const AmbiguousLocations &Ambiguous) {
   auto Variable = mlir::dyn_cast_or_null<clift::LocalVariableOp>(Op);
   return makeLocalVariableEdit(Variable,
                                NewName,
                                NewTypeName,
+                               NewComment,
                                ResolvedTypes,
                                Ambiguous);
 }
@@ -97,6 +99,7 @@ makeLocalVariableEditAt(mlir::Operation *Op,
 static llvm::Expected<model::GotoLabel>
 makeGotoLabelEditAt(mlir::Operation *Op,
                     const std::optional<std::string> &NewName,
+                    const std::optional<std::string> &NewComment,
                     const AmbiguousLocations &Ambiguous) {
   // The labels closing a loop body and following a loop are emitted by the C
   // backend, not lifted, so there is nothing in the model to rename.
@@ -110,17 +113,36 @@ makeGotoLabelEditAt(mlir::Operation *Op,
   if (not Label)
     return revng::createError("`RENAME` can only be applied to a goto label");
 
-  return makeGotoLabelEdit(Label, NewName, Ambiguous);
+  return makeGotoLabelEdit(Label, NewName, NewComment, Ambiguous);
+}
+
+/// Whether \p Op declares the stack frame variable, whose comment the model
+/// keeps on the function rather than among its local variables.
+static bool isStackFrameDeclaration(mlir::Operation *Op) {
+  auto Variable = mlir::dyn_cast_or_null<clift::LocalVariableOp>(Op);
+  if (not Variable)
+    return false;
+
+  return pipeline::locationFromString(rr::StackFrameVariable,
+                                      Variable.getHandle())
+    .has_value();
 }
 
 namespace {
 
 /// The edits a statement's leading comments produce: at most one comment and at
-/// most one local variable rename/retype or one label rename.
+/// most one local variable rename/retype/comment or one label rename/comment.
+///
+/// Where the comment goes depends on what it sits above. A declaration and a
+/// label own a comment of their own, so it is folded into \ref Variable or
+/// \ref Label; anywhere else it becomes a \ref Comment attached to the point in
+/// the code. The stack frame is a declaration whose comment lives on the
+/// function rather than in `LocalVariables`, so it travels on its own.
 struct StatementEdits {
   std::optional<model::StatementComment> Comment;
   std::optional<model::LocalVariable> Variable;
   std::optional<model::GotoLabel> Label;
+  std::optional<std::string> StackFrameComment;
 };
 
 } // namespace
@@ -140,7 +162,9 @@ static void reportDropped(llvm::Error Error,
 static llvm::StringRef describeDirectives(bool HasName, bool HasTypeName) {
   if (HasName and HasTypeName)
     return "`RENAME`/`RETYPE`";
-  return HasName ? "`RENAME`" : "`RETYPE`";
+  if (HasName)
+    return "`RENAME`";
+  return HasTypeName ? "`RETYPE`" : "the comment";
 }
 
 /// Classify a statement's leading comments and delegate each kind to its
@@ -172,7 +196,25 @@ computeStatementEdits(llvm::ArrayRef<std::string> LeadingComments,
 
   StatementEdits Edits;
 
-  if (not PlainComments.empty()) {
+  // A comment above a declaration or a label is about the entity it introduces,
+  // which is also where the decompiler writes one back, so it is recorded on
+  // that entity. Everywhere else a comment is about the point in the code, and
+  // stays a statement comment.
+  bool CommentsAnEntity = Kind == StatementKind::LocalVariableDeclaration
+                          or Kind == StatementKind::Label;
+
+  std::optional<std::string> NewComment;
+  if (not PlainComments.empty() and CommentsAnEntity)
+    NewComment = llvm::join(PlainComments, "\n");
+
+  // The stack frame is not in `LocalVariables`, so nothing locates it by
+  // address and its comment is taken here rather than by the edit below.
+  if (NewComment.has_value() and isStackFrameDeclaration(Op)) {
+    Edits.StackFrameComment = std::move(*NewComment);
+    NewComment.reset();
+  }
+
+  auto RecordStatementComment = [&] {
     auto MaybeComment = makeStatementComment(Op, PlainComments);
     if (MaybeComment) {
       Edits.Comment = std::move(*MaybeComment);
@@ -181,7 +223,10 @@ computeStatementEdits(llvm::ArrayRef<std::string> LeadingComments,
                     "the comment \"" + llvm::join(PlainComments, " ") + "\"",
                     Kind);
     }
-  }
+  };
+
+  if (not PlainComments.empty() and not CommentsAnEntity)
+    RecordStatementComment();
 
   // A label has only a name, so `RETYPE:` does not apply to it. Dropping the
   // directive alone leaves a `RENAME:` on the same label working.
@@ -193,18 +238,27 @@ computeStatementEdits(llvm::ArrayRef<std::string> LeadingComments,
   }
 
   if (Kind == StatementKind::Label) {
-    if (NewName.has_value()) {
-      auto MaybeLabel = makeGotoLabelEditAt(Op, NewName, Ambiguous);
+    if (NewName.has_value() or NewComment.has_value()) {
+      auto MaybeLabel = makeGotoLabelEditAt(Op, NewName, NewComment, Ambiguous);
       if (MaybeLabel) {
         Edits.Label = std::move(*MaybeLabel);
       } else {
-        reportDropped(MaybeLabel.takeError(), "`RENAME`", Kind);
+        reportDropped(MaybeLabel.takeError(),
+                      NewName.has_value() ? "`RENAME`" : "the comment",
+                      Kind);
+
+        // Nothing holds a comment the label could not take, so keep it where a
+        // comment always used to go rather than losing it.
+        if (NewComment.has_value())
+          RecordStatementComment();
       }
     }
-  } else if (NewName.has_value() or NewTypeName.has_value()) {
+  } else if (NewName.has_value() or NewTypeName.has_value()
+             or NewComment.has_value()) {
     auto MaybeVariable = makeLocalVariableEditAt(Op,
                                                  NewName,
                                                  NewTypeName,
+                                                 NewComment,
                                                  ResolvedTypes,
                                                  Ambiguous);
     if (MaybeVariable) {
@@ -214,6 +268,9 @@ computeStatementEdits(llvm::ArrayRef<std::string> LeadingComments,
                     describeDirectives(NewName.has_value(),
                                        NewTypeName.has_value()),
                     Kind);
+
+      if (NewComment.has_value())
+        RecordStatementComment();
     }
   }
 
@@ -314,6 +371,7 @@ llvm::Error EditCBody::run(Model &Model,
   std::vector<model::StatementComment> NewComments;
   std::vector<model::LocalVariable> NewVariables;
   std::vector<model::GotoLabel> NewLabels;
+  std::optional<std::string> NewStackFrameComment;
 
   for (const auto &[Parsed, Decompiled] :
        llvm::zip(UserStatements, CliftStatements)) {
@@ -334,10 +392,19 @@ llvm::Error EditCBody::run(Model &Model,
       NewVariables.push_back(std::move(*Edits.Variable));
     if (Edits.Label.has_value())
       NewLabels.push_back(std::move(*Edits.Label));
+    if (Edits.StackFrameComment.has_value())
+      NewStackFrameComment = std::move(*Edits.StackFrameComment);
   }
 
   // Replace the function's comments with the imported ones.
   model::Function &ModelFunction = *FunctionIterator;
+
+  // A comment above the stack frame declaration replaces the one it carries.
+  // A body carrying none leaves it alone, as it does for every other comment
+  // belonging to an entity rather than to a point in the code.
+  if (NewStackFrameComment.has_value())
+    ModelFunction.StackFrame().Comment() = std::move(*NewStackFrameComment);
+
   ModelFunction.Comments().clear();
   for (model::StatementComment &Comment : NewComments)
     ModelFunction.Comments().insert(std::move(Comment));

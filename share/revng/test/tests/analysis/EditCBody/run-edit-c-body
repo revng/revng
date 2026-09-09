@@ -17,6 +17,10 @@ set -euo pipefail
 #   - `goto label_0;` a jump                             -> a comment;
 #   - `var_2 = 0`   a plain assignment statement          -> a statement comment.
 #
+# Where a comment lands depends on what it sits above. A declaration and a goto
+# label own a comment, so theirs go to the `LocalVariable` and the `GotoLabel`;
+# a jump and an assignment do not, so theirs stay statement comments.
+#
 # Each directive is then checked to reach the model and, where the decompiler
 # renders it, the re-emitted code.
 #
@@ -143,22 +147,31 @@ assert_model "$FUNCTION" \
   '[.GotoLabels[] | select(.Name == "renamed_goto_label")] | length' 1 \
   "the goto label rename did not reach the model"
 
-# A goto label and a jump are located indirectly, so they take a comment too.
-# Only their arrival in the model is checked: statements lifted from the same
-# instruction share an address set, and the emitter is then free to render the
-# comment on any one of them.
+# A goto label owns its comment, so the comment above it becomes the label's
+# rather than one attached to a point in the code. Only its arrival in the model
+# is checked: statements lifted from the same instruction share an address set,
+# and the emitter is then free to render the comment on any one of them.
 assert_model "$FUNCTION" \
-  "[.Comments[] | select(.Body == \"$LABEL_COMMENT\")] | length" 1 \
-  "the comment on the goto label did not reach the model"
+  "[.GotoLabels[] | select(.Comment == \"$LABEL_COMMENT\")] | length" 1 \
+  "the comment on the goto label did not become the label's comment"
+
+# A jump owns nothing, so a comment above one stays a statement comment.
 assert_model "$FUNCTION" \
   "[.Comments[] | select(.Body == \"$GOTO_COMMENT\")] | length" 1 \
   "the comment on the goto did not reach the model"
 
 # A declaration is located through the statements using the variable, exactly
-# like the `RENAME:` and the `RETYPE:` sitting on it, so all three apply at once.
+# like the `RENAME:` and the `RETYPE:` sitting on it, so all three apply at
+# once, the comment landing on the variable itself.
 assert_model "$FUNCTION" \
-  "[.Comments[] | select(.Body == \"$DECL_COMMENT\")] | length" 1 \
-  "the comment on the local variable declaration did not reach the model"
+  "[.LocalVariables[] | select(.Comment == \"$DECL_COMMENT\")] | length" 1 \
+  "the comment on the declaration did not become the variable's comment"
+
+# Neither of the two became a statement comment, which is what would show up
+# twice in the re-emitted code.
+assert_model "$FUNCTION" \
+  "[.Comments[] | select(.Body == \"$DECL_COMMENT\" or .Body == \"$LABEL_COMMENT\")] | length" 0 \
+  "a comment owned by an entity was also recorded as a statement comment"
 
 # The `RENAME:` on the assignment cannot be applied. It must be dropped rather
 # than abort the import, be reported on the logger, and leave the plain comment

@@ -35,6 +35,18 @@ findDuplicates(llvm::ArrayRef<SortedVector<MetaAddress>> Locations) {
   return Duplicates;
 }
 
+/// The comment the model already attached to \p Op, which the importer left on
+/// it.
+///
+/// An edit replaces the model entry rather than amending it, so a directive the
+/// edit does not carry has to be carried over from what is there, just as the
+/// name is.
+static std::string currentComment(mlir::Operation *Op) {
+  if (auto Comment = Op->getAttrOfType<mlir::StringAttr>("clift.comment"))
+    return Comment.getValue().str();
+  return {};
+}
+
 namespace revng::editcbody {
 
 AmbiguousLocations collectAmbiguousLocations(clift::FunctionOp Function) {
@@ -58,6 +70,7 @@ llvm::Expected<model::LocalVariable>
 makeLocalVariableEdit(clift::LocalVariableOp Variable,
                       const std::optional<std::string> &NewName,
                       const std::optional<std::string> &NewTypeName,
+                      const std::optional<std::string> &NewComment,
                       const ResolvedTypeMap &ResolvedTypes,
                       const AmbiguousLocations &Ambiguous) {
   if (not Variable) {
@@ -93,6 +106,8 @@ makeLocalVariableEdit(clift::LocalVariableOp Variable,
 
   model::LocalVariable Result;
   Result.Name() = NewName.has_value() ? *NewName : Variable.getName().str();
+  Result.Comment() = NewComment.has_value() ? *NewComment :
+                                              currentComment(Variable);
   if (NewTypeName.has_value()) {
     auto Iterator = ResolvedTypes.find(*NewTypeName);
     if (Iterator == ResolvedTypes.end() or Iterator->second.isEmpty())
@@ -106,6 +121,7 @@ makeLocalVariableEdit(clift::LocalVariableOp Variable,
 llvm::Expected<model::GotoLabel>
 makeGotoLabelEdit(clift::MakeLabelOp Label,
                   const std::optional<std::string> &NewName,
+                  const std::optional<std::string> &NewComment,
                   const AmbiguousLocations &Ambiguous) {
   revng_assert(Label);
 
@@ -134,6 +150,8 @@ makeGotoLabelEdit(clift::MakeLabelOp Label,
 
   model::GotoLabel Result;
   Result.Name() = NewName.has_value() ? *NewName : Label.getName().str();
+  Result.Comment() = NewComment.has_value() ? *NewComment :
+                                              currentComment(Label);
   Result.Location() = std::move(Location);
   return Result;
 }
