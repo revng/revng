@@ -20,6 +20,7 @@
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
+#include "revng/EditCBody/EditByNameAnalysis.h"
 #include "revng/EditCBody/EditCBodyAnalysis.h"
 #include "revng/EditCType/EditCTypeAnalysis.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
@@ -162,6 +163,7 @@ REGISTER(Analysis, ConvertFunctionsToRaw);
 REGISTER(Analysis, DetectABI);
 REGISTER(Analysis, revng::pypeline::analyses::DetectCStrings);
 REGISTER(Analysis, DetectStackSize);
+REGISTER(Analysis, EditByName);
 REGISTER(Analysis, EditCBody);
 REGISTER(Analysis, EditCType);
 REGISTER(Analysis, ImportPrototypesFromDatabase);

@@ -164,6 +164,42 @@ $ revng project artifact emit-c resolve | revng ptml | grep -E 'value =|mix the 
     value = raw(argument_0) ^ argument_0;
 ```
 
+### Editing without the C
+
+A comment on a *statement* has to say where it goes, which is why `edit-c-body` wants the whole body: it finds the statement by matching your C against the code rev.ng emitted, statement by statement.
+Renaming, retyping or commenting a local variable or a goto label needs no position, only the thing it applies to, and in the decompiled code that thing already has a name.
+
+The [`edit-by-name` analysis](../../references/analyses.md#edit-by-name-analysis) takes just that: a function address and a list of edits, each naming its target.
+
+```bash
+$ RESOLVE=$(yq -r '.Functions[] | select(.Name == "resolve") | .Entry' revng.yml)
+$ cat > rename.yml << EOF
+Function: $RESOLVE
+Edits:
+  - Target: value
+    Rename: mixed_key
+    Retype: "uint64_t"
+    Comment: the key once the salt has been mixed in
+EOF
+$ revng project analyze edit-by-name -o /dev/null -c rename.yml
+$ revng project artifact emit-c resolve | revng ptml | grep -B 1 'uint64_t mixed_key'
+  // the key once the salt has been mixed in
+  uint64_t mixed_key = 0UL;
+```
+
+The comment belongs to the variable rather than to a point in the code, so it is written above its declaration wherever that ends up, and an edit that only renames leaves it alone.
+
+Every edit stands on its own.
+One that cannot be applied -- naming something the function does not have, retyping a goto label, or naming a type the model does not know -- is dropped, and the others still land.
+As with `edit-c-body`, the `edit-by-name` logger says which ones were dropped and why:
+
+```
+revng project analyze edit-by-name -o /dev/null -c rename.yml -- --debug-log="edit-by-name"
+```
+
+`edit-by-name` acts on local variables and goto labels, the two things inside a body that rev.ng identifies by address rather than by a stable key.
+Comments on statements still go through `edit-c-body`, which is what knows where to put them.
+
 ### Under the hood
 
 `edit-c-body` is a convenience: it figures out where each annotation belongs and writes it into the model.

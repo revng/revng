@@ -613,6 +613,16 @@ branches:
               - clift-functions
               - tagless-type-and-global-header
               - tagless-helper-header
+          - analysis: edit-by-name
+            description: |-
+              Rename and retype the local variables and goto labels of a
+              function, naming each one as it appears in the decompiled code.
+              Unlike `edit-c-body`, the body of the function is not submitted
+              back.
+            containers:
+              - clift-functions
+              - tagless-type-and-global-header
+              - tagless-helper-header
 
       - pipe: emit-c-as-directory
         arguments:

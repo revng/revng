@@ -6,7 +6,7 @@
 
 revng_add_analyses_library_internal(
   revngEditCBodyAnalysis ClangParse.cpp CliftFlatten.cpp EditCBodyAnalysis.cpp
-  ModelEdits.cpp)
+  EditByNameAnalysis.cpp ModelEdits.cpp)
 
 target_link_libraries(
   revngEditCBodyAnalysis

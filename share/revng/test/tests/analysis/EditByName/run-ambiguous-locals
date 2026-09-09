@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+set -euo pipefail
+
+# Both locals of `ambiguous` are read only by the same call, so they share the
+# address set rev.ng identifies a local variable by and cannot be told apart.
+# An edit on either must be dropped rather than applied to whichever of them the
+# decompiler happens to reach first. `var_0` is that first one, so dropping it
+# too is what keeps a model entry from ever being written for a set naming more
+# than one variable.
+
+BINARY="$1"
+PROJECT="$2"
+FUNCTION="ambiguous"
+
+fail() {
+  echo "edit-by-name: $1" >&2
+  exit 1
+}
+
+# Read a value out of a function's model with yq.
+function_model() {
+  yq ".Functions[] | select(.Name == \"$1\") | $2" "$PROJECT/revng.yml"
+}
+
+# Assert a model query on a function returns an expected value.
+assert_model() {
+  [ "$(function_model "$1" "$2")" = "$3" ] || fail "$4"
+}
+
+# The entry address of a function, which the configuration is keyed by.
+function_address() {
+  local address
+  address="$(function_model "$1" '.Entry' | tr -d '"')"
+  if [ -z "$address" ] || [ "$address" = "null" ]; then
+    fail "could not find the entry address of $1"
+  fi
+  echo "$address"
+}
+
+mkdir -p "$PROJECT"
+revng -C "$PROJECT" project init --overwrite "$BINARY"
+
+cat > "$PROJECT/edit.yml" <<EOF
+Function: $(function_address "$FUNCTION")
+Edits:
+  - Target: var_0
+    Rename: renamed_ambiguous
+EOF
+
+revng -C "$PROJECT" project analyze edit-by-name -o /dev/null \
+  -c "$PROJECT/edit.yml" -- --debug-log=edit-by-name 2>&1 \
+  | tee "$PROJECT/analyze.log"
+
+grep -qF 'shares its addresses' "$PROJECT/analyze.log" \
+  || fail "an edit on a local variable sharing its addresses was not reported"
+
+# A dropped edit must leave the model alone.
+assert_model "$FUNCTION" '.LocalVariables // [] | length' 0 \
+  "a dropped edit still wrote to the model"
