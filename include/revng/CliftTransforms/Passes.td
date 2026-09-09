@@ -59,6 +59,12 @@ def CliftTypeRefinementWithEFA : Clift_Pass<"refine-types-and-accesses"> {
   let options = RewritePassUtils.options;
 }
 
+def CliftDoWhileConditionPromotion : Clift_Pass<"promote-do-while-conditions"> {
+  let summary = "Promote trailing conditional breaks of unconditional loops "
+                "into do-while-loop conditions.";
+  let constructor = "clift::createDoWhileConditionPromotionPass()";
+}
+
 def CliftExpressionPostProcessing : Clift_Pass<"post-process-expressions"> {
   let summary = "Post process Clift expressions";
   let constructor = "clift::createExpressionPostProcessingPass()";
