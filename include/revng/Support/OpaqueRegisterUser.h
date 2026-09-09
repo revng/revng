@@ -49,17 +49,13 @@ public:
   }
 
 public:
-  llvm::StoreInst *clobber(revng::IRBuilder &Builder,
-                           llvm::GlobalVariable *CSV) {
-    return writeImpl(Builder, CSV, "clobber_", Clobberers);
+  void clobber(revng::IRBuilder &Builder, llvm::GlobalVariable *CSV) {
+    writeImpl(Builder, CSV, "clobber_", Clobberers);
   }
 
-  llvm::StoreInst *clobber(revng::IRBuilder &Builder,
-                           model::Register::Values Value) {
+  void clobber(revng::IRBuilder &Builder, model::Register::Values Value) {
     if (auto *CSV = M->getGlobalVariable(model::Register::singleCSVName(Value)))
-      return clobber(Builder, CSV);
-    else
-      return nullptr;
+      clobber(Builder, CSV);
   }
 
   llvm::StoreInst *write(revng::IRBuilder &Builder, llvm::GlobalVariable *CSV) {
