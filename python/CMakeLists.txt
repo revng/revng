@@ -344,6 +344,7 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/tar_to_yaml.py
     revng/internal/cli/_commands/test_docs/__init__.py
     revng/internal/cli/_commands/test_docs/doctest_runner.py
+    revng/internal/cli/_commands/daemon_manager.py
     revng/internal/cli/_commands/groups.py
     revng/internal/cli/_commands/merge-irs.py
     revng/internal/cli/_commands/model_compare.py
