@@ -78,9 +78,13 @@ def _capture_args():
     return _CAPTURED_ARGS
 
 
+def is_bind_default(configuration: Config):
+    return configuration.bind is Config._bind
+
+
 def _production_callback(ctx: ClickContext, param: click.Option, value):
     config = ctx.obj.hypercorn_configuration
-    if config.bind is Config._bind and value:
+    if is_bind_default(config) and value:
         config.bind = ["0.0.0.0:8000"]
     return value
 
