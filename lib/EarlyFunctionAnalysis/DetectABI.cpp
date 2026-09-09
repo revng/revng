@@ -26,6 +26,7 @@
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
+#include "revng/EarlyFunctionAnalysis/ChainCSVWrites.h"
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddresses.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
@@ -504,6 +505,11 @@ static void prepareFunctions(llvm::Module &M,
   // as an argument.
   FPM.addPass(IgnorePreservedBitsPass());
 
+  // Give the copy of a value the CSV the original went to, while both stores
+  // are still there to be seen.
+  SmallVector<WeakVH> Loads;
+  FPM.addPass(ChainCSVWritesPass(Loads));
+
   // `mem2reg` rather than SROA: the CSVs are scalars, so promotion is all that
   // is needed, and unlike SROA it cannot touch the CFG. The call sites the
   // analysis reports are keyed by basic block, and the CFG they are matched
@@ -526,6 +532,18 @@ static void prepareFunctions(llvm::Module &M,
   MPM.addPass(IsolatedOnlyPass(std::move(FPM)));
 
   MPM.run(M, MAM);
+
+  // A write nobody uses is gone by now, and the load it lent to the copy of its
+  // value is left without a reader. Drop it, or the write it reads would look
+  // read even where nothing ever looked at the copy.
+  //
+  // A plain `DCEPass` cannot do this: `precall_hook` and its siblings are
+  // `memory(none)` calls returning nothing, so it would take the markers the
+  // analysis matches its call sites against with it.
+  for (WeakVH &Chained : Loads)
+    if (auto *Load = cast_or_null<LoadInst>(Chained);
+        Load != nullptr and Load->use_empty())
+      Load->eraseFromParent();
 
   // The outlined stubs live in the module, so a single dump captures them all,
   // as the analysis is about to read them.

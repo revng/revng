@@ -9,6 +9,7 @@ revng_add_analyses_library_internal(
   AnalyzeRegisterUsage.cpp
   AttachDebugInfo.cpp
   CFGAnalyzer.cpp
+  ChainCSVWrites.cpp
   CollectCFG.cpp
   CollectFunctionsFromUnusedAddresses.cpp
   ControlFlowGraph.cpp
