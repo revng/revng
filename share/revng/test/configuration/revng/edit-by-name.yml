@@ -1,0 +1,33 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Round-trip test for the edit-by-name analysis. For each binary tagged
+# `for-goto-edits`, it applies one edit of each supported kind (a local
+# variable rename, a local variable retype and a goto label rename) naming the
+# entity each one acts on, and checks it reaches the model and, where the
+# decompiler renders it, the re-emitted code. It also covers the edits that
+# cannot be applied: each is dropped on its own, reported on the `edit-by-name`
+# logger and leaves the rest of the configuration alone. Nothing of the
+# decompiled code is pinned in the test, so a change in the decompiler output
+# does not break it.
+#
+# The binaries tagged `for-ambiguous-locals` carry the one case that needs a
+# program of its own: two locals rev.ng cannot tell apart, an edit on which is
+# dropped rather than applied to either.
+
+commands:
+  - type: revng.edit-by-name
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-goto-edits
+    suffix: /
+    command: |-
+      "${SOURCES_ROOT}/share/revng/test/tests/analysis/EditByName/run-edit-by-name" "${INPUT}" "${OUTPUT}"
+  - type: revng.edit-by-name-ambiguous-locals
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-ambiguous-locals
+    suffix: /
+    command: |-
+      "${SOURCES_ROOT}/share/revng/test/tests/analysis/EditByName/run-ambiguous-locals" "${INPUT}" "${OUTPUT}"

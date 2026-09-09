@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+set -euo pipefail
+
+# Exercise the edit-by-name analysis end to end. Unlike edit-c-body, nothing of
+# the decompiled code is submitted back: each edit names the entity it acts on,
+# so the test only needs the names the decompiler is guaranteed to produce.
+#
+# In `irreducible`, every edit is expected to land:
+#
+#   - `var_0`    the first local variable -> Rename + Retype + Comment;
+#   - `var_4`    a later local variable   -> Rename;
+#   - `label_0`  the goto label           -> Rename + Comment.
+#
+# A second run then covers what an edit leaves out: a `Rename` on its own keeps
+# the comment the entity carries, and a `Comment` on its own needs no `Rename`.
+#
+# The rest covers the edits that cannot be applied. Those are dropped and
+# reported on the `edit-by-name` logger, one at a time, leaving every other edit
+# in the same configuration alone:
+#
+#   - an edit naming something the function does not have;
+#   - a `Retype` on a goto label, which has no type;
+#   - an edit carrying none of `Rename`, `Retype` and `Comment`;
+#   - a `Retype` naming a type the model does not know.
+
+BINARY="$1"
+PROJECT="$2"
+FUNCTION="irreducible"
+
+fail() {
+  echo "edit-by-name: $1" >&2
+  exit 1
+}
+
+# Read a value out of a function's model with yq.
+function_model() {
+  yq ".Functions[] | select(.Name == \"$1\") | $2" "$PROJECT/revng.yml"
+}
+
+# Assert a model query on a function returns an expected value.
+assert_model() {
+  [ "$(function_model "$1" "$2")" = "$3" ] || fail "$4"
+}
+
+# Assert a model query on a function returns an expected string. `yq` quotes
+# the strings it prints, so the quotes are dropped before comparing.
+assert_model_string() {
+  [ "$(function_model "$1" "$2" | tr -d '"')" = "$3" ] || fail "$4"
+}
+
+# Assert the analysis reported an edit it could not apply.
+assert_reported() {
+  grep -qF "$1" "$2" || fail "an edit that cannot be applied was not reported: $1"
+}
+
+# The entry address of a function, which the configuration is keyed by.
+function_address() {
+  local address
+  address="$(function_model "$1" '.Entry' | tr -d '"')"
+  if [ -z "$address" ] || [ "$address" = "null" ]; then
+    fail "could not find the entry address of $1"
+  fi
+  echo "$address"
+}
+
+# Run the analysis with the `edit-by-name` logger on, keeping its report of the
+# edits that could not be applied.
+analyze() {
+  revng -C "$PROJECT" project analyze edit-by-name -o /dev/null \
+    -c "$1" -- --debug-log=edit-by-name 2>&1 \
+    | tee "$2"
+}
+
+mkdir -p "$PROJECT"
+revng -C "$PROJECT" project init --overwrite "$BINARY"
+
+# One edit of each kind that lands, followed by one of each kind that is
+# dropped. The two are run together so that the dropped ones are shown not to
+# disturb the others.
+cat > "$PROJECT/edit.yml" <<EOF
+Function: $(function_address "$FUNCTION")
+Edits:
+  - Target: var_0
+    Rename: renamed_local
+    Retype: "uint32_t"
+    Comment: how many entries are left
+  - Target: var_4
+    Rename: renamed_later_local
+  - Target: label_0
+    Rename: renamed_goto_label
+    Comment: start the whole thing over
+  - Target: no_such_entity
+    Rename: dropped_unknown_target
+  - Target: label_0
+    Retype: "uint32_t"
+  - Target: var_1
+  - Target: var_2
+    Rename: dropped_unknown_type
+    Retype: "struct no_such_type *"
+EOF
+
+analyze "$PROJECT/edit.yml" "$PROJECT/analyze.log"
+
+# Both renames and the retype must reach the model. A rename-only variable has
+# no `Type`, so `renamed_local` carrying a 4-byte type (uint32_t) proves the
+# retype landed.
+assert_model "$FUNCTION" \
+  '[.LocalVariables[] | select(.Name == "renamed_local")] | length' 1 \
+  "the local variable rename did not reach the model"
+assert_model "$FUNCTION" \
+  '.LocalVariables[] | select(.Name == "renamed_local") | .Type.Size' 4 \
+  "the local variable retype did not reach the model"
+assert_model "$FUNCTION" \
+  '[.LocalVariables[] | select(.Name == "renamed_later_local")] | length' 1 \
+  "the second local variable rename did not reach the model"
+assert_model "$FUNCTION" \
+  '[.GotoLabels[] | select(.Name == "renamed_goto_label")] | length' 1 \
+  "the goto label rename did not reach the model"
+
+# A comment is set on the entity, so it reaches the model entry itself rather
+# than the function's statement comments.
+assert_model_string "$FUNCTION" \
+  '.LocalVariables[] | select(.Name == "renamed_local") | .Comment' \
+  "how many entries are left" \
+  "the local variable comment did not reach the model"
+assert_model_string "$FUNCTION" \
+  '.GotoLabels[] | select(.Name == "renamed_goto_label") | .Comment' \
+  "start the whole thing over" \
+  "the goto label comment did not reach the model"
+
+# Each edit that cannot be applied is reported and left out of the model, while
+# the ones asserted above, run in the same configuration, still land.
+assert_reported "Ignoring the edit on \`no_such_entity\`" "$PROJECT/analyze.log"
+assert_reported "Ignoring \`Retype\` on \`label_0\`" "$PROJECT/analyze.log"
+assert_reported "Ignoring the edit on \`var_1\`" "$PROJECT/analyze.log"
+assert_reported "Ignoring the edit on \`var_2\`" "$PROJECT/analyze.log"
+
+for DROPPED in dropped_unknown_target dropped_unknown_type; do
+  assert_model "$FUNCTION" \
+    "[.LocalVariables[] | select(.Name == \"$DROPPED\")] | length" 0 \
+    "an edit that cannot be applied reached the model"
+done
+
+# A `Retype` on a label is dropped on its own: the label keeps the name the
+# `Rename` above gave it, and gains no type.
+assert_model "$FUNCTION" '[.GotoLabels[] | select(has("Type"))] | length' 0 \
+  "a goto label was given a type"
+
+# The renames and the comments round-trip back into the re-emitted code (a type
+# change is model-only and does not reach emit-c, so it is not checked here).
+REEMIT="$(revng -C "$PROJECT" project artifact emit-c "$FUNCTION" | revng ptml)"
+for NAME in renamed_local renamed_later_local "renamed_goto_label:" \
+            "how many entries are left" "start the whole thing over"; do
+  grep -qF "$NAME" <<< "$REEMIT" || fail "re-emitted code is missing: $NAME"
+done
+
+# A second run, naming the entities by the names the first one gave them: an
+# edit carries only the directives it means to change, and what it leaves out
+# is kept rather than cleared.
+cat > "$PROJECT/second-edit.yml" <<EOF
+Function: $(function_address "$FUNCTION")
+Edits:
+  - Target: renamed_local
+    Rename: renamed_local_again
+  - Target: renamed_later_local
+    Comment: set without renaming
+EOF
+
+analyze "$PROJECT/second-edit.yml" "$PROJECT/second-analyze.log"
+
+# The rename kept the comment the first run attached.
+assert_model_string "$FUNCTION" \
+  '.LocalVariables[] | select(.Name == "renamed_local_again") | .Comment' \
+  "how many entries are left" \
+  "renaming a local variable dropped the comment it carried"
+
+# A `Comment` on its own is enough: the variable keeps the name it had.
+assert_model_string "$FUNCTION" \
+  '.LocalVariables[] | select(.Name == "renamed_later_local") | .Comment' \
+  "set without renaming" \
+  "a comment-only edit did not reach the model"
+
