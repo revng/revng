@@ -453,20 +453,37 @@ branches:
         arguments: [clift-functions]
         configuration:
           passes:
+            # Pre-processing phase. In this phase early one off transforms are
+            # applied in order to enable or simplify later transformations.
             - trivial-return-elimination
             - label-merging
             - loop-detection
+
+            # Fixed-point optimization phase. In this phase, fixed point passes
+            # are used to simplify statements and expressions. These transforms
+            # rely on canonical forms that may not necessarily match the most
+            # beautiful form. Later phases transform once canonical forms into
+            # more readable ones.
             - optimize-statements
             - label-merging
             - refine-types-and-accesses
+
+            # Post processing phase
             - post-process-expressions
             - terminal-branch-complement-hoisting
+
+            # Backend phase. In this phase, in preparation for the emission of
+            # C code from the Clift IR, various previously held invariants are
+            # broken, while new ones are introduced. Previously canonical forms
+            # would break semantics of the emitted C code, and so a high level
+            # of care must be taken when applying rewrites in this phase.
             - tighten-variable-scopes
             - hoist-variable-initializers
             - promote-break-continue
             - c-legalization
             - elide-implicit-casts
             - deduce-immediate-radices
+
       - pipe: verify-function-against-model
         arguments: [clift-functions]
       - savepoint: decompile-clift
