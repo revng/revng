@@ -470,6 +470,7 @@ branches:
 
             # Post processing phase
             - post-process-expressions
+            - promote-while-conditions
             - promote-do-while-conditions
             - canonicalize
             - terminal-branch-complement-hoisting

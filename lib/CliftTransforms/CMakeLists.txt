@@ -27,7 +27,8 @@ revng_add_library_internal(
   TrivialReturnElimination.cpp
   TypeRefinement.cpp
   TypeRefinementWithEFA.cpp
-  VariableInitializerHoisting.cpp)
+  VariableInitializerHoisting.cpp
+  WhileConditionPromotion.cpp)
 
 target_link_libraries(revngCliftTransforms MLIRTransformUtils revngClift)
 
