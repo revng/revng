@@ -938,12 +938,13 @@ definitions:
     type: struct
 
     doc: |-
-      Attaches a user-provided name and, optionally, a type to a local variable
-      within a function's body.
+      Attaches a user-provided name and, optionally, a type and a comment to a
+      local variable within a function's body.
 
       The variable is identified by `Location`: the set of addresses of the
       instructions that use it. `Name` renames the variable; `Type`, when set,
-      overrides the type rev.ng computed automatically.
+      overrides the type rev.ng computed automatically; `Comment`, when set, is
+      emitted above its declaration.
 
     key:
       # Using the name as the key might not be the best from the invalidation
@@ -956,6 +957,10 @@ definitions:
     fields:
       - name: Name
         doc: The user-provided name for this variable.
+        type: string
+
+      - name: Comment
+        doc: The user-provided comment attached to this variable.
         type: string
 
       - name: Type
@@ -980,10 +985,12 @@ definitions:
     type: struct
 
     doc: |-
-      Attaches a user-provided name to a goto label within a function's body.
+      Attaches a user-provided name, and optionally a comment, to a goto label
+      within a function's body.
 
       The label is identified by `Location`, the set of addresses of the
-      statements it labels; `Name` renames it.
+      statements it labels; `Name` renames it, and `Comment`, when set, is
+      emitted above it.
 
     key:
       # See the note on the `LocalVariable` key.
@@ -992,6 +999,10 @@ definitions:
     fields:
       - name: Name
         doc: The user-provided name for this label.
+        type: string
+
+      - name: Comment
+        doc: The user-provided comment attached to this label.
         type: string
 
       - name: Location

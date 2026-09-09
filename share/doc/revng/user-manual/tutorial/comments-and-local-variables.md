@@ -184,7 +184,11 @@ For example, the condition of the `if` is emitted like this (simplified, syntax-
 
 so the `if` statement is identified by the address `0x400830`, and `var_0`, used only by its assignment, by the address `0x400840`.
 
-The comment we added is a [`StatementComment`](../../references/model.md#statementcomment) in the function's [`Comments`](../../references/model.md#Function.Comments), whose `Location` is the addresses of the statement it attaches to and whose `Body` is the text:
+Where a comment lands depends on what it sits above.
+A local variable declaration and a goto label each own a comment, so one written above either becomes that entity's `Comment`; above anything else, it is about that point in the code and becomes a `StatementComment`.
+That is also what the decompiler does in reverse, so a body you take out and put back unchanged leaves the model as it was.
+
+The comment we added sits above an assignment, so it is a [`StatementComment`](../../references/model.md#statementcomment) in the function's [`Comments`](../../references/model.md#Function.Comments), whose `Location` is the addresses of the statement it attaches to and whose `Body` is the text:
 
 ```yaml
 Comments:
@@ -194,7 +198,7 @@ Comments:
     Body:     "only mix the key when it differs from the salt"
 ```
 
-The name and type are a [`LocalVariable`](../../references/model.md#localvariable) in the function's [`LocalVariables`](../../references/model.md#Function.LocalVariables): `Name` renames it, `Type` sets its type (leave it out to keep the inferred one), and `Location` identifies *which* variable through the addresses of the instructions that use it:
+The name and type are a [`LocalVariable`](../../references/model.md#localvariable) in the function's [`LocalVariables`](../../references/model.md#Function.LocalVariables): `Name` renames it, `Type` sets its type (leave it out to keep the inferred one), `Comment` holds the comment written above its declaration, and `Location` identifies *which* variable through the addresses of the instructions that use it:
 
 ```yaml
 LocalVariables:
@@ -209,4 +213,4 @@ LocalVariables:
 
 Writing these entries into `revng.yml` directly, instead of going through `edit-c-body`, has exactly the same effect; it is what you would do when scripting rev.ng without the C round-trip.
 
-Goto labels work the same way as local-variable names: a `// RENAME:` before a goto label writes a [`GotoLabel`](../../references/model.md#gotolabel) entry into the function's [`GotoLabels`](../../references/model.md#Function.GotoLabels), located by the address set of the statements it labels (a `GotoLabel` has no `Type`, so `// RETYPE:` does not apply).
+Goto labels work the same way as local-variable names: a `// RENAME:` before a goto label, or a comment, writes a [`GotoLabel`](../../references/model.md#gotolabel) entry into the function's [`GotoLabels`](../../references/model.md#Function.GotoLabels), located by the address set of the statements it labels (a `GotoLabel` has no `Type`, so `// RETYPE:` does not apply).

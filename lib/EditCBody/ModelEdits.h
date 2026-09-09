@@ -40,23 +40,25 @@ struct AmbiguousLocations {
 /// or a single goto label of \p Function.
 AmbiguousLocations collectAmbiguousLocations(clift::FunctionOp Function);
 
-/// Build the model entry renaming and/or retyping a local variable, located by
-/// the addresses of the instructions that use it.
+/// Build the model entry renaming, retyping and/or commenting a local variable,
+/// located by the addresses of the instructions that use it.
 llvm::Expected<model::LocalVariable>
 makeLocalVariableEdit(clift::LocalVariableOp Variable,
                       const std::optional<std::string> &NewName,
                       const std::optional<std::string> &NewTypeName,
+                      const std::optional<std::string> &NewComment,
                       const ResolvedTypeMap &ResolvedTypes,
                       const AmbiguousLocations &Ambiguous);
 
-/// Build the model entry renaming a goto label, located by the addresses of the
-/// instructions that use the label.
+/// Build the model entry renaming and/or commenting a goto label, located by
+/// the addresses of the instructions that use the label.
 ///
 /// \p Label must be a label: whether the edit sits on one at all is a question
 /// about the statement carrying it, which the caller answers.
 llvm::Expected<model::GotoLabel>
 makeGotoLabelEdit(clift::MakeLabelOp Label,
                   const std::optional<std::string> &NewName,
+                  const std::optional<std::string> &NewComment,
                   const AmbiguousLocations &Ambiguous);
 
 /// Write, to a temporary file, the type/global header and the helper header, so

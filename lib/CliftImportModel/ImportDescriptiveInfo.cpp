@@ -468,15 +468,24 @@ private:
     Op->setAttr(Name, mlir::StringAttr::get(Op->getContext(), Value));
   }
 
+  /// Attach \p Comment to \p Op, unless there is no comment to attach: the
+  /// emitter takes the attribute being there as something to write.
+  static void setComment(mlir::Operation *Op, llvm::StringRef Comment) {
+    if (not Comment.empty())
+      setStringAttr(Op, "clift.comment", Comment);
+  }
+
   mlir::LogicalResult visitMakeLabelOp(clift::MakeLabelOp Op) {
     if (auto L = pipeline::locationFromString(rr::GotoLabel, Op.getHandle())) {
       auto Addresses = clift::getUserAddressSet(Op);
       Op.setName(CurrentFunction->GotoLabels.name(Addresses).Name);
+
+      const model::Function &Function = CurrentFunction->Model;
+      if (const model::GotoLabel *Label = Function.findGotoLabel(Addresses))
+        setComment(Op, Label->Comment());
     } else {
       Op.setName(CurrentFunction->GotoLabels.automaticName().Name);
     }
-
-    // TODO: label comments.
 
     return mlir::success();
   }
@@ -484,16 +493,21 @@ private:
   mlir::LogicalResult visitLocalVariableOp(clift::LocalVariableOp Op) {
     if (auto L = pipeline::locationFromString(rr::StackFrameVariable,
                                               Op.getHandle())) {
-      Op.setName(NameBuilder.name(CurrentFunction->Model.StackFrame()));
+      const model::StackFrame &StackFrame = CurrentFunction->Model.StackFrame();
+      Op.setName(NameBuilder.name(StackFrame));
+      setComment(Op, StackFrame.Comment());
     } else if (auto L = pipeline::locationFromString(rr::LocalVariable,
                                                      Op.getHandle())) {
       auto Addresses = clift::getUserAddressSet(Op);
       Op.setName(CurrentFunction->Variables.name(Addresses).Name);
+
+      const model::Function &Function = CurrentFunction->Model;
+      if (const model::LocalVariable *Variable = //
+          Function.findLocalVariable(Addresses))
+        setComment(Op, Variable->Comment());
     } else {
       Op.setName(CurrentFunction->Variables.automaticName().Name);
     }
-
-    // TODO: variable comments.
 
     return mlir::success();
   }

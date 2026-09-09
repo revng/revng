@@ -24,18 +24,34 @@ namespace revng::pypeline::analyses {
 /// line, after the code, is ignored: only comments that begin their own line
 /// are considered.
 ///
-/// - a plain comment becomes a `StatementComment` attached to the following
-///   statement, located by the addresses of the instructions that make it up.
-///   It can be placed before any statement that carries at least one address
-///   (a computed expression, a `return`, or the condition of an `if` or a
-///   loop); a statement with no address, such as a synthesized `break`, cannot
-///   be commented.
+/// - a plain comment goes to whatever it sits above. A local variable
+///   declaration and a goto label each own a comment, so one written above
+///   either becomes the `Comment` of that `LocalVariable` or `GotoLabel`, and
+///   a comment above the stack frame declaration becomes the one on the
+///   function's `StackFrame`. This is where the decompiler writes such a
+///   comment back, so a body taken out and returned unchanged leaves the model
+///   as it was.
+///
+///   Above anything else, a comment is about that point in the code and
+///   becomes a `StatementComment`, located by the addresses of the
+///   instructions that make the statement up. It can be placed before any
+///   statement that carries at least one address (a computed expression, a
+///   `return`, or the condition of an `if` or a loop); a statement with no
+///   address, such as a synthesized `break`, cannot be commented. An entity
+///   that cannot be identified falls back to this, so the comment is kept
+///   rather than lost.
 ///
 /// - a `RENAME: <name>` and/or `RETYPE: <type>` comment renames and/or retypes
 ///   a local variable, recorded as a `LocalVariable` located by the addresses
 ///   of the instructions that use it. It can only be placed before the
 ///   variable's declaration. On a goto label, `RENAME` renames the label
-///   instead, recorded the same way as a `GotoLabel`.
+///   instead, recorded the same way as a `GotoLabel`; a label has no type, so
+///   `RETYPE` on one is dropped, leaving the rest of the annotation alone.
+///
+/// A directive an annotation leaves out keeps what the entity already has, so
+/// renaming a variable does not drop the comment on it. The statement comments
+/// are the exception: the submitted C is the whole account of those, and the
+/// ones it does not carry are dropped.
 ///
 /// That address set is all a local variable or a goto label is identified by,
 /// so two of them used only by the same instructions cannot be told apart. An
