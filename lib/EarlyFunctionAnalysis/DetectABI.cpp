@@ -17,6 +17,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/GraphWriter.h"
+#include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/Queue.h"
@@ -32,6 +33,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/EarlyFunctionAnalysis/IgnorePreservedBits.h"
+#include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/InlineHelpers/InlineHelpers.h"
 #include "revng/InlineHelpers/LinkHelpersToInline.h"
 #include "revng/Lift/JumpTargetReason.h"
@@ -471,9 +473,15 @@ public:
 
 } // namespace
 
-/// Inline the helpers, then say what the CSVs are for, so that how the lifter
-/// spells things does not mislead the register usage analysis.
-static void prepareFunctions(llvm::Module &M) {
+/// Inline the helpers, then say what the CSVs are for and let the standard
+/// machinery simplify the ones the analysis ignores.
+///
+/// While a CSV is a global, no pass may drop a store to it: the caller or a
+/// callee could be watching. As a local it is ordinary memory, and `mem2reg`
+/// both deletes the stores nobody reads and turns the ones somebody does read
+/// into plain SSA edges.
+static void prepareFunctions(llvm::Module &M,
+                             model::Architecture::Values Architecture) {
   using namespace llvm;
 
   LoopAnalysisManager LAM;
@@ -495,6 +503,17 @@ static void prepareFunctions(llvm::Module &M) {
   // before anything else moves the value it reads, or the register is reported
   // as an argument.
   FPM.addPass(IgnorePreservedBitsPass());
+
+  // `mem2reg` rather than SROA: the CSVs are scalars, so promotion is all that
+  // is needed, and unlike SROA it cannot touch the CFG. The call sites the
+  // analysis reports are keyed by basic block, and the CFG they are matched
+  // against was recorded before this point.
+  auto IsNotARegister = [Architecture](const llvm::GlobalVariable &CSV) {
+    auto Register = model::Register::fromCSVName(CSV.getName(), Architecture);
+    return Register == model::Register::Invalid;
+  };
+  FPM.addPass(PromoteGlobalToLocalPass(IsNotARegister));
+  FPM.addPass(PromotePass());
 
   ModulePassManager MPM;
 
@@ -550,7 +569,7 @@ void DetectABI::analyzeABI() {
   }
 
   Task.advance("Prepare the functions");
-  prepareFunctions(M);
+  prepareFunctions(M, Binary->Architecture());
 
   // Push this into analyzeFunction
   OpaqueRegisterUser RegisterUser(&M);
