@@ -38,6 +38,19 @@ MutableStringAttr makeCommentAttr(mlir::MLIRContext *Context,
                                   llvm::StringRef Handle,
                                   llvm::StringRef Name);
 
+struct SwitchCase {
+  unsigned Region;
+  uint64_t Value;
+
+  friend size_t hash_value(const SwitchCase &Case) {
+    return llvm::hash_combine(llvm::hash_code(Case.Region),
+                              llvm::hash_code(Case.Value));
+  }
+
+  friend std::strong_ordering operator<=>(const SwitchCase &,
+                                          const SwitchCase &) = default;
+};
+
 } // namespace clift
 
 // This include should stay here for correct build procedure
