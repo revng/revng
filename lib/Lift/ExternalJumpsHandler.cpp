@@ -18,6 +18,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/Model/ProgramCounterHandler.h"
+#include "revng/Model/Register.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelper.h"
@@ -37,6 +38,8 @@ replace(string &Target, const StringRef Search, const StringRef Replace) {
   Target.replace(Position, Search.size(), Replace);
   return Target;
 }
+
+Logger Log("external-jump-handler");
 
 BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
   // Create return_from_call BasicBlock
@@ -70,8 +73,14 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
     // For now, disable multi-CSV register serialization completely.
     //
     // TODO: bring it back on register-by-register basis if we ever need it.
-    if (model::Register::getCSVCount(Register) > 1)
+    if (model::Register::getCSVCount(Register) > 1) {
+      revng_log(Log,
+                "Skipping `" << model::Register::getName(Register)
+                             << "` register deserialization because external "
+                                "jump handler does not support "
+                                "multi-csv registers as of now.");
       continue;
+    }
 
     auto Name = singleCSVName(Register);
     GlobalVariable *CSV = TheModule.getGlobalVariable(Name);
@@ -152,8 +161,14 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
     // For now, disable multi-CSV register serialization completely.
     //
     // TODO: bring it back on register-by-register basis if we ever need it.
-    if (model::Register::getCSVCount(Register) > 1)
+    if (model::Register::getCSVCount(Register) > 1) {
+      revng_log(Log,
+                "Skipping `" << model::Register::getName(Register)
+                             << "` register serialization because external "
+                                "jump handler does not support "
+                                "multi-csv registers as of now.");
       continue;
+    }
 
     using namespace model::Architecture;
     using namespace model::Register;
