@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng clift-opt %s -emit-field-accesses -canonicalize 2>&1 | FileCheck %s
+// RUN: %root/bin/revng clift-opt %s --emit-field-accesses --canonicalize | FileCheck %s
 
 // A `union` overlays three arrays at the same offset: a `uint32_t[4]` (stride 4,
 // field 0), a `uint16_t[8]` (stride 2, field 1) and a `uint8_t[16]` (stride 1,

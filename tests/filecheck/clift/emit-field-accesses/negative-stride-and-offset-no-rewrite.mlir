@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng clift-opt %s -emit-field-accesses -canonicalize 2>&1 | FileCheck %s
+// RUN: %root/bin/revng clift-opt %s --emit-field-accesses --canonicalize | FileCheck %s
 
 // A pointer walking backward through an object produces a negative stride
 // (`idx * -56`) or a negative base offset (`-7`). Neither maps to a field or
