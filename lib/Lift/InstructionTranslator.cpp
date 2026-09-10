@@ -1306,6 +1306,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
   case LIBTCG_op_set_label: {
     revng_assert(ConstArguments[0].kind == LIBTCG_ARG_LABEL);
     auto LabelId = ConstArguments[0].label->id;
+    BasicBlock *PreviousBlock = Builder.GetInsertBlock();
 
     std::stringstream LabelSS;
     LabelSS << "bb." << JumpTargets.nameForAddress(LastPC);
@@ -1315,7 +1316,8 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     BasicBlock *Fallthrough = nullptr;
     if (!LabeledBasicBlocks.contains(Label)) {
       Fallthrough = BasicBlock::Create(Context, Label, TheFunction);
-      Fallthrough->moveAfter(Builder.GetInsertBlock());
+      if (PreviousBlock != nullptr)
+        Fallthrough->moveAfter(PreviousBlock);
       LabeledBasicBlocks[Label] = Fallthrough;
     } else {
       // A basic block with that label already exist
@@ -1329,7 +1331,10 @@ IT::translateOpcode(LibTcgOpcode Opcode,
       TheFunction->insert(TheFunction->end(), Fallthrough);
     }
 
-    Builder.CreateBr(Fallthrough);
+    // A missing insertion block means the preceding path was terminated by
+    // exit_tb, so there is no fallthrough edge.
+    if (PreviousBlock != nullptr)
+      Builder.CreateBr(Fallthrough);
 
     Blocks.push_back(Fallthrough);
     Builder.SetInsertPoint(Fallthrough);
@@ -1397,11 +1402,8 @@ IT::translateOpcode(LibTcgOpcode Opcode,
 
     ExitBlocks.push_back(Builder.GetInsertBlock());
 
-    auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
-    Blocks.push_back(NextBB);
-    Builder.SetInsertPoint(NextBB);
     Variables.closeExtendedBasicBlock();
-
+    Builder.ClearInsertionPoint();
     return Values{};
   }
   case LIBTCG_op_goto_tb:
