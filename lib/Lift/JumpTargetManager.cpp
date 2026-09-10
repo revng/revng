@@ -14,6 +14,7 @@
 #include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+#include "revng/ADT/Queue.h"
 #include "revng/Lift/Helpers.h"
 #include "revng/Lift/JumpTargetReason.h"
 #include "revng/Lift/Lift.h"
@@ -28,7 +29,6 @@
 
 #include "JumpTargetManager.h"
 #include "RootAnalyzer.h"
-#include "SubGraph.h"
 
 // This name is not present after `lift`.
 
@@ -851,15 +851,8 @@ JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
     harvest();
   } while (Unexplored.empty() and NewBranches != 0);
 
-  if (not ToPurge.empty()) {
-    // Purge all the partial translations we know might be wrong
-    for (BasicBlock *BB : ToPurge)
-      purgeTranslation(BB);
-    ToPurge.clear();
-
-    // Puring leaves some unreachable blocks behind: collect them
-    EliminateUnreachableBlocks(*TheFunction);
-  }
+  if (not ToPurge.empty())
+    purgeTranslation();
 
   if (Unexplored.empty()) {
     revng_log(JTCountLog, "We're done looking for jump targets");
@@ -887,17 +880,22 @@ inline bool hasRootDispatcherPredecessor(llvm::BasicBlock *BB) {
   return false;
 }
 
-void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
-  OnceQueue<BasicBlock *> Queue;
-  Queue.insert(Start);
+void JumpTargetManager::purgeTranslation() {
+  revng_assert(not ToPurge.empty());
 
-  revng_log(RegisterJTLog,
-            "Purging " << getName(Start) << " so it can be translated again");
+  OnceQueue<BasicBlock *> Queue;
+  for (BasicBlock *Root : ToPurge) {
+    revng_assert(isJumpTarget(Root));
+    Queue.insert(Root);
+    revng_log(RegisterJTLog,
+              "Purging " << getName(Root) << " so it can be translated again");
+  }
 
   // Collect all the descendants, except if we meet a jump target
   while (!Queue.empty()) {
     BasicBlock *BB = Queue.pop();
     Instruction *Terminator = BB->getTerminator();
+    revng_assert(Terminator != nullptr);
     for (BasicBlock *Successor : successors(Terminator)) {
       if (isTranslatedBB(Successor) and not isJumpTarget(Successor)
           and not hasRootDispatcherPredecessor(Successor)) {
@@ -906,23 +904,58 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
     }
   }
 
-  // Erase all the visited basic blocks
-  std::set<BasicBlock *> Visited = Queue.visited();
+  std::set<BasicBlock *> Blocks = Queue.visited();
 
-  // Build a subgraph, so that we can visit it in post order, and purge the
-  // content of each basic block
-  SubGraph<BasicBlock *> TranslatedBBs(Start, Visited);
-  for (auto *Node : post_order(TranslatedBBs)) {
-    BasicBlock *BB = Node->get();
-    while (!BB->empty()) {
-      Instruction *I = &*(--BB->end());
+  // A descendant can be shared with a path outside the region rooted at
+  // ToPurge. Keep the shared block and its descendants: after the purge they
+  // are still reachable through that other path.
+  OnceQueue<BasicBlock *> SharedBlocks;
+  for (BasicBlock *BB : Blocks) {
+    if (ToPurge.contains(BB))
+      continue;
 
-      if (std::optional Call = NewPCHelper.getCall(I)) {
-        OriginalInstructionAddresses.erase(addressFromNewPC(*Call));
+    for (BasicBlock *Predecessor : predecessors(BB)) {
+      if (not Blocks.contains(Predecessor)) {
+        SharedBlocks.insert(BB);
+        break;
       }
-      eraseInstruction(I);
     }
   }
+
+  while (not SharedBlocks.empty()) {
+    BasicBlock *BB = SharedBlocks.pop();
+    Blocks.erase(BB);
+    for (BasicBlock *Successor : successors(BB))
+      if (Blocks.contains(Successor) and not ToPurge.contains(Successor))
+        SharedBlocks.insert(Successor);
+  }
+
+  // Drop references across the whole region before erasing instructions, so
+  // blocks do not need to be processed in post-order.
+  SmallVector<BasicBlock *, 16> BlocksToErase;
+  for (BasicBlock *BB : Blocks) {
+    for (Instruction &I : *BB)
+      if (std::optional Call = NewPCHelper.getCall(&I))
+        OriginalInstructionAddresses.erase(addressFromNewPC(*Call));
+
+    BB->dropAllReferences();
+
+    // Purge roots are registered jump targets waiting for retranslation.
+    // Keep those blocks and delete the now-detached descendants.
+    if (not ToPurge.contains(BB))
+      BlocksToErase.push_back(BB);
+  }
+
+  for (BasicBlock *BB : Blocks) {
+    while (not BB->empty()) {
+      Instruction *I = &BB->back();
+      revng_assert(I->use_empty());
+      eraseFromParent(I);
+    }
+  }
+
+  ToPurge.clear();
+  DeleteDeadBlocks(BlocksToErase);
 }
 
 // TODO: register Reason
