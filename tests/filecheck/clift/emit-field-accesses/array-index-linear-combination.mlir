@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng clift-opt %s -emit-field-accesses -canonicalize 2>&1 | FileCheck %s
+// RUN: %root/bin/revng clift-opt %s --emit-field-accesses --canonicalize | FileCheck %s
 
 // An array index is lowered as a linear combination of the runtime variables:
 // each strided term of the offset whose stride is a multiple of the array's
