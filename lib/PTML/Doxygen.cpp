@@ -325,9 +325,9 @@ gatherArgumentComments(const model::Binary &Binary,
         const auto CurrentArgument = Layout.Arguments[Index + IndOffset];
         if (!CurrentArgument.Registers.empty()) {
           Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
-          for (auto Reg : skip_back(CurrentArgument.Registers)) {
+          for (auto R : skip_back(CurrentArgument.Registers)) {
             Line->emplace_back(DoxygenToken::Types::Identifier,
-                               model::Register::getRegisterName(Reg).str());
+                               model::Register::getRegisterName(R).str());
             Line->emplace_back(DoxygenToken::Types::Untagged, ", ");
           }
           auto Last = CurrentArgument.Registers.back();

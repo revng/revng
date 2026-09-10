@@ -8,8 +8,8 @@
 char GenericRegionPass::ID = 0;
 
 static constexpr const char *Flag = "generic-region-info";
-using Reg = llvm::RegisterPass<GenericRegionPass>;
-static Reg X(Flag, "Perform the generic region identification analysis");
+using GRP = llvm::RegisterPass<GenericRegionPass>;
+static GRP X(Flag, "Perform the generic region identification analysis");
 
 bool GenericRegionPass::runOnFunction(llvm::Function &F) {
 

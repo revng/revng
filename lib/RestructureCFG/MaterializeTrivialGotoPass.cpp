@@ -120,8 +120,8 @@ public:
 
 char MaterializeTrivialGotoPass::ID = 0;
 static constexpr const char *Flag = "materialize-trivial-goto";
-using Reg = llvm::RegisterPass<MaterializeTrivialGotoPass>;
-static Reg X(Flag, "Perform the MaterializeTrivialGoto pass on the ScopeGraph");
+using MTG = llvm::RegisterPass<MaterializeTrivialGotoPass>;
+static MTG X(Flag, "Perform the MaterializeTrivialGoto pass on the ScopeGraph");
 
 bool MaterializeTrivialGotoPass::runOnFunction(llvm::Function &F) {
 

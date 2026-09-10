@@ -74,12 +74,12 @@ void fieldAccessed(llvm::StringRef FieldName, llvm::StringRef StructName) {
   if (StructNameRegex == "" and FieldNameRegex == "")
     return;
 
-  llvm::Regex Reg(StructNameRegex);
-  if (StructNameRegex != "" and not Reg.match(StructName))
+  llvm::Regex Regex(StructNameRegex);
+  if (StructNameRegex != "" and not Regex.match(StructName))
     return;
 
-  llvm::Regex Reg2(FieldNameRegex);
-  if (FieldNameRegex != "" and not Reg2.match(FieldName))
+  llvm::Regex Regex2(FieldNameRegex);
+  if (FieldNameRegex != "" and not Regex2.match(FieldName))
     return;
 
   onFieldAccess(FieldName, StructName);

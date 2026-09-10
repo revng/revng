@@ -697,9 +697,9 @@ static bool isDynamicFunctionStub(const SortedVector<efa::BasicBlock> &CFG) {
 
 void DetectABI::recordRegisters(const efa::CSVSet &CSVs, auto Inserter) {
   for (auto *CSV : CSVs) {
-    auto Reg = model::Register::fromCSVName(CSV->getName(),
-                                            Binary->Architecture());
-    Inserter.emplace(Reg).Type() = model::PrimitiveType::makeGeneric(Reg);
+    auto R = model::Register::fromCSVName(CSV->getName(),
+                                          Binary->Architecture());
+    Inserter.emplace(R).Type() = model::PrimitiveType::makeGeneric(R);
   }
 }
 
@@ -1029,18 +1029,18 @@ static void suppressCalleeSaved(RUAResults &ABIResults,
                                 const CSVSet &CalleeSavedRegs) {
 
   // Suppress from arguments
-  for (const auto &Reg : CalleeSavedRegs)
-    ABIResults.ArgumentsRegisters.erase(Reg);
+  for (const auto &Register : CalleeSavedRegs)
+    ABIResults.ArgumentsRegisters.erase(Register);
 
   // Suppress from return values
-  for (const auto &Reg : CalleeSavedRegs)
-    ABIResults.ReturnValuesRegisters.erase(Reg);
+  for (const auto &Register : CalleeSavedRegs)
+    ABIResults.ReturnValuesRegisters.erase(Register);
 
   // Suppress from call-sites
   for (const auto &[K, _] : ABIResults.CallSites) {
-    for (const auto &Reg : CalleeSavedRegs) {
-      ABIResults.CallSites[K].ArgumentsRegisters.erase(Reg);
-      ABIResults.CallSites[K].ReturnValuesRegisters.erase(Reg);
+    for (const auto &Register : CalleeSavedRegs) {
+      ABIResults.CallSites[K].ArgumentsRegisters.erase(Register);
+      ABIResults.CallSites[K].ReturnValuesRegisters.erase(Register);
     }
   }
 }

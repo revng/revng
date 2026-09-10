@@ -180,8 +180,8 @@ public:
 char EnforceSingleExitPass::ID = 0;
 
 static constexpr const char *Flag = "enforce-single-exit";
-using Reg = llvm::RegisterPass<EnforceSingleExitPass>;
-static Reg X(Flag, "Enforce the Single Exit Property on the ScopeGraph");
+using ESEP = llvm::RegisterPass<EnforceSingleExitPass>;
+static ESEP X(Flag, "Enforce the Single Exit Property on the ScopeGraph");
 
 bool EnforceSingleExitPass::runOnFunction(llvm::Function &F) {
 

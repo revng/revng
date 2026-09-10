@@ -648,9 +648,9 @@ public:
 
 char InlineDivergentScopesPass::ID = 0;
 static constexpr const char *Flag = "inline-divergent-scopes";
-using Reg = llvm::RegisterPass<InlineDivergentScopesPass>;
-static Reg X(Flag,
-             "Perform the inline of divergent scopes canonicalization process");
+using IDSP = llvm::RegisterPass<InlineDivergentScopesPass>;
+static IDSP
+  X(Flag, "Perform the inline of divergent scopes canonicalization process");
 
 bool InlineDivergentScopesPass::runOnFunction(llvm::Function &F) {
 
