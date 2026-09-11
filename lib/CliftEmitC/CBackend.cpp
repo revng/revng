@@ -453,6 +453,14 @@ public:
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<CastOpInterface>();
 
+    // After implicit cast elision, all remaining boolean-tests are rewritten as
+    // comparisons against either zero or null. It is not expected that any
+    // boolean-tests survive to this point in the rev.ng pipeline. In the case
+    // that this invariant changes (e.g. a configuration is added), or if
+    // non-rev.ng users require the emission of explicit boolean tests, this
+    // assertion can simply be removed with no ill effects.
+    revng_assert(not mlir::isa<TestOp>(E));
+
     emitCStyleCast(E.getType());
 
     // Parenthesizing a nested unary prefix expression is not necessary.
