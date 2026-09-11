@@ -49,7 +49,7 @@ void EmitCAsSingleFile::run() {
   ptml::PTMLTagEmitter Document = Root.initializeOpenTag(ptml::tags::Div);
   Document.finalizeOpenTag();
 
-  *Out << Header;
+  *Out << Header << '\n';
   for (const auto &Object : Input.objects()) {
     auto Buffer = Input.getMemoryBuffer(Object);
     *Out << Buffer->getBuffer() << "\n";
