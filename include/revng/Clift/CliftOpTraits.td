@@ -15,6 +15,5 @@ class Clift_NativeOpTrait<string name, list<Trait> traits = []>
 
 def Clift_NoFallthrough : Clift_NativeOpTrait<"NoFallthrough">;
 def Clift_AssignsLoopLabels : Clift_NativeOpTrait<"AssignsLoopLabels">;
-def Clift_ReturnsBoolean : Clift_NativeOpTrait<"ReturnsBoolean">;
 
 #endif

@@ -61,10 +61,11 @@ set(FILECHECK_TESTS
     clift/backend/types.mlir
     clift/backend/while.mlir
     clift/c-legalization/add-i16.mlir
-    clift/c-legalization/eq-to-i8.mlir
     clift/c-legalization/imm-enum.mlir
     clift/c-legalization/imm-i8.mlir
     clift/c-legalization/imm-legal.mlir
+    clift/c-legalization/neg-imm.mlir
+    clift/c-legalization/null32.mlir
     clift/c-legalization/ptr32.mlir
     clift/c-legalization/sar-sign.mlir
     clift/c-legalization/sext-unsigned.mlir
@@ -74,7 +75,6 @@ set(FILECHECK_TESTS
     clift/c-semantics/addressof-p32.mlir
     clift/c-semantics/call-p32.mlir
     clift/c-semantics/cast-decay-p32.mlir
-    clift/c-semantics/eq-i16.mlir
     clift/c-semantics/imm-i16.mlir
     clift/c-semantics/indirection-p32.mlir
     clift/c-semantics/signed-shr.mlir
@@ -318,12 +318,8 @@ set(FILECHECK_TESTS
     clift/operations/continue-to-targets-break-label.mlir
     clift/operations/continue-to-targets-non-loop-label.mlir
     clift/operations/continue-to-targets-non-nesting-loop-label.mlir
-    clift/operations/do-while-with-scalar-condition.mlir
-    clift/operations/do-while-with-struct-condition.mlir
     clift/operations/do-while-without-condition.mlir
     clift/operations/for-with-initializer.mlir
-    clift/operations/for-with-scalar-condition.mlir
-    clift/operations/for-with-struct-condition.mlir
     clift/operations/for-without-condition.mlir
     clift/operations/function-with-attributes.mlir
     clift/operations/function-with-mistyped-return.mlir
@@ -332,8 +328,6 @@ set(FILECHECK_TESTS
     clift/operations/goto-targets-nesting-loop-break-label.mlir
     clift/operations/goto-targets-nesting-loop-continue-label.mlir
     clift/operations/goto.mlir
-    clift/operations/if-with-scalar-condition.mlir
-    clift/operations/if-with-struct-condition.mlir
     clift/operations/if-without-condition.mlir
     clift/operations/label-without-assignment.mlir
     clift/operations/local-variable-self-assignment.mlir
@@ -357,13 +351,13 @@ set(FILECHECK_TESTS
     clift/operations/switch-with-mismatched-cases.mlir
     clift/operations/switch-with-pointer-condition.mlir
     clift/operations/switch-without-condition.mlir
-    clift/operations/while-with-scalar-condition.mlir
-    clift/operations/while-with-struct-condition.mlir
     clift/operations/while-without-condition.mlir
     clift/passes/implicit-cast-elision-add.mlir
     clift/passes/implicit-cast-elision-assign.mlir
+    clift/passes/implicit-cast-elision-if.mlir
     clift/passes/implicit-cast-elision-call.mlir
     clift/passes/implicit-cast-elision-neg.mlir
+    clift/passes/implicit-cast-elision-not.mlir
     clift/passes/implicit-cast-elision-shl.mlir
     clift/reformat/normalization.mlir
     clift/reformat/tag-preservation.mlir
@@ -433,6 +427,7 @@ set(FILECHECK_TESTS
     clift/types/function-with-void-argument.mlir
     clift/types/function-with-void-return.mlir
     clift/types/round-tripping.mlir
+    clift/types/struct-with-boolean-field.mlir
     clift/types/struct-with-function-field.mlir
     clift/types/struct-with-indirect-recursion.mlir
     clift/types/struct-with-pointer-recursion.mlir

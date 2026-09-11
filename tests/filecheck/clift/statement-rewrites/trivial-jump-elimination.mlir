@@ -20,7 +20,10 @@ module attributes {clift.module} {
 
     // CHECK: clift.if {
     clift.if {
-      clift.yield %arg0 : !int32_t
+      // CHECK: [[COND:%[0-9]+]] = clift.test %arg0 : !int32_t
+      %0 = clift.test %arg0 : !int32_t
+      // CHECK: clift.yield [[COND]] : !clift.bool
+      clift.yield %0 : !clift.bool
     // CHECK: } then {
     } then {
       // CHECK: clift.expr

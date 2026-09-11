@@ -19,8 +19,8 @@ module attributes {clift.module} {
     clift.for body {
       // CHECK: clift.if {
       clift.if {
-        %1 = clift.imm 1 : !int32_t
-        clift.yield %1 : !int32_t
+        %1 = clift.true
+        clift.yield %1 : !clift.bool
       // CHECK: } then {
       } then {
         // CHECK: clift.goto %0

@@ -7,7 +7,6 @@
 
 !void = !clift.void
 !int64_t = !clift.int<signed 8>
-!int64_t$ptr = !clift.ptr<8 to !int64_t>
 
 !f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" : !void()
@@ -18,11 +17,11 @@ module attributes {clift.module} {
   clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    // CHECK: (int64_t *) NULL;
+    // CHECK: NULL;
     clift.expr {
-        %0 = clift.imm 0 : !int64_t
-        %1 = clift.bitcast %0 : !int64_t -> !int64_t$ptr
-        clift.yield %1 : !int64_t$ptr
+      %0 = clift.null : !clift.ptr<8 to !clift.void>
+      %1 = clift.bitcast %0 : !clift.ptr<8 to !clift.void> -> !clift.ptr<8 to !int64_t>
+      clift.yield %1 : !clift.ptr<8 to !int64_t>
     }
   }
   // CHECK: }

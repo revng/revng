@@ -18,8 +18,8 @@ module attributes {clift.module} {
   clift.func @f<!f>(%arg0 : !int32_t) -> !void {
     %break = clift.make_label
     clift.while break %break cond {
-      %c = clift.imm 1 : !int32_t
-      clift.yield %c : !int32_t
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     } body {
       // CHECK: clift.switch {
       clift.switch {

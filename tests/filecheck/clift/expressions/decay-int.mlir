@@ -9,5 +9,5 @@
 
 %int = clift.undef : !int32_t
 
-// CHECK: argument must have array or function type
+// CHECK: operand #0 must be array or function type
 clift.decay %int : !int32_t -> !int32_t$ptr

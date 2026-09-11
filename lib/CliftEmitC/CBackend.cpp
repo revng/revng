@@ -90,9 +90,17 @@ public:
     return static_cast<OperatorPrecedence>(static_cast<T>(Precedence) - 1);
   }
 
+  void emitExpressionType(mlir::Type Type) {
+    if (mlir::isa<BoolType>(Type)) {
+      Tokens.emitKeyword(CTE::Keyword::Bool);
+    } else {
+      emitType(Type);
+    }
+  }
+
   void emitCStyleCast(mlir::Type Type) {
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
-    emitType(Type);
+    emitExpressionType(Type);
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
     Tokens.emitSpace();
   }
@@ -206,7 +214,7 @@ public:
   RecursiveCoroutine<void> emitUndefExpression(mlir::Value V) {
     Tokens.emitMacro("undef");
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
-    emitType(V.getType());
+    emitExpressionType(V.getType());
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
 
     rc_return;
@@ -247,6 +255,13 @@ public:
                        IntType.isSigned(),
                        CType,
                        getConstantRadix(E));
+
+    rc_return;
+  }
+
+  RecursiveCoroutine<void> emitBooleanConstantExpression(mlir::Value V) {
+    Tokens.emitKeyword(V.getDefiningOp<TrueOp>() ? CTE::Keyword::True :
+                                                   CTE::Keyword::False);
 
     rc_return;
   }
@@ -410,23 +425,6 @@ public:
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
   }
 
-  static bool isHiddenCast(CastOpInterface Cast) {
-    return mlir::isa<DecayOp>(Cast) or Cast->hasAttr("clift.implicit");
-  }
-
-  static mlir::Value unwrapHiddenCasts(CastOpInterface Cast) {
-    revng_assert(isHiddenCast(Cast));
-
-    while (true) {
-      auto Inner = Cast.getValue().getDefiningOp<CastOpInterface>();
-      if (not Inner or not isHiddenCast(Inner))
-        break;
-      Cast = Inner;
-    }
-
-    return Cast.getValue();
-  }
-
   static bool requiresExplicitBitCast(BitCastOp Op) {
     auto IsCastableType = [](mlir::Type T) {
       return clift::unwrapped_isa<IntegerType, EnumType, PointerType>(T);
@@ -455,6 +453,14 @@ public:
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<CastOpInterface>();
 
+    // After implicit cast elision, all remaining boolean-tests are rewritten as
+    // comparisons against either zero or null. It is not expected that any
+    // boolean-tests survive to this point in the rev.ng pipeline. In the case
+    // that this invariant changes (e.g. a configuration is added), or if
+    // non-rev.ng users require the emission of explicit boolean tests, this
+    // assertion can simply be removed with no ill effects.
+    revng_assert(not mlir::isa<TestOp>(E));
+
     emitCStyleCast(E.getType());
 
     // Parenthesizing a nested unary prefix expression is not necessary.
@@ -463,10 +469,12 @@ public:
     rc_recur emitExpression(E.getValue());
   }
 
-  RecursiveCoroutine<void> emitHiddenCastExpression(mlir::Value V) {
-    auto E = V.getDefiningOp<CastOpInterface>();
+  RecursiveCoroutine<void> emitImplicitCastExpression(mlir::Value V) {
+    while (auto E = V.getDefiningOp<ImplicitCastOp>())
+      V = E.getValue();
+
     CurrentPrecedence = decrementPrecedence(CurrentPrecedence);
-    return emitExpression(unwrapHiddenCasts(E));
+    return emitExpression(V);
   }
 
   RecursiveCoroutine<void> emitTernaryExpression(mlir::Value V) {
@@ -642,16 +650,23 @@ public:
     }
 
     if (auto Immediate = mlir::dyn_cast<ImmediateOp>(E.getOperation())) {
-      if (isNullPointerConstant(Immediate)) {
-        return {
-          .Precedence = OperatorPrecedence::Primary,
-          .Emit = &CliftToCEmitter::emitNullPointerConstant,
-        };
-      }
-
       return {
         .Precedence = OperatorPrecedence::Primary,
         .Emit = &CliftToCEmitter::emitImmediateExpression,
+      };
+    }
+
+    if (auto Null = mlir::dyn_cast<NullOp>(E.getOperation())) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CliftToCEmitter::emitNullPointerConstant,
+      };
+    }
+
+    if (mlir::isa<TrueOp, FalseOp>(E)) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CliftToCEmitter::emitBooleanConstantExpression,
       };
     }
 
@@ -704,16 +719,16 @@ public:
       };
     }
 
+    if (auto Cast = mlir::dyn_cast<ImplicitCastOp>(E.getOperation())) {
+      auto Info = getExpressionEmitInfo(Cast.getValue());
+
+      return {
+        .Precedence = Info.Precedence,
+        .Emit = &CliftToCEmitter::emitImplicitCastExpression,
+      };
+    }
+
     if (auto Cast = mlir::dyn_cast<CastOpInterface>(E.getOperation())) {
-      if (isHiddenCast(Cast)) {
-        auto Info = getExpressionEmitInfo(unwrapHiddenCasts(Cast));
-
-        return {
-          .Precedence = Info.Precedence,
-          .Emit = &CliftToCEmitter::emitHiddenCastExpression,
-        };
-      }
-
       if (auto BitCast = mlir::dyn_cast<BitCastOp>(E.getOperation())) {
         if (requiresExplicitBitCast(BitCast)) {
           return {

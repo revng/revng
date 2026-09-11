@@ -38,6 +38,7 @@ PassPtr<clift::FunctionOp> createCLegalizationPass();
 
 PassPtr<clift::FunctionOp> createImmediateRadixDeductionPass();
 PassPtr<clift::FunctionOp> createImplicitCastElisionPass();
+PassPtr<clift::FunctionOp> createBooleanCastEliminationPass();
 
 PassPtr<mlir::ModuleOp> createVerifyCPass();
 PassPtr<mlir::ModuleOp> createEmitCPass();
