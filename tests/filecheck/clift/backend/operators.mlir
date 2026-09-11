@@ -42,9 +42,9 @@ module attributes {clift.module} {
       clift.yield %r : !int32_t
     }
 
-    // CHECK: !(bool) var_0;
+    // CHECK: !true;
     clift.expr {
-      %b = clift.test %x : !int32_t
+      %b = clift.true
       %r = clift.not %b
       clift.yield %r : !clift.bool
     }
@@ -115,18 +115,18 @@ module attributes {clift.module} {
       clift.yield %r : !int32_t
     }
 
-    // CHECK: (bool) var_0 && (bool) var_0;
+    // CHECK: true && true;
     clift.expr {
-      %0 = clift.test %x : !int32_t
-      %1 = clift.test %x : !int32_t
+      %0 = clift.true
+      %1 = clift.true
       %r = clift.and %0, %1
       clift.yield %r : !clift.bool
     }
 
-    // CHECK: (bool) var_0 || (bool) var_0;
+    // CHECK: true || true;
     clift.expr {
-      %0 = clift.test %x : !int32_t
-      %1 = clift.test %x : !int32_t
+      %0 = clift.true
+      %1 = clift.true
       %r = clift.or %0, %1
       clift.yield %r : !clift.bool
     }

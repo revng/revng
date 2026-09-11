@@ -17,23 +17,21 @@ module attributes {clift.module} {
   clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    // CHECK: if ((bool) 0)
+    // CHECK: if (true)
     clift.if {
-      %0 = clift.imm 0 : !int32_t
-      %1 = clift.test %0 : !int32_t
-      clift.yield %1 : !clift.bool
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     } then {
       // CHECK: 1;
       clift.expr {
         %0 = clift.imm 1 : !int32_t
         clift.yield %0 : !int32_t
       }
-    // CHECK: else if ((bool) 2)
+    // CHECK: else if (true)
     } else {
       clift.if {
-        %0 = clift.imm 2 : !int32_t
-        %1 = clift.test %0 : !int32_t
-        clift.yield %1 : !clift.bool
+        %0 = clift.true
+        clift.yield %0 : !clift.bool
       } then {
         // CHECK: 3;
         clift.expr {
@@ -50,11 +48,10 @@ module attributes {clift.module} {
       }
     }
 
-    // CHECK: if ((bool) 5) {
+    // CHECK: if (true) {
     clift.if {
-      %0 = clift.imm 5 : !int32_t
-      %1 = clift.test %0 : !int32_t
-      clift.yield %1 : !clift.bool
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     } then {
       // CHECK: 6;
       clift.expr {
@@ -66,12 +63,11 @@ module attributes {clift.module} {
         %0 = clift.imm 7 : !int32_t
         clift.yield %0 : !int32_t
       }
-    // CHECK: } else if ((bool) 8) {
+    // CHECK: } else if (true) {
     } else {
       clift.if {
-        %0 = clift.imm 8 : !int32_t
-        %1 = clift.test %0 : !int32_t
-        clift.yield %1 : !clift.bool
+        %0 = clift.true
+        clift.yield %0 : !clift.bool
       } then {
         // CHECK: 9;
         clift.expr {
@@ -98,17 +94,15 @@ module attributes {clift.module} {
     }
     // CHECK: }
 
-    // CHECK: if ((bool) 13) {
+    // CHECK: if (true) {
     clift.if {
-      %0 = clift.imm 13 : !int32_t
-      %1 = clift.test %0 : !int32_t
-      clift.yield %1 : !clift.bool
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     } then {
-      // CHECK: if ((bool) 14)
+      // CHECK: if (true)
       clift.if {
-        %0 = clift.imm 14 : !int32_t
-        %1 = clift.test %0 : !int32_t
-        clift.yield %1 : !clift.bool
+        %0 = clift.true
+        clift.yield %0 : !clift.bool
       } then {
         // CHECK: 15;
         clift.expr {
