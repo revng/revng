@@ -467,6 +467,12 @@ branches:
             - tighten-variable-scopes
             - hoist-variable-initializers
             - promote-break-continue
+      - pipe: emit-strings
+        arguments: [binaries-container, clift-functions]
+      - pipe: pure-mlir-passes-pipe
+        arguments: [clift-functions]
+        configuration:
+          passes:
             - c-legalization
             - elide-implicit-casts
             - deduce-immediate-radices

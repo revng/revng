@@ -801,6 +801,14 @@ def Clift_StringOp : Clift_ExpressionOp<"str"> {
   }];
 
   let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    // A string literal names an array object, so `&"abc"` is as good C as
+    // `&Array` is, and code that reads a string a word at a time relies on it.
+    bool isLvalueExpression() {
+      return true;
+    }
+  }];
 }
 
 class Clift_UnaryArithmeticOp<string mnemonic>
