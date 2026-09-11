@@ -14,6 +14,7 @@ revng_add_analyses_library_internal(
   PeepholeOptimizationPass.cpp
   RemoveConstantArrayReturnsPass.cpp
   RemoveLLVMAssumeCallsPass.cpp
+  SimplifyComparisonsPass.cpp
   SimplifySwitchPass.cpp
   SplitExponentialDataflow.cpp
   SplitOverflowIntrinsicsPass.cpp

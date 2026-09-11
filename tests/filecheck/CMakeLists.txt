@@ -447,6 +447,7 @@ set(FILECHECK_TESTS
     llvm-passes/remove-extractvalues.ll
     llvm-passes/scope-graph-dumper.ll
     llvm-passes/select-scope.ll
+    llvm-passes/simplify-comparisons.ll
     llvm-passes/split-exponential-dataflow.ll
     llvm-passes/split-struct-phis.ll
     llvm-passes/switch-to-statements.ll
