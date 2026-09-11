@@ -242,8 +242,8 @@ public:
 
 char SelectScopePass::ID = 0;
 static constexpr const char *Flag = "select-scope";
-using Reg = llvm::RegisterPass<SelectScopePass>;
-static Reg X(Flag, "Perform the SelectScope pass on the ScopeGraph");
+using SSP = llvm::RegisterPass<SelectScopePass>;
+static SSP X(Flag, "Perform the SelectScope pass on the ScopeGraph");
 
 bool SelectScopePass::runOnFunction(llvm::Function &F) {
   // Log the function name

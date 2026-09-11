@@ -21,7 +21,7 @@ struct RawState {
     State Result;
     for (auto Register : model::Architecture::registers(Architecture)) {
       constexpr auto PoN = model::PrimitiveKind::PointerOrNumber;
-      if (model::Register::primitiveKind(Register) != PoN) {
+      if (model::Register::getPrimitiveKind(Register) != PoN) {
         // Only support generic registers for now.
         // TODO: add vector register support.
         continue;

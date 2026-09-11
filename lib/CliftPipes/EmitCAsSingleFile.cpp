@@ -40,8 +40,11 @@ void EmitCAsSingleFile::run() {
   }
 
   // Wrap the includes and the function bodies (already emitted and reformatted
-  // upstream) in a single root element, as a PTML document requires. The
-  // wrapping tag is emitted by hand to avoid a whole CTokenEmitter just for it.
+  // upstream) in a single root element, as a PTML document requires.
+  //
+  // The wrapping tag is emitted by hand because CTokenEmitter intentionally
+  // only supports emitting clift constructs (which means the rendered strings
+  // `Input.objects()` contains are not emittable).
   std::unique_ptr<llvm::raw_pwrite_stream> Out = Output.getOStream(ObjectID());
   auto Mode = Tags == ptml::Tagging::Enabled ? ptml::EmissionMode::Tags :
                                                ptml::EmissionMode::PlainText;
@@ -49,7 +52,7 @@ void EmitCAsSingleFile::run() {
   ptml::PTMLTagEmitter Document = Root.initializeOpenTag(ptml::tags::Div);
   Document.finalizeOpenTag();
 
-  *Out << Header;
+  *Out << Header << '\n';
   for (const auto &Object : Input.objects()) {
     auto Buffer = Input.getMemoryBuffer(Object);
     *Out << Buffer->getBuffer() << "\n";

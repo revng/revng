@@ -188,8 +188,8 @@ public:
 
 char DAGifyPass::ID = 0;
 static constexpr const char *Flag = "dagify";
-using Reg = llvm::RegisterPass<DAGifyPass>;
-static Reg X(Flag, "Perform the DAGify pass on the ScopeGrapgh");
+using DAGify = llvm::RegisterPass<DAGifyPass>;
+static DAGify X(Flag, "Perform the DAGify pass on the ScopeGrapgh");
 
 bool DAGifyPass::runOnFunction(llvm::Function &F) {
   // Log the function name

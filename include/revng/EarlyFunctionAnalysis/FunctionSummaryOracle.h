@@ -95,8 +95,8 @@ public:
            << "\n"
            << "  Clobbered registers: [";
 
-    for (auto *Reg : ClobberedRegisters)
-      Output << " " << Reg->getName().str();
+    for (auto *Register : ClobberedRegisters)
+      Output << " " << Register->getName().str();
     Output << " ]\n";
 
     Output << "  ABI info: \n";

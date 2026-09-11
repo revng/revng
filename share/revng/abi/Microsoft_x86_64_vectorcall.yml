@@ -32,14 +32,14 @@ GeneralPurposeArgumentRegisters:
 GeneralPurposeReturnValueRegisters:
   - rax_x86_64
 VectorArgumentRegisters:
-  - xmm0_x86_64
-  - xmm1_x86_64
-  - xmm2_x86_64
-  - xmm3_x86_64
-  - xmm4_x86_64
-  - xmm5_x86_64
+  - zmm0_x86_64
+  - zmm1_x86_64
+  - zmm2_x86_64
+  - zmm3_x86_64
+  - zmm4_x86_64
+  - zmm5_x86_64
 VectorReturnValueRegisters:
-  - xmm0_x86_64
+  - zmm0_x86_64
 CalleeSavedRegisters:
   - r12_x86_64
   - r13_x86_64
@@ -49,8 +49,8 @@ CalleeSavedRegisters:
   - rsi_x86_64
   - rbx_x86_64
   - rbp_x86_64
-  - xmm6_x86_64
-  - xmm7_x86_64
+  - zmm6_x86_64
+  - zmm7_x86_64
 
 ReturnValueLocationRegister: rcx_x86_64
 ReturnValueLocationIsReturned: true

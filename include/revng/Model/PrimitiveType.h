@@ -4,6 +4,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/MathExtras.h"
+
+#include "revng/Model/PrimitiveKind.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
 
@@ -81,16 +84,42 @@ public:
 
 public:
   ///
+  /// \name Verification
+  /// @{
+
+  static uint64_t maximumValidSize(model::PrimitiveKind::Values Kind);
+  static bool isSizeValid(model::PrimitiveKind::Values Kind, uint8_t Size);
+
+public:
+  bool isValid() const { return isSizeValid(PrimitiveKind(), Size()); }
+
+  /// @}
+
+public:
+  ///
   /// \name Register-based construction
   /// @{
 
   static UpcastableType make(Register::Values Register) {
-    return make(model::Register::primitiveKind(Register),
+    return make(model::Register::getPrimitiveKind(Register),
                 model::Register::getSize(Register));
   }
 
   static UpcastableType makeGeneric(Register::Values Register) {
     return makeGeneric(model::Register::getSize(Register));
+  }
+
+  /// @}
+
+  ///
+  /// \name Dynamic size construction
+  /// @{
+
+  static UpcastableType makeNextPowerOfTwo(PrimitiveKind::Values Kind,
+                                           uint64_t Size) {
+    uint64_t RealSize = llvm::PowerOf2Ceil(Size);
+    revng_assert(RealSize <= maximumValidSize(Kind));
+    return make(Kind, RealSize);
   }
 
   /// @}
