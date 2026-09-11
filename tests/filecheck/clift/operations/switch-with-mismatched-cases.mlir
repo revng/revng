@@ -10,4 +10,4 @@
   "clift.yield"(%0) : (!clift.int<signed 4>) -> ()
 }, {
 }, { // Case region without matching case value.
-}) {case_values = array<i64>} : () -> ()
+}) {cases = #clift.switch<>} : () -> ()

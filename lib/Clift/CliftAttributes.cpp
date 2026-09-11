@@ -1012,6 +1012,105 @@ mlir::LogicalResult clift::CAttributeAttr::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
+//===------------------------ SwitchCaseArrayAttr ------------------------===//
+
+mlir::LogicalResult
+SwitchCaseArrayAttr::verify(EmitErrorType EmitError,
+                            llvm::ArrayRef<SwitchCase> Cases) {
+  llvm::SmallSet<uint64_t, 16> Set;
+  unsigned PrevIndex = -1;
+
+  for (const auto &[Index, Value] : Cases) {
+    if (Index != PrevIndex and Index != PrevIndex + 1)
+      return EmitError() << "case region indices must be ordered and with no "
+                            "gaps";
+
+    if (not Set.insert(Value).second)
+      return EmitError() << "case values must be unique";
+
+    PrevIndex = Index;
+  }
+
+  return mlir::success();
+}
+
+mlir::Attribute SwitchCaseArrayAttr::parse(mlir::AsmParser &Parser,
+                                           mlir::Type) {
+  mlir::SMLoc Loc = Parser.getCurrentLocation();
+
+  llvm::SmallVector<SwitchCase> Cases;
+
+  unsigned NextRegion = 0;
+  auto ParseRegionCases = [&]() -> mlir::LogicalResult {
+    unsigned Region = NextRegion++;
+    auto ParseCase = [&]() -> mlir::LogicalResult {
+      uint64_t Value;
+      if (Parser.parseInteger(Value).failed())
+        return mlir::failure();
+
+      Cases.emplace_back(Region, Value);
+      return mlir::success();
+    };
+
+    if (Parser.parseOptionalLParen().succeeded()) {
+      if (Parser.parseCommaSeparatedList(ParseCase).failed())
+        return mlir::failure();
+
+      if (Parser.parseRParen().failed())
+        return mlir::failure();
+    } else {
+      if (ParseCase().failed())
+        return mlir::failure();
+    }
+
+    return mlir::success();
+  };
+
+  if (Parser
+        .parseCommaSeparatedList(mlir::AsmParser::Delimiter::LessGreater,
+                                 ParseRegionCases,
+                                 " in switch case list")
+        .failed())
+    return {};
+
+  return SwitchCaseArrayAttr::get(Parser.getContext(), Cases);
+}
+
+void SwitchCaseArrayAttr::print(mlir::AsmPrinter &Printer) const {
+  Printer << '<';
+
+  auto Cases = getCases();
+  auto Begin = Cases.begin();
+  auto End = Cases.end();
+  auto RegionBegin = Begin;
+
+  // TODO: Use std::views::chunk_by once it is available.
+  while (RegionBegin != End) {
+    if (RegionBegin != Begin)
+      Printer << ", ";
+
+    auto RegionEnd = std::next(RegionBegin);
+    while (RegionEnd != End and RegionEnd->Region == RegionBegin->Region)
+      ++RegionEnd;
+
+    if (RegionEnd - RegionBegin > 1)
+      Printer << '(';
+
+    for (auto I = RegionBegin; I != RegionEnd; ++I) {
+      if (I != RegionBegin)
+        Printer << ", ";
+      Printer << I->Value;
+    }
+
+    if (RegionEnd - RegionBegin > 1)
+      Printer << ')';
+
+    RegionBegin = RegionEnd;
+  }
+
+  Printer << '>';
+}
+
 //===---------------------------- CliftDialect ----------------------------===//
 
 void CliftDialect::registerAttributes() {

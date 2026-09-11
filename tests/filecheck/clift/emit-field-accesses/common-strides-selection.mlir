@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng clift-opt %s -emit-field-accesses -canonicalize 2>&1 | FileCheck %s
+// RUN: %root/bin/revng clift-opt %s --emit-field-accesses --canonicalize | FileCheck %s
 
 // When two candidate traversals reach the same target type at the same offset
 // and with the same size, they tie on the `StartDistance`, `SizeRelation` and

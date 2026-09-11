@@ -623,17 +623,17 @@ def Clift_RequireOp : Clift_StatementOp<"require"> {
 }
 
 def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
-  let arguments = (ins DenseI64ArrayAttr:$case_values);
+  let arguments = (ins Clift_SwitchCaseArrayAttr:$cases);
 
   let regions = (region Clift_ExpressionRegion:$condition,
                         Clift_StatementRegion:$default,
-                        VariadicRegion<Clift_StatementRegion>:$cases);
+                        VariadicRegion<Clift_StatementRegion>:$case_regions);
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 
   let builders = [
-    OpBuilder<(ins "llvm::ArrayRef<uint64_t>":$case_values)>
+    OpBuilder<(ins "SwitchCaseArrayAttr":$cases)>,
   ];
 
   code extraClassDeclaration = [{
@@ -653,23 +653,28 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
       return getRegion(1);
     }
 
-    [[nodiscard]] unsigned getNumCases() {
+    [[nodiscard]] unsigned getCaseRegionCount() {
       return getNumRegions() - 2;
     }
 
-    [[nodiscard]] uint64_t getCaseValue(const unsigned index) {
-      return static_cast<uint64_t>(getCaseValues()[index]);
+    [[nodiscard]] auto getCaseValues() {
+      return std::views::transform(getCases(), &SwitchCase::Value);
     }
 
-    [[nodiscard]] llvm::MutableArrayRef<mlir::Region> getCaseRegions() {
-      return getOperation()->getRegions().drop_front(2);
+    [[nodiscard]] auto getCaseValues(unsigned Index) {
+      auto Cases = getCases();
+      return std::views::transform(std::ranges::equal_range(Cases,
+                                                            Index,
+                                                            std::less(),
+                                                            &SwitchCase::Region),
+                                   &SwitchCase::Value);
     }
 
-    [[nodiscard]] mlir::Region &getCaseRegion(const unsigned index) {
-      return getCaseRegions()[index];
+    [[nodiscard]] mlir::Region &getCaseRegion(const unsigned Index) {
+      return getCaseRegions()[Index];
     }
 
-    [[nodiscard]] mlir::Region *findCaseRegion(const uint64_t value);
+    [[nodiscard]] mlir::Region *findCaseRegion(const uint64_t Value);
 
     unsigned getStatementRegionCount() {
       return getOperation()->getRegions().size() - 1;

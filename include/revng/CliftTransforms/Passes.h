@@ -28,6 +28,8 @@ PassPtr<clift::FunctionOp> createEmitFieldAccessesPass();
 PassPtr<clift::FunctionOp> createTypeRefinementPass();
 PassPtr<clift::FunctionOp> createTypeRefinementWithEFAPass();
 
+PassPtr<clift::FunctionOp> createWhileConditionPromotionPass();
+PassPtr<clift::FunctionOp> createDoWhileConditionPromotionPass();
 PassPtr<clift::FunctionOp> createExpressionPostProcessingPass();
 PassPtr<clift::FunctionOp> createTerminalBranchComplementHoistingPass();
 PassPtr<clift::FunctionOp> createVariableScopeTighteningPass();

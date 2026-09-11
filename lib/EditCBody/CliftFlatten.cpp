@@ -120,7 +120,7 @@ void revng::editcbody::flattenCliftRegion(mlir::Region &Root,
           if (hasFallthrough(Region))
             Children.push_back(MarkerItem(StatementKind::Break));
         };
-        for (unsigned I = 0, Count = Switch.getNumCases(); I < Count; ++I)
+        for (unsigned I = 0, Count = Switch.getCaseRegionCount(); I < Count; ++I)
           AppendCase(StatementKind::Case, Switch.getCaseRegion(I));
         if (Switch.hasDefaultCase())
           AppendCase(StatementKind::Default, Switch.getDefaultCaseRegion());

@@ -88,67 +88,21 @@ Converter::makePrimitive(const BuiltinType *UnderlyingBuiltin, QualType Type) {
     return model::UpcastableType::empty();
   }
 
-  switch (UnderlyingBuiltin->getKind()) {
-  case BuiltinType::UInt128:
-    return model::PrimitiveType::makeUnsigned(16);
+  auto const GetSize = [this, &UnderlyingBuiltin]() {
+    return Context.getTypeSize(UnderlyingBuiltin) / 8;
+  };
 
-  case BuiltinType::Int128:
-    return model::PrimitiveType::makeSigned(16);
+  if (UnderlyingBuiltin->isSignedInteger())
+    return model::PrimitiveType::makeSigned(GetSize());
 
-  case BuiltinType::ULongLong:
-  case BuiltinType::ULong:
-    return model::PrimitiveType::makeUnsigned(8);
+  if (UnderlyingBuiltin->isUnsignedInteger())
+    return model::PrimitiveType::makeUnsigned(GetSize());
 
-  case BuiltinType::LongLong:
-  case BuiltinType::Long:
-    return model::PrimitiveType::makeSigned(8);
+  if (UnderlyingBuiltin->isFloatingPoint())
+    return model::PrimitiveType::makeFloat(GetSize());
 
-  case BuiltinType::WChar_U:
-  case BuiltinType::UInt:
-    return model::PrimitiveType::makeUnsigned(4);
-
-  case BuiltinType::WChar_S:
-  case BuiltinType::Char32:
-  case BuiltinType::Int:
-    return model::PrimitiveType::makeSigned(4);
-
-  case BuiltinType::UShort:
-    return model::PrimitiveType::makeUnsigned(2);
-
-  case BuiltinType::Char16:
-  case BuiltinType::Short:
-    return model::PrimitiveType::makeSigned(2);
-
-  case BuiltinType::Char_U:
-  case BuiltinType::UChar:
-  case BuiltinType::Char8:
-  case BuiltinType::Bool:
-    return model::PrimitiveType::makeUnsigned(1);
-
-  case BuiltinType::Char_S:
-  case BuiltinType::SChar:
-    return model::PrimitiveType::makeSigned(1);
-
-  case BuiltinType::Void:
-    return model::PrimitiveType::makeVoid();
-
-  case BuiltinType::Float16:
-    return model::PrimitiveType::makeFloat(2);
-
-  case BuiltinType::Float:
-    return model::PrimitiveType::makeFloat(4);
-
-  case BuiltinType::Double:
-    return model::PrimitiveType::makeFloat(8);
-
-  case BuiltinType::Float128:
-  case BuiltinType::LongDouble:
-    return model::PrimitiveType::makeFloat(16);
-
-  default:
-    Errors.emplace_back(ErrorPrefix.str()
-                        + " Unable to handle a primitive type.\n");
-  }
+  Errors.emplace_back(ErrorPrefix.str()
+                      + " Unable to handle a primitive type.\n");
 
   return model::UpcastableType::empty();
 }

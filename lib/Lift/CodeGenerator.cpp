@@ -453,7 +453,11 @@ void CodeGenerator::translate(LibTcg &LibTcg,
       auto Opcode = Instruction->opcode;
 
       Blocks.clear();
-      Blocks.push_back(Builder.GetInsertBlock());
+      if (BasicBlock *Block = Builder.GetInsertBlock()) {
+        Blocks.push_back(Block);
+      } else {
+        revng_assert(Opcode == LIBTCG_op_set_label);
+      }
 
       ++SinceInstructionStart;
 
@@ -552,14 +556,13 @@ void CodeGenerator::translate(LibTcg &LibTcg,
 
     Variables.closeTranslationBlock();
 
-    // We might have a leftover block, probably due to the block created after
-    // the last call to exit_tb
-    auto *LastBlock = Builder.GetInsertBlock();
-    if (LastBlock->empty()) {
-      eraseFromParent(LastBlock);
-    } else if (!LastBlock->rbegin()->isTerminator()) {
-      // Something went wrong, probably a mistranslation
-      Builder.CreateUnreachable();
+    if (auto *LastBlock = Builder.GetInsertBlock()) {
+      if (LastBlock->empty()) {
+        eraseFromParent(LastBlock);
+      } else if (!LastBlock->rbegin()->isTerminator()) {
+        // Something went wrong, probably a mistranslation
+        Builder.CreateUnreachable();
+      }
     }
 
     Translator.registerDirectJumps();

@@ -543,18 +543,8 @@ private:
   /// Translate the non-constant jumps into jumps to the dispatcher
   void translateIndirectJumps();
 
-  /// Erase \p I, and deregister it in case it's a call to `newpc`
-  void eraseInstruction(llvm::Instruction *I) {
-    revng_assert(I->use_empty());
-
-    MetaAddress PC = getBasicBlockAddress(I->getParent());
-    if (PC.isValid())
-      OriginalInstructionAddresses.erase(PC);
-    eraseFromParent(I);
-  }
-
-  /// Drop \p Start and all the descendants, stopping when a JT is met
-  void purgeTranslation(llvm::BasicBlock *Start);
+  /// Drop translations rooted at `ToPurge`, stopping at other jump targets.
+  void purgeTranslation();
 
   /// Check if \p BB has at least a predecessor, excluding the dispatcher
   bool hasPredecessors(llvm::BasicBlock *BB) const;
