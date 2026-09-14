@@ -593,8 +593,6 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     Set.add<PointerComparisonPattern<SCmpLeOp>>(Context);
     Set.add<PointerComparisonPattern<SCmpGeOp>>(Context);
 
-    Set.add<BooleanCanonicalizationPattern>(Context, DataModel);
-
     Set.add<ArithmeticPromotionPattern<NegOp>>(Context, DataModel);
     Set.add<ArithmeticPromotionPattern<AddOp>>(Context, DataModel);
     Set.add<ArithmeticPromotionPattern<SubOp>>(Context, DataModel);
@@ -621,13 +619,17 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
       return mlir::failure();
   }
 
-  // Emit casts around unrepresentable immediates. This should only be done
-  // after promotions and pointer resizing, because those rewrites may surface
-  // opportunities for immediate canonicalisations.
+  // * Emit casts around unrepresentable immediates.
+  //   This should only be done after promotions and pointer resizing, because
+  //   those rewrites may surface opportunities for immediate canonicalisations.
+  // * Canonicalize boolean extensions.
+  //   This should only be done without cast canonicalization rewrites, as those
+  //   would undo the boolean extension canonicalization rewrites.
   {
     mlir::RewritePatternSet Set(Context);
 
     Set.add<ImmediateCastPattern>(Context, DataModel);
+    Set.add<BooleanCanonicalizationPattern>(Context, DataModel);
 
     auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
     if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
