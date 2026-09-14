@@ -624,6 +624,10 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     // other rewrites.
     populateWithCastCanonicalizations(Set);
 
+    // Immediate canonicalization is used to re-type immediates after
+    // introduction of casts by the other rewrites.
+    populateWithImmediateCanonicalizations(Set);
+
     auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
     if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
       return mlir::failure();

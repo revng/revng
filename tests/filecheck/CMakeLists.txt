@@ -64,6 +64,7 @@ set(FILECHECK_TESTS
     clift/c-legalization/imm-enum.mlir
     clift/c-legalization/imm-i8.mlir
     clift/c-legalization/imm-legal.mlir
+    clift/c-legalization/neg-imm.mlir
     clift/c-legalization/null32.mlir
     clift/c-legalization/ptr32.mlir
     clift/c-legalization/sar-sign.mlir
