@@ -1,0 +1,31 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Version: 10
+
+TypeDefinitions:
+  - ID: 0
+    Kind: RawFunctionDefinition
+    Architecture: x86_64
+    Arguments:
+      - Location: xmm0_x86_64
+    ReturnValues:
+      - Location: xmm1_x86_64
+    PreservedRegisters:
+      - xmm2_x86_64
+      - xmm7_x86_64
+
+Segments:
+  - StartAddress: "0x1000:Generic64"
+    VirtualSize: 4096
+    StartOffset: 0
+    FileSize: 4096
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
+    CanonicalRegisterValues:
+      - Register: xmm3_x86_64
+        Value: 0
+
+Architecture: x86_64

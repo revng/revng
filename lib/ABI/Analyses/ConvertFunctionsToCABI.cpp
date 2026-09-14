@@ -107,12 +107,12 @@ static RecursiveCoroutine<bool> usesFloat(model::VerifyHelper &VH,
     Result = true;
     using RawFT = model::RawFunctionDefinition;
     for (const auto &A : llvm::cast<RawFT>(Type).Arguments()) {
-      auto Kind = model::Register::primitiveKind(A.Location());
+      auto Kind = model::Register::getPrimitiveKind(A.Location());
       Result = Result && rc_recur usesFloat(VH, Kind);
       Result = Result && rc_recur usesFloat(VH, *A.Type());
     }
     for (const auto &V : llvm::cast<RawFT>(Type).ReturnValues()) {
-      auto Kind = model::Register::primitiveKind(V.Location());
+      auto Kind = model::Register::getPrimitiveKind(V.Location());
       Result = Result && rc_recur usesFloat(VH, Kind);
       Result = Result && rc_recur usesFloat(VH, *V.Type());
     }

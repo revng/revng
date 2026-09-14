@@ -62,7 +62,7 @@ public:
     ArgumentDistributor Distributor(ABI);
     Distributor.ArgumentIndex = Arguments->size();
     for (const auto &NTRegister : FunctionType.Arguments()) {
-      auto Kind = model::Register::primitiveKind(NTRegister.Location());
+      auto Kind = model::Register::getPrimitiveKind(NTRegister.Location());
       if (Kind == model::PrimitiveKind::Values::PointerOrNumber)
         ++Distributor.UsedGeneralPurposeRegisterCount;
       else if (Kind == model::PrimitiveKind::Float)

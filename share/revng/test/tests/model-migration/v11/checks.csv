@@ -1,0 +1,10 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+.TypeDefinitions[0].Kind,"RawFunctionDefinition"
+.TypeDefinitions[0].Arguments[0].Location,"zmm0_x86_64"
+.TypeDefinitions[0].ReturnValues[0].Location,"zmm1_x86_64"
+.TypeDefinitions[0].PreservedRegisters[0],"zmm2_x86_64"
+.TypeDefinitions[0].PreservedRegisters[1],"zmm7_x86_64"
+.Segments[0].CanonicalRegisterValues[0].Register,"zmm3_x86_64"

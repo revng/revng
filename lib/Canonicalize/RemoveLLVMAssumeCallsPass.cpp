@@ -26,8 +26,8 @@ public:
 using RemoveAssumePass = RemoveLLVMAssumeCallsPass;
 
 char RemoveAssumePass::ID = 0;
-using Reg = RegisterPass<RemoveAssumePass>;
-static Reg
+using RAP = RegisterPass<RemoveAssumePass>;
+static RAP
   X("remove-llvmassume-calls", "Removes calls to assume intrinsic", true, true);
 
 void RemoveAssumePass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {

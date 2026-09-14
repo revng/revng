@@ -145,8 +145,8 @@ bool SplitExponentialDataflow::runOnFunction(llvm::Function &F) {
 
 char SplitExponentialDataflow::ID = 0;
 
-using Reg = llvm::RegisterPass<SplitExponentialDataflow>;
-static Reg X{ SplitExponentialDataflowFlag,
+using SED = llvm::RegisterPass<SplitExponentialDataflow>;
+static SED X{ SplitExponentialDataflowFlag,
               SplitExponentialDataflowFlag,
               false,
               false };

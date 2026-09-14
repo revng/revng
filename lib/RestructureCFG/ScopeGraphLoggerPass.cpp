@@ -57,8 +57,8 @@ public:
 char ScopeGraphLoggerPass::ID = 0;
 
 static constexpr const char *Flag = "scope-graph-dumper";
-using Reg = llvm::RegisterPass<ScopeGraphLoggerPass>;
-static Reg X(Flag, "Dump edge information on the `ScopeGraph`");
+using SGLP = llvm::RegisterPass<ScopeGraphLoggerPass>;
+static SGLP X(Flag, "Dump edge information on the `ScopeGraph`");
 
 bool ScopeGraphLoggerPass::runOnFunction(llvm::Function &F) {
 

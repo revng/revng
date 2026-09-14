@@ -13,8 +13,8 @@
 using namespace llvm;
 
 char RemoveExtractValues::ID = 0;
-using Reg = RegisterPass<RemoveExtractValues>;
-static Reg X("remove-extractvalues",
+using REV = RegisterPass<RemoveExtractValues>;
+static REV X("remove-extractvalues",
              "Substitute extractvalues with opaque calls so that they don't "
              "get optimized",
              true,

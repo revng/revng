@@ -74,12 +74,12 @@ void fieldAccessed(llvm::StringRef FieldName, llvm::StringRef StructName) {
   if (StructNameRegex == "" and FieldNameRegex == "")
     return;
 
-  llvm::Regex Reg(StructNameRegex);
-  if (StructNameRegex != "" and not Reg.match(StructName))
+  llvm::Regex Regex(StructNameRegex);
+  if (StructNameRegex != "" and not Regex.match(StructName))
     return;
 
-  llvm::Regex Reg2(FieldNameRegex);
-  if (FieldNameRegex != "" and not Reg2.match(FieldName))
+  llvm::Regex Regex2(FieldNameRegex);
+  if (FieldNameRegex != "" and not Regex2.match(FieldName))
     return;
 
   onFieldAccess(FieldName, StructName);
@@ -576,73 +576,6 @@ llvm::StringRef model::Architecture::getPCCSVName(Values V) {
     revng_abort();
   }
 }
-
-#define UnknownCSVPrefix "state_"
-
-std::string model::Register::getCSVName(Values V) {
-  // TODO: handle xmm0_x86
-
-  switch (V) {
-  case st0_x86:
-    return "_" UnknownCSVPrefix "0x2960";
-  case xmm0_x86_64:
-    return "_" UnknownCSVPrefix "0x2b10";
-  case xmm1_x86_64:
-    return "_" UnknownCSVPrefix "0x2b50";
-  case xmm2_x86_64:
-    return "_" UnknownCSVPrefix "0x2b90";
-  case xmm3_x86_64:
-    return "_" UnknownCSVPrefix "0x2bd0";
-  case xmm4_x86_64:
-    return "_" UnknownCSVPrefix "0x2c10";
-  case xmm5_x86_64:
-    return "_" UnknownCSVPrefix "0x2c50";
-  case xmm6_x86_64:
-    return "_" UnknownCSVPrefix "0x2c90";
-  case xmm7_x86_64:
-    return "_" UnknownCSVPrefix "0x2cd0";
-  default:
-    return "_" + model::Register::getRegisterName(V).str();
-  }
-}
-
-model::Register::Values
-model::Register::fromCSVName(llvm::StringRef Name,
-                             model::Architecture::Values Architecture) {
-  if (not Name.starts_with("_"))
-    return model::Register::Invalid;
-
-  Name = Name.substr(1);
-
-  if (Architecture == model::Architecture::x86) {
-    if (Name == UnknownCSVPrefix "0x2960") {
-      return st0_x86;
-    }
-  } else if (Architecture == model::Architecture::x86_64) {
-    // TODO: handle xmm0_x86
-    if (Name == UnknownCSVPrefix "0x2b10") {
-      return xmm0_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2b50") {
-      return xmm1_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2b90") {
-      return xmm2_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2bd0") {
-      return xmm3_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2c10") {
-      return xmm4_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2c50") {
-      return xmm5_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2c90") {
-      return xmm6_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2cd0") {
-      return xmm7_x86_64;
-    }
-  }
-
-  return model::Register::fromRegisterName(Name, Architecture);
-}
-
-#undef UnknownCSVPrefix
 
 template<ConstOrNot<model::Binary> BinaryType>
 static std::pair<ConstIf<std::is_const_v<BinaryType>, model::Segment> *,

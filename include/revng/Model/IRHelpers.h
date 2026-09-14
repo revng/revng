@@ -11,6 +11,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
+#include "revng/Model/Register.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommonOptions.h"
 #include "revng/Support/IRHelpers.h"
@@ -110,15 +111,37 @@ getUniqueIsolatedFunction(ConstOrNot<llvm::Module> auto &Module,
 
 inline llvm::SmallVector<llvm::Type *>
 toLLVMTypes(llvm::LLVMContext &Context,
-            const llvm::SmallVector<model::Register::Values> &Registers) {
-  using namespace llvm;
-  SmallVector<llvm::Type *> Result;
-  auto IntoLLVMType = [&Context](model::Register::Values V) -> Type * {
-    return IntegerType::getIntNTy(Context, 8 * model::Register::getSize(V));
+            RangeOf<model::Register::Portion> auto const &RegisterPortions) {
+  auto IntoLLVMType = [&Context](const model::Register::Portion &P) {
+    uint64_t RegisterSize = model::Register::getSize(P.Register);
+
+    // Ensure we always have at least one *full* CSV no matter what.
+    if (model::Register::getCSVCount(P.Register) == 1)
+      return llvm::IntegerType::getIntNTy(Context, 8 * RegisterSize);
+
+    // For multi-CSV registers, also make sure it's in fact a power of two.
+    uint64_t RealSize = llvm::PowerOf2Ceil(P.Size);
+
+    // And verify we have a whole number of CSVs.
+    uint64_t CSVSize = RegisterSize / model::Register::getCSVCount(P.Register);
+    revng_check(RealSize % CSVSize == 0);
+
+    return llvm::IntegerType::getIntNTy(Context, 8 * RealSize);
   };
-  std::ranges::copy(Registers | std::views::transform(IntoLLVMType),
+
+  llvm::SmallVector<llvm::Type *> Result;
+  std::ranges::copy(RegisterPortions | std::views::transform(IntoLLVMType),
                     std::back_inserter(Result));
   return Result;
+}
+inline llvm::SmallVector<llvm::Type *>
+toLLVMTypes(llvm::LLVMContext &Context,
+            RangeOf<model::Register::Values> auto const &Registers) {
+  auto FullSizePortion = [](const model::Register::Values &R) {
+    return model::Register::Portion{ R, model::Register::getSize(R) };
+  };
+  return toLLVMTypes(Context,
+                     Registers | std::views::transform(FullSizePortion));
 }
 
 namespace SegmentGlobal {

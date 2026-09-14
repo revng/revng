@@ -16,6 +16,7 @@ revng_add_analyses_library_internal(
   Processing.cpp
   ProgramCounterHandler.cpp
   RawBinaryView.cpp
+  Register.cpp
   Type.cpp
   TypeDefinition.cpp
   Verification.cpp

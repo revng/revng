@@ -30,21 +30,21 @@ GeneralPurposeReturnValueRegisters:
   - eax_x86
   - edx_x86
 VectorArgumentRegisters:
-  - xmm0_x86
-  - xmm1_x86
-  - xmm2_x86
-  - xmm3_x86
-  - xmm4_x86
-  - xmm5_x86
+  - zmm0_x86
+  - zmm1_x86
+  - zmm2_x86
+  - zmm3_x86
+  - zmm4_x86
+  - zmm5_x86
 VectorReturnValueRegisters:
-  - xmm0_x86
+  - zmm0_x86
 CalleeSavedRegisters:
   - ebx_x86
   - ebp_x86
   - edi_x86
   - esi_x86
-  - xmm6_x86
-  - xmm7_x86
+  - zmm6_x86
+  - zmm7_x86
 
 ReturnValueLocationOnStack: true
 ReturnValueLocationIsReturned: true

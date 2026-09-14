@@ -159,8 +159,8 @@ CFGAnalyzer::CFGAnalyzer(llvm::Module &M,
 
   // Prepare header for debugging information about indirect branch infos
   *OutputIBI << "name,ra,fso,address";
-  for (const auto &Reg : ABICSVs)
-    *OutputIBI << "," << Reg->getName();
+  for (const auto &Register : ABICSVs)
+    *OutputIBI << "," << Register->getName();
   *OutputIBI << "\n";
 }
 

@@ -37,8 +37,8 @@ static std::string linkFunctionArgument(llvm::StringRef Lib) {
   if (LastSlash != llvm::StringRef::npos)
     Lib = Lib.drop_front(LastSlash + 1);
 
-  llvm::Regex Reg("^lib(.*).so(\\.[0-9]+)*$");
-  if (not Reg.match(Lib))
+  llvm::Regex Regex("^lib(.*).so(\\.[0-9]+)*$");
+  if (not Regex.match(Lib))
     return "-l:" + Lib.str();
 
   Lib = Lib.drop_front(3);

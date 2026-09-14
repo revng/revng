@@ -225,8 +225,6 @@ private:
   model::UpcastableType
   buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
                                 const efa::BasicBlock &CallerBlock);
-
-  bool getRegisterState(model::Register::Values, const CSVSet &);
 };
 
 void DetectABI::computeApproximateCallGraph() {
@@ -619,8 +617,13 @@ void DetectABI::applyABIDeductions() {
     abi::Definition::RegisterSet RValues;
     model::Architecture::Values Architecture = Binary->Architecture();
     for (const auto &Register : model::Architecture::registers(Architecture)) {
-      auto Name = model::Register::getCSVName(Register);
-      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
+      for (const model::Register::CSV &RegisterCSV :
+           model::Register::getCSVs(Register)) {
+        llvm::GlobalVariable *CSV = M.getGlobalVariable(RegisterCSV.Name, true);
+        if (CSV == nullptr)
+          continue;
+
+        // A register is an argument or a return value if any of its CSVs is.
         if (Summary.ABIResults.ArgumentsRegisters.contains(CSV))
           Arguments.emplace(Register);
 
@@ -647,8 +650,12 @@ void DetectABI::applyABIDeductions() {
     efa::CSVSet ResultingArguments;
     efa::CSVSet ResultingReturnValues;
     for (const auto &Register : model::Architecture::registers(Architecture)) {
-      auto Name = model::Register::getCSVName(Register);
-      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
+      for (const model::Register::CSV &RegisterCSV :
+           model::Register::getCSVs(Register)) {
+        llvm::GlobalVariable *CSV = M.getGlobalVariable(RegisterCSV.Name, true);
+        if (CSV == nullptr)
+          continue;
+
         if (Arguments.contains(Register))
           ResultingArguments.insert(CSV);
         if (RValues.contains(Register))
@@ -696,10 +703,31 @@ static bool isDynamicFunctionStub(const SortedVector<efa::BasicBlock> &CFG) {
 }
 
 void DetectABI::recordRegisters(const efa::CSVSet &CSVs, auto Inserter) {
+  // For each register, find its highest used CSV and limit the potential size
+  // of the register based on it.
+  //
+  // For example, if only one CSV of a `zmm0` register is used, we can actually
+  // type it as `generic64_t` instead of `generic512_t`, which is a lot nicer
+  // to work with!
+  std::map<model::Register::Values, uint64_t> ConfirmedByteCounts;
   for (auto *CSV : CSVs) {
-    auto Reg = model::Register::fromCSVName(CSV->getName(),
-                                            Binary->Architecture());
-    Inserter.emplace(Reg).Type() = model::PrimitiveType::makeGeneric(Reg);
+    model::Register::Portion Portion(CSV->getName(), Binary->Architecture());
+    if (Portion.Register == model::Register::Invalid)
+      continue;
+
+    uint64_t &Bytes = ConfirmedByteCounts[Portion.Register];
+    Bytes = std::max(Bytes, Portion.StartOffset + Portion.Size);
+  }
+
+  for (auto [Register, ByteCount] : ConfirmedByteCounts) {
+    revng_assert(model::Register::getSize(Register) >= ByteCount);
+
+    namespace PK = model::PrimitiveKind;
+    auto Type = model::PrimitiveType::makeNextPowerOfTwo(PK::Generic,
+                                                         ByteCount);
+    revng_assert(model::Register::getSize(Register) >= *Type->size());
+
+    Inserter.emplace(Register).Type() = std::move(Type);
   }
 }
 
@@ -938,17 +966,6 @@ static void combineCrossCallSites(auto &CallSite, auto &Callee) {
   }
 }
 
-bool DetectABI::getRegisterState(model::Register::Values RegisterValue,
-                                 const CSVSet &ABIRegisterMap) {
-
-  auto Name = model::Register::getCSVName(RegisterValue);
-  if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
-    return ABIRegisterMap.contains(CSV);
-  }
-
-  return false;
-}
-
 CSVSet DetectABI::findWrittenRegisters(llvm::Function *F) {
   using namespace llvm;
 
@@ -985,15 +1002,22 @@ DetectABI::computePreservedRegisters(const CSVSet &ClobberedRegisters) const {
   TrackingSortedVector<model::Register::Values> Result;
   CSVSet PreservedRegisters = computePreservedCSVs(ClobberedRegisters);
 
-  auto PreservedRegistersInserter = Result.batch_insert();
+  // A register is preserved only if all the CSVs composing it are preserved,
+  // so count how many of each register's CSVs survive.
+  std::map<model::Register::Values, uint64_t> PreservedLaneCount;
   for (auto *CSV : PreservedRegisters) {
     auto RegisterID = model::Register::fromCSVName(CSV->getName(),
                                                    Binary->Architecture());
     if (RegisterID == Register::Invalid)
       continue;
 
-    PreservedRegistersInserter.insert(RegisterID);
+    PreservedLaneCount[RegisterID] += 1;
   }
+
+  auto PreservedRegistersInserter = Result.batch_insert();
+  for (auto [RegisterID, Count] : PreservedLaneCount)
+    if (Count == model::Register::getCSVCount(RegisterID))
+      PreservedRegistersInserter.insert(RegisterID);
 
   return Result;
 }
@@ -1029,18 +1053,18 @@ static void suppressCalleeSaved(RUAResults &ABIResults,
                                 const CSVSet &CalleeSavedRegs) {
 
   // Suppress from arguments
-  for (const auto &Reg : CalleeSavedRegs)
-    ABIResults.ArgumentsRegisters.erase(Reg);
+  for (const auto &Register : CalleeSavedRegs)
+    ABIResults.ArgumentsRegisters.erase(Register);
 
   // Suppress from return values
-  for (const auto &Reg : CalleeSavedRegs)
-    ABIResults.ReturnValuesRegisters.erase(Reg);
+  for (const auto &Register : CalleeSavedRegs)
+    ABIResults.ReturnValuesRegisters.erase(Register);
 
   // Suppress from call-sites
   for (const auto &[K, _] : ABIResults.CallSites) {
-    for (const auto &Reg : CalleeSavedRegs) {
-      ABIResults.CallSites[K].ArgumentsRegisters.erase(Reg);
-      ABIResults.CallSites[K].ReturnValuesRegisters.erase(Reg);
+    for (const auto &Register : CalleeSavedRegs) {
+      ABIResults.CallSites[K].ArgumentsRegisters.erase(Register);
+      ABIResults.CallSites[K].ReturnValuesRegisters.erase(Register);
     }
   }
 }

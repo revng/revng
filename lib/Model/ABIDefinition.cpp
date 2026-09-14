@@ -32,8 +32,8 @@ bool verifyRegisters(const RegisterContainer &Registers,
 }
 
 bool isVectorRegister(model::Register::Values Register) {
-  using model::Register::primitiveKind;
-  return primitiveKind(Register) == model::PrimitiveKind::Float;
+  using model::Register::getPrimitiveKind;
+  return getPrimitiveKind(Register) == model::PrimitiveKind::Float;
 }
 
 /// Helps detecting unsupported ABI trait definition with respect to
