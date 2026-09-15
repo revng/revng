@@ -7,13 +7,13 @@
 !void = !clift.void
 !int32_t = !clift.int<signed 4>
 
-!f = !clift.func<"/type-definition/1001-CABIFunctionDefinition" : !void(!int32_t, !int32_t)>
+!f = !clift.func<"/type-definition/1001-CABIFunctionDefinition" : !void(!int32_t)>
 
 // CHECK: module attributes {clift.module} {
 module attributes {clift.module} {
   // CHECK: clift.func
   // CHECK-SAME: {
-  clift.func @f<!f>(%arg0 : !int32_t, %arg1 : !int32_t) {
+  clift.func @f<!f>(%arg0 : !int32_t) {
     %outer_loop = clift.make_label
     %inner_loop = clift.make_label
 
@@ -22,8 +22,8 @@ module attributes {clift.module} {
     // CHECK: break [[OUTER_BREAK:%[0-9]+]]
     // CHECK: continue [[OUTER_CONTINUE:%[0-9]+]]
     // CHECK-SAME: cond {
-      // CHECK: [[COND:%[0-9]+]] = clift.imm 1 : !int8_t
-      // CHECK: clift.yield [[COND]] : !int8_t
+      // CHECK: [[COND:%[0-9]+]] = clift.true
+      // CHECK: clift.yield [[COND]] : !clift.bool
     // CHECK: } body {
 
     // CHECK: clift.expr {
@@ -40,8 +40,8 @@ module attributes {clift.module} {
     // CHECK: break [[INNER_BREAK:%[0-9]+]]
     // CHECK: continue [[INNER_CONTINUE:%[0-9]+]]
     // CHECK: cond {
-      // CHECK: [[COND:%[0-9]+]] = clift.imm 1 : !int8_t
-      // CHECK: clift.yield [[COND]] : !int8_t
+      // CHECK: [[COND:%[0-9]+]] = clift.true
+      // CHECK: clift.yield [[COND]] : !clift.bool
     // CHECK: } body {
 
     // CHECK: clift.expr {
@@ -55,8 +55,10 @@ module attributes {clift.module} {
 
     // CHECK: clift.if {
     clift.if {
-      // CHECK: clift.yield %arg0 : !int32_t
-      clift.yield %arg0 : !int32_t
+      // CHECK: [[COND:%[0-9]+]] = clift.test %arg0 : !int32_t
+      %0 = clift.test %arg0 : !int32_t
+      // CHECK: clift.yield [[COND]] : !clift.bool
+      clift.yield %0 : !clift.bool
     // CHECK: } then {
     } then {
       // CHECK: clift.continue_to [[INNER_CONTINUE]]
@@ -70,8 +72,10 @@ module attributes {clift.module} {
 
     // CHECK: clift.if {
     clift.if {
-      // CHECK: clift.yield %arg1 : !int32_t
-      clift.yield %arg1 : !int32_t
+      // CHECK: [[COND:%[0-9]+]] = clift.test %arg0 : !int32_t
+      %0 = clift.test %arg0 : !int32_t
+      // CHECK: clift.yield [[COND]] : !clift.bool
+      clift.yield %0 : !clift.bool
     // CHECK: } then {
     } then {
       // CHECK: clift.continue_to [[OUTER_CONTINUE]]

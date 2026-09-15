@@ -274,6 +274,7 @@ struct TerminalBranchComplementHoistingPass
     {
       mlir::RewritePatternSet Patterns(Context);
       populateWithBooleanNegationPatterns(Patterns);
+      Patterns.add(TestOp::canonicalize);
 
       // TODO: Use walkAndApplyPatterns
       if (mlir::applyPatternsAndFoldGreedily(Function, std::move(Patterns))

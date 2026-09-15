@@ -17,16 +17,20 @@ def TypesAreEquivalent
 def TypesAreNotEquivalent
   : Constraint<CPred<[{ not clift::equivalent($0.getType(), $1.getType()) }]>>;
 
+def getType : NativeCodeCall<[{
+  $0.getType()
+}]>;
+
 def getPointeeType : NativeCodeCall<[{
   clift::unwrapped_cast<clift::PointerType>($0.getType()).getPointeeType()
 }]>;
 
-def makeInteger : NativeCodeCall<[{
-  mlir::IntegerAttr::get($_builder.getContext(), llvm::APSInt($0))
+def removeConst : NativeCodeCall<[{
+  clift::removeConst($0)
 }]>;
 
-def forceBooleanResult : NativeCodeCall<[{
-  clift::impl::forceBooleanResult($_builder, $0, $1)
+def makeInteger : NativeCodeCall<[{
+  mlir::IntegerAttr::get($_builder.getContext(), llvm::APSInt($0))
 }]>;
 
 #endif

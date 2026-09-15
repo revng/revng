@@ -23,8 +23,8 @@ module attributes {clift.module} {
     // CHECK-NOT: continue
     // CHECK-SAME: body {
     clift.while break %break continue %continue cond {
-      %0 = clift.imm 1 : !int32_t
-      clift.yield %0 : !int32_t
+      %0 = clift.true
+      clift.yield %0 : !clift.bool
     } body {
       // CHECK: clift.expr {
       clift.expr {
@@ -37,16 +37,18 @@ module attributes {clift.module} {
 
       // CHECK-NOT: clift.if
       clift.if {
-        clift.yield %arg0 : !int32_t
+        %0 = clift.test %arg0 : !int32_t
+        clift.yield %0 : !clift.bool
       } then {
         clift.continue_to %continue
       }
       clift.break_to %break
 
     // CHECK-NEXT: } cond {
-      // CHECK: [[COND1:%[0-9]+]] = clift.not %arg0 : !int32_t -> !int8_t
-      // CHECK: [[COND2:%[0-9]+]] = clift.not [[COND1]] : !int8_t -> !int8_t
-      // CHECK: clift.yield [[COND2]]
+      // CHECK: [[COND1:%[0-9]+]] = clift.test %arg0 : !int32_t
+      // CHECK: [[COND2:%[0-9]+]] = clift.not [[COND1]]
+      // CHECK: [[COND3:%[0-9]+]] = clift.not [[COND2]]
+      // CHECK: clift.yield [[COND3]] : !clift.bool
     // CHECK: }
     }
   // CHECK: }

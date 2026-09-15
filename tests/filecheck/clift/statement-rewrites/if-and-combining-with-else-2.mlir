@@ -19,11 +19,14 @@ module attributes {clift.module} {
     clift.if {
       // CHECK: %1 = clift.imm 1 : !int32_t
       %1 = clift.imm 1 : !int32_t
-      // CHECK: %2 = clift.imm 2 : !int32_t
-      // CHECK: %3 = clift.not %2 : !int32_t -> !int8_t
-      // CHECK: %4 = clift.and %1, %3 : (!int32_t, !int8_t) -> !int8_t
-      // CHECK: clift.yield %4 : !int8_t
-      clift.yield %1 : !int32_t
+      // CHECK: %2 = clift.test %1 : !int32_t
+      %2 = clift.test %1 : !int32_t
+      // CHECK: %3 = clift.imm 2 : !int32_t
+      // CHECK: %4 = clift.test %3 : !int32_t
+      // CHECK: %5 = clift.not %4
+      // CHECK: %6 = clift.and %2, %5
+      // CHECK: clift.yield %6 : !clift.bool
+      clift.yield %2 : !clift.bool
     // CHECK: } then {
     } then {
       // CHECK: clift.assign_label %0
@@ -32,7 +35,8 @@ module attributes {clift.module} {
     } else {
       clift.if {
         %1 = clift.imm 2 : !int32_t
-        clift.yield %1 : !int32_t
+        %2 = clift.test %1 : !int32_t
+        clift.yield %2 : !clift.bool
       } then {
         // CHECK-NEXT: clift.expr {
         clift.expr {

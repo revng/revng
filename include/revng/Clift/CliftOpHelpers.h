@@ -298,11 +298,6 @@ inline ExpressionOpInterface getRootExpression(mlir::Region &R) {
   return {};
 }
 
-inline bool isBooleanExpression(mlir::Value Value) {
-  mlir::Operation *Op = Value.getDefiningOp();
-  return Op and Op->hasTrait<clift::ReturnsBoolean>();
-}
-
 inline mlir::OpOperand *getOnlyUse(mlir::Value Value) {
   auto Begin = Value.use_begin();
   auto End = Value.use_end();
@@ -334,10 +329,5 @@ bool isDiscarded(mlir::Value Value);
 /// Returns true if the operand is discarded. An operand might be discarded by
 /// for instance by an expression statement or a comma expression.
 bool isDiscardedOperand(mlir::OpOperand &Operand);
-
-/// Returns true if the value is boolean-tested. A value might be boolean-tested
-/// for instance by a control flow condition, a ternary expression or a logical
-/// expression.
-bool isBooleanTested(mlir::Value Value);
 
 } // namespace clift

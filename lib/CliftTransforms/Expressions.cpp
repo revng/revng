@@ -8,7 +8,6 @@
 
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftOpHelpers.h"
-#include "revng/CliftTransforms/ExpressionHelpers.h"
 #include "revng/CliftTransforms/Expressions.h"
 #include "revng/CliftTransforms/Passes.h"
 
@@ -44,6 +43,12 @@ static mlir::Value makeCastOpImpl(mlir::OpBuilder &Builder,
 #include "revng/CliftTransforms/CastCanonicalization.h.inc"
 
 } // namespace cast_canonicalization
+
+namespace immediate_canonicalization {
+
+#include "revng/CliftTransforms/ImmediateCanonicalization.h.inc"
+
+} // namespace immediate_canonicalization
 
 namespace expression_optimization {
 
@@ -259,12 +264,18 @@ void clift::populateWithCastCanonicalizations(mlir::RewritePatternSet &Set) {
   cast_canonicalization::populateWithGenerated(Set);
 }
 
+void clift::populateWithImmediateCanonicalizations(mlir::RewritePatternSet
+                                                     &Set) {
+  immediate_canonicalization::populateWithGenerated(Set);
+}
+
 void clift::populateWithExpressionOptimizationPatterns(mlir::RewritePatternSet
                                                          &Set) {
   expression_optimization::populateWithGenerated(Set);
 
   populateWithBooleanNegationPatterns(Set);
   populateWithCastCanonicalizations(Set);
+  populateWithImmediateCanonicalizations(Set);
 
   Set.add<TypePunnedReadPattern>(Set.getContext());
   Set.add<TypePunnedWritePattern>(Set.getContext());

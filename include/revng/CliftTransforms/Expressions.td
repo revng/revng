@@ -12,39 +12,27 @@ include "revng/CliftTransforms/ExpressionHelpers.td"
 
 //===------------------------- Boolean expressions -------------------------===//
 
-// x == 0 -> !x
+// x == 0 -> !test(x)
 def CmpEqWithZeroPattern
-  : Pat<(Clift_CmpEqOp:$res $arg, (Clift_ImmediateOp $value)),
-        (Clift_LogicalNotOp $arg),
+  : Pat<(Clift_CmpEqOp $arg, (Clift_ImmediateOp $value)),
+        (Clift_LogicalNotOp (Clift_TestOp $arg)),
         [(Constraint<CPred<"$0.getValue().isZero()">> $value)]>;
 
-// x != 0 -> x
-//           x ? 1 : 0
-// Note: The choice of replacement depends on whether the result is
-//       boolean-tested.
+// x == NULL -> !test(x)
+def CmpEqWithNullPattern
+  : Pat<(Clift_CmpEqOp $arg, (Clift_NullOp)),
+        (Clift_LogicalNotOp (Clift_TestOp $arg))>;
+
+// x != 0 -> test(x)
 def CmpNeWithZeroPattern
-  : Pat<(Clift_CmpNeOp:$res $arg, (Clift_ImmediateOp $value)),
-        (forceBooleanResult $res, $arg),
+  : Pat<(Clift_CmpNeOp $arg, (Clift_ImmediateOp $value)),
+        (Clift_TestOp $arg),
         [(Constraint<CPred<"$0.getValue().isZero()">> $value)]>;
 
-// !x && !y -> x || y
-def DeMorganConjunctionPattern
-  : Pat<(Clift_LogicalNotOp (Clift_LogicalAndOp (Clift_LogicalNotOp $lhs),
-                                                (Clift_LogicalNotOp $rhs))),
-        (Clift_LogicalOrOp $lhs, $rhs)>;
-
-// !x || !y -> x && y
-def DeMorganDisjunctionPattern
-  : Pat<(Clift_LogicalNotOp (Clift_LogicalOrOp (Clift_LogicalNotOp $lhs),
-                                               (Clift_LogicalNotOp $rhs))),
-        (Clift_LogicalAndOp $lhs, $rhs)>;
-
-// !x ? y : z -> x ? z : y
-def TernaryInversionPattern
-  : Pat<(Clift_TernaryOp (Clift_LogicalNotOp $condition),
-                         $lhs,
-                         $rhs),
-        (Clift_TernaryOp $condition, $rhs, $lhs)>;
+// x != NULL -> test(x)
+def CmpNeWithNullPattern
+  : Pat<(Clift_CmpNeOp $arg, (Clift_NullOp)),
+        (Clift_TestOp $arg)>;
 
 //===--------------------------- Math identities --------------------------===//
 
@@ -62,27 +50,12 @@ def ZeroSubPattern
 
 //===---------------------------- Miscellaneous ---------------------------===//
 
-// (T)123 -> 123
-// Constraint: T is an integer type.
-def BitCastImmediatePattern
+// (T *)0 -> NULL
+def NullImmediatePattern
   : Pat<(Clift_BitCastOp:$res (Clift_ImmediateOp $value)),
-        (Clift_ImmediateOp $value),
-        [(Clift_AnyIntegerType $res)]>;
-
-// (T)123 -> 123
-def ZeroExtendImmediatePattern
-  : Pat<(Clift_ZeroExtendOp:$res (Clift_ImmediateOp $value)),
-        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ $0.getValue().zext(getBitWidth($1)) }]> $value, $res)))>;
-
-// (T)123 -> 123
-def SignExtendImmediatePattern
-  : Pat<(Clift_SignExtendOp:$res (Clift_ImmediateOp $value)),
-        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ $0.getValue().sext(getBitWidth($1)) }]> $value, $res)))>;
-
-// (T)123 -> 123
-def TruncateImmediatePattern
-  : Pat<(Clift_TruncateOp:$res (Clift_ImmediateOp $value)),
-        (Clift_ImmediateOp (makeInteger (NativeCodeCall<[{ $0.getValue().trunc(getBitWidth($1)) }]> $value, $res)))>;
+        (Clift_NullOp),
+        [(Clift_AnyPointerType $res),
+         (Constraint<CPred<[{ $0.getValue().isZero() }]>> $value)]>;
 
 // *&x -> x
 // Constraint: the type of x is equivalent to the type of the original expression.
