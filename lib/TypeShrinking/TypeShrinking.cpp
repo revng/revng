@@ -77,6 +77,73 @@ static bool isAddLike(const Instruction *Ins) {
   return false;
 }
 
+static CastInst *getIntegerExtension(Value *V) {
+  if (isa<ZExtInst>(V) or isa<SExtInst>(V))
+    return cast<CastInst>(V);
+  return nullptr;
+}
+
+/// Examples:
+/// \code
+/// icmp slt i64 (zext i32 x), (zext i32 y) -> icmp ult i32 x, y
+/// icmp slt i64 (sext i32 x), (sext i32 y) -> icmp slt i32 x, y
+/// icmp ult i64 (sext i32 x), (sext i32 y) -> icmp ult i32 x, y
+/// icmp eq i64 (zext i32 x), 42           -> icmp eq i32 x, 42
+/// icmp eq i64 (zext i32 x), 4294967296   -> unchanged
+/// \endcode
+static bool shrinkCompare(ICmpInst &Compare) {
+  if (not Compare.getOperand(0)->getType()->isIntegerTy())
+    return false;
+
+  unsigned Index = 0;
+  CastInst *Extension = getIntegerExtension(Compare.getOperand(Index));
+  if (Extension == nullptr) {
+    Index = 1;
+    Extension = getIntegerExtension(Compare.getOperand(Index));
+  }
+  if (Extension == nullptr)
+    return false;
+
+  bool IsSigned = isa<SExtInst>(Extension);
+  Type *NarrowType = Extension->getSrcTy();
+  Value *Operands[2] = {};
+  Operands[Index] = Extension->getOperand(0);
+  Value *Other = Compare.getOperand(1 - Index);
+
+  if (CastInst *OtherExtension = getIntegerExtension(Other)) {
+    // Mixed sext/zext operands do not have the same ordering or equality
+    // relation after removing their extensions.
+    if (OtherExtension->getOpcode() != Extension->getOpcode())
+      return false;
+    Operands[1 - Index] = OtherExtension->getOperand(0);
+    Type *OtherType = OtherExtension->getSrcTy();
+    if (OtherType->getIntegerBitWidth() > NarrowType->getIntegerBitWidth())
+      NarrowType = OtherType;
+  } else if (auto *Constant = dyn_cast<ConstantInt>(Other)) {
+    // Treat a constant as an extension only if truncating and extending it
+    // reproduces its exact wide bit pattern. Otherwise leave the compare alone.
+    const APInt &Wide = Constant->getValue();
+    APInt Narrow = Wide.trunc(NarrowType->getIntegerBitWidth());
+    APInt Extended = IsSigned ? Narrow.sext(Wide.getBitWidth()) :
+                                Narrow.zext(Wide.getBitWidth());
+    if (Extended != Wide)
+      return false;
+    Operands[1 - Index] = ConstantInt::get(NarrowType, Narrow);
+  } else {
+    return false;
+  }
+
+  revng::IRBuilder B(&Compare);
+  auto Predicate = IsSigned ? Compare.getPredicate() :
+                              Compare.getUnsignedPredicate();
+  Value *LHS = B.CreateIntCast(Operands[0], NarrowType, IsSigned);
+  Value *RHS = B.CreateIntCast(Operands[1], NarrowType, IsSigned);
+  Value *Replacement = B.CreateICmp(Predicate, LHS, RHS);
+  Compare.replaceAllUsesWith(Replacement);
+  Compare.eraseFromParent();
+  return true;
+}
+
 static bool runTypeShrinking(Function &F,
                              const BitLivenessAnalysisResults &FixedPoints) {
   bool HasChanges = false;
@@ -89,8 +156,7 @@ static bool runTypeShrinking(Function &F,
     // (the least significant bits of the result depend only on the least
     // significant bits of the operands) we can down cast the operands and then
     // upcast the result
-    if (I->getType()->isIntegerTy()
-        and (isBitwise(I) or isAddLike(I) or isa<ICmpInst>(I))) {
+    if (I->getType()->isIntegerTy() and (isBitwise(I) or isAddLike(I))) {
       // Bound analysis results to MinimumWidth
       unsigned NewResultSize = std::max(MinimumWidth.getValue(), Result.Result);
       unsigned NewOperandsSize = std::max(MinimumWidth.getValue(),
@@ -123,6 +189,15 @@ static bool runTypeShrinking(Function &F,
         NewResultSize = NewOperandsSize;
 
       if (NewOperandsSize < OldSize) {
+        // A shift that is defined at the old width may become poison at the
+        // new width, even if all the bits it produces are dead.
+        if (I->getOpcode() == Instruction::Shl) {
+          auto *Amount = dyn_cast<ConstantInt>(I->getOperand(1));
+          if (Amount == nullptr
+              or Amount->getValue().uge(NewResultType->getIntegerBitWidth()))
+            continue;
+        }
+
         // Shrink an operand to the operand type and widen it back to the
         // result type, wherever the builder is currently inserting.
         auto Shrink = [&B, NewOperandsType, NewResultType](Value *Operand) {
@@ -203,52 +278,16 @@ static bool runTypeShrinking(Function &F,
 
         // Drop the original instruction
         eraseFromParent(I);
+        HasChanges = true;
       }
     }
   }
 
-  //
-  // Drop zext from zext(value) == constant
-  //
-  SmallVector<ICmpInst *, 8> Compares;
-  for (Instruction &I : instructions(&F))
+  // Run after rebuilding the arithmetic, so this also sees the extensions
+  // introduced above. ICmp's i1 result width cannot guide operand narrowing.
+  for (Instruction &I : llvm::make_early_inc_range(instructions(F)))
     if (auto *ICmp = dyn_cast<ICmpInst>(&I))
-      if (ICmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_EQ)
-        Compares.push_back(ICmp);
-
-  for (ICmpInst *ICmp : Compares) {
-    // Pattern match zext(value) == constant
-    auto *ZEXt = dyn_cast<ZExtInst>(ICmp->getOperand(0));
-    auto *RHS = dyn_cast<ConstantInt>(ICmp->getOperand(1));
-    if (ZEXt == nullptr or RHS == nullptr)
-      continue;
-
-    Value *PreExtension = ZEXt->getOperand(0);
-    auto *PreExtensionType = dyn_cast<IntegerType>(PreExtension->getType());
-    if (PreExtensionType == nullptr)
-      continue;
-
-    unsigned PreExtensionSize = PreExtensionType->getIntegerBitWidth();
-    unsigned PostExtensionSize = ZEXt->getType()->getIntegerBitWidth();
-    APInt TruncatedRHS = RHS->getValue().trunc(PreExtensionSize);
-
-    // Ensure the upper bits of the constant are zero
-    unsigned ExpectedLeadingZeros = PostExtensionSize - PreExtensionSize;
-    if (RHS->getValue().countLeadingZeros() < ExpectedLeadingZeros)
-      continue;
-
-    // Replace the compare trunc'ing the constant and skipping over the zext
-    HasChanges = true;
-
-    // TODO: the checks should be enabled conditionally based on the user.
-    revng::IRBuilder B(ICmp);
-    auto *NewICmp = B.CreateICmp(ICmp->getPredicate(),
-                                 PreExtension,
-                                 ConstantInt::get(PreExtensionType,
-                                                  TruncatedRHS));
-    ICmp->replaceAllUsesWith(NewICmp);
-    ICmp->eraseFromParent();
-  }
+      HasChanges |= shrinkCompare(*ICmp);
 
   return HasChanges;
 }

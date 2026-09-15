@@ -411,6 +411,33 @@ revng_add_test(
 )
 
 #
+# Check narrowing after the final instcombine as well as before it.
+#
+revng_add_test(
+  NAME
+  test_type_shrinking_final
+  COMMAND
+  bash
+  -o
+  pipefail
+  -c
+  "${CMAKE_BINARY_DIR}/bin/revng opt -S -early-type-shrinking -type-shrinking -instcombine -early-type-shrinking -type-shrinking -early-cse -dce -verify ${SRC}/TypeShrinking.ll | FileCheck ${SRC}/TypeShrinking.ll"
+)
+
+# Test comparisons and shifts without instcombine, which could hide missing
+# rewrites or invalid narrowing.
+revng_add_test(
+  NAME
+  test_type_shrinking_direct
+  COMMAND
+  bash
+  -o
+  pipefail
+  -c
+  "${CMAKE_BINARY_DIR}/bin/revng opt -S -type-shrinking -verify ${SRC}/TypeShrinking.ll | FileCheck --check-prefix=DIRECT ${SRC}/TypeShrinking.ll"
+)
+
+#
 # test_early_type_shrinking
 #
 # On its own: instcombine rewrites `sext(trunc x)` straight back into the shift
