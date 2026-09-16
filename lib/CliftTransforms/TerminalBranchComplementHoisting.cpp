@@ -253,34 +253,20 @@ using PassBase = clift::impl::CliftTerminalBranchComplementHoistingBase<T>;
 struct TerminalBranchComplementHoistingPass
   : PassBase<TerminalBranchComplementHoistingPass> {
 
+  mlir::FrozenRewritePatternSet Patterns;
+
+  mlir::LogicalResult initialize(mlir::MLIRContext *Context) override {
+    mlir::RewritePatternSet Set(Context);
+    Set.add<IfTerminalBranchComplementHoisting>(Context);
+    Set.add<SwitchTerminalBranchComplementHoisting>(Context);
+    Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
+    return mlir::success();
+  }
+
   void runOnOperation() override {
-    mlir::MLIRContext *Context = &getContext();
-    FunctionOp Function = getOperation();
-
-    // Apply terminal branch complement hoisting:
-    {
-      mlir::RewritePatternSet Patterns(Context);
-      Patterns.add<IfTerminalBranchComplementHoisting,
-                   SwitchTerminalBranchComplementHoisting>(Context);
-
-      // TODO: Use walkAndApplyPatterns
-      if (mlir::applyPatternsAndFoldGreedily(Function, std::move(Patterns))
-            .failed())
-        signalPassFailure();
-    }
-
-    // Terminal branch complement hoisting may need to invert if-statements.
-    // That introduces negated conditions, e.g. `!!x`. This rewrite undoes them:
-    {
-      mlir::RewritePatternSet Patterns(Context);
-      populateWithBooleanNegationPatterns(Patterns);
-      Patterns.add(TestOp::canonicalize);
-
-      // TODO: Use walkAndApplyPatterns
-      if (mlir::applyPatternsAndFoldGreedily(Function, std::move(Patterns))
-            .failed())
-        signalPassFailure();
-    }
+    // TODO: Use walkAndApplyPatterns
+    if (mlir::applyPatternsAndFoldGreedily(getOperation(), Patterns).failed())
+      signalPassFailure();
   }
 };
 

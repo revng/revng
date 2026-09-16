@@ -23,6 +23,7 @@ PassPtr<clift::FunctionOp> createLoopDetectionPass();
 
 PassPtr<clift::FunctionOp> createOptimizeStatementsPass();
 PassPtr<clift::FunctionOp> createOptimizeExpressionsPass();
+PassPtr<clift::FunctionOp> createBooleanNegationSimplificationPass();
 
 PassPtr<clift::FunctionOp> createEmitFieldAccessesPass();
 PassPtr<clift::FunctionOp> createTypeRefinementPass();
