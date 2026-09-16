@@ -1104,7 +1104,7 @@ public:
       if (not mayElideBraces(If.getThen()))
         return false;
 
-      if (If.getElse().empty())
+      if (isEmptyRegionOrBlock(If.getElse()))
         return true;
 
       auto ElseIf = getOnlyOp<IfOp>(If.getElse());
@@ -1131,7 +1131,7 @@ public:
 
       rc_recur emitImplicitBlockStatement(S.getThen(), EmitBlocks);
 
-      if (S.getElse().empty())
+      if (isEmptyRegionOrBlock(S.getElse()))
         break;
 
       if (EmitBlocks)
