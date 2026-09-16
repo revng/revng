@@ -59,6 +59,15 @@ def Clift_StatementOpInterface : Clift_OpInterface<"StatementOpInterface"> {
       }]
     >,
     InterfaceMethod<
+      /*desc=*/"Returns true if the region represents a statement-scoped "
+               "local variable declaration.",
+      "bool", "isDeclaratorRegion", (ins "mlir::Region &":$Region),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{
+        return false;
+      }]
+    >,
+    InterfaceMethod<
       /*desc=*/"Returns a local variable operation referred to by the "
                "specified block argument. The specified block argument must be "
                "defined by a region of this statement operation.",

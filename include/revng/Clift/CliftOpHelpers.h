@@ -290,6 +290,15 @@ inline bool indirectlyFallsThrough(mlir::Region &R) {
   return isIndirectlyNoFallthrough(R) == NoFallthroughKind::FallsThrough;
 }
 
+/// Returns true if the variable is declared as part of a statement (e.g. for).
+inline bool isStatementScopedVariable(LocalVariableOp Local) {
+  if (mlir::Region *Region = Local->getParentRegion()) {
+    if (auto S = mlir::dyn_cast<StatementOpInterface>(Region->getParentOp()))
+      return S.isDeclaratorRegion(*Region);
+  }
+  return false;
+}
+
 //===----------------------------- Expressions ----------------------------===//
 
 inline YieldOp getYieldOp(mlir::Region &R) {
