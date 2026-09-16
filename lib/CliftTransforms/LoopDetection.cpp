@@ -170,7 +170,8 @@ static void createLoop(FunctionOp Function,
   // loop, any gotos targeting that label from within the loop are converted
   // into break-to operations targeting the loop's break-label.
   if (auto BreakAssignment = getNextOp<AssignLabelOp>(Loop)) {
-    for (mlir::Operation *User : BreakAssignment.getLabel().getUsers()) {
+    auto &&Users = BreakAssignment.getLabel().getUsers();
+    for (mlir::Operation *User : llvm::make_early_inc_range(Users)) {
       auto Goto = mlir::dyn_cast<GotoOp>(User);
       if (not Goto)
         continue;
@@ -197,7 +198,8 @@ static void createLoop(FunctionOp Function,
   // convert gotos targeting this label into continue-to operations here would
   // result in verification failures later after label merging.
   if (auto ContinueAssignment = getLastOp<AssignLabelOp>(Loop.getBody())) {
-    for (mlir::Operation *User : ContinueAssignment.getLabel().getUsers()) {
+    auto &&Users = ContinueAssignment.getLabel().getUsers();
+    for (mlir::Operation *User : llvm::make_early_inc_range(Users)) {
       auto Goto = mlir::dyn_cast<GotoOp>(User);
       if (not Goto)
         continue;
