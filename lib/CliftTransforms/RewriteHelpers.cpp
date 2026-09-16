@@ -40,7 +40,7 @@ void clift::mergeExpressionInto(mlir::PatternRewriter &Rewriter,
   mlir::Value SourceValue = SourceYield.getValue();
   mlir::Value TargetValue = TargetYield.getValue();
 
-  SourceYield->erase();
+  Rewriter.eraseOp(SourceYield);
   inlineBlockBefore(Rewriter,
                     &SourceRegion.front(),
                     &TargetRegion.front(),
