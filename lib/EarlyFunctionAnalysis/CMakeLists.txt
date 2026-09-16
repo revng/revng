@@ -9,11 +9,13 @@ revng_add_analyses_library_internal(
   AnalyzeRegisterUsage.cpp
   AttachDebugInfo.cpp
   CFGAnalyzer.cpp
+  ChainCSVWrites.cpp
   CollectCFG.cpp
   CollectFunctionsFromUnusedAddresses.cpp
   ControlFlowGraph.cpp
   DetectABI.cpp
   FunctionSummaryOracle.cpp
+  IgnorePreservedBits.cpp
   IndirectBranchInfoPrinterPass.cpp
   Outliner.cpp
   PromoteGlobalToLocalVars.cpp

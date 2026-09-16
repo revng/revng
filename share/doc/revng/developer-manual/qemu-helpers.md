@@ -319,9 +319,10 @@ $ cat libtcg-helpers-to-inline-x86_64-optimized.ll \
 define void @helper_clts(ptr noundef %0) section "revng_inline" {
 ```
 
-We can see the counts: the *to-inline* module has a small number of definitions (the `REVNG_INLINE` helpers):
+We can see the counts: the *to-inline* module holds the definitions of the `REVNG_INLINE` helpers and nothing else.
+The figure below is indicative: it moves with every helper tagged in QEMU, so it is not checked.
 
-```bash
+```{bash notest}
 $ echo "Definitions:"
 $ cat libtcg-helpers-to-inline-x86_64-optimized.ll \
     | grep -c "^define"

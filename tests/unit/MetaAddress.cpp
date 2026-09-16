@@ -182,3 +182,28 @@ BOOST_AUTO_TEST_CASE(Map) {
 
   BOOST_TEST(Map.size() == size_t(5));
 }
+
+BOOST_AUTO_TEST_CASE(FromString) {
+  // A well-formed address round-trips.
+  MetaAddress Address = generic64(0x1000);
+  BOOST_TEST(MetaAddress::fromString(Address.toString()) == Address);
+
+  // So does the spelling of an invalid one.
+  MetaAddress Invalid = MetaAddress::invalid();
+  BOOST_TEST(MetaAddress::fromString(Invalid.toString()) == Invalid);
+
+  // Anything else is rejected, whatever its length. The short strings used to
+  // reach an assertion instead, so a one-character address written in a YAML
+  // document aborted the process reading it.
+  for (llvm::StringRef Text : { "",
+                                ":",
+                                "x",
+                                "::",
+                                "xy",
+                                "0x1000",
+                                "not one",
+                                ":Invalid:",
+                                "0x1000:NoSuchType" }) {
+    BOOST_TEST(MetaAddress::fromString(Text).isInvalid());
+  }
+}

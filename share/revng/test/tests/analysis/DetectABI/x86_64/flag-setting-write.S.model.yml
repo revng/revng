@@ -1,0 +1,23 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Functions:
+  - Name: function
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1-RawFunctionDefinition"
+  - Name: callee
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/2-RawFunctionDefinition"
+TypeDefinitions:
+  - ID: 1
+    Kind: RawFunctionDefinition
+    "$ReturnValues":
+      - Location: rax_x86_64
+  - ID: 2
+    Kind: RawFunctionDefinition
+    "$Arguments":
+      - Location: rdi_x86_64

@@ -31,7 +31,8 @@ PromoteGlobalToLocalPass::run(llvm::Function &F,
         continue;
 
       if (auto *CSV = dyn_cast_or_null<GlobalVariable>(Pointer))
-        CSVMap.try_emplace(CSV);
+        if (not ShouldPromote or ShouldPromote(*CSV))
+          CSVMap.try_emplace(CSV);
     }
   }
 

@@ -15,7 +15,9 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/GraphWriter.h"
+#include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/Queue.h"
@@ -24,12 +26,15 @@
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
+#include "revng/EarlyFunctionAnalysis/ChainCSVWrites.h"
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddresses.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
+#include "revng/EarlyFunctionAnalysis/IgnorePreservedBits.h"
+#include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/InlineHelpers/InlineHelpers.h"
 #include "revng/InlineHelpers/LinkHelpersToInline.h"
 #include "revng/Lift/JumpTargetReason.h"
@@ -87,10 +92,11 @@ static opt<ABIOpt> ABIEnforcement("abi-enforcement-level",
 
 static opt<std::string> DumpPostInline("detect-abi-dump-post-helpers-inlining",
                                        desc("Path of a file the whole "
-                                            "module is written to right "
-                                            "after helper inlining inside "
-                                            "`analyzeABI` (for debugging "
-                                            "and testing)"),
+                                            "module is written to once "
+                                            "`analyzeABI` has prepared it, "
+                                            "just before the register usage "
+                                            "analysis reads it (for "
+                                            "debugging and testing)"),
                                        init(""));
 
 static Logger Log("detect-abi");
@@ -433,6 +439,116 @@ void DetectABI::preliminaryFunctionAnalysis() {
   }
 }
 
+namespace {
+
+/// Run a function pipeline on the outlined stubs, and on nothing else.
+///
+/// The module still holds `root` and the helpers. The analysis never looks at
+/// them and the rest of the pipeline needs them intact, so they are left alone.
+/// `InlineHelpersPass` picks the functions it inlines into the same way, and by
+/// this point the stubs are the only thing wearing the tag.
+class IsolatedOnlyPass : public llvm::PassInfoMixin<IsolatedOnlyPass> {
+private:
+  llvm::FunctionPassManager FPM;
+
+public:
+  explicit IsolatedOnlyPass(llvm::FunctionPassManager &&FPM) :
+    FPM(std::move(FPM)) {}
+
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM) {
+    using namespace llvm;
+    auto &FAM = MAM.getResult<FunctionAnalysisManagerModuleProxy>(M)
+                  .getManager();
+
+    for (Function &F : M)
+      if (FunctionTags::Isolated.isTagOf(&F))
+        FPM.run(F, FAM);
+
+    return PreservedAnalyses::none();
+  }
+};
+
+} // namespace
+
+/// Inline the helpers, then say what the CSVs are for and let the standard
+/// machinery simplify the ones the analysis ignores.
+///
+/// While a CSV is a global, no pass may drop a store to it: the caller or a
+/// callee could be watching. As a local it is ordinary memory, and `mem2reg`
+/// both deletes the stores nobody reads and turns the ones somebody does read
+/// into plain SSA edges.
+static void prepareFunctions(llvm::Module &M,
+                             model::Architecture::Values Architecture) {
+  using namespace llvm;
+
+  LoopAnalysisManager LAM;
+  FunctionAnalysisManager FAM;
+  CGSCCAnalysisManager CGAM;
+  ModuleAnalysisManager MAM;
+
+  PassBuilder PB;
+  PB.registerModuleAnalyses(MAM);
+  PB.registerCGSCCAnalyses(CGAM);
+  PB.registerFunctionAnalyses(FAM);
+  PB.registerLoopAnalyses(LAM);
+  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+  FunctionPassManager FPM;
+
+  // A sub-register write reads the register back in order to preserve what it
+  // does not touch, which makes it look read-before-written. Mark that merge
+  // before anything else moves the value it reads, or the register is reported
+  // as an argument.
+  FPM.addPass(IgnorePreservedBitsPass());
+
+  // Give the copy of a value the CSV the original went to, while both stores
+  // are still there to be seen.
+  SmallVector<WeakVH> Loads;
+  FPM.addPass(ChainCSVWritesPass(Loads));
+
+  // `mem2reg` rather than SROA: the CSVs are scalars, so promotion is all that
+  // is needed, and unlike SROA it cannot touch the CFG. The call sites the
+  // analysis reports are keyed by basic block, and the CFG they are matched
+  // against was recorded before this point.
+  auto IsNotARegister = [Architecture](const llvm::GlobalVariable &CSV) {
+    auto Register = model::Register::fromCSVName(CSV.getName(), Architecture);
+    return Register == model::Register::Invalid;
+  };
+  FPM.addPass(PromoteGlobalToLocalPass(IsNotARegister));
+  FPM.addPass(PromotePass());
+
+  ModulePassManager MPM;
+
+  // Inline `revng_inline`-tagged helper calls so the ABI dataflow analysis can
+  // observe the helpers' register reads and writes directly. Helpers whose
+  // per-call critical arguments are not LLVM constants here survive un-inlined
+  // and are consumed as opaque calls by the analysis.
+  MPM.addPass(InlineHelpersPass());
+
+  MPM.addPass(IsolatedOnlyPass(std::move(FPM)));
+
+  MPM.run(M, MAM);
+
+  // A write nobody uses is gone by now, and the load it lent to the copy of its
+  // value is left without a reader. Drop it, or the write it reads would look
+  // read even where nothing ever looked at the copy.
+  //
+  // A plain `DCEPass` cannot do this: `precall_hook` and its siblings are
+  // `memory(none)` calls returning nothing, so it would take the markers the
+  // analysis matches its call sites against with it.
+  for (WeakVH &Chained : Loads)
+    if (auto *Load = cast_or_null<LoadInst>(Chained);
+        Load != nullptr and Load->use_empty())
+      Load->eraseFromParent();
+
+  // The outlined stubs live in the module, so a single dump captures them all,
+  // as the analysis is about to read them.
+  if (not DumpPostInline.empty())
+    dumpModule(&M, DumpPostInline.c_str());
+}
+
 void DetectABI::analyzeABI() {
   revng_log(Log, "Running ABI analyses");
   LoggerIndent Indent(Log);
@@ -449,26 +565,18 @@ void DetectABI::analyzeABI() {
     Functions[Function.Entry()] = std::move(NewFunction);
   }
 
-  // Inline `revng_inline`-tagged helper calls so the subsequent ABI dataflow
-  // analysis can observe the helpers' register reads and writes directly.
   // `InlineHelpersPass` only inlines into `Isolated` functions, so we tag the
   // outlined stubs as such. These stubs are temporary and are discarded with
-  // the cloned module once the analysis ends, so the tag never escapes.
-  // Helpers whose per-call critical arguments are not LLVM constants here
-  // survive un-inlined and are consumed as opaque calls by the analysis.
+  // the cloned module once the analysis ends, so the tag never escapes. The
+  // tag is also what keeps the rest of the pipeline below off `root` and the
+  // helpers.
   for (auto &[Entry, OutlinedFn] : Functions)
     FunctionTags::Isolated.addTo(OutlinedFn->Function.get());
 
-  Task.advance("Inline helpers");
-  {
-    llvm::legacy::PassManager PM;
-    PM.add(new InlineHelpersPass());
-    PM.run(M);
-  }
-
   // When `--debug-names` is set, rename each outlined stub from the
   // metaaddress-based identifier to its source-symbol name, using the same
-  // `llvmName` scheme as the rest of the pipeline.
+  // `llvmName` scheme as the rest of the pipeline. Done before anything runs,
+  // so that whatever a pass logs or dumps says the same names.
   if (DebugNames) {
     for (auto &[Entry, OutlinedFn] : Functions) {
       llvm::Function *F = OutlinedFn->Function.get();
@@ -476,11 +584,8 @@ void DetectABI::analyzeABI() {
     }
   }
 
-  // Dump the whole module right after helper inlining, for debugging and
-  // testing. The outlined stubs live in the module at this point, so a single
-  // module dump captures them all.
-  if (not DumpPostInline.empty())
-    dumpModule(&M, DumpPostInline.c_str());
+  Task.advance("Prepare the functions");
+  prepareFunctions(M, Binary->Architecture());
 
   // Push this into analyzeFunction
   OpaqueRegisterUser RegisterUser(&M);

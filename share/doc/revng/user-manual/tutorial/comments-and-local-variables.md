@@ -72,6 +72,27 @@ A comment placed at the end of a line, after the code, is ignored.
 
 Everything else has to stay as it was: `edit-c-body` does not change the structure of the code, rename functions or edit type definitions (as explained in [Editing types in C](editing-types-in-c.md), that is what [`edit-c-type`](editing-types-in-c.md) is for).
 
+!!! warning "Not every statement can be annotated"
+
+    A comment is located through the machine instructions of the statement it is attached to (see [Under the hood](#under-the-hood) below), so a statement that has no instructions of its own cannot carry one.
+    In the code rev.ng emits today, a comment before any of these is dropped:
+
+    * a `switch` case label, i.e. `case <value>:` or `default:` (the `switch` itself takes comments, since it is located through its condition);
+    * a label rev.ng synthesizes to leave a loop or to start its next iteration, that is, one that a `break` or a `continue` jumps to. A `// RENAME:` on one of these is dropped too, for the same reason;
+    * a jump -- a `break`, `continue`, `break_to`, `continue_to` or `goto` -- lifted from the same branch instruction as another jump of the same function. The branch closing a loop lifts to both a `break` and a `continue`, which then share one address, so rather than emit your comment on the wrong one of the pair rev.ng does not take it at all.
+
+    Every other jump is located by the branch instruction it was lifted from and takes a comment, and so does an ordinary `goto` label, which also takes a `// RENAME:`.
+
+    Be aware, though, that two statements lifted from one machine instruction share its address, and a comment on either is then emitted on whichever rev.ng picks.
+    A `goto` and the label it jumps to, for instance, can come out this way.
+
+    None of this fails the analysis: every other annotation is applied and `edit-c-body` exits successfully, so a dropped annotation is otherwise silent.
+    To see which annotations were dropped and why, enable the `edit-c-body` logger by passing it through to the analysis:
+
+    ```
+    revng project analyze edit-c-body -o /dev/null -c edit.yml -- --debug-log="edit-c-body"
+    ```
+
 Let's take the C we just emitted and annotate it, commenting the `if` and giving the local variable a name and a type:
 
 ```c title="resolve.c"
@@ -143,6 +164,42 @@ $ revng project artifact emit-c resolve | revng ptml | grep -E 'value =|mix the 
     value = raw(argument_0) ^ argument_0;
 ```
 
+### Editing without the C
+
+A comment on a *statement* has to say where it goes, which is why `edit-c-body` wants the whole body: it finds the statement by matching your C against the code rev.ng emitted, statement by statement.
+Renaming, retyping or commenting a local variable or a goto label needs no position, only the thing it applies to, and in the decompiled code that thing already has a name.
+
+The [`edit-by-name` analysis](../../references/analyses.md#edit-by-name-analysis) takes just that: a function address and a list of edits, each naming its target.
+
+```bash
+$ RESOLVE=$(yq -r '.Functions[] | select(.Name == "resolve") | .Entry' revng.yml)
+$ cat > rename.yml << EOF
+Function: $RESOLVE
+Edits:
+  - Target: value
+    Rename: mixed_key
+    Retype: "uint64_t"
+    Comment: the key once the salt has been mixed in
+EOF
+$ revng project analyze edit-by-name -o /dev/null -c rename.yml
+$ revng project artifact emit-c resolve | revng ptml | grep -B 1 'uint64_t mixed_key'
+  // the key once the salt has been mixed in
+  uint64_t mixed_key = 0UL;
+```
+
+The comment belongs to the variable rather than to a point in the code, so it is written above its declaration wherever that ends up, and an edit that only renames leaves it alone.
+
+Every edit stands on its own.
+One that cannot be applied -- naming something the function does not have, retyping a goto label, or naming a type the model does not know -- is dropped, and the others still land.
+As with `edit-c-body`, the `edit-by-name` logger says which ones were dropped and why:
+
+```
+revng project analyze edit-by-name -o /dev/null -c rename.yml -- --debug-log="edit-by-name"
+```
+
+`edit-by-name` acts on local variables and goto labels, the two things inside a body that rev.ng identifies by address rather than by a stable key.
+Comments on statements still go through `edit-c-body`, which is what knows where to put them.
+
 ### Under the hood
 
 `edit-c-body` is a convenience: it figures out where each annotation belongs and writes it into the model.
@@ -163,7 +220,11 @@ For example, the condition of the `if` is emitted like this (simplified, syntax-
 
 so the `if` statement is identified by the address `0x400830`, and `var_0`, used only by its assignment, by the address `0x400840`.
 
-The comment we added is a [`StatementComment`](../../references/model.md#statementcomment) in the function's [`Comments`](../../references/model.md#Function.Comments), whose `Location` is the addresses of the statement it attaches to and whose `Body` is the text:
+Where a comment lands depends on what it sits above.
+A local variable declaration and a goto label each own a comment, so one written above either becomes that entity's `Comment`; above anything else, it is about that point in the code and becomes a `StatementComment`.
+That is also what the decompiler does in reverse, so a body you take out and put back unchanged leaves the model as it was.
+
+The comment we added sits above an assignment, so it is a [`StatementComment`](../../references/model.md#statementcomment) in the function's [`Comments`](../../references/model.md#Function.Comments), whose `Location` is the addresses of the statement it attaches to and whose `Body` is the text:
 
 ```yaml
 Comments:
@@ -173,7 +234,7 @@ Comments:
     Body:     "only mix the key when it differs from the salt"
 ```
 
-The name and type are a [`LocalVariable`](../../references/model.md#localvariable) in the function's [`LocalVariables`](../../references/model.md#Function.LocalVariables): `Name` renames it, `Type` sets its type (leave it out to keep the inferred one), and `Location` identifies *which* variable through the addresses of the instructions that use it:
+The name and type are a [`LocalVariable`](../../references/model.md#localvariable) in the function's [`LocalVariables`](../../references/model.md#Function.LocalVariables): `Name` renames it, `Type` sets its type (leave it out to keep the inferred one), `Comment` holds the comment written above its declaration, and `Location` identifies *which* variable through the addresses of the instructions that use it:
 
 ```yaml
 LocalVariables:
@@ -188,4 +249,4 @@ LocalVariables:
 
 Writing these entries into `revng.yml` directly, instead of going through `edit-c-body`, has exactly the same effect; it is what you would do when scripting rev.ng without the C round-trip.
 
-Goto labels work the same way as local-variable names: a `// RENAME:` before a goto label writes a [`GotoLabel`](../../references/model.md#gotolabel) entry into the function's [`GotoLabels`](../../references/model.md#Function.GotoLabels), located by the address set of the statements it labels (a `GotoLabel` has no `Type`, so `// RETYPE:` does not apply).
+Goto labels work the same way as local-variable names: a `// RENAME:` before a goto label, or a comment, writes a [`GotoLabel`](../../references/model.md#gotolabel) entry into the function's [`GotoLabels`](../../references/model.md#Function.GotoLabels), located by the address set of the statements it labels (a `GotoLabel` has no `Type`, so `// RETYPE:` does not apply).

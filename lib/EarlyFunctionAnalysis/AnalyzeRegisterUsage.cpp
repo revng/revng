@@ -81,7 +81,12 @@ static rua::OperationType::Values storeType(Value *V) {
   if (auto *Call = dyn_cast<CallInst>(V))
     Callee = getCalledFunction(Call);
 
-  if (Callee != nullptr and FunctionTags::ClobbererFunction.isTagOf(Callee)) {
+  // For summaries of function calls, treat writes as clobber as well. If we
+  // don't do this, ignored return values end up being arguments of downstream
+  // call sites, which can create a domino effect.
+  if (Callee != nullptr
+      and (FunctionTags::ClobbererFunction.isTagOf(Callee)
+           or FunctionTags::WriterFunction.isTagOf(Callee))) {
     return rua::OperationType::Clobber;
   } else {
     return rua::OperationType::Write;
@@ -144,6 +149,12 @@ fromLLVMFunction(llvm::Function &F,
 
     // Translate the basic block
     for (llvm::Instruction &I : *BB) {
+      // A sub-register write reads the register back only in order to keep the
+      // bits it does not touch. `IgnorePreservedBitsPass` marks that read: it
+      // is not something the program does with the register.
+      if (isIgnoredInRegisterUsage(I))
+        continue;
+
       auto Call = dyn_cast<CallInst>(&I);
 
       if (auto *Load = dyn_cast<LoadInst>(&I)) {

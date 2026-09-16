@@ -8,6 +8,7 @@
 #include "revng/Model/RawBinaryView.h"
 #include "revng/SegmentReferences/EmitStringConstants.h"
 #include "revng/SegmentReferences/SegmentUsesEnumerator.h"
+#include "revng/SegmentReferences/StringConstants.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/Unicode.h"
@@ -16,25 +17,47 @@ using namespace llvm;
 
 static Logger Log("emit-string-constants");
 
+/// A type covering an address, and how far into it that address falls.
+struct TypeAtOffset {
+  const model::Type *Type = nullptr;
+  uint64_t Offset = 0;
+};
+
 // TODO: consider to build a cache
-static RecursiveCoroutine<void>
-processType(const MetaAddress &Target,
-            const MetaAddress &TypeStartAddress,
-            const model::Type *CurrentType,
-            SmallVector<const model::Type *> &Result) {
+static RecursiveCoroutine<void> processType(const MetaAddress &Target,
+                                            const MetaAddress &TypeStartAddress,
+                                            const model::Type *CurrentType,
+                                            SmallVector<TypeAtOffset> &Result) {
   revng_log(Log,
             "Processing the following type starting at "
               << TypeStartAddress.toString() << "\n"
               << CurrentType->toString());
   LoggerIndent Indent(Log);
 
-  if (Target == TypeStartAddress) {
-    revng_log(Log, "Recording in results");
-    Result.push_back(CurrentType);
-  }
-
   revng_assert(CurrentType != nullptr);
-  if (auto *Struct = CurrentType->skipConstAndTypedefs()->getStruct()) {
+  revng_assert(Target >= TypeStartAddress);
+  Result.push_back({ CurrentType, (Target - TypeStartAddress).value() });
+
+  if (auto *Array = CurrentType->skipConstAndTypedefs()->getArray()) {
+    const model::Type &ElementType = Array->getArrayElement();
+    uint64_t ElementSize = ElementType.size().value();
+    revng_assert(ElementSize != 0);
+
+    // The division floors, so this is the element the address falls in, at
+    // whatever offset within it, and the recursion carries that offset down.
+    uint64_t Index = (Target - TypeStartAddress).value() / ElementSize;
+
+    // Nothing says the type of a segment covers all of it, so an address can
+    // fall past the end of the array. This is the same bound the struct case
+    // gets from asking each field whether it contains the address.
+    if (Index < Array->ElementCount()) {
+      MetaAddress ElementStart = TypeStartAddress + Index * ElementSize;
+      revng_assert(ElementStart.isValid());
+
+      revng_log(Log, "Descending into element #" << Index);
+      rc_recur processType(Target, ElementStart, &ElementType, Result);
+    }
+  } else if (auto *Struct = CurrentType->skipConstAndTypedefs()->getStruct()) {
     for (const model::StructField &Field : Struct->Fields()) {
       MetaAddress FieldStart = TypeStartAddress + Field.Offset();
       auto Size = Field.Type()->size().value();
@@ -72,9 +95,11 @@ processType(const MetaAddress &Target,
   }
 }
 
-static SmallVector<const model::Type *> typesAt(const model::Binary &Model,
-                                                const MetaAddress &Target) {
-  SmallVector<const model::Type *> Result;
+/// The types covering \p Target, outermost first, each with how far into it
+/// \p Target falls.
+static SmallVector<TypeAtOffset> typesAt(const model::Binary &Model,
+                                         const MetaAddress &Target) {
+  SmallVector<TypeAtOffset> Result;
   auto [Segment, _] = Model.getSegmentFor(Target);
   if (Segment == nullptr or Segment->Type().isEmpty())
     return Result;
@@ -82,27 +107,6 @@ static SmallVector<const model::Type *> typesAt(const model::Binary &Model,
   const model::Type &SegmentType = *Segment->Type();
   processType(Target, Segment->StartAddress(), &SegmentType, Result);
   return Result;
-}
-
-/// \return 1 for uint8_t const[], 2 for uint16_t const [], 0 otherwise.
-static unsigned getConstCharArrayElementSize(const model::Type *Type) {
-  Type = Type->skipConstAndTypedefs();
-
-  const model::ArrayType *Array = Type->getArray();
-  if (Array == nullptr)
-    return 0;
-
-  const model::Type &ElementType = Array->getArrayElement();
-  const model::PrimitiveType *PrimitiveType = ElementType.getPrimitive();
-  if (not ElementType.IsConst() or PrimitiveType == nullptr
-      or PrimitiveType->PrimitiveKind() != model::PrimitiveKind::Unsigned) {
-    return 0;
-  }
-
-  if (PrimitiveType->Size() != 1 and PrimitiveType->Size() != 2)
-    return 0;
-
-  return PrimitiveType->Size();
 }
 
 class EmitStringConstants {
@@ -121,7 +125,7 @@ public:
 
 private:
   llvm::StringRef getStringOfTypeAt(const MetaAddress &Address,
-                                    const model::Type &Type);
+                                    const TypeAtOffset &Type);
 };
 
 void EmitStringConstants::run(llvm::Module &M, llvm::Function *LimitTo) {
@@ -138,10 +142,10 @@ void EmitStringConstants::run(llvm::Module &M, llvm::Function *LimitTo) {
 
     // Check if we have a uint{8,16}_t there
     // TODO: we should do this in bulk so we visit the model once only
-    for (const model::Type *Type : typesAt(Binary, Address)) {
-      revng_log(Log, "Considering " << Type->toDebugString());
+    for (const TypeAtOffset &Type : typesAt(Binary, Address)) {
+      revng_log(Log, "Considering " << Type.Type->toDebugString());
       LoggerIndent Indent(Log);
-      if (auto String = getStringOfTypeAt(Address, *Type); not String.empty()) {
+      if (auto String = getStringOfTypeAt(Address, Type); not String.empty()) {
         Constant *Global = getUniqueString(&M, String, false);
 
         Use *Use = SegmentUse.TheUse;
@@ -162,37 +166,29 @@ void EmitStringConstants::run(llvm::Module &M, llvm::Function *LimitTo) {
 
 llvm::StringRef
 EmitStringConstants::getStringOfTypeAt(const MetaAddress &Address,
-                                       const model::Type &Type) {
-  unsigned CharSize = getConstCharArrayElementSize(&Type);
+                                       const TypeAtOffset &Type) {
+  unsigned CharSize = getConstCharArrayElementSize(*Type.Type);
   if (CharSize == 0) {
-    revng_log(Log, "Ignoring unsuitable type: " << Type.toDebugString());
+    revng_log(Log, "Ignoring unsuitable type: " << Type.Type->toDebugString());
+    return {};
+  }
+
+  // A reference into the middle of a string is a reference to the rest of it,
+  // which is what suffix sharing looks like: `"hello world" + 6` is `"world"`.
+  // A reference landing mid-character names no string at all.
+  if (Type.Offset % CharSize != 0) {
+    revng_log(Log, "Ignoring a reference to the middle of a character");
     return {};
   }
 
   // This is a char array! Let's now extract the data.
-  auto ByteCount = Type.size().value();
-  auto MaybeData = BinaryView.getByAddress(Address, ByteCount);
-  if (not MaybeData.has_value()) {
-    revng_log(Log, "Couldn't get the data");
+  uint64_t ByteCount = Type.Type->size().value() - Type.Offset;
+  UnicodeCStringView String = readString(BinaryView,
+                                         Address,
+                                         ByteCount,
+                                         CharSize);
+  if (not String.isValid())
     return {};
-  }
-
-  auto String = UnicodeCStringView::getPrintable(*MaybeData);
-
-  if (not String.isValid()) {
-    revng_log(Log, "No printable string found");
-    return {};
-  }
-
-  if (String.charSize() != CharSize) {
-    revng_log(Log, "Unexpected char size for the string");
-    return {};
-  }
-
-  if (String.data().size() != MaybeData->size()) {
-    revng_log(Log, "String length does not match");
-    return {};
-  }
 
   return String.data();
 }

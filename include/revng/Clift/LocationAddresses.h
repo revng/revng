@@ -14,20 +14,76 @@
 
 namespace clift {
 
+/// The address of the instruction an operation was lifted from, or an invalid
+/// address if it carries none.
+inline MetaAddress getOperationAddress(mlir::Operation *Op) {
+  if (auto Loc = mlir::dyn_cast_or_null<mlir::NameLoc>(Op->getLoc()))
+    if (auto L = pipeline::locationFromString(revng::ranks::Instruction,
+                                              Loc.getName().str()))
+      return L->back();
+  return MetaAddress::invalid();
+}
+
+/// Gather the set of instruction addresses identifying a value, i.e. a local
+/// variable or a label: the addresses attached to the operations that use it.
+///
+/// This matches the address set rev.ng reports for that value, so a
+/// model::LocalVariable or model::GotoLabel located by it is picked up when
+/// names and types are assigned. Returns an empty set if any user lacks a valid
+/// address.
+inline SortedVector<MetaAddress> getUserAddressSet(mlir::Value Value) {
+  SortedVector<MetaAddress> Addresses;
+  for (mlir::Operation *User : Value.getUsers()) {
+    MetaAddress Address = getOperationAddress(User);
+    if (not Address.isValid()) {
+      Addresses.clear();
+      break;
+    }
+    Addresses.insert(Address);
+  }
+  return Addresses;
+}
+
 /// Gather the set of instruction addresses identifying a statement.
 ///
 /// The addresses are those attached to the operations in the statement's own
 /// expression regions, i.e. all of its regions except the ones holding nested
 /// statements (loop and branch bodies): those addresses identify the nested
-/// statements, not this one. So a `return`, a local variable declaration or an
-/// expression statement is identified by the addresses of its expression, while
-/// an `if` or a loop is identified by the addresses of its condition alone.
+/// statements, not this one. So a `return` or an expression statement is
+/// identified by the addresses of its expression, while an `if` or a loop is
+/// identified by the addresses of its condition alone.
+///
+/// Moreover, statements that declare or name something are identified by the
+/// addresses of the statements using it (see getUserAddressSet).
+///
+/// Finally a `goto` is identified by the address of the branch instruction it
+/// was lifted from, which is the only instruction it stands for. The other
+/// jumps are left with no address set on purpose.
 ///
 /// This is the address set used to place comments (see CommentPlacementHelper),
 /// so a comment whose location is set to the result of this function matches
 /// the statement exactly.
 inline SortedVector<MetaAddress>
 getStatementExpressionAddresses(mlir::Operation *Op) {
+  // First, handle "special" operations
+  if (auto Variable = mlir::dyn_cast<clift::LocalVariableOp>(Op)) {
+    // Local variable
+    return getUserAddressSet(Variable.getResult());
+
+  } else if (auto AssignLabel = mlir::dyn_cast<clift::AssignLabelOp>(Op)) {
+    // `goto` label
+    return getUserAddressSet(AssignLabel.getLabel());
+
+  } else if (mlir::isa<clift::GotoOp>(Op)) {
+    // `goto`
+    SortedVector<MetaAddress> Addresses;
+    if (MetaAddress Address = getOperationAddress(Op); Address.isValid())
+      Addresses.insert(Address);
+
+    return Addresses;
+  }
+
+  // Identify all other operations by the addresses in their operands
   SortedVector<MetaAddress> Addresses;
 
   auto GatherFromRegion = [&Addresses](mlir::Region &Region) {
@@ -52,34 +108,6 @@ getStatementExpressionAddresses(mlir::Operation *Op) {
     if (not StatementRegions.contains(&Region))
       GatherFromRegion(Region);
 
-  return Addresses;
-}
-
-/// Gather the set of instruction addresses identifying a value, i.e. a local
-/// variable or a label: the addresses attached to the operations that use it.
-///
-/// This matches the address set rev.ng reports for that value, so a
-/// model::LocalVariable or model::GotoLabel located by it is picked up when
-/// names and types are assigned. Returns an empty set if any user lacks a valid
-/// address.
-inline SortedVector<MetaAddress> getUserAddressSet(mlir::Value Value) {
-  auto GetAddress = [](mlir::Operation *User) {
-    if (auto Loc = mlir::dyn_cast_or_null<mlir::NameLoc>(User->getLoc()))
-      if (auto L = pipeline::locationFromString(revng::ranks::Instruction,
-                                                Loc.getName().str()))
-        return L->back();
-    return MetaAddress::invalid();
-  };
-
-  SortedVector<MetaAddress> Addresses;
-  for (mlir::Operation *User : Value.getUsers()) {
-    MetaAddress Address = GetAddress(User);
-    if (not Address.isValid()) {
-      Addresses.clear();
-      break;
-    }
-    Addresses.insert(Address);
-  }
   return Addresses;
 }
 

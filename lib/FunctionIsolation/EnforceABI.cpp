@@ -230,8 +230,7 @@ static Value *getCSVOrUndef(Module *M, model::Register::CSV RegCSV) {
   if (auto *CSV = M->getGlobalVariable(RegCSV.Name, true))
     return CSV;
 
-  auto *Type = IntegerType::get(M->getContext(), RegCSV.Size * 8);
-  return UndefValue::get(Type);
+  return UndefValue::get(PointerType::get(M->getContext(), 0));
 }
 static Value *loadCSVOrUndef(revng::IRBuilder &Builder,
                              model::Register::CSV RegCSV) {
