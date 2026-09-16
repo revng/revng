@@ -43,6 +43,14 @@ def CliftOptimizeExpressions : Clift_Pass<"optimize-expressions"> {
   let options = RewritePassUtils.options;
 }
 
+def CliftBooleanNegationSimplification
+  : Clift_Pass<"simplify-boolean-negations"> {
+
+  let summary = "Simplify boolean negations";
+  let constructor = "clift::createBooleanNegationSimplificationPass()";
+  let options = RewritePassUtils.options;
+}
+
 def CliftEmitFieldAccesses : Clift_Pass<"emit-field-accesses"> {
   let summary = "Emit field accesses.";
   let constructor = "clift::createEmitFieldAccessesPass()";

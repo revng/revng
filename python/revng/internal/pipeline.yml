@@ -500,6 +500,7 @@ branches:
             - promote-do-while-conditions
             - canonicalize
             - terminal-branch-complement-hoisting
+            - simplify-boolean-negations
 
             # == Context-sensitive post-processing phase ==
             #
