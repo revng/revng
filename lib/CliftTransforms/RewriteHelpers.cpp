@@ -70,25 +70,27 @@ void clift::invertBooleanExpression(mlir::PatternRewriter &Rewriter,
 }
 
 void clift::invertIfStatement(mlir::PatternRewriter &Rewriter, IfOp If) {
-  mlir::Region *Then = &If.getThen();
-  mlir::Region *Else = &If.getElse();
-  revng_assert(not Else->empty());
-
   invertBooleanExpression(Rewriter, If.getLoc(), If.getCondition());
 
-  Rewriter.updateRootInPlace(If.getOperation(), [&]() {
-    mlir::Block *ThenBlock = Then->empty() ? nullptr : &Then->front();
-    mlir::Block *ElseBlock = &Else->front();
+  mlir::Region &Then = If.getThen();
+  mlir::Region &Else = If.getElse();
 
-    if (ThenBlock != nullptr)
-      Then->getBlocks().remove(ThenBlock);
+  if (not Then.empty() or not Else.empty()) {
+    Rewriter.updateRootInPlace(If.getOperation(), [&]() {
+      mlir::Block *ThenBlock = Then.empty() ? nullptr : &Then.front();
+      mlir::Block *ElseBlock = Else.empty() ? nullptr : &Else.front();
 
-    Else->getBlocks().remove(ElseBlock);
-    Then->getBlocks().push_back(ElseBlock);
+      if (ThenBlock != nullptr) {
+        Then.getBlocks().remove(ThenBlock);
+        Else.getBlocks().push_back(ThenBlock);
+      }
 
-    if (ThenBlock != nullptr)
-      Else->getBlocks().push_back(ThenBlock);
-  });
+      if (ElseBlock != nullptr) {
+        Else.getBlocks().remove(ElseBlock);
+        Then.getBlocks().push_back(ElseBlock);
+      }
+    });
+  }
 }
 
 static BlockPosition skipLabels(BlockPosition Position) {
