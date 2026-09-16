@@ -485,7 +485,8 @@ def Clift_ExpressionStatementOp
 def Clift_ForOp
   : Clift_LoopStatementOp<"for",
                           [DeclareOpInterfaceMethods<Clift_StatementOpInterface,
-                                                     ["getBlockArgumentVariable"]>]> {
+                                                     ["isDeclaratorRegion",
+                                                      "getBlockArgumentVariable"]>]> {
 
   let regions = (region Clift_StatementRegion:$initializer,
                         Clift_OptionalRegion<Clift_ConditionRegion>:$condition,

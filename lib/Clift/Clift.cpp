@@ -666,6 +666,10 @@ void DoWhileOp::build(mlir::OpBuilder &Builder,
 
 //===-------------------------------- ForOp -------------------------------===//
 
+bool ForOp::isDeclaratorRegion(mlir::Region &Region) {
+  return &Region == &getInitializer();
+}
+
 mlir::Value ForOp::getBlockArgumentVariable(mlir::BlockArgument Argument) {
   return getOnlyOp<LocalVariableOp>(getInitializer());
 }
