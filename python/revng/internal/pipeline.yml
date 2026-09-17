@@ -480,10 +480,11 @@ branches:
             # more readable forms, without maintaining any notion of a canonical
             # form. Usual Clift invariants are still maintained, however.
             - post-process-expressions
+            - hoist-unique-fallthrough-branches # Enables more loop promotions.
             - promote-while-conditions
             - promote-do-while-conditions
             - canonicalize
-            - terminal-branch-complement-hoisting
+            - hoist-terminal-branches
             - simplify-boolean-negations
 
             # == Context-sensitive post-processing phase ==

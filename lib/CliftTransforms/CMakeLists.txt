@@ -23,11 +23,12 @@ revng_add_library_internal(
   PromoteBreakContinue.cpp
   RewriteHelpers.cpp
   Statements.cpp
-  TerminalBranchComplementHoisting.cpp
+  TerminalBranchHoisting.cpp
   TightenVariableScopes.cpp
   TrivialReturnElimination.cpp
   TypeRefinement.cpp
   TypeRefinementWithEFA.cpp
+  UniqueFallthroughBranchHoisting.cpp
   VariableInitializerHoisting.cpp
   WhileConditionPromotion.cpp)
 
