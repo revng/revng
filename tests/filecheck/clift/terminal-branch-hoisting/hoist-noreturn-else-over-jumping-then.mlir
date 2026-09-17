@@ -36,14 +36,16 @@ module attributes {clift.module} {
     } else {
       clift.expr {
         %1 = clift.use @abort : !abort
-        %2 = clift.call %1() : !abort
-        clift.yield %2 : !void
+        %2 = clift.decay %1 : !abort -> !clift.ptr<8 to !abort>
+        %3 = clift.call %2() : !clift.ptr<8 to !abort>
+        clift.yield %3 : !void
       }
     }
     // CHECK: clift.expr {
       // CHECK: %1 = clift.use @abort : !abort
-      // CHECK: %2 = clift.call %1() : !abort
-      // CHECK: clift.yield %2 : !void
+      // CHECK: %2 = clift.decay %1 : !abort -> !clift.ptr<8 to !abort>
+      // CHECK: %3 = clift.call %2() : !clift.ptr<8 to !abort>
+      // CHECK: clift.yield %3 : !void
     // CHECK: }
   // CHECK: }
   }

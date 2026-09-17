@@ -451,7 +451,7 @@ public:
     // Parenthesizing a nested unary postfix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPostfix);
 
-    rc_recur emitExpression(E.getFunction());
+    rc_recur emitExpression(E.getCallee());
 
     // The precedence here must be comma, because an argument list cannot
     // contain an unparenthesized comma expression. It would be parsed as two

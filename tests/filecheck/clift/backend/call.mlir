@@ -8,7 +8,7 @@
 !int32_t = !clift.int<signed 4>
 
 !f = !clift.func<
-  "/type-definition/1002-CABIFunctionDefinition" : !int32_t(!int32_t, !int32_t)
+  "/type-definition/1002-CABIFunctionDefinition" as "f" : !int32_t(!int32_t, !int32_t)
 >
 
 module attributes {clift.module} {
@@ -22,11 +22,12 @@ module attributes {clift.module} {
     // CHECK: return
     clift.return {
       %f = clift.use @fun_0x40001002 : !f
+      %fp = clift.decay %f : !f -> !clift.ptr<8 to !f>
 
       %comma = clift.comma %arg1, %arg1 : !int32_t, !int32_t
 
-      // CHECK: fun_0x40001002(x, (y, y))
-      %result = clift.call %f(%arg0, %comma) : !f
+      // CHECK: ((f *) fun_0x40001002)(x, (y, y))
+      %result = clift.call %fp(%arg0, %comma) : !clift.ptr<8 to !f>
 
       clift.yield %result : !int32_t
     }

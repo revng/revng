@@ -1858,10 +1858,6 @@ UseOp::verifySymbolUses(mlir::SymbolTableCollection &SymbolTable) {
 
 //===-------------------------------- CallOp ------------------------------===//
 
-FunctionType CallOp::getFunctionType() {
-  return getFunctionOrFunctionPointerFunctionType(getFunction().getType());
-}
-
 namespace {
 
 using DefaultArgumentTypeProvider = llvm::function_ref<mlir::Type(unsigned)>;
@@ -1953,9 +1949,19 @@ static void printArgumentList(mlir::OpAsmPrinter &Printer,
 
 static auto makeCallArgumentTypeAccessor(clift::FunctionType Function) {
   return [Function](unsigned I) -> mlir::Type {
-    auto ParameterTypes = Function.getArgumentTypes();
-    return I < ParameterTypes.size() ? ParameterTypes[I] : mlir::Type();
+    if (Function) {
+      auto ParameterTypes = Function.getArgumentTypes();
+      if (I < ParameterTypes.size())
+        return ParameterTypes[I];
+    }
+    return {};
   };
+}
+
+static FunctionType unwrapCalleeType(mlir::Type CalleeType) {
+  if (auto P = clift::unwrapped_dyn_cast<PointerType>(CalleeType))
+    return clift::unwrapped_dyn_cast<FunctionType>(P.getPointeeType());
+  return nullptr;
 }
 
 mlir::ParseResult CallOp::parse(mlir::OpAsmParser &Parser,
@@ -1974,20 +1980,20 @@ mlir::ParseResult CallOp::parse(mlir::OpAsmParser &Parser,
   if (Parser.parseColon().failed())
     return mlir::failure();
 
-  mlir::SMLoc FuncTypeLoc = Parser.getCurrentLocation();
-  mlir::Type FuncType;
-  if (Parser.parseType(FuncType).failed())
+  mlir::SMLoc CalleeTypeLoc = Parser.getCurrentLocation();
+
+  mlir::Type CalleeType;
+  if (Parser.parseType(CalleeType).failed())
     return mlir::failure();
 
-  auto FunctionType = getFunctionOrFunctionPointerFunctionType(FuncType);
+  FunctionType FunctionType = unwrapCalleeType(CalleeType);
 
-  if (not FunctionType)
-    return Parser.emitError(FuncTypeLoc) << "expected Clift function or "
-                                            "pointer-to-function type";
+  if (FunctionType)
+    Result.addTypes(FunctionType.getResultTypes());
+  else
+    Result.addTypes({ VoidType::get(Parser.getContext()) });
 
-  Result.addTypes(FunctionType.getResultTypes());
-
-  if (Parser.resolveOperand(FunctionOperand, FuncType, Result.operands)
+  if (Parser.resolveOperand(FunctionOperand, CalleeType, Result.operands)
         .failed())
     return mlir::failure();
 
@@ -2002,30 +2008,26 @@ mlir::ParseResult CallOp::parse(mlir::OpAsmParser &Parser,
 }
 
 void CallOp::print(mlir::OpAsmPrinter &Printer) {
-  auto Type = getFunction().getType();
-  auto FunctionType = getFunctionOrFunctionPointerFunctionType(Type);
-  revng_assert(FunctionType); // Checked by verify.
+  FunctionType FunctionType = getFunctionType();
 
   Printer << ' ';
-  Printer << getFunction();
+  Printer << getCallee();
   printArgumentList(Printer,
                     getArguments(),
                     makeCallArgumentTypeAccessor(FunctionType));
 
   Printer.printOptionalAttrDict(getOperation()->getAttrs(), {});
-  Printer << ' ' << ':' << ' ' << Type;
+  Printer << ' ' << ':' << ' ' << getCalleeType();
 }
 
 mlir::LogicalResult CallOp::verify() {
-  auto FuncType = getFunctionOrFunctionPointerFunctionType(getFunction()
-                                                             .getType());
-  if (not FuncType)
+  FunctionType FunctionType = unwrapCalleeType(getCallee().getType());
+  if (not FunctionType)
     return emitOpError() << getOperationName()
-                         << " function argument must have function or pointer"
-                         << "-to-function type.";
+                         << " callee must have pointer-to-function type.";
 
   auto ArgumentTypes = getArguments().getTypes();
-  auto ParameterTypes = FuncType.getArgumentTypes();
+  auto ParameterTypes = FunctionType.getArgumentTypes();
 
   if (ArgumentTypes.size() != ParameterTypes.size())
     return emitOpError() << getOperationName()
@@ -2040,7 +2042,7 @@ mlir::LogicalResult CallOp::verify() {
                               " of the function, ignoring qualifiers.";
   }
 
-  if (getType() != removeConst(FuncType.getReturnType()))
+  if (getType() != removeConst(FunctionType.getReturnType()))
     return emitOpError() << getOperationName()
                          << " result type must match the return type of the"
                             " function, ignoring qualifiers.";

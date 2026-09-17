@@ -224,8 +224,4 @@ bool isScalarType(mlir::Type Type);
 /// Qualifiers are ignored.
 bool isCallableType(mlir::Type Type);
 
-/// If the type, after unwrapping typedefs, is a function type or a pointer to a
-/// function type, returns that function type.
-FunctionType getFunctionOrFunctionPointerFunctionType(mlir::Type Type);
-
 } // namespace clift

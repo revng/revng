@@ -1599,16 +1599,6 @@ bool clift::isScalarType(mlir::Type Type) {
                               PointerType>(Type);
 }
 
-clift::FunctionType
-clift::getFunctionOrFunctionPointerFunctionType(mlir::Type Type) {
-  Type = unwrapTypedefs(Type);
-
-  if (auto P = mlir::dyn_cast<PointerType>(Type))
-    Type = unwrapTypedefs(P.getPointeeType());
-
-  return mlir::dyn_cast<clift::FunctionType>(Type);
-}
-
 //===---------------------------- CliftDialect ----------------------------===//
 
 void CliftDialect::registerTypes() {

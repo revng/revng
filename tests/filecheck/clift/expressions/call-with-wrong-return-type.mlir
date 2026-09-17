@@ -11,7 +11,7 @@
   "/type-definition/1-CABIFunctionDefinition" : !int32_t()
 >
 
-%f = clift.undef : !f
+%f = clift.undef : !clift.ptr<8 to !f>
 
 // CHECK: result type must match the return type of the function
-"clift.call"(%f) : (!f) -> (!uint32_t)
+"clift.call"(%f) : (!clift.ptr<8 to !f>) -> (!uint32_t)

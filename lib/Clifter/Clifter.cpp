@@ -869,9 +869,15 @@ private:
     for (auto [A, T] : llvm::zip(Arguments, FunctionType.getArgumentTypes()))
       CastArgs.push_back(emitImplicitBitcast(Loc, A, T));
 
+    mlir::Value Callee = useGlobal(Loc, Function);
+
+    Callee = Builder.create<DecayOp>(Loc,
+                                     C.getPointerType(FunctionType),
+                                     Callee);
+
     return Builder.create<CallOp>(Loc,
                                   FunctionType.getReturnType(),
-                                  useGlobal(Loc, Function),
+                                  Callee,
                                   CastArgs);
   }
 
@@ -1366,30 +1372,28 @@ private:
       auto CallType = C.importType<clift::FunctionType>(*ModelCallType);
 
       revng_log(ExpressionLog, "Callee subexpression:");
-      mlir::Value Function = (LoggerIndent(ExpressionLog),
-                              rc_recur emitExpression(I->getCalledOperand(),
-                                                      Loc));
+      mlir::Value Callee = (LoggerIndent(ExpressionLog),
+                            rc_recur emitExpression(I->getCalledOperand(),
+                                                    Loc));
 
       clift::FunctionType
-        FunctionType = getFunctionOrFunctionPointerFunctionType(Function
-                                                                  .getType());
+        FuncType = clift::unwrapped_dyn_cast<FunctionType>(Callee.getType());
+
+      if (FuncType) {
+        // If the callee is a function, it must be decayed to a function pointer
+        // before it can be called.
+        Callee = Builder.create<DecayOp>(Loc,
+                                         C.getPointerType(FuncType),
+                                         Callee);
+      } else if (auto P = unwrapped_dyn_cast<PointerType>(Callee.getType())) {
+        FuncType = unwrapped_dyn_cast<FunctionType>(P.getPointeeType());
+      }
 
       // If the call type does not match the function type of the callee,
       // the callee must first be converted to a pointer to the appropriate
       // function type:
-      if (CallType != FunctionType) {
-        // If the callee is a function and not a pointer to function, it must
-        // be decayed to a pointer before applying the type conversion:
-        if (mlir::isa<clift::FunctionType>(Function.getType())) {
-          Function = Builder.create<DecayOp>(Loc,
-                                             C.getPointerType(FunctionType),
-                                             Function);
-        }
-
-        Function = emitImplicitBitcast(Loc,
-                                       Function,
-                                       C.getPointerType(CallType));
-      }
+      if (CallType != FuncType)
+        Callee = emitImplicitBitcast(Loc, Callee, C.getPointerType(CallType));
 
       llvm::ArrayRef LayoutArguments = getLayoutArguments(Layout);
       revng_assert(I->arg_size() == LayoutArguments.size());
@@ -1424,7 +1428,7 @@ private:
       revng_log(ExpressionLog, "CallOp");
       mlir::Value Result = Builder.create<CallOp>(Loc,
                                                   CallType.getReturnType(),
-                                                  Function,
+                                                  Callee,
                                                   Arguments);
 
       if (Layout.returnMethod() == abi::FunctionType::ReturnMethod::Scalar) {

@@ -18,8 +18,9 @@ module attributes {clift.module} {
   clift.func @f<!f>() -> !int32_t {
     clift.return {
       %g = clift.use @g : !g
+      %gp = clift.decay %g : !g -> !clift.ptr<8 to !g>
       %i = clift.imm 1 : !int32_t
-      %r = clift.call %g(%i) : !g
+      %r = clift.call %gp(%i) : !clift.ptr<8 to !g>
       clift.yield %r : !int32_t
     }
   }

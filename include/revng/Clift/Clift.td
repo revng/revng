@@ -148,8 +148,8 @@ def Clift_FunctionOp : Clift_Op<"func",
                                 [Clift_GlobalOpInterface,
                                  CallableOpInterface,
                                  FunctionOpInterface,
-                                 AutomaticAllocationScope,
                                  IsolatedFromAbove]> {
+
   let arguments = (ins StrAttr:$sym_name,
                        TypeAttrOf<Clift_AnyFunctionType>:$type,
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
@@ -1173,7 +1173,7 @@ def Clift_UseOp
 }
 
 def Clift_CallOp : Clift_ExpressionOp<"call"> {
-  let arguments = (ins AnyType:$function,
+  let arguments = (ins AnyType:$callee,
                        Variadic<AnyType>:$arguments);
 
   let results = (outs Clift_AnyNonConstType<AnyType>:$result);
@@ -1182,7 +1182,13 @@ def Clift_CallOp : Clift_ExpressionOp<"call"> {
   let hasVerifier = 1;
 
   let extraClassDeclaration = [{
-    [[nodiscard]] FunctionType getFunctionType();
+    [[nodiscard]] PointerType getCalleeType() {
+      return clift::unwrapped_cast<PointerType>(getCallee().getType());
+    }
+
+    [[nodiscard]] FunctionType getFunctionType() {
+      return clift::unwrapped_cast<FunctionType>(getCalleeType().getPointeeType());
+    }
   }];
 }
 
