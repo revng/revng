@@ -201,3 +201,15 @@ define i1 @unextended_operand(i32 %a, i64 %b) {
   %c = icmp ult i64 %ae, %b
   ret i1 %c
 }
+
+; A comparison observes only the bits preserved by the low mask, so compare
+; the appropriately truncated value directly.
+define i1 @masked_compare32(i64 %x) {
+  ; CHECK-LABEL: @masked_compare32
+  %masked = and i64 %x, 4294967295
+  %result = icmp ne i64 %masked, 0
+  ; CHECK: %[[T:[^ ]+]] = trunc i64 %x to i32
+  ; CHECK: %[[C:[^ ]+]] = icmp ne i32 %[[T]], 0
+  ; CHECK: ret i1 %[[C]]
+  ret i1 %result
+}
