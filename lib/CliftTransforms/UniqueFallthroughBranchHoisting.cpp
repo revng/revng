@@ -35,7 +35,7 @@ struct UniqueFallthroughBranchHoistingPattern
 
     // Find unique fallthrough region, if any.
     for (mlir::Region &R : Branch.getBranchRegions()) {
-      if (indirectlyFallsThrough(R)) {
+      if (isIndirectlyFallthrough(R)) {
         if (FallthroughRegion != nullptr)
           return mlir::failure();
 

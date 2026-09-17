@@ -580,7 +580,7 @@ MakeLabelOp AssignLabelOp::getLabelOp() {
 
 //===-------------------------- BlockStatementOp --------------------------===//
 
-NoFallthroughKind BlockStatementOp::isIndirectlyNoFallthrough() {
+bool BlockStatementOp::isIndirectlyNoFallthrough() {
   return clift::isIndirectlyNoFallthrough(getBlock());
 }
 
@@ -922,29 +922,15 @@ mlir::LogicalResult GotoOp::verify() {
 
 //===-------------------------------- IfOp --------------------------------===//
 
-static NoFallthroughKind
-isIndirectlyNoFallthroughImpl(BranchOpInterface Branch) {
-  // FallsThrough doubles as the "no region seen yet" marker: the loop returns
-  // early on any fall-through region, so an accumulated kind is never it.
-  NoFallthroughKind Kind = NoFallthroughKind::FallsThrough;
+static bool isIndirectlyNoFallthroughImpl(BranchOpInterface Branch) {
   for (mlir::Region &R : Branch.getBranchRegions()) {
-    NoFallthroughKind RegionKind = clift::isIndirectlyNoFallthrough(R);
-
-    // If any branch region falls through, so does the whole operation.
-    if (RegionKind == NoFallthroughKind::FallsThrough)
-      return NoFallthroughKind::FallsThrough;
-
-    // Every branch region is non-fallthrough so far: keep the kind they agree
-    // on, or settle on Mixed as soon as two of them disagree.
-    if (Kind == NoFallthroughKind::FallsThrough)
-      Kind = RegionKind;
-    else if (Kind != RegionKind)
-      Kind = NoFallthroughKind::Mixed;
+    if (not clift::isIndirectlyNoFallthrough(R))
+      return false;
   }
-  return Kind;
+  return true;
 }
 
-NoFallthroughKind IfOp::isIndirectlyNoFallthrough() const {
+bool IfOp::isIndirectlyNoFallthrough() const {
   return isIndirectlyNoFallthroughImpl(*this);
 }
 
@@ -1141,7 +1127,7 @@ mlir::LogicalResult ReturnOp::verify() {
 
 //===------------------------------ SwitchOp ------------------------------===//
 
-NoFallthroughKind SwitchOp::isIndirectlyNoFallthrough() const {
+bool SwitchOp::isIndirectlyNoFallthrough() const {
   return isIndirectlyNoFallthroughImpl(*this);
 }
 
