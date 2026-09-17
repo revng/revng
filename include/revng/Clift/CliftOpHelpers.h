@@ -316,6 +316,8 @@ OpT getOnlyUser(mlir::Value Value) {
   return nullptr;
 }
 
+[[nodiscard]] bool isNoreturnExpression(mlir::Region &R);
+
 //===-------------------------- Expression usage --------------------------===//
 
 /// Returns true if the value is discarded. A value might be discarded by for

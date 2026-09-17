@@ -664,6 +664,12 @@ void DoWhileOp::build(mlir::OpBuilder &Builder,
   buildLoop(Builder, State, 2, OtherLoop);
 }
 
+//===------------------------ ExpressionStatementOp -----------------------===//
+
+bool ExpressionStatementOp::isIndirectlyNoFallthrough() {
+  return isNoreturnExpression(getExpression());
+}
+
 //===-------------------------------- ForOp -------------------------------===//
 
 bool ForOp::isDeclaratorRegion(mlir::Region &Region) {
