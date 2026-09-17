@@ -398,6 +398,7 @@ set(FILECHECK_TESTS
     clift/terminal-branch-hoisting/hoist-large-else-over-small-then.mlir
     clift/terminal-branch-hoisting/hoist-large-then-over-small-else.mlir
     clift/terminal-branch-hoisting/hoist-loop-breaking-case-over-larger-default.mlir
+    clift/terminal-branch-hoisting/hoist-noreturn-else-over-jumping-then.mlir
     clift/type-refinement/backward-add-refinement.mlir
     clift/type-refinement/backward-neg-refinement.mlir
     clift/type-refinement/backward-ternary-refinement.mlir

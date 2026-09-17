@@ -458,7 +458,9 @@ def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
 }
 
 def Clift_ExpressionStatementOp
-  : Clift_StatementOp<"expr", [Clift_ExpressionRegionOpInterface]> {
+  : Clift_StatementOp<"expr", [Clift_ExpressionRegionOpInterface,
+                               DeclareOpInterfaceMethods<Clift_StatementOpInterface,
+                                                         ["isIndirectlyNoFallthrough"]>]> {
 
   let regions = (region Clift_ExpressionRegion:$expression);
 

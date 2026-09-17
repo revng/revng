@@ -6,6 +6,27 @@
 
 using namespace clift;
 
+//===----------------------------- Expressions ----------------------------===//
+
+static bool isNoreturnCall(mlir::Operation *Op) {
+  if (auto Call = mlir::dyn_cast<CallOp>(Op)) {
+    if (auto Use = Call.getFunction().getDefiningOp<UseOp>()) {
+      if (mlir::Operation *Global = Use.getUsedGlobal()) {
+        if (auto Function = mlir::dyn_cast<FunctionOp>(Global))
+          return static_cast<bool>(Function.getNoreturn());
+      }
+    }
+  }
+  return false;
+}
+
+bool clift::isNoreturnExpression(mlir::Region &R) {
+  auto E = getRootExpression(R);
+  return E and isNoreturnCall(E);
+}
+
+//===-------------------------- Expression usage --------------------------===//
+
 template<auto TestStatement>
 static bool testExpressionUsage(YieldOp Yield) {
   mlir::Region *R = Yield->getParentRegion();
