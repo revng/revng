@@ -144,8 +144,15 @@ public:
     Tokens.emitMacro(FullIdentifier);
   }
 
+  static llvm::StringRef stripDialectName(llvm::StringRef OperationName) {
+    return OperationName.split('.').second;
+  }
+
   static llvm::StringRef getIntrinsicIdentifier(mlir::Operation *Op) {
-    return Op->getName().stripDialect();
+    if (mlir::isa<BoolExtendOp>(Op))
+      return stripDialectName(ZeroExtendOp::getOperationName());
+
+    return stripDialectName(Op->getName().getStringRef());
   }
 
   RecursiveCoroutine<void> emitIntrinsicImmediateExpression(ImmediateOp E) {
@@ -205,8 +212,10 @@ public:
     if (auto E = mlir::dyn_cast<ImmediateOp>(Op))
       return emitIntrinsicImmediateExpression(E);
 
-    if (auto E = mlir::dyn_cast<CastOpInterface>(Op))
-      return emitIntrinsicCastExpression(E);
+    if (auto E = mlir::dyn_cast<CastOpInterface>(Op)) {
+      if (not mlir::isa<TestOp>(Op))
+        return emitIntrinsicCastExpression(E);
+    }
 
     return emitUsualIntrinsicExpression(Op);
   }
