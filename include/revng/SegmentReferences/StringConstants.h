@@ -11,8 +11,9 @@
 class RawBinaryView;
 
 /// The shape rev.ng gives a string: an array of constant characters, one or two
-/// bytes wide. `detect-c-strings` creates them and `emit-string-constants`
-/// renders what it finds there as a literal.
+/// bytes wide. `detect-c-strings` creates them, and both
+/// `emit-string-constants` on the LLVM IR and `emit-strings` on Clift render
+/// what they find there as a literal.
 ///
 /// \return 1 for `uint8_t const[]`, 2 for `uint16_t const[]`, 0 for anything
 ///         else.
