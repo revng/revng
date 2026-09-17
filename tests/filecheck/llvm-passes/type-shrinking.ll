@@ -2,7 +2,12 @@
 ; This file is distributed under the MIT License. See LICENSE.md for details.
 ;
 
+; RUN: %root/bin/revng opt -S -early-type-shrinking -type-shrinking -instcombine %s | FileCheck %s
+; RUN: %root/bin/revng opt -S -early-type-shrinking -type-shrinking -instcombine -early-type-shrinking -type-shrinking -early-cse -dce -verify %s | FileCheck %s
+; RUN: %root/bin/revng opt -S -type-shrinking -verify %s | FileCheck --check-prefix=DIRECT %s
+
 ; CHECK checks arithmetic narrowing with InstCombine in the pipeline.
+; Check narrowing after the final InstCombine as well as before it.
 ; DIRECT checks comparison and shift narrowing with type-shrinking alone.
 
 define i64 @sum32(i64 %0, i64 %1) {

@@ -2,6 +2,11 @@
 ; This file is distributed under the MIT License. See LICENSE.md for details.
 ;
 
+; RUN: %root/bin/revng opt -S -early-type-shrinking %s | FileCheck %s
+
+; Run on its own: InstCombine rewrites `sext(trunc x)` back into the shift pair
+; this pass replaces.
+;
 ; The pass replaces the uses of the shift pair and leaves the pair itself
 ; behind, so each case is checked through the value that reaches the `ret`.
 
