@@ -2,7 +2,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <optional>
+
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
@@ -27,6 +30,13 @@ private:
   IntegerType *IntPtrType = nullptr;
   llvm::DenseMap<const model::Segment *, Function *> SegmentGlobals;
 
+  /// An operand to replace, and the segment and offset to replace it with.
+  struct Replacement {
+    llvm::Use *Operand;
+    const model::Segment *Segment;
+    uint64_t Offset;
+  };
+
 public:
   EmitSegmentReferences(const model::Binary &Binary, Module &M) :
     Binary(Binary),
@@ -43,6 +53,14 @@ public:
   }
 
   void run(Function &F) {
+    for (const Replacement &TheReplacement : collect(F))
+      apply(TheReplacement);
+  }
+
+private:
+  llvm::SmallVector<Replacement, 16> collect(Function &F) {
+    llvm::SmallVector<Replacement, 16> Replacements;
+
     for (BasicBlock *BB : ReversePostOrderTraversal(&F)) {
       for (Instruction &I : *BB) {
         if (std::optional NewPCCall = NewPCHelper.getCall(&I)) {
@@ -57,53 +75,71 @@ public:
 
           if (auto *Switch = dyn_cast<SwitchInst>(&I)) {
             // Special case switch to skip case labels
-            if (Value *New = handleOperand(I, *Switch->getOperand(0)))
-              Switch->setOperand(0, New);
+            if (auto R = collectOperand(Switch->getOperandUse(0)))
+              Replacements.push_back(*R);
           } else {
             for (Use &Operand : I.operands())
-              if (Value *New = handleOperand(I, *Operand))
-                Operand.set(New);
+              if (auto R = collectOperand(Operand))
+                Replacements.push_back(*R);
           }
         }
       }
     }
+
+    return Replacements;
   }
 
-private:
-  Value *handleOperand(Instruction &I, Value &OperandValue) {
-    Type *OperandType = OperandValue.getType();
-    bool IsPointer = OperandType->isPointerTy();
-    ConstantInt *Constant = getConstant(&OperandValue);
+  std::optional<Replacement> collectOperand(Use &Operand) {
+    ConstantInt *Constant = getConstant(Operand.get());
     if (Constant == nullptr)
-      return nullptr;
+      return std::nullopt;
 
-    uint64_t Value = Constant->getLimitedValue();
-    auto MaybeAddress = CurrentAddress.replaceAddress(Value);
+    uint64_t Address = Constant->getLimitedValue();
+    auto MaybeAddress = CurrentAddress.replaceAddress(Address);
 
     // Check if it's a valid address
     if (not MaybeAddress.isValid())
-      return nullptr;
+      return std::nullopt;
 
     // Check if the address is mapped
     auto [Segment, Offset] = Binary.getSegmentFor(MaybeAddress);
     if (Segment == nullptr)
-      return nullptr;
+      return std::nullopt;
+
+    return Replacement{ &Operand, Segment, Offset };
+  }
+
+  void apply(const Replacement &TheReplacement) {
+    Use &Operand = *TheReplacement.Operand;
+    auto &I = *cast<Instruction>(Operand.getUser());
+    Type *OperandType = Operand->getType();
+    bool IsPointer = OperandType->isPointerTy();
 
     // OK, we need to replace the constant with get_$SEGMENT_ADDRESS() + offset
     // Note that we need a call here, since this enables to perform
     // optimizations that wouldn't otherwise take place if this was a
     // ConstantExpr. Specifically, in `sub(add(@segment, 1), add(@segment, 2))`,
     // @segment is not simplified.
-    B.SetInsertPoint(&I);
+
+    // The replacement has to dominate the use. For a `PHINode` the use is on
+    // the edge coming from the incoming block, not at the `PHINode` itself, so
+    // emit it at the end of that block. Emitting it before the `PHINode` would
+    // leave a non-`PHINode` at the top of the block, and the incoming value
+    // would not dominate the end of the incoming block.
+    if (auto *Phi = dyn_cast<PHINode>(&I))
+      B.SetInsertPoint(Phi->getIncomingBlock(Operand)->getTerminator());
+    else
+      B.SetInsertPoint(&I);
+
     auto *IntType = IsPointer ? IntPtrType : cast<IntegerType>(OperandType);
-    auto *SegmentAddress = B.CreateCall(SegmentGlobals[Segment]);
-    auto *Add = B.CreateAdd(B.CreateZExtOrTrunc(SegmentAddress, IntType),
-                            ConstantInt::get(IntType, Offset));
+    Value *New = B.CreateCall(SegmentGlobals[TheReplacement.Segment]);
+    New = B.CreateZExtOrTrunc(New, IntType);
+    New = B.CreateAdd(New, ConstantInt::get(IntType, TheReplacement.Offset));
 
     if (IsPointer)
-      return B.CreateIntToPtr(Add, OperandType);
-    else
-      return Add;
+      New = B.CreateIntToPtr(New, OperandType);
+
+    Operand.set(New);
   }
 
   ConstantInt *getConstant(Value *Operand) {
