@@ -173,15 +173,16 @@ def Clift_FunctionOp : Clift_Op<"func",
   let hasCustomAssemblyFormat = 1;
 
   code extraClassDeclaration = [{
-    static mlir::StringAttr getFunctionTypeAttrName(mlir::OperationName Name) {
+    [[nodiscard]] static mlir::StringAttr
+    getFunctionTypeAttrName(mlir::OperationName Name) {
       return getTypeAttrName(Name);
     }
 
-    mlir::StringAttr getFunctionTypeAttrName() {
+    [[nodiscard]] mlir::StringAttr getFunctionTypeAttrName() {
       return getTypeAttrName();
     }
 
-    mlir::TypeAttr getFunctionTypeAttr() {
+    [[nodiscard]] mlir::TypeAttr getFunctionTypeAttr() {
       return getTypeAttr();
     }
 
@@ -189,21 +190,20 @@ def Clift_FunctionOp : Clift_Op<"func",
       return setTypeAttr(Attr);
     }
 
-    FunctionType getFunctionType() {
+    [[nodiscard]] FunctionType getFunctionType() {
       return clift::unwrapped_cast<FunctionType>(getType());
     }
 
-
-    mlir::Type getReturnType() {
+    [[nodiscard]] mlir::Type getReturnType() {
       return getFunctionType().getReturnType();
     }
 
-    unsigned getArgCount() {
+    [[nodiscard]] unsigned getArgCount() {
       return getFunctionType().getArgumentTypes().size();
     }
 
 
-    clift::AttrDictView getArgAttrs(unsigned Index) {
+    [[nodiscard]] clift::AttrDictView getArgAttrs(unsigned Index) {
       std::optional<mlir::ArrayAttr> Attrs = getArgAttrs();
       mlir::DictionaryAttr DictAttr = Attrs ?
                         mlir::cast<mlir::DictionaryAttr>((*Attrs)[Index]) :
@@ -211,7 +211,7 @@ def Clift_FunctionOp : Clift_Op<"func",
       return AttrDictView(DictAttr);
     }
 
-    clift::AttrDictView getResAttrs(unsigned Index) {
+    [[nodiscard]] clift::AttrDictView getResAttrs(unsigned Index) {
       std::optional<mlir::ArrayAttr> Attrs = getArgAttrs();
       mlir::DictionaryAttr DictAttr = Attrs ?
                         mlir::cast<mlir::DictionaryAttr>((*Attrs)[Index]) :
@@ -220,37 +220,38 @@ def Clift_FunctionOp : Clift_Op<"func",
     }
 
 
-    mlir::Region::BlockListType& getBlocks() {
+    [[nodiscard]] mlir::Region::BlockListType& getBlocks() {
         return getBody().getBlocks();
     }
 
-    mlir::Block::args_iterator args_begin() {
+    [[nodiscard]] mlir::Block::args_iterator args_begin() {
         return getBody().front().args_begin();
     }
 
-    mlir::Block::args_iterator args_end() {
+    [[nodiscard]] mlir::Block::args_iterator args_end() {
         return getBody().front().args_end();
     }
 
 
     // Implementation of CallableOpInterface
 
-    mlir::Region *getCallableRegion() {
+    [[nodiscard]] mlir::Region *getCallableRegion() {
         return isExternal() ? nullptr : &getBody();
     }
 
     /// Returns the result types of this function.
-    llvm::ArrayRef<mlir::Type> getCallableResults() {
+    [[nodiscard]] llvm::ArrayRef<mlir::Type> getCallableResults() {
       return getResultTypes();
     }
 
 
     // Implementation of FunctionOpInterface
 
-    llvm::ArrayRef<mlir::Type> getArgumentTypes();
-    llvm::ArrayRef<mlir::Type> getResultTypes();
+    [[nodiscard]] llvm::ArrayRef<mlir::Type> getArgumentTypes();
+    [[nodiscard]] llvm::ArrayRef<mlir::Type> getResultTypes();
 
-    mlir::Type cloneTypeWith(mlir::TypeRange inputs, mlir::TypeRange results);
+   [[nodiscard]] mlir::Type cloneTypeWith(mlir::TypeRange Inputs,
+                                          mlir::TypeRange Results);
   }];
 }
 
@@ -777,19 +778,19 @@ class Clift_PointerArithmeticOp<string mnemonic, list<Trait> traits = []>
   let hasVerifier = 1;
 
   let extraClassDeclaration = [{
-    unsigned getPointerOperandIndex() {
+    [[nodiscard]] unsigned getPointerOperandIndex() {
       return clift::impl::getPointerArithmeticPointerOperandIndex(getOperation());
     }
 
-    mlir::Value getPointer() {
+    [[nodiscard]] mlir::Value getPointer() {
       return getOperation()->getOperand(getPointerOperandIndex());
     }
 
-    unsigned getOffsetOperandIndex() {
+    [[nodiscard]] unsigned getOffsetOperandIndex() {
       return clift::impl::getPointerArithmeticOffsetOperandIndex(getOperation());
     }
 
-    mlir::Value getOffset() {
+    [[nodiscard]] mlir::Value getOffset() {
       return getOperation()->getOperand(getOffsetOperandIndex());
     }
   }];
@@ -1177,7 +1178,7 @@ def Clift_CallOp : Clift_ExpressionOp<"call"> {
   let hasVerifier = 1;
 
   let extraClassDeclaration = [{
-    FunctionType getFunctionType();
+    [[nodiscard]] FunctionType getFunctionType();
   }];
 }
 
