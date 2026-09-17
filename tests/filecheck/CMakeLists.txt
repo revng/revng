@@ -386,28 +386,6 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/loop-detection-consecutive.mlir
     clift/statement-rewrites/loop-detection-nested.mlir
     clift/statement-rewrites/loop-detection-overlapping.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-both-fallthrough.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-both-goto-else-shorter.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-both-goto-trailing-label.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-both-goto-trailing-statement.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-both-goto.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-else-goto.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-empty-else.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-empty-then-block.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-empty-then.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-if-precedence-break.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-if-precedence-continue.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-if-precedence-return.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-all-nofallthrough.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-case.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-default.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-no-default.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-precedence-break.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-precedence-continue.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-precedence-return.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-trailing-statement.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-switch-two-fallthrough.mlir
-    clift/statement-rewrites/terminal-branch-complement-hoisting-then-goto.mlir
     clift/statement-rewrites/trivial-jump-elimination.mlir
     clift/statement-rewrites/trivial-return-elimination-double.mlir
     clift/statement-rewrites/trivial-return-elimination-early.mlir
@@ -419,6 +397,9 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/while-conversion-with-empty-then.mlir
     clift/statement-rewrites/while-conversion-with-hoisted-else.mlir
     clift/statement-rewrites/while-conversion-with-hoisted-then.mlir
+    clift/terminal-branch-hoisting/hoist-large-else-over-small-then.mlir
+    clift/terminal-branch-hoisting/hoist-large-then-over-small-else.mlir
+    clift/terminal-branch-hoisting/hoist-loop-breaking-case-over-larger-default.mlir
     clift/type-refinement/backward-add-refinement.mlir
     clift/type-refinement/backward-neg-refinement.mlir
     clift/type-refinement/backward-ternary-refinement.mlir
@@ -440,6 +421,8 @@ set(FILECHECK_TESTS
     clift/types/struct-with-recursion.mlir
     clift/types/union-with-large-tree.mlir
     clift/types/union-with-pointer-recursion.mlir
+    clift/unique-fallthrough-branch-hoisting/hoist-else.mlir
+    clift/unique-fallthrough-branch-hoisting/hoist-then.mlir
     llvm-passes/arithmetic-to-gep.ll
     llvm-passes/dagify.ll
     llvm-passes/detect-uninlinable-helpers.ll

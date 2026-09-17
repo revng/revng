@@ -67,6 +67,15 @@ def CliftTypeRefinementWithEFA : Clift_Pass<"refine-types-and-accesses"> {
   let options = RewritePassUtils.options;
 }
 
+def CliftUniqueFallthroughBranchHoisting
+  : Clift_Pass<"hoist-unique-fallthrough-branches"> {
+
+  let summary = "Hoist the unique fallthrough branches of any branch operation "
+                "into the enclosing scope.";
+
+  let constructor = "clift::createUniqueFallthroughBranchHoistingPass()";
+}
+
 def CliftWhileConditionPromotion : Clift_Pass<"promote-while-conditions"> {
   let summary = "Promote leading conditional breaks of unconditional loops "
                 "into while-loop conditions.";
@@ -85,13 +94,13 @@ def CliftExpressionPostProcessing : Clift_Pass<"post-process-expressions"> {
   let options = RewritePassUtils.options;
 }
 
-def CliftTerminalBranchComplementHoisting
-  : Clift_Pass<"terminal-branch-complement-hoisting"> {
+def CliftTerminalBranchHoisting
+  : Clift_Pass<"hoist-terminal-branches"> {
 
-  let summary = "Hoist one side of a two-way branch operation, where at least "
-                "one of the branches is non-fallthrough.";
+  let summary = "Hoist one branch of an N-way branch operation, where none of "
+                "the branches fall through.";
 
-  let constructor = "clift::createTerminalBranchComplementHoistingPass()";
+  let constructor = "clift::createTerminalBranchHoistingPass()";
 }
 
 def CliftTightenVariableScopes : Clift_Pass<"tighten-variable-scopes"> {

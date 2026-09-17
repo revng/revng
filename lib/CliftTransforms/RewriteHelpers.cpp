@@ -93,6 +93,31 @@ void clift::invertIfStatement(mlir::PatternRewriter &Rewriter, IfOp If) {
   }
 }
 
+void clift::hoistBranchRegion(mlir::PatternRewriter &Rewriter,
+                              mlir::Region &Region) {
+  revng_assert(mlir::isa_and_nonnull<BranchOpInterface>(Region.getParentOp()));
+
+  if (Region.empty())
+    return;
+  revng_assert(Region.hasOneBlock());
+
+  mlir::Operation *Branch = Region.getParentOp();
+  mlir::Block *Block = &Region.front();
+
+  inlineBlockBefore(Rewriter,
+                    Block,
+                    Branch->getBlock(),
+                    std::next(Branch->getIterator()));
+
+  revng_assert(Block->empty());
+  Rewriter.eraseBlock(Block);
+
+  if (auto If = mlir::dyn_cast<IfOp>(Branch)) {
+    if (&Region == &If.getThen())
+      invertIfStatement(Rewriter, If);
+  }
+}
+
 static BlockPosition skipLabels(BlockPosition Position) {
   if (Position) {
     auto &[B, I] = Position;
