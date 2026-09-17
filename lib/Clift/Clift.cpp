@@ -1613,6 +1613,15 @@ mlir::LogicalResult SubscriptOp::verify() {
 
 //===-------------------------------- UseOp -------------------------------===//
 
+GlobalOpInterface UseOp::getUsedGlobal() {
+  if (auto Module = getOperation()->getParentOfType<mlir::ModuleOp>()) {
+    mlir::Operation
+      *Op = mlir::SymbolTable::lookupSymbolIn(Module, getSymbolNameAttr());
+    return mlir::cast_or_null<GlobalOpInterface>(Op);
+  }
+  return nullptr;
+}
+
 mlir::LogicalResult
 UseOp::verifySymbolUses(mlir::SymbolTableCollection &SymbolTable) {
   auto Module = getOperation()->getParentOfType<mlir::ModuleOp>();
