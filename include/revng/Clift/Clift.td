@@ -1298,6 +1298,8 @@ def Clift_UseOp
     bool isLvalueExpression() {
       return true;
     }
+
+    [[nodiscard]] GlobalOpInterface getUsedGlobal();
   }];
 }
 
