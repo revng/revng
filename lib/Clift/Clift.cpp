@@ -1531,10 +1531,10 @@ mlir::LogicalResult StringOp::verify() {
                          << " result must have const array type.";
 
   auto CharT = mlir::dyn_cast<IntegerType>(ArrayT.getElementType());
-  if (not CharT or CharT.getKind() != IntegerKind::Number
-      or CharT.getSize() != 1)
+  if (not CharT or CharT.getSize() != 1)
     return emitOpError() << getOperationName()
-                         << " result must have number8_t element type.";
+                         << " result element type must be an 8-bit wide"
+                            " primitive integer type.";
 
   if (ArrayT.getElementsCount() != getValue().size() + 1)
     return emitOpError() << getOperationName()
