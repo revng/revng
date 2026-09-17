@@ -12,6 +12,10 @@ include "revng/CliftTransforms/ExpressionHelpers.td"
 
 def HasIntType : Constraint<CPred<[{ hasIntType($0) }]>>;
 
+def NotDefinedByIntrinsic : Constraint<CPred<[{
+  not $0.getDefiningOp()->hasAttr("clift.intrinsic")
+}]>>;
+
 // (bool) x -> x != 0
 def TestIntegerPattern
   : Pat<(Clift_TestOp:$res $arg),
@@ -19,13 +23,13 @@ def TestIntegerPattern
                        (NativeCodeCall<[{ makeZeroImmediate($_builder,
                                                             $0.getDefiningOp(),
                                                             $1.getType()); }]> $res, $arg)),
-        [(Clift_AnyIntegerType $arg)]>;
+        [(Clift_AnyIntegerType $arg), (NotDefinedByIntrinsic $res)]>;
 
 // (bool) x -> x != NULL
 def TestPointerPattern
   : Pat<(Clift_TestOp:$res $arg),
         (Clift_CmpNeOp $arg, (Clift_NullOp (returnType (removeConst (getType $arg))))),
-        [(Clift_AnyPointerType $arg)]>;
+        [(Clift_AnyPointerType $arg), (NotDefinedByIntrinsic $res)]>;
 
 // Unlike the boolean cast, inequalities introduced by the above rewrites have
 // type int. As such, any subsequent explicit extension to int can be made
