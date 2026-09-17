@@ -201,7 +201,7 @@ struct BranchEqualizationPattern : StatementRegionRewritePattern {
     mlir::Region *FallthroughRegion = nullptr;
 
     for (mlir::Region &R : Branch.getBranchRegions()) {
-      if (not clift::indirectlyFallsThrough(R))
+      if (isIndirectlyNoFallthrough(R))
         continue;
 
       if (FallthroughRegion)
@@ -300,7 +300,7 @@ struct JumpDuplicationPattern : StatementRegionRewritePattern {
 
     llvm::SmallVector<mlir::Region *> Regions;
     for (mlir::Region &R : BranchOp.getBranchRegions()) {
-      if (indirectlyFallsThrough(R))
+      if (isIndirectlyFallthrough(R))
         Regions.push_back(&R);
     }
 

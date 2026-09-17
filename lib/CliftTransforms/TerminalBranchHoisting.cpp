@@ -158,7 +158,7 @@ struct TerminalBranchHoistingPattern
 
     llvm::SmallVector<RegionWeight> Weights;
     for (mlir::Region &R : Branch.getBranchRegions()) {
-      if (indirectlyFallsThrough(R))
+      if (isIndirectlyFallthrough(R))
         return mlir::failure();
 
       Weights.push_back(RegionWeightApproximator::approximate(R));

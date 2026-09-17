@@ -376,7 +376,7 @@ def Clift_BlockStatementOp
   }];
 
   let extraClassDeclaration = [{
-    clift::NoFallthroughKind isIndirectlyNoFallthrough();
+    bool isIndirectlyNoFallthrough();
 
     unsigned getStatementRegionCount() {
       return 1;
@@ -537,7 +537,7 @@ def Clift_IfOp : Clift_BasicStatementOp<"if", Clift_BranchOpInterface> {
   }];
 
   let extraClassDeclaration = [{
-    clift::NoFallthroughKind isIndirectlyNoFallthrough() const;
+    bool isIndirectlyNoFallthrough() const;
 
     unsigned getStatementRegionCount() {
       return 2;
@@ -638,7 +638,7 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
   ];
 
   code extraClassDeclaration = [{
-    clift::NoFallthroughKind isIndirectlyNoFallthrough() const;
+    bool isIndirectlyNoFallthrough() const;
 
     [[nodiscard]] mlir::Type getConditionType();
 
