@@ -574,11 +574,29 @@ static void printCliftLoopLabels(mlir::OpAsmPrinter &Printer,
 
 //===---------------------------- AssignLabelOp ---------------------------===//
 
+unsigned AssignLabelOp::getAssignedLabelCount() {
+  return 1;
+}
+
+mlir::Value AssignLabelOp::getAssignedLabel(unsigned Index) {
+  revng_assert(Index == 0);
+  return getLabel();
+}
+
 MakeLabelOp AssignLabelOp::getLabelOp() {
   return getLabel().getDefiningOp<MakeLabelOp>();
 }
 
 //===-------------------------- BlockStatementOp --------------------------===//
+
+unsigned BlockStatementOp::getStatementRegionCount() {
+  return 1;
+}
+
+mlir::Region &BlockStatementOp::getStatementRegion(unsigned Index) {
+  revng_assert(Index == 0);
+  return getBlock();
+}
 
 bool BlockStatementOp::isIndirectlyNoFallthrough() {
   return clift::isIndirectlyNoFallthrough(getBlock());
@@ -658,6 +676,24 @@ mlir::LogicalResult ContinueToOp::verify() {
 
 //===------------------------------ DoWhileOp -----------------------------===//
 
+unsigned DoWhileOp::getStatementRegionCount() {
+  return 1;
+}
+
+mlir::Region &DoWhileOp::getStatementRegion(unsigned Index) {
+  revng_assert(Index == 0);
+  return getBody();
+}
+
+unsigned DoWhileOp::getExpressionRegionCount() {
+  return 1;
+}
+
+mlir::Region &DoWhileOp::getExpressionRegion(unsigned Index) {
+  revng_assert(Index == 0);
+  return getCondition();
+}
+
 void DoWhileOp::build(mlir::OpBuilder &Builder,
                       mlir::OperationState &State,
                       LoopOpInterface OtherLoop) {
@@ -666,11 +702,53 @@ void DoWhileOp::build(mlir::OpBuilder &Builder,
 
 //===------------------------ ExpressionStatementOp -----------------------===//
 
+unsigned ExpressionStatementOp::getExpressionRegionCount() {
+  return 1;
+}
+
+mlir::Region &ExpressionStatementOp::getExpressionRegion(unsigned Index) {
+  revng_assert(Index == 0);
+  return getExpression();
+}
+
 bool ExpressionStatementOp::isIndirectlyNoFallthrough() {
   return isNoreturnExpression(getExpression());
 }
 
+bool ExpressionStatementOp::isDiscardedExpression(mlir::Region &R) {
+  return true;
+}
+
 //===-------------------------------- ForOp -------------------------------===//
+
+unsigned ForOp::getStatementRegionCount() {
+  return 1;
+}
+
+mlir::Region &ForOp::getStatementRegion(unsigned Index) {
+  revng_assert(Index == 0);
+  return getBody();
+}
+
+static ExpressionRegionOpInterface getInitializerExpressionRegions(ForOp Op) {
+  return getOnlyOp<ExpressionRegionOpInterface>(Op.getInitializer());
+}
+
+unsigned ForOp::getExpressionRegionCount() {
+  auto Initializer = getInitializerExpressionRegions(*this);
+  return 2 + (Initializer ? Initializer.getExpressionRegionCount() : 0);
+}
+
+mlir::Region &ForOp::getExpressionRegion(unsigned Index) {
+  if (auto Initializer = getInitializerExpressionRegions(*this)) {
+    unsigned InitializerCount = Initializer.getExpressionRegionCount();
+    if (Index < InitializerCount)
+      return Initializer.getExpressionRegion(Index);
+    Index -= InitializerCount;
+  }
+  revng_assert(Index < 2);
+  return Index == 0 ? getCondition() : getExpression();
+}
 
 bool ForOp::isDeclaratorRegion(mlir::Region &Region) {
   return &Region == &getInitializer();
@@ -886,28 +964,6 @@ mlir::LogicalResult ForOp::verify() {
   return mlir::success();
 }
 
-static clift::ExpressionRegionOpInterface
-getInitializerExpressionRegions(ForOp Op) {
-  using ERI = clift::ExpressionRegionOpInterface;
-  return clift::getOnlyOp<ERI>(Op.getInitializer());
-}
-
-unsigned ForOp::getExpressionRegionCount() {
-  auto Initializer = getInitializerExpressionRegions(*this);
-  return 2 + (Initializer ? Initializer.getExpressionRegionCount() : 0);
-}
-
-mlir::Region &ForOp::getExpressionRegion(unsigned Index) {
-  if (auto Initializer = getInitializerExpressionRegions(*this)) {
-    unsigned InitializerCount = Initializer.getExpressionRegionCount();
-    if (Index < InitializerCount)
-      return Initializer.getExpressionRegion(Index);
-    Index -= InitializerCount;
-  }
-  revng_assert(Index < 2);
-  return Index == 0 ? getCondition() : getExpression();
-}
-
 //===------------------------------- GotoOp -------------------------------===//
 
 MakeLabelOp GotoOp::getLabelOp() {
@@ -928,6 +984,24 @@ mlir::LogicalResult GotoOp::verify() {
 
 //===-------------------------------- IfOp --------------------------------===//
 
+unsigned IfOp::getStatementRegionCount() {
+  return 2;
+}
+
+mlir::Region &IfOp::getStatementRegion(unsigned Index) {
+  revng_assert(Index < 2);
+  return Index == 0 ? getThen() : getElse();
+}
+
+unsigned IfOp::getExpressionRegionCount() {
+  return 1;
+}
+
+mlir::Region &IfOp::getExpressionRegion(unsigned Index) {
+  revng_assert(Index == 0);
+  return getCondition();
+}
+
 static bool isIndirectlyNoFallthroughImpl(BranchOpInterface Branch) {
   for (mlir::Region &R : Branch.getBranchRegions()) {
     if (not clift::isIndirectlyNoFallthrough(R))
@@ -936,11 +1010,20 @@ static bool isIndirectlyNoFallthroughImpl(BranchOpInterface Branch) {
   return true;
 }
 
-bool IfOp::isIndirectlyNoFallthrough() const {
+bool IfOp::isIndirectlyNoFallthrough() {
   return isIndirectlyNoFallthroughImpl(*this);
 }
 
 //===--------------------------- LocalVariableOp --------------------------===//
+
+unsigned LocalVariableOp::getExpressionRegionCount() {
+  return 1;
+}
+
+mlir::Region &LocalVariableOp::getExpressionRegion(unsigned Index) {
+  revng_assert(Index == 0);
+  return getInitializer();
+}
 
 mlir::Value
 LocalVariableOp::getBlockArgumentVariable(mlir::BlockArgument Argument) {
@@ -1102,6 +1185,15 @@ mlir::LogicalResult RequireOp::verify() {
 
 //===------------------------------ ReturnOp ------------------------------===//
 
+unsigned ReturnOp::getExpressionRegionCount() {
+  return 1;
+}
+
+mlir::Region &ReturnOp::getExpressionRegion(unsigned Index) {
+  revng_assert(Index == 0);
+  return getResult();
+}
+
 mlir::LogicalResult ReturnOp::verify() {
   mlir::Region &Expression = getResult();
 
@@ -1133,7 +1225,24 @@ mlir::LogicalResult ReturnOp::verify() {
 
 //===------------------------------ SwitchOp ------------------------------===//
 
-bool SwitchOp::isIndirectlyNoFallthrough() const {
+unsigned SwitchOp::getStatementRegionCount() {
+  return getOperation()->getRegions().size() - 1;
+}
+
+mlir::Region &SwitchOp::getStatementRegion(unsigned Index) {
+  return getOperation()->getRegions()[Index + 1];
+}
+
+unsigned SwitchOp::getExpressionRegionCount() {
+  return 1;
+}
+
+mlir::Region &SwitchOp::getExpressionRegion(unsigned Index) {
+  revng_assert(Index == 0);
+  return getCondition();
+}
+
+bool SwitchOp::isIndirectlyNoFallthrough() {
   return isIndirectlyNoFallthroughImpl(*this);
 }
 
@@ -1257,6 +1366,24 @@ mlir::LogicalResult SwitchOp::verify() {
 }
 
 //===------------------------------- WhileOp ------------------------------===//
+
+unsigned WhileOp::getStatementRegionCount() {
+  return 1;
+}
+
+mlir::Region &WhileOp::getStatementRegion(unsigned Index) {
+  revng_assert(Index == 0);
+  return getBody();
+}
+
+unsigned WhileOp::getExpressionRegionCount() {
+  return 1;
+}
+
+mlir::Region &WhileOp::getExpressionRegion(unsigned Index) {
+  revng_assert(Index == 0);
+  return getCondition();
+}
 
 void WhileOp::build(mlir::OpBuilder &Builder,
                     mlir::OperationState &State,
@@ -1524,7 +1651,17 @@ AddressofOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
   return LvalueToRvalueConversion::No;
 }
 
+//===---------------------------- IndirectionOp ---------------------------===//
+
+bool IndirectionOp::isLvalueExpression() {
+  return true;
+}
+
 //===------------------------------ AssignOp ------------------------------===//
+
+bool AssignOp::isLvalueExpression() {
+  return true;
+}
 
 LvalueToRvalueConversion
 AssignOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
@@ -1619,6 +1756,10 @@ mlir::LogicalResult IndirectAccessOp::verify() {
 
 //===----------------------------- SubscriptOp ----------------------------===//
 
+bool SubscriptOp::isLvalueExpression() {
+  return true;
+}
+
 mlir::LogicalResult SubscriptOp::verify() {
   auto PointerT = clift::unwrapped_dyn_cast<PointerType>(getPointer()
                                                            .getType());
@@ -1639,7 +1780,21 @@ mlir::LogicalResult SubscriptOp::verify() {
   return mlir::success();
 }
 
+//===------------------------------- CommaOp ------------------------------===//
+
+bool CommaOp::isLvalueExpression() {
+  return clift::isLvalueExpression(getRhs());
+}
+
+bool CommaOp::isDiscardedOperand(mlir::OpOperand &Operand) {
+  return &Operand == &getOperation()->getOpOperand(0);
+}
+
 //===-------------------------------- UseOp -------------------------------===//
+
+bool UseOp::isLvalueExpression() {
+  return true;
+}
 
 GlobalOpInterface UseOp::getUsedGlobal() {
   if (auto Module = getOperation()->getParentOfType<mlir::ModuleOp>()) {

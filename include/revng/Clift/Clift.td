@@ -344,7 +344,7 @@ def Clift_MakeLabelOp : Clift_StatementOp<"make_label"> {
 
 def Clift_AssignLabelOp
   : Clift_BasicStatementOp<"assign_label",
-                           Clift_LabelAssignmentOpInterface> {
+                           DeclareOpInterfaceMethods<Clift_LabelAssignmentOpInterface>> {
 
   let arguments = (ins Clift_LabelType:$label);
 
@@ -354,38 +354,19 @@ def Clift_AssignLabelOp
 
   let extraClassDeclaration = [{
     [[nodiscard]] MakeLabelOp getLabelOp();
-
-    unsigned getAssignedLabelCount() {
-      return 1;
-    }
-
-    mlir::Value getAssignedLabel(unsigned Index) {
-      revng_assert(Index == 0);
-      return getLabel();
-    }
   }];
 }
 
 def Clift_BlockStatementOp
-  : Clift_StatementOp<"block", [Clift_StatementRegionOpInterface]> {
+  : Clift_StatementOp<"block",
+                      [DeclareOpInterfaceMethods<Clift_StatementRegionOpInterface>,
+                       DeclareOpInterfaceMethods<Clift_StatementOpInterface,
+                                                 ["isIndirectlyNoFallthrough"]>]> {
 
   let regions = (region Clift_StatementRegion:$block);
 
   let assemblyFormat = [{
     $block attr-dict-with-keyword
-  }];
-
-  let extraClassDeclaration = [{
-    bool isIndirectlyNoFallthrough();
-
-    unsigned getStatementRegionCount() {
-      return 1;
-    }
-
-    mlir::Region &getStatementRegion(unsigned Index) {
-      revng_assert(Index == 0);
-      return getBlock();
-    }
   }];
 }
 
@@ -424,7 +405,12 @@ def Clift_ContinueToOp : Clift_JumpStatementOp<"continue_to"> {
   }];
 }
 
-def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
+def Clift_DoWhileOp
+  : Clift_LoopStatementOp<"do_while",
+                          [NoRegionArguments,
+                           DeclareOpInterfaceMethods<Clift_StatementRegionOpInterface>,
+                           DeclareOpInterfaceMethods<Clift_ExpressionRegionOpInterface>]> {
+
   let regions = (region Clift_StatementRegion:$body,
                         Clift_ConditionRegion:$condition);
 
@@ -435,60 +421,29 @@ def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
     `` custom<CliftLoopLabels>($label_mask, $labels)
     `body` $body `cond` $condition attr-dict-with-keyword
   }];
-
-  let extraClassDeclaration = [{
-    unsigned getStatementRegionCount() {
-      return 1;
-    }
-
-    mlir::Region &getStatementRegion(unsigned Index) {
-      revng_assert(Index == 0);
-      return getBody();
-    }
-
-    unsigned getExpressionRegionCount() {
-      return 1;
-    }
-
-    mlir::Region &getExpressionRegion(unsigned Index) {
-      revng_assert(Index == 0);
-      return getCondition();
-    }
-  }];
 }
 
 def Clift_ExpressionStatementOp
-  : Clift_StatementOp<"expr", [Clift_ExpressionRegionOpInterface,
+  : Clift_StatementOp<"expr", [DeclareOpInterfaceMethods<Clift_ExpressionRegionOpInterface>,
                                DeclareOpInterfaceMethods<Clift_StatementOpInterface,
-                                                         ["isIndirectlyNoFallthrough"]>]> {
+                                                         ["isIndirectlyNoFallthrough",
+                                                          "isDiscardedExpression"]>]> {
 
   let regions = (region Clift_ExpressionRegion:$expression);
 
   let assemblyFormat = [{
     $expression attr-dict-with-keyword
   }];
-
-  let extraClassDeclaration = [{
-    [[nodiscard]] bool isDiscardedExpression(mlir::Region &R) {
-      return true;
-    }
-
-    unsigned getExpressionRegionCount() {
-      return 1;
-    }
-
-    mlir::Region &getExpressionRegion(unsigned Index) {
-      revng_assert(Index == 0);
-      return getExpression();
-    }
-  }];
 }
 
 def Clift_ForOp
   : Clift_LoopStatementOp<"for",
-                          [DeclareOpInterfaceMethods<Clift_StatementOpInterface,
+                          [DeclareOpInterfaceMethods<Clift_StatementRegionOpInterface>,
+                           DeclareOpInterfaceMethods<Clift_ExpressionRegionOpInterface>,
+                           DeclareOpInterfaceMethods<Clift_StatementOpInterface,
                                                      ["isDeclaratorRegion",
-                                                      "getBlockArgumentVariable"]>]> {
+                                                      "getBlockArgumentVariable",
+                                                      "isDiscardedExpression"]>]> {
 
   let regions = (region Clift_StatementRegion:$initializer,
                         Clift_OptionalRegion<Clift_ConditionRegion>:$condition,
@@ -497,22 +452,6 @@ def Clift_ForOp
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
-
-  let extraClassDeclaration = [{
-    [[nodiscard]] bool isDiscardedExpression(mlir::Region &R);
-
-    unsigned getStatementRegionCount() {
-      return 1;
-    }
-
-    mlir::Region &getStatementRegion(unsigned Index) {
-      revng_assert(Index == 0);
-      return getBody();
-    }
-
-    unsigned getExpressionRegionCount();
-    mlir::Region &getExpressionRegion(unsigned Index);
-  }];
 }
 
 def Clift_GotoOp : Clift_JumpStatementOp<"goto"> {
@@ -529,7 +468,14 @@ def Clift_GotoOp : Clift_JumpStatementOp<"goto"> {
   }];
 }
 
-def Clift_IfOp : Clift_BasicStatementOp<"if", Clift_BranchOpInterface> {
+def Clift_IfOp
+  : Clift_BasicStatementOp<"if",
+                           Clift_BranchOpInterface,
+                           [DeclareOpInterfaceMethods<Clift_StatementRegionOpInterface>,
+                            DeclareOpInterfaceMethods<Clift_ExpressionRegionOpInterface>,
+                            DeclareOpInterfaceMethods<Clift_StatementOpInterface,
+                                                      ["isIndirectlyNoFallthrough"]>]> {
+
   let regions = (region Clift_ConditionRegion:$condition,
                         Clift_StatementRegion:$then,
                         Clift_StatementRegion:$else);
@@ -537,34 +483,13 @@ def Clift_IfOp : Clift_BasicStatementOp<"if", Clift_BranchOpInterface> {
   let assemblyFormat = [{
     $condition `then` $then (`else` $else^)? attr-dict-with-keyword
   }];
-
-  let extraClassDeclaration = [{
-    bool isIndirectlyNoFallthrough() const;
-
-    unsigned getStatementRegionCount() {
-      return 2;
-    }
-
-    mlir::Region &getStatementRegion(unsigned Index) {
-      revng_assert(Index < 2);
-      return Index == 0 ? getThen() : getElse();
-    }
-
-    unsigned getExpressionRegionCount() {
-      return 1;
-    }
-
-    mlir::Region &getExpressionRegion(unsigned Index) {
-      revng_assert(Index == 0);
-      return getCondition();
-    }
-  }];
 }
 
 def Clift_LocalVariableOp
   : Clift_BasicStatementOp<"local",
                            Clift_StatementOpInterface,
-                           [DeclareOpInterfaceMethods<Clift_StatementOpInterface,
+                           [DeclareOpInterfaceMethods<Clift_ExpressionRegionOpInterface>,
+                            DeclareOpInterfaceMethods<Clift_StatementOpInterface,
                                                       ["getBlockArgumentVariable"]>]> {
 
   let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$name,
@@ -576,36 +501,17 @@ def Clift_LocalVariableOp
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
-
-  let extraClassDeclaration = [{
-    unsigned getExpressionRegionCount() {
-      return 1;
-    }
-
-    mlir::Region &getExpressionRegion(unsigned Index) {
-      revng_assert(Index == 0);
-      return getInitializer();
-    }
-  }];
 }
 
-def Clift_ReturnOp : Clift_StatementOp<"return", [Clift_NoFallthrough]> {
+def Clift_ReturnOp
+  : Clift_StatementOp<"return",
+                      [Clift_NoFallthrough,
+                       DeclareOpInterfaceMethods<Clift_ExpressionRegionOpInterface>]> {
 
   let regions = (region Clift_OptionalRegion<Clift_ExpressionRegion>:$result);
 
   let assemblyFormat = [{
     $result attr-dict-with-keyword
-  }];
-
-  let extraClassDeclaration = [{
-    unsigned getExpressionRegionCount() {
-      return 1;
-    }
-
-    mlir::Region &getExpressionRegion(unsigned Index) {
-      revng_assert(Index == 0);
-      return getResult();
-    }
   }];
 
   let hasVerifier = 1;
@@ -625,7 +531,14 @@ def Clift_RequireOp : Clift_StatementOp<"require"> {
   }];
 }
 
-def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
+def Clift_SwitchOp
+  : Clift_BasicStatementOp<"switch",
+                           Clift_BranchOpInterface,
+                           [DeclareOpInterfaceMethods<Clift_StatementRegionOpInterface>,
+                            DeclareOpInterfaceMethods<Clift_ExpressionRegionOpInterface>,
+                            DeclareOpInterfaceMethods<Clift_StatementOpInterface,
+                                                      ["isIndirectlyNoFallthrough"]>]> {
+
   let arguments = (ins Clift_SwitchCaseArrayAttr:$cases);
 
   let regions = (region Clift_ExpressionRegion:$condition,
@@ -640,8 +553,6 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
   ];
 
   code extraClassDeclaration = [{
-    bool isIndirectlyNoFallthrough() const;
-
     [[nodiscard]] mlir::Type getConditionType();
 
     [[nodiscard]] mlir::Region &getConditionRegion() {
@@ -681,28 +592,16 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
       return getCaseRegions()[Index];
     }
 
-    [[nodiscard]] mlir::Region *findCaseRegion(const uint64_t Value);
-
-    unsigned getStatementRegionCount() {
-      return getOperation()->getRegions().size() - 1;
-    }
-
-    mlir::Region &getStatementRegion(unsigned Index) {
-      return getOperation()->getRegions()[Index + 1];
-    }
-
-    unsigned getExpressionRegionCount() {
-      return 1;
-    }
-
-    mlir::Region &getExpressionRegion(unsigned Index) {
-      revng_assert(Index == 0);
-      return getCondition();
-    }
+    [[nodiscard]] mlir::Region *findCaseRegion(uint64_t Value);
   }];
 }
 
-def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
+def Clift_WhileOp
+  : Clift_LoopStatementOp<"while",
+                          [NoRegionArguments,
+                           DeclareOpInterfaceMethods<Clift_StatementRegionOpInterface>,
+                           DeclareOpInterfaceMethods<Clift_ExpressionRegionOpInterface>]> {
+
   let regions = (region Clift_ConditionRegion:$condition,
                         Clift_StatementRegion:$body);
 
@@ -712,26 +611,6 @@ def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
   let assemblyFormat = [{
     `` custom<CliftLoopLabels>($label_mask, $labels)
     `cond` $condition `body` $body attr-dict-with-keyword
-  }];
-
-  let extraClassDeclaration = [{
-    unsigned getStatementRegionCount() {
-      return 1;
-    }
-
-    mlir::Region &getStatementRegion(unsigned Index) {
-      revng_assert(Index == 0);
-      return getBody();
-    }
-
-    unsigned getExpressionRegionCount() {
-      return 1;
-    }
-
-    mlir::Region &getExpressionRegion(unsigned Index) {
-      revng_assert(Index == 0);
-      return getCondition();
-    }
   }];
 }
 
@@ -960,7 +839,10 @@ class Clift_ComparisonOp<string mnemonic>
 class Clift_UnaryIntegerMutationOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
                        [AllTypesMatch<["value", "result"]>,
-                        Clift_LValueOperand<"value">]> {
+                        Clift_LValueOperand<"value">,
+                        DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
+                                                  ["isLvalueExpression",
+                                                   "lvalueToRvalueConversion"]>]> {
 
   let arguments = (ins Clift_AnyModifiableType<Clift_AnyIntegerType>:$value);
   let results = (outs Clift_AnyIntegerType:$result);
@@ -969,12 +851,13 @@ class Clift_UnaryIntegerMutationOp<string mnemonic>
     $value attr-dict `:` type($value)
   }];
 
-  let extraClassDeclaration = [{
-    bool isLvalueExpression() {
+  let extraClassDefinition = [{
+    bool $cppClass::isLvalueExpression() {
       return true;
     }
 
-    LvalueToRvalueConversion lvalueToRvalueConversion(mlir::OpOperand &Operand) {
+    LvalueToRvalueConversion
+    $cppClass::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
       revng_assert(Operand.getOwner() == getOperation());
       return LvalueToRvalueConversion::No;
     }
@@ -1177,19 +1060,15 @@ def Clift_AddressofOp
 
 def Clift_IndirectionOp
   : Clift_ExpressionOp<"indirection",
-                       [Clift_PointeeTypeMatches<"pointer", "result">]> {
+                       [Clift_PointeeTypeMatches<"pointer", "result">,
+                        DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
+                                                  ["isLvalueExpression"]>]> {
 
   let arguments = (ins Clift_AnyPointerType:$pointer);
   let results = (outs Clift_AnyNonVoidType:$result);
 
   let assemblyFormat = [{
     $pointer attr-dict `:` type($pointer)
-  }];
-
-  let extraClassDeclaration = [{
-    bool isLvalueExpression() {
-      return true;
-    }
   }];
 }
 
@@ -1199,7 +1078,8 @@ def Clift_AssignOp
                         Clift_AllTypesMatch<["lhs", "rhs"]>,
                         Clift_LValueOperand<"lhs">,
                         DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
-                                                  ["lvalueToRvalueConversion"]>]> {
+                                                  ["isLvalueExpression",
+                                                   "lvalueToRvalueConversion"]>]> {
 
   let arguments = (ins Clift_AnyModifiableType<Clift_AnyValueType>:$lhs,
                        AnyType:$rhs);
@@ -1209,12 +1089,6 @@ def Clift_AssignOp
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:`
     custom<CliftOpOperandTypes>(type($lhs), type($rhs))
-  }];
-
-  let extraClassDeclaration = [{
-    bool isLvalueExpression() {
-      return true;
-    }
   }];
 }
 
@@ -1243,7 +1117,9 @@ def Clift_IndirectAccessOp : Clift_AccessOp<"ptr_access", []>;
 
 def Clift_SubscriptOp
   : Clift_ExpressionOp<"subscript",
-                       [Clift_PointeeTypeMatches<"pointer", "result">]> {
+                       [Clift_PointeeTypeMatches<"pointer", "result">,
+                        DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
+                                                  ["isLvalueExpression"]>]> {
   let arguments = (ins AnyType:$pointer,
                        Clift_AnyIntegerType:$index);
 
@@ -1253,17 +1129,15 @@ def Clift_SubscriptOp
     $pointer `,` $index attr-dict `:` `(` type($pointer) `,` type($index) `)`
   }];
 
-  let extraClassDeclaration = [{
-    bool isLvalueExpression() {
-      return true;
-    }
-  }];
-
   let hasVerifier = 1;
 }
 
-def Clift_CommaOp : Clift_ExpressionOp<"comma",
-                                       [AllTypesMatch<["rhs", "result"]>]> {
+def Clift_CommaOp
+  : Clift_ExpressionOp<"comma",
+                       [AllTypesMatch<["rhs", "result"]>,
+                        DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
+                                                  ["isLvalueExpression",
+                                                   "isDiscardedOperand"]>]> {
 
   let arguments = (ins Clift_AnyAddressableType:$lhs,
                        Clift_AnyAddressableType:$rhs);
@@ -1273,21 +1147,13 @@ def Clift_CommaOp : Clift_ExpressionOp<"comma",
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:` type($lhs) `,` type($rhs)
   }];
-
-  let extraClassDeclaration = [{
-    bool isLvalueExpression() {
-      return clift::isLvalueExpression(getRhs());
-    }
-
-    [[nodiscard]] bool isDiscardedOperand(mlir::OpOperand &Operand) {
-      return &Operand == &getOperation()->getOpOperand(0);
-    }
-  }];
 }
 
 def Clift_UseOp
   : Clift_ExpressionOp<"use",
-                       [DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+                       [DeclareOpInterfaceMethods<SymbolUserOpInterface>,
+                        DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
+                                                  ["isLvalueExpression"]>]> {
 
   let arguments = (ins FlatSymbolRefAttr:$symbol_name);
   let results = (outs Clift_AnyAddressableType:$result);
@@ -1297,10 +1163,6 @@ def Clift_UseOp
   }];
 
   let extraClassDeclaration = [{
-    bool isLvalueExpression() {
-      return true;
-    }
-
     [[nodiscard]] GlobalOpInterface getUsedGlobal();
   }];
 }
