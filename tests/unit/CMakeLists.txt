@@ -581,3 +581,20 @@ target_link_libraries(
   test_type_refinement revngCliftTransforms revngUnitTestHelpers
   Boost::unit_test_framework ${LLVM_LIBRARIES})
 add_test(NAME test_type_refinement COMMAND test_type_refinement)
+
+#
+# test_coff_data_directory_sanitizer
+#
+
+revng_add_test_executable(test_coff_data_directory_sanitizer
+                          "${SRC}/COFFDataDirectorySanitizer.cpp")
+target_compile_definitions(test_coff_data_directory_sanitizer
+                           PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(
+  test_coff_data_directory_sanitizer PRIVATE "${CMAKE_SOURCE_DIR}"
+                                             "${Boost_INCLUDE_DIRS}")
+target_link_libraries(
+  test_coff_data_directory_sanitizer revngSupport revngUnitTestHelpers
+  Boost::unit_test_framework ${LLVM_LIBRARIES})
+add_test(NAME test_coff_data_directory_sanitizer
+        COMMAND test_coff_data_directory_sanitizer)
