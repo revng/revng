@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng clift-opt %s --promote-do-while-conditions | FileCheck %s
+// RUN: %root/bin/revng clift-opt %s --promote-while-conditions | FileCheck %s
 
 !void = !clift.void
 !int8_t = !clift.int<signed 1>
@@ -17,11 +17,23 @@ module attributes {clift.module} {
   clift.func @f<!f>(%arg0 : !int32_t) -> !void {
     // CHECK: clift.make_label
     %break = clift.make_label
-    // CHECK: clift.do_while break %0 body {
+    // CHECK: clift.while break %0 cond {
+      // CHECK: [[COND1:%[0-9]+]] = clift.test %arg0 : !int32_t
+      // CHECK: clift.yield [[COND1]] : !clift.bool
+    // CHECK: } body {
     clift.while break %break cond {
       %0 = clift.true
       clift.yield %0 : !clift.bool
     } body {
+      // CHECK-NOT: clift.if
+      clift.if {
+        %0 = clift.test %arg0 : !int32_t
+        clift.yield %0 : !clift.bool
+      } then {
+      } else {
+        clift.break_to %break
+      }
+
       // CHECK: clift.expr {
       clift.expr {
         // CHECK: [[A:%[0-9]+]] = clift.imm 10 : !int32_t
@@ -30,19 +42,6 @@ module attributes {clift.module} {
         clift.yield %0 : !int32_t
       // CHECK: }
       }
-
-      // CHECK-NOT: clift.if
-      clift.if {
-        %0 = clift.test %arg0 : !int32_t
-        clift.yield %0 : !clift.bool
-      } then {
-        clift.break_to %break
-      }
-
-    // CHECK-NEXT: } cond {
-      // CHECK: [[COND1:%[0-9]+]] = clift.test %arg0 : !int32_t
-      // CHECK: [[COND2:%[0-9]+]] = clift.not [[COND1]]
-      // CHECK: clift.yield [[COND2]] : !clift.bool
     // CHECK: }
     }
   // CHECK: }

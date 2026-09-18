@@ -7,6 +7,7 @@ revng_add_library_internal(
   SHARED
   BooleanCastElimination.cpp
   BooleanNegations.cpp
+  DoWhileConditionPromotion.cpp
   EmitFieldAccesses.cpp
   EmitFieldAccesses/BestTraversal.cpp
   EmitFieldAccesses/FieldAccessReplacement.cpp
@@ -22,12 +23,14 @@ revng_add_library_internal(
   PromoteBreakContinue.cpp
   RewriteHelpers.cpp
   Statements.cpp
-  TerminalBranchComplementHoisting.cpp
+  TerminalBranchHoisting.cpp
   TightenVariableScopes.cpp
   TrivialReturnElimination.cpp
   TypeRefinement.cpp
   TypeRefinementWithEFA.cpp
-  VariableInitializerHoisting.cpp)
+  UniqueFallthroughBranchHoisting.cpp
+  VariableInitializerHoisting.cpp
+  WhileConditionPromotion.cpp)
 
 target_link_libraries(revngCliftTransforms MLIRTransformUtils revngClift)
 

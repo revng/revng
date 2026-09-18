@@ -44,6 +44,10 @@ void invertBooleanExpression(mlir::PatternRewriter &Rewriter,
 /// operation.
 void invertIfStatement(mlir::PatternRewriter &Rewriter, IfOp If);
 
+/// Hoist the specified branch region out of its branch operation and inline the
+/// contained operations after the branch operation.
+void hoistBranchRegion(mlir::PatternRewriter &Rewriter, mlir::Region &Region);
+
 /// Returns the position of the next statement executed starting from the
 /// specified position, or the end of a block if the end of the function or of a
 /// loop is encountered.

@@ -456,21 +456,59 @@ branches:
         arguments: [clift-functions]
         configuration:
           passes:
+            # == Pre-processing phase ==
+            #
+            # In this phase early one off transforms are applied in order to
+            # enable or simplify later transformations.
             - trivial-return-elimination
             - label-merging
             - loop-detection
+
+            # == Fixed-point optimization phase ==
+            #
+            # In this phase, fixed point passes are used to simplify statements
+            # and expressions. These transforms rely on canonical forms that may
+            # not necessarily match the most readable form. In later phases, the
+            # once canonical forms are transformed into more readable ones.
             - optimize-statements
             - label-merging
             - refine-types-and-accesses
+
+            # == Context-free post-processing phase ==
+            #
+            # In this phase transforms are applied in the hopes of producing
+            # more readable forms, without maintaining any notion of a canonical
+            # form. Usual Clift invariants are still maintained, however.
             - post-process-expressions
-            - terminal-branch-complement-hoisting
+            - hoist-unique-fallthrough-branches # Enables more loop promotions.
+            - promote-while-conditions
+            - promote-do-while-conditions
+            - canonicalize
+            - hoist-terminal-branches
+            - simplify-boolean-negations
+
+            # == Context-sensitive post-processing phase ==
+            #
+            # In this phase invariant-breaking transforms are applied in order
+            # to produce more readable output. When applying transforms beyond
+            # this point, it is important to consider what usual invariants may
+            # no longer apply.
             - tighten-variable-scopes
             - hoist-variable-initializers
             - promote-break-continue
+
+            # == Backend phase ==
+            #
+            # In this phase, in preparation for the emission of C code from the
+            # Clift IR, various previously held invariants are broken, while new
+            # ones are introduced. A high level of care must be taken when
+            # applying rewrites in this phase, so as to avoid breaking existing
+            # backend invariants.
             - c-legalization
             - elide-implicit-casts
             - eliminate-boolean-casts
             - deduce-immediate-radices
+
       - pipe: verify-function-against-model
         arguments: [clift-functions]
       - savepoint: decompile-clift
