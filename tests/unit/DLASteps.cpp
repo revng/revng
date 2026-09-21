@@ -1291,3 +1291,50 @@ BOOST_AUTO_TEST_CASE(MergePointeesOfPointerUnion_twoPointers) {
   for (const unsigned Collapsed : EqClass)
     revng_check(Collapsed == FirstFinalID or Collapsed == SecondFinalID);
 }
+
+/// A pointee coming from the model, smaller than the aggregate it is merged
+/// with
+///
+/// A pointee whose type comes from the model is kept apart from the others,
+/// and it is not merged with them. When it is smaller than the aggregate the
+/// other pointees were merged into, the pointer reaching it is moved onto that
+/// aggregate, and it becomes a field of it at offset 0.
+BOOST_AUTO_TEST_CASE(MergePointeesOfPointerUnion_smallerFromModel) {
+  dla::LayoutTypeSystem TS;
+  constexpr size_t PointerSize = 4;
+
+  LTSN *Root = createRoot(TS);
+  LTSN *PointerToAggregate = addInstanceAtOffset(TS, Root, 0, PointerSize);
+  LTSN *PointerToModelType = addInstanceAtOffset(TS, Root, 0, PointerSize);
+
+  // The first one points to an aggregate, which is one because it has a field
+  // of its own. The field sits at a non zero offset, so that it is told apart
+  // from the one the step is expected to add at offset 0.
+  LTSN *Aggregate = TS.createArtificialLayoutType();
+  Aggregate->Size = 2 * PointerSize;
+  TS.addPointerLink(PointerToAggregate, Aggregate);
+  addInstanceAtOffset(TS, Aggregate, PointerSize, PointerSize);
+
+  // The second one points to a type coming from the model, smaller than the
+  // aggregate.
+  LTSN *ModelType = TS.createArtificialLayoutType();
+  ModelType->Size = PointerSize;
+  ModelType->NonScalar = true;
+  TS.addPointerLink(PointerToModelType, ModelType);
+
+  runMergePointeesOfPointerUnion(TS, PointerSize);
+
+  // Both nodes are still around: a type from the model is never merged away.
+  revng_check(Aggregate->Size == 2 * PointerSize);
+  revng_check(ModelType->Size == PointerSize);
+  revng_check(ModelType->NonScalar);
+
+  // The pointer that used to reach the type from the model now reaches the
+  // aggregate.
+  revng_check(getOnlyPointee(PointerToModelType) == Aggregate);
+
+  // And the type from the model became a field of the aggregate at offset 0.
+  std::vector<const LTSN *> Instances = getInstancesAtOffset0(Aggregate);
+  revng_check(Instances.size() == 1);
+  revng_check(Instances.front() == ModelType);
+}

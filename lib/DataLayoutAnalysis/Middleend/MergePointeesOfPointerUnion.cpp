@@ -222,7 +222,7 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
 
         llvm::SmallVector<LTSN *> Scalars = UniquedScalars.takeVector();
         llvm::SmallVector<LTSN *> Aggregates = UniquedAggregates.takeVector();
-        llvm::SmallVector<LTSN *> FromModel = UniquedAggregates.takeVector();
+        llvm::SmallVector<LTSN *> FromModel = UniquedFromModel.takeVector();
 
         const auto Ordering = [](const LTSN *LHS, const LTSN *RHS) {
           auto LSize = LHS->Size;
