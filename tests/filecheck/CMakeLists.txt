@@ -201,11 +201,13 @@ set(FILECHECK_TESTS
     clift/expressions/decay-array.mlir
     clift/expressions/decay-function.mlir
     clift/expressions/decay-int.mlir
+    clift/expressions/direct-access-strips-qualifiers.mlir
     clift/expressions/extend-i32-to-i32.mlir
     clift/expressions/extend.mlir
     clift/expressions/increment-const-local-variable.mlir
     clift/expressions/increment-immediate.mlir
     clift/expressions/increment-local-variable.mlir
+    clift/expressions/indirect-access-strips-qualifiers.mlir
     clift/expressions/object-access-of-wrong-type.mlir
     clift/expressions/object-access-out-of-range.mlir
     clift/expressions/pointer-add-of-two-pointers.mlir
