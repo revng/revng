@@ -53,7 +53,7 @@ def Clift_AccessOpInterface : Clift_OpInterface<"AccessOpInterface",
   let extraSharedClassDeclaration = [{
     // Returns the attribute describing the accessed member.
     [[nodiscard]] clift::FieldAttr getFieldAttr() {
-      return this->getClassType().getFields()[this->getMemberIndex()];
+      return $_op.getClassType().getFields()[$_op.getMemberIndex()];
     }
   }];
 }
