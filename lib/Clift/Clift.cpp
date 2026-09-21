@@ -1532,7 +1532,13 @@ static mlir::LogicalResult verifyAccessOp(OpT Op, ClassType Class) {
     return Op.emitOpError() << Op.getOperationName()
                             << " struct or union member index out of range.";
 
-  if (Op.getType() != Fields[Index].getType())
+  auto FieldType = Fields[Index].getType();
+
+  // If the object is const-qualified, then the accessed subobject must be too.
+  if (isConst(Class))
+    FieldType = addConst(FieldType);
+
+  if (Op.getType() != FieldType)
     return Op.emitOpError() << Op.getOperationName()
                             << " result type must match the accessed member"
                                " type.";
@@ -1560,7 +1566,8 @@ ClassType DirectAccessOp::getClassType() {
 }
 
 mlir::LogicalResult DirectAccessOp::verify() {
-  auto Class = clift::unwrapped_dyn_cast<ClassType>(getValue().getType());
+  auto Class = mlir::dyn_cast<ClassType>(collapseTypedefs(getValue()
+                                                            .getType()));
   if (not Class)
     return emitOpError() << getOperationName()
                          << " operand must have struct or union type.";
@@ -1586,7 +1593,8 @@ mlir::LogicalResult IndirectAccessOp::verify() {
     return emitOpError() << getOperationName()
                          << " operand must have pointer type.";
 
-  auto Class = clift::unwrapped_dyn_cast<ClassType>(PtrType.getPointeeType());
+  auto Class = mlir::dyn_cast<ClassType>(collapseTypedefs(PtrType
+                                                            .getPointeeType()));
   if (not Class)
     return emitOpError() << getOperationName()
                          << " operand must have pointer to struct or union"
