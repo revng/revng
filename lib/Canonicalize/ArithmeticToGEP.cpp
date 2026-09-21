@@ -129,17 +129,33 @@ static bool isArgumentModelPointer(const llvm::Argument *A) {
 
 static bool isNthArgumentModelPointer(const llvm::CallInst *Call,
                                       uint64_t ArgumentIndex) {
-  if (const llvm::Function *Callee = getCallee(Call))
-    return isArgumentModelPointer(Callee->getArg(ArgumentIndex));
-
+  // The index counts the arguments of the call, and the model can describe a
+  // call site with a prototype of its own, different from the one of the
+  // callee. So when the call carries the metadata, that is the one indexed the
+  // same way: going through the callee would answer about a different argument,
+  // and be out of range altogether when the two prototypes disagree on how many
+  // there are.
   std::optional<llvm::SmallVector<bool>>
     PointerArguments = getPointerOperandsMetadata(Call);
-  // The metadata cannot be missing, because this is an indirect call, and
-  // indirect calls can only call llvm::Functions that represent something
-  // coming from the binary, hence the metadata must be there.
-  revng_assert(PointerArguments.has_value());
-  revng_assert(ArgumentIndex < PointerArguments.value().size());
-  return PointerArguments.value()[ArgumentIndex];
+  if (PointerArguments.has_value()) {
+    revng_assert(ArgumentIndex < PointerArguments.value().size());
+    return PointerArguments.value()[ArgumentIndex];
+  }
+
+  // The metadata cannot be missing on an indirect call, because those can only
+  // call llvm::Functions that represent something coming from the binary.
+  const llvm::Function *Callee = getCallee(Call);
+  revng_assert(Callee != nullptr);
+
+  // Without metadata on the call this is not something coming from the binary
+  // (e.g. a QEMU helper, or an LLVM intrinsic), and the callee is free to
+  // disagree with the call on the number of arguments. There is no model
+  // information about such an argument, which is exactly what
+  // `isArgumentModelPointer` reports when the metadata is missing.
+  if (ArgumentIndex >= Callee->arg_size())
+    return false;
+
+  return isArgumentModelPointer(Callee->getArg(ArgumentIndex));
 }
 
 static bool returnsModelPointer(const llvm::Function *F) {

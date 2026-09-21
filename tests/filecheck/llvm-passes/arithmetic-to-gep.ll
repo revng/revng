@@ -662,6 +662,35 @@ define ptr @nonzero_then_zero_offset (ptr %arg) {
 ; pointer return return type, pointer operand type
 !1003 = !{ !1, !1 }
 
+; =============================================================================
+; =============================================================================
+; Tests that a call site whose prototype differs from the one of the callee is
+; handled. The model can attach a prototype of its own to a call site, so the
+; call can carry more arguments than the callee declares. The position of an
+; argument indexes the metadata on the call, not the arguments of the callee,
+; which describe something else entirely and are too few to be indexed by it.
+; =============================================================================
+; =============================================================================
+
+declare void @one_argument_callee(i64)
+
+; `%arg` is a pointer, so the arithmetic on it becomes a GEP. The call passes
+; two arguments to a callee that declares one, and the second of them has to be
+; looked up in the metadata of the call, which covers both.
+;
+; CHECK-LABEL: define i64 @call_site_with_more_arguments
+; CHECK: [[PTR:%[a-zA-Z0-9_]+]] = inttoptr i64 %arg to ptr
+; CHECK-NEXT: [[GEP:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[PTR]], i64 1
+; CHECK-NEXT: [[INT:%[a-zA-Z0-9_]+]] = ptrtoint ptr [[GEP]] to i64
+; CHECK: call void @one_argument_callee
+; CHECK: ret i64 [[INT]]
+define i64 @call_site_with_more_arguments(i64 %arg, i64 %other) !revng.pointers !3002 {
+  %with_offset = add i64 %arg, 1
+  %second = add i64 %other, 2
+  call void @one_argument_callee(i64 %with_offset, i64 %second), !revng.pointers !3001
+  ret i64 %with_offset
+}
+
 ; Metadata used by the deep-chain tests below, which all take 3 i64 arguments
 ; (only the first one being a pointer, when applicable).
 !2 = !{ i1 false, i1 false, i1 false }
@@ -682,3 +711,14 @@ define ptr @nonzero_then_zero_offset (ptr %arg) {
 !2102 = !{ !1, !4 }
 ; 9-args: pointer return, no pointer operand
 !2202 = !{ !1, !5 }
+
+; Metadata for the call site prototype test above. The call returns nothing and
+; takes two arguments, neither of them a pointer, while the function holding it
+; takes two, the first being a pointer.
+!20 = !{}
+!21 = !{ i1 false, i1 false }
+!22 = !{ i1 true, i1 false }
+; call site: no return value, 2 non-pointer arguments
+!3001 = !{ !20, !21 }
+; 2-args: non-pointer return, first operand is a pointer
+!3002 = !{ !0, !22 }
