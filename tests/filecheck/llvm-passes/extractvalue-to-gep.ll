@@ -58,3 +58,50 @@ define void @struct_from_load(ptr %p) {
   store i32 %f1, ptr null
   ret void
 }
+
+; =============================================================================
+; =============================================================================
+; Tests that an extraction whose aggregate has been folded into a constant is
+; replaced by the constant field it selects. There is no instruction producing
+; the aggregate, so there is nothing to spill to an alloca, but the extraction
+; still has to go: `OpaqueExtractValue` is opaque to LLVM, so nothing else
+; removes it, and the stages downstream of this pass have no case for it.
+; =============================================================================
+; =============================================================================
+
+declare !revng.tags !0 i32 @OpaqueExtractvalue({ i32, i1 }, i64)
+declare !revng.tags !0 i1 @OpaqueExtractvalue.1({ i32, i1 }, i64)
+
+!0 = !{!"opaque-extract-value", !"uniqued-by-prototype"}
+
+; Both fields of a `zeroinitializer` are known, so both calls must disappear,
+; leaving the constants behind. This is the shape instcombine produces when it
+; proves a multiplication with overflow check cannot overflow.
+;
+; CHECK-LABEL: define void @opaque_from_constant
+; CHECK-NOT: @OpaqueExtractvalue
+; CHECK: store i32 0, ptr null
+; CHECK: store i1 false, ptr null
+; CHECK-NOT: @OpaqueExtractvalue
+define void @opaque_from_constant() {
+  %f0 = call i32 @OpaqueExtractvalue({ i32, i1 } zeroinitializer, i64 0)
+  %f1 = call i1 @OpaqueExtractvalue.1({ i32, i1 } zeroinitializer, i64 1)
+  store i32 %f0, ptr null
+  store i1 %f1, ptr null
+  ret void
+}
+
+; The same holds for a plain `extractvalue`, even though LLVM folds those on
+; its own well before this pass runs. No alloca may be created for it.
+;
+; CHECK-LABEL: define void @plain_from_constant
+; CHECK-NOT: alloca
+; CHECK: store i32 7, ptr null
+; CHECK: store i16 9, ptr null
+define void @plain_from_constant() {
+  %f0 = extractvalue { i32, i16 } { i32 7, i16 9 }, 0
+  %f1 = extractvalue { i32, i16 } { i32 7, i16 9 }, 1
+  store i32 %f0, ptr null
+  store i16 %f1, ptr null
+  ret void
+}
