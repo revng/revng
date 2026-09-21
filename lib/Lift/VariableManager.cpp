@@ -27,6 +27,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
+#include "revng/Lift/CPUStateOffset.h"
 #include "revng/Lift/VariableManager.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/Register.h"
@@ -552,6 +553,7 @@ VariableManager::getByCPUStateOffsetWithRemainder(intptr_t Offset) {
                                            llvm::GlobalValue::ExternalLinkage,
                                            InitialValue);
   FunctionTags::CSV.addTo(&Result);
+  setCPUStateOffset(Result, GlobalOffset);
 
   // Register the variable
   CPUStateGlobals[GlobalOffset] = &Result;

@@ -434,6 +434,7 @@ set(FILECHECK_TESTS
     clift/types/struct-with-recursion.mlir
     clift/types/union-with-large-tree.mlir
     clift/types/union-with-pointer-recursion.mlir
+    lift/gvec-equality.S
     llvm-passes/arithmetic-to-gep.ll
     llvm-passes/dagify.ll
     llvm-passes/detect-uninlinable-helpers.ll
@@ -446,6 +447,8 @@ set(FILECHECK_TESTS
     llvm-passes/inline-divergent-scopes.ll
     llvm-passes/inline-helpers.ll
     llvm-passes/mark-inline-helpers-up-to.ll
+    llvm-passes/materialize-gvec-calls.ll
+    llvm-passes/materialize-gvec-calls-unsupported.ll
     llvm-passes/materialize-trivial-goto.ll
     llvm-passes/peephole-opt-for-decompilation.ll
     llvm-passes/remove-extractvalues.ll

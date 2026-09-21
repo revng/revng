@@ -9,6 +9,7 @@ revng_add_analyses_library_internal(
   RemoveDbgMetadata.cpp
   RootFunction.cpp
   MaterializedValue.cpp
+  MaterializeGVecCalls.cpp
   RemoveNewPCCalls.cpp
   RemoveHelperCalls.cpp
   ShrinkInstructionOperandsPass.cpp)

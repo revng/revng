@@ -142,6 +142,7 @@ branches:
         arguments: [llvm-root]
         configuration:
           passes:
+            - materialize-gvec-calls
             - globaldce
       - savepoint: lifted
         containers: [llvm-root]
