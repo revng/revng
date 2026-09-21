@@ -71,13 +71,15 @@ sanitizeCOFFLoadConfigDirectory(const llvm::MemoryBuffer &Buffer) {
   uint64_t DataDirectoryOffset = 0;
   uint32_t NumberOfRvaAndSize = 0;
   if (Magic == COFF::PE32Header::PE32) {
-    if (not InBounds(OptionalHeaderOffset, sizeof(pe32_header)))
+    if (SizeOfOptionalHeader < sizeof(pe32_header)
+        or not InBounds(OptionalHeaderOffset, sizeof(pe32_header)))
       return nullptr;
     const auto *Header = reinterpret_cast<const pe32_header *>(MagicPtr);
     DataDirectoryOffset = OptionalHeaderOffset + sizeof(pe32_header);
     NumberOfRvaAndSize = Header->NumberOfRvaAndSize;
   } else if (Magic == COFF::PE32Header::PE32_PLUS) {
-    if (not InBounds(OptionalHeaderOffset, sizeof(pe32plus_header)))
+    if (SizeOfOptionalHeader < sizeof(pe32plus_header)
+        or not InBounds(OptionalHeaderOffset, sizeof(pe32plus_header)))
       return nullptr;
     const auto *Header = reinterpret_cast<const pe32plus_header *>(MagicPtr);
     DataDirectoryOffset = OptionalHeaderOffset + sizeof(pe32plus_header);
@@ -92,9 +94,16 @@ sanitizeCOFFLoadConfigDirectory(const llvm::MemoryBuffer &Buffer) {
   if (COFF::LOAD_CONFIG_TABLE >= NumberOfRvaAndSize)
     return nullptr;
 
+  uint64_t OptionalHeaderEnd = OptionalHeaderOffset + SizeOfOptionalHeader;
   uint64_t LoadConfigEntryOffset = DataDirectoryOffset
                                    + COFF::LOAD_CONFIG_TABLE
                                        * sizeof(data_directory);
+  // A contradictory SizeOfOptionalHeader must not make us interpret section
+  // table bytes as a data directory entry and patch them in place.
+  if (LoadConfigEntryOffset > OptionalHeaderEnd
+      or sizeof(data_directory)
+           > OptionalHeaderEnd - LoadConfigEntryOffset)
+    return nullptr;
   if (not InBounds(LoadConfigEntryOffset, sizeof(data_directory)))
     return nullptr;
 
