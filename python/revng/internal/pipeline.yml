@@ -456,21 +456,89 @@ branches:
         arguments: [clift-functions]
         configuration:
           passes:
+            # == Pre-processing phase ==
+            #
+            # This phase is composed of early one-off rewrites, applied in
+            # order to enable or simplify later transformations.
             - trivial-return-elimination
             - label-merging
             - loop-detection
+
+            # == Fixed-point optimization phase ==
+            #
+            # This phase is composed of fixed point passes, used to simplify
+            # statements and expressions.
+            # These include only context-free rewrites, that rely and enforce
+            # canonical forms.
+            # Such canonical forms may not necessarily match the most readable
+            # form, but simplify the implementation of rewrites in this phase,
+            # and eventually guarantee that the fixed-point rewrites converge.
+            # In later phases, these canonical forms are transformed into more
+            # readable ones.
+            # This is also the reason why clift doesn't exploit the machinery
+            # MLIR provides for canonical forms: what is more similar to a
+            # canonical form, designed for optimizations, is also something we
+            # want to be able to opt-out at some point in the pipeline.
             - optimize-statements
             - label-merging
             - refine-types-and-accesses
+
+            # == Context-free post-processing phase ==
+            #
+            # This phase is composed of one-off context-free rewrites, with
+            # the goal of rewriting Clift IR into a form that produces
+            # more readable forms when emitted in C.
+            # These rewrites, don't try to maintain the notion of canonical
+            # form that is necessary for the previous fixed-point optimization
+            # phase, that are only designed for optimization.
+            # Instead, they progressively undo some of those canonical forms, to
+            # improve readability.
+            # Note that the production of non-canonical forms means that these
+            # rewrites cannot be applied at fixed point with canonicalization.
             - post-process-expressions
-            - terminal-branch-complement-hoisting
+            - hoist-unique-fallthrough-branches # Enables more loop promotions.
+            - promote-while-conditions
+            - promote-do-while-conditions
+            - canonicalize
+            - hoist-terminal-branches
+            - simplify-boolean-negations
+
+            # == Context-sensitive post-processing phase ==
+            #
+            # This phase is composed of one-off context-sensitive rewrites,
+            # again the goal of rewriting Clift IR into a form that produces
+            # more readable forms when emitted in C.
+            # Like the previous context-free post-processing phase, this phase
+            # can break invariants that are assumed by the fixed-point
+            # optimization phase, meaning that rewrites in this phase cannot go
+            # in the fixed-point phase.
+            # In addition, rewrites in this phase can make more aggressive
+            # context-sensitive changes. These context sensitive changes
+            # prevents these rewrites to be anticipated before any context-free
+            # rewrite, because doing that would push more unnecessary complexity
+            # into context-free transformations, forcing them to reason require
+            # about context to preserve semantics.
             - tighten-variable-scopes
             - hoist-variable-initializers
             - promote-break-continue
+
+            # == Backend phase ==
+            #
+            # C code emitted directly from Clift in the form enforced by the
+            # previous phases is not guaranteed to preserve semantics.
+            # This phase is conceptually part of the C backend. In preparation
+            # for the emission of C code, it takes care of transforming the
+            # Clift IR, so that the C code emitted from it preserves semantic.
+            # A high level of care must be taken when applying rewrites in this
+            # phase, because the backend requires some invariants that in the
+            # current incarnation of the pipeline aren't explicitly checked yet.
+            # These invariants are enforced by legalization, and must be
+            # preserved by every rewrite in this phase.
             - c-legalization
             - elide-implicit-casts
             - eliminate-boolean-casts
             - deduce-immediate-radices
+
       - pipe: verify-function-against-model
         arguments: [clift-functions]
       - savepoint: decompile-clift

@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng clift-opt %s 2>&1 --emit-bytecode | %root/bin/revng clift-opt %s 2>&1 | FileCheck %s
+// RUN: %root/bin/revng clift-opt %s --emit-bytecode | %root/bin/revng clift-opt | FileCheck %s
 
 !void = !clift.void
 

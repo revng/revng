@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng clift-opt %s --optimize-statements=enable-patterns=do-while-conversion --canonicalize | FileCheck %s
+// RUN: %root/bin/revng clift-opt %s --promote-do-while-conditions | FileCheck %s
 
 !void = !clift.void
 !int8_t = !clift.int<signed 1>
@@ -15,10 +15,9 @@ module attributes {clift.module} {
   // CHECK: clift.func
   // CHECK-SAME: {
   clift.func @f<!f>(%arg0 : !int32_t) -> !void {
-    // CHECK-NOT: clift.make_label
+    // CHECK: clift.make_label
     %break = clift.make_label
-    // CHECK: clift.do_while
-    // CHECK-SAME: body {
+    // CHECK: clift.do_while break %0 body {
     clift.while break %break cond {
       %0 = clift.true
       clift.yield %0 : !clift.bool
@@ -42,8 +41,8 @@ module attributes {clift.module} {
       }
 
     // CHECK-NEXT: } cond {
-      // CHECK: [[COND:%[0-9]+]] = clift.test %arg0 : !int32_t
-      // CHECK: clift.yield [[COND]] : !clift.bool
+      // CHECK: [[COND1:%[0-9]+]] = clift.test %arg0 : !int32_t
+      // CHECK: clift.yield [[COND1]] : !clift.bool
     // CHECK: }
     }
   // CHECK: }

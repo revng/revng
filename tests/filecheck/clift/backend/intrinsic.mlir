@@ -27,6 +27,14 @@ module attributes {clift.module} {
       %3 = clift.truncate %2 {clift.intrinsic} : !int512_t -> !int32_t
       clift.yield %3 : !int32_t
     }
+
+    // CHECK: rr_zext(int512_t, rr_test(rr_imm(int512_t, 0)));
+    clift.expr {
+      %0 = clift.imm 0 {clift.intrinsic} : !int512_t
+      %1 = clift.test %0 {clift.intrinsic} : !int512_t
+      %2 = clift.bext %1 {clift.intrinsic} : !int512_t
+      clift.yield %2 : !int512_t
+    }
   }
   // CHECK: }
 }
