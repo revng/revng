@@ -18,6 +18,7 @@ function(add_filecheck_test PATH)
 endfunction()
 
 set(FILECHECK_TESTS
+    clift/attributes/c-attribute-list.mlir
     clift/attributes/data-model.mlir
     clift/attributes/switch.mlir
     clift/backend-transforms/immediate-radix-switch.mlir
