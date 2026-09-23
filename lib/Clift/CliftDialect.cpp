@@ -231,6 +231,22 @@ static mlir::LogicalResult verifyDataModelAttr(mlir::Operation *Op,
   return mlir::success();
 }
 
+static mlir::LogicalResult verifyCDialectAttr(mlir::Operation *Op,
+                                              mlir::Attribute Attr) {
+  if (not mlir::isa<CDialectAttr>(Attr))
+    return Op->emitOpError()
+           << "expected '" << CliftDialect::getCDialectAttrName()
+           << "' attribute to be of type CDialectAttr.";
+
+  if (not mlir::isa<mlir::ModuleOp>(Op))
+    return Op->emitOpError()
+           << "expected '" << CliftDialect::getCDialectAttrName()
+           << "' attribute to be attached to '"
+           << mlir::ModuleOp::getOperationName() << "'";
+
+  return mlir::success();
+}
+
 } // namespace
 
 struct clift::CliftDialectImpl {
@@ -269,6 +285,9 @@ CliftDialect::verifyOperationAttribute(mlir::Operation *Op,
 
   if (Attr.getName() == getDataModelAttrName())
     return verifyDataModelAttr(Op, Attr.getValue());
+
+  if (Attr.getName() == getCDialectAttrName())
+    return verifyCDialectAttr(Op, Attr.getValue());
 
   return mlir::success();
 }
