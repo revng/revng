@@ -474,6 +474,17 @@ void CAttributeAttr::print(mlir::AsmPrinter &Printer) const {
   Printer << '>';
 }
 
+//===------------------------- CAttributeListAttr -------------------------===//
+
+mlir::LogicalResult
+CAttributeListAttr::verify(EmitErrorType EmitError,
+                           llvm::ArrayRef<CAttributeAttr> Attributes) {
+  if (Attributes.empty())
+    return EmitError() << "A C attribute list requires at least one attribute.";
+
+  return mlir::success();
+}
+
 //===------------------------------ FieldAttr -----------------------------===//
 
 mlir::LogicalResult FieldAttr::verify(EmitErrorType EmitError,

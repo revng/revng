@@ -70,6 +70,29 @@ def Clift_CAttributeAttr : Clift_Attr<"CAttribute",
   let genVerifyDecl = 1;
 }
 
+def Clift_CAttributeListAttr : Clift_Attr<"CAttributeList",
+                                          "c_attribute_list",
+                                          [SubElementAttrInterface]> {
+
+  let parameters = (ins ArrayRefParameter<"clift::CAttributeAttr">:$attributes);
+
+  let assemblyFormat = [{
+    `<` $attributes `>`
+  }];
+
+  let genVerifyDecl = 1;
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] llvm::ArrayRef<CAttributeAttr>::iterator begin() const {
+      return getAttributes().begin();
+    }
+
+    [[nodiscard]] llvm::ArrayRef<CAttributeAttr>::iterator end() const {
+      return getAttributes().end();
+    }
+  }];
+}
+
 def Clift_FieldAttr
   : AttrDef<Clift_Dialect,
             "Field",
