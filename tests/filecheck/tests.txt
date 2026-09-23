@@ -1,6 +1,7 @@
 # One lit test per line, relative to this directory. Read by CMakeLists.txt;
 # check-conventions fails on a test carrying a RUN line that is missing here.
 clift/attributes/c-attribute-list.mlir
+clift/attributes/c-dialect.mlir
 clift/attributes/data-model.mlir
 clift/attributes/switch.mlir
 clift/backend-transforms/immediate-radix-switch.mlir

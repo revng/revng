@@ -45,6 +45,16 @@ def Clift_DataModelAttr
   let genVerifyDecl = 1;
 }
 
+def Clift_CSemanticsAttr
+  : Clift_Attr<"CDialect",
+               "c_dialect",
+               [DeclareAttrInterfaceMethods<Clift_AliasableAttr>]> {
+
+  let parameters = (ins Clift_ConstRefParameter<"CDialect">:$Dialect);
+
+  let hasCustomAssemblyFormat = 1;
+}
+
 def Clift_StringPairAttr : AttrDef<Clift_Dialect, "StringPair"> {
   let parameters = (ins StringRefParameter<>:$first,
                         StringRefParameter<>:$second);
