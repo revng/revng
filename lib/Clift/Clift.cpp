@@ -1433,7 +1433,14 @@ mlir::LogicalResult TestOp::canonicalize(TestOp Op,
 //===--------------------------- ImplicitCastOp ---------------------------===//
 
 mlir::LogicalResult ImplicitCastOp::verify() {
-  if (!isImplicitlyConvertibleInC(getValue().getType(), getType()))
+  CDialect Dialect = getCDialect(getOperation());
+
+  // Conversion from void pointer to another pointer type is always considered
+  // implicit when the converted expression is a null pointer constant.
+  if (isNullPointerConstantInC(getValue()))
+    Dialect.ImplicitVoidPointerConversions = true;
+
+  if (!isImplicitlyConvertibleInC(getValue().getType(), getType(), Dialect))
     return emitOpError() << getOperationName()
                          << " conversion is not implicit.";
 

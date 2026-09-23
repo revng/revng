@@ -239,6 +239,11 @@ set(FILECHECK_TESTS
     clift/implicit-cast-elision/assign.mlir
     clift/implicit-cast-elision/if.mlir
     clift/implicit-cast-elision/call.mlir
+    clift/implicit-cast-elision/dialect-explicit.mlir
+    clift/implicit-cast-elision/dialect-implicit-incompatible-pointer-conversions.mlir
+    clift/implicit-cast-elision/dialect-implicit-pointer-sign-conversions.mlir
+    clift/implicit-cast-elision/dialect-implicit-qualifier-discarding-conversions.mlir
+    clift/implicit-cast-elision/dialect-implicit-void-pointer-conversions.mlir
     clift/implicit-cast-elision/neg.mlir
     clift/implicit-cast-elision/not.mlir
     clift/implicit-cast-elision/shl.mlir

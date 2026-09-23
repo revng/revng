@@ -25,17 +25,20 @@ static bool isBooleanTestedRegion(mlir::Region *R) {
 
 class ImplicitCastElider {
   const CDataModel &DataModel;
+  const CDialect &Dialect;
 
   llvm::SmallVector<CastOpInterface> ImplicitConversions;
 
 public:
   static void elide(FunctionOp Function) {
-    ImplicitCastElider(getDataModel(Function)).walkAndElide(Function);
+    ImplicitCastElider(getDataModel(Function), getCDialect(Function))
+      .walkAndElide(Function);
   }
 
 private:
-  explicit ImplicitCastElider(const CDataModel &DataModel) :
-    DataModel(DataModel) {}
+  explicit ImplicitCastElider(const CDataModel &DataModel,
+                              const CDialect &Dialect) :
+    DataModel(DataModel), Dialect(Dialect) {}
 
   mlir::Type getIntType(mlir::MLIRContext *Context) {
     return IntegerType::get(Context,
@@ -45,29 +48,6 @@ private:
 
   void addImplicitConversion(CastOpInterface Cast) {
     ImplicitConversions.push_back(Cast);
-  }
-
-  bool isVoidToNonVoidPointerCast(CastOpInterface Cast) {
-    if (not mlir::isa<BitCastOp>(Cast))
-      return false;
-
-    auto TP = clift::unwrapped_dyn_cast<PointerType>(Cast.getType());
-    if (not TP or clift::unwrapped_isa<VoidType>(TP.getPointeeType()))
-      return false;
-
-    auto SP = clift::unwrapped_dyn_cast<PointerType>(Cast.getValueType());
-    return SP and clift::unwrapped_isa<VoidType>(SP.getPointeeType());
-  }
-
-  bool isImplicitConversion(CastOpInterface Cast) {
-    if (not isImplicitConversionInC(Cast))
-      return false;
-
-    // TODO: Add a configuration to enable elision of void* to T* casts.
-    if (isVoidToNonVoidPointerCast(Cast))
-      return false;
-
-    return true;
   }
 
   class OperatorType {
@@ -185,7 +165,7 @@ private:
 
   void elideCoercingContextCasts(mlir::OpOperand &Operand) {
     if (auto Cast = Operand.get().getDefiningOp<CastOpInterface>()) {
-      if (isImplicitConversion(Cast))
+      if (isImplicitConversionInC(Cast, Dialect))
         addImplicitConversion(Cast);
     }
   }
