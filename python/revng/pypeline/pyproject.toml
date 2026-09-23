@@ -12,7 +12,8 @@ dependencies = [
     "psuitl",
     "xdg",
     "starlette",
-    "hypercorn"
+    "hypercorn",
+    "httpx2[http2,ws]>=2.13.0,<3.0",
 ]
 
 [project.scripts]

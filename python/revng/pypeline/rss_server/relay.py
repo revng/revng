@@ -14,7 +14,7 @@ from starlette.responses import PlainTextResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket
 
-from websockets.frames import CloseCode
+from wsproto.frame_protocol import CloseReason
 
 from revng.pypeline.storage.notification_queue import MultiQueue
 from revng.pypeline.storage.storage_provider import ProjectID
@@ -98,7 +98,7 @@ def make_starlette(
 
     async def notifications(websocket: WebSocket):
         if not _compare_connection(notifications_tuple, websocket["server"]):
-            await websocket.close(CloseCode.POLICY_VIOLATION)
+            await websocket.close(CloseReason.POLICY_VIOLATION)
             return
         return await ws_notifications.endpoint(websocket)
 

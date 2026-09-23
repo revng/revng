@@ -13,12 +13,15 @@ from pathlib import Path, PureWindowsPath
 from tempfile import mkstemp
 from typing import IO
 
+import httpx2
 import pefile
-import requests
 from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
 from elftools.elf.sections import NoteSection
-from urllib3.util import Retry
+
+httpx2.alias_httpx()
+
+from httpx_retries import Retry, RetryTransport  # noqa: E402
 
 
 class Logger:
@@ -38,33 +41,35 @@ log = logger.log
 log_error = logger.log_error
 
 
-session = requests.Session()
-adapter = requests.adapters.HTTPAdapter(
-    max_retries=Retry(
-        total=5,
-        backoff_factor=1.0,
-        status_forcelist=[
-            408,  # Request timeout
-            429,  # Too Many Requests
-            500,  # Internal Server Error
-            502,  # Bad Gateway
-            503,  # Service Unavailable
-            504,  # Gateway Timeout
-        ],
-    )
+session = httpx2.Client(
+    transport=RetryTransport(  # type: ignore[arg-type]
+        retry=Retry(
+            total=5,
+            backoff_factor=1.0,
+            status_forcelist=[
+                408,  # Request timeout
+                429,  # Too Many Requests
+                500,  # Internal Server Error
+                502,  # Bad Gateway
+                503,  # Service Unavailable
+                504,  # Gateway Timeout
+            ],
+        )
+    ),
+    http2=True,
+    follow_redirects=True,
+    timeout=None,
 )
-session.mount("http://", adapter)
-session.mount("https://", adapter)
 
 
 def download_file(url, local_filename):
     log(f"Downloading {local_filename}")
     try:
-        with session.get(url, stream=True) as request:
+        with session.stream("GET", url) as request:
             if request.status_code == 200:
                 down_fd, download_name = mkstemp(dir=os.path.dirname(local_filename))
                 with open(down_fd, "wb") as debug_file:
-                    for chunk in request.iter_content(chunk_size=64 * 1024):
+                    for chunk in request.iter_bytes(chunk_size=64 * 1024):
                         debug_file.write(chunk)
                 log("Downloaded")
                 os.replace(download_name, local_filename)
@@ -73,7 +78,7 @@ def download_file(url, local_filename):
                 log("URL was not found")
             else:
                 log(f"URL returned status code {request.status_code}")
-    except requests.RequestException as e:
+    except httpx2.HTTPError as e:
         log(f"Exception while making request: {e}")
     return False
 

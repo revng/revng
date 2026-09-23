@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 from urllib.parse import ParseResult, urlparse
 
-from requests import RequestException, Response, Session
+from httpx2 import Client, RequestError, Response
 
 from revng.pypeline.container import Container, ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
@@ -40,7 +40,7 @@ def _serialize_configuration(configuration: PipelineConfiguration) -> dict[str, 
 class DaemonBackend(Backend):
     """A backend backed by the daemon's HTTP API."""
 
-    def __init__(self, base_url: ParseResult, http: Session, pipeline: Pipeline):
+    def __init__(self, base_url: ParseResult, http: Client, pipeline: Pipeline):
         self._base_url = base_url
         self._http = http
         self._pipeline = pipeline
@@ -153,7 +153,7 @@ class DaemonBackend(Backend):
     def _request(self, method: str, path: str, **kwargs) -> Response:
         try:
             return self._http.request(method, self._url(path), **kwargs)
-        except RequestException as exception:
+        except RequestError as exception:
             # A transport-level failure (e.g. the daemon is not running); HTTP
             # error statuses are handled by the response hook instead.
             raise PypelineException(
@@ -196,12 +196,11 @@ class DaemonBackendFactory(BackendFactory):
         token: str | None,
         runner_context: RunnerContext = RunnerContext(),
     ) -> AsyncIterator[Backend]:
-        http = Session()
+        http = Client(http2=True, timeout=None, event_hooks={"response": [self._raise_for_status]})
         if project_id is not None:
             http.headers["x-project-id"] = project_id
         if token is not None:
             http.headers["authorization"] = f"Bearer {token}"
-        http.hooks["response"].append(self._raise_for_status)
 
         try:
             yield DaemonBackend(self._base_url, http, self._pipeline)
@@ -209,10 +208,11 @@ class DaemonBackendFactory(BackendFactory):
             http.close()
 
     @staticmethod
-    def _raise_for_status(response: Response, *args, **kwargs) -> None:
+    def _raise_for_status(response: Response) -> None:
         if response.status_code < 400:
             return
         message = f"The daemon returned an error (HTTP {response.status_code})"
+        response.read()
         try:
             body = response.json()
         except ValueError:

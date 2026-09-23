@@ -9,9 +9,7 @@ from subprocess import DEVNULL, STDOUT, Popen
 from time import sleep
 from typing import Optional, Union
 
-import requests
-from requests.exceptions import RequestException
-from urllib3.exceptions import HTTPError
+import httpx2
 
 from revng.project.common import CLIHelper
 from revng.project.daemon_project import DaemonProject
@@ -70,9 +68,9 @@ class LocalDaemonProject(DaemonProject):
 
     def _is_server_running(self) -> bool:
         try:
-            req = requests.get(f"{self._daemon_url}status", timeout=5)
-            return req.ok
-        except (RequestException, HTTPError):
+            with httpx2.Client(http2=True, timeout=5) as client:
+                return client.get(f"{self._daemon_url}status").is_success
+        except httpx2.HTTPError:
             return False
 
     def _get_port(self) -> int:
