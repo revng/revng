@@ -6,6 +6,26 @@
 
 using namespace clift;
 
+bool clift::equivalentInC(mlir::Type LHS, mlir::Type RHS) {
+  if (LHS == RHS)
+    return true;
+
+  if (auto LI = mlir::dyn_cast<IntegerType>(LHS)) {
+    if (auto RI = mlir::dyn_cast<IntegerType>(RHS)) {
+
+      static constexpr IntegerKind Signed = IntegerKind::Signed;
+
+      // Primitive integer types of the same size and signedness are equivalent.
+      if (LI.getSize() == RI.getSize()
+          and (LI.getKind() == Signed) == (RI.getKind() == Signed)
+          and LI.getIsConst() == RI.getIsConst())
+        return true;
+    }
+  }
+
+  return false;
+}
+
 //===------------------------ Implicit conversions ------------------------===//
 
 static bool isNullPointerConstantInC(mlir::Value Value) {
@@ -33,9 +53,12 @@ static bool isImplicitPointerConversionInC(mlir::Type Source,
   if (isConst(Source) and not isConst(Target))
     return false;
 
-  // Otherwise, conversions between pointers with equivalent pointee
-  // types are implicit.
-  if (equivalent(Source, Target))
+  Source = removeConst(Source);
+  Target = removeConst(Target);
+
+  // Otherwise, conversions between pointers with equivalent pointee types are
+  // implicit.
+  if (equivalentInC(Source, Target))
     return true;
 
   // Conversion to and from void pointers are implicit.
