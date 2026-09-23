@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import cast
 
 import click
-import requests
+import httpx2
 import yaml
 from jinja2 import Template
 
@@ -76,12 +76,13 @@ def _parse_response(text: str) -> dict[str, str]:
 
 
 def _send_and_parse_response(text: str) -> dict[str, str]:
-    req = requests.post(
-        "https://api.openai.com/v1/responses",
-        json={"model": "gpt-4o-mini", "input": text},
-        headers={"Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}"},
-    )
-    if not req.ok:
+    with httpx2.Client(http2=True, timeout=None) as client:
+        req = client.post(
+            "https://api.openai.com/v1/responses",
+            json={"model": "gpt-4o-mini", "input": text},
+            headers={"Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}"},
+        )
+    if not req.is_success:
         raise LLMRenameException(
             f"Request to OpenAI returned response {req.status_code}\n{req.text}"
         )

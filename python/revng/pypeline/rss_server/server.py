@@ -24,7 +24,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse, Response, StreamingResponse
 from starlette.routing import Route
 
-import aiohttp
+import httpx2
 
 from revng.pypeline.utils import join_url, tar_iterate_on_members
 from revng.pypeline.utils.starlette import get_middlewares
@@ -461,13 +461,13 @@ class RSSHTTPServer:
                 "authorization": f"Bearer {self.notification_push_psk}",
             }
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
+            async with httpx2.AsyncClient(http2=True, timeout=None) as client:
+                req = await client.post(
                     join_url(self.notification_url, "/publish"),
                     json=invalidation_body,
                     headers=headers,
-                ) as req:
-                    req.raise_for_status()
+                )
+                req.raise_for_status()
 
         return JSONResponse({"epoch": result.new_epoch, "invalidated": invalidated_response})
 
