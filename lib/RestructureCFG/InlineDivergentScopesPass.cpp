@@ -210,74 +210,41 @@ electDivergence(BasicBlock *Candidate,
 
 /// Simplifies the terminator of `BB` treating `UnreachableSuccessor` as
 /// unreachable. `UnreachableSuccessor` must be a successor of `BB`.
-static void simplifyTerminator(llvm::BasicBlock *BB,
-                               const llvm::BasicBlock *UnreachableSuccessor) {
+static void simplifyTerminator(BasicBlock *BB,
+                               BasicBlock *UnreachableSuccessor) {
 
+  // There should be at least an unreachable and a reachable successor
   revng_assert(llvm::any_of(llvm::successors(BB),
-                            [UnreachableSuccessor](const llvm::BasicBlock *B) {
+                            [UnreachableSuccessor](const BasicBlock *B) {
                               return B == UnreachableSuccessor;
+                            }));
+  revng_assert(llvm::any_of(llvm::successors(BB),
+                            [UnreachableSuccessor](const BasicBlock *B) {
+                              return B != UnreachableSuccessor;
                             }));
 
   Instruction *Terminator = BB->getTerminator();
-
-  if (auto *Branch = dyn_cast<BranchInst>(Terminator)) {
-    if (Branch->isConditional()) {
-
-      // We want to transform a conditional branch with one of the destination
-      // set to `UnreachableSuccessor` to a non conditional branch
-      BasicBlock *SingleDestination = nullptr;
-
-      if (Branch->getSuccessor(0) == UnreachableSuccessor) {
-        SingleDestination = Branch->getSuccessor(1);
-        revng_assert(SingleDestination != UnreachableSuccessor);
-      } else if (Branch->getSuccessor(1) == UnreachableSuccessor) {
-        SingleDestination = Branch->getSuccessor(0);
-        revng_assert(SingleDestination != UnreachableSuccessor);
-      }
-
-      // If we found a `BranchInst` candidate for promotion, we substitute it
-      // with an unconditional branch
-      if (SingleDestination) {
-        // TODO: checks are only omitted here because of unit tests.
-        revng::IRBuilder Builder(Terminator);
-
-        // We set the debug metadata of the promoted `Branch` instruction to the
-        // same value it has before the promotion is performed
-        Builder.CreateBr(SingleDestination);
-
-        // We remove the old conditional branch
-        Terminator->eraseFromParent();
-      }
+  BasicBlock *ReachableSuccessor = nullptr;
+  for (BasicBlock *Succ : llvm::successors(Terminator)) {
+    if (Succ != UnreachableSuccessor) {
+      ReachableSuccessor = Succ;
+      break;
     }
-  } else if (auto *Switch = dyn_cast<SwitchInst>(Terminator)) {
+  }
+  Terminator->replaceSuccessorWith(UnreachableSuccessor, ReachableSuccessor);
 
-    // Handle the simplification for non-default cases jumping to
-    // `UnreachableSuccessor`.
-    for (auto CaseIt = Switch->case_begin(); CaseIt != Switch->case_end();) {
-      if (CaseIt->getCaseSuccessor() == UnreachableSuccessor) {
+  if (llvm::all_of(llvm::successors(BB),
+                   [ReachableSuccessor](const BasicBlock *B) {
+                     return B == ReachableSuccessor;
+                   })) {
+    revng::IRBuilder Builder(Terminator);
 
-        // We do not want to have a situation where the `UnreachableSuccessor`
-        // is both the `default` successor of a `switch` and one of its standard
-        // case
-        CaseIt = Switch->removeCase(CaseIt);
-      } else {
-        ++CaseIt;
-      }
-    }
+    // We set the debug metadata of the promoted `Branch` instruction to the
+    // same value it has before the promotion is performed
+    Builder.CreateBr(ReachableSuccessor);
 
-    // Handle the simplification when `UnreachableSuccessor` is the default.
-    BasicBlock *DefaultTarget = Switch->getDefaultDest();
-    if (DefaultTarget == UnreachableSuccessor) {
-      // It should never be the case that we end up with a `switch` having only
-      // `UnreachableSuccessor` as its default successor.
-      revng_assert(Switch->getNumCases() != 0);
-
-      // We redirect the default to point to the same case of the first case.
-      // This is arbitrary, but the contract of this function is that
-      // `UnreachableSuccessor` should be guaranteed to be unreachable, so we
-      // can redirect any path that would reach it to wherever we want.
-      Switch->setDefaultDest(Switch->case_begin()->getCaseSuccessor());
-    }
+    // We remove the old conditional branch
+    Terminator->eraseFromParent();
   }
 }
 

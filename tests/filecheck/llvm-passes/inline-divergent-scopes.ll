@@ -80,5 +80,4 @@ block_f:
 ; CHECK:   call void @scope_closer(ptr blockaddress(@g, %block_c_ids))
 ; CHECK:   ret void
 ; CHECK: block_c_ids:
-; CHECK:   switch i32 %b, label %block_b [
-; CHECK:   ]
+; CHECK:    br label %block_b
