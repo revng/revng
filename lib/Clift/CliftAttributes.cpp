@@ -47,6 +47,26 @@ static void printString(mlir::AsmPrinter &Printer, llvm::StringRef String) {
   Printer << '\"';
 }
 
+static mlir::ParseResult parseBool(mlir::AsmParser &Parser, bool &Out) {
+  mlir::SMLoc Loc = Parser.getCurrentLocation();
+
+  if (Parser.parseOptionalKeyword("true").succeeded()) {
+    Out = true;
+    return mlir::success();
+  }
+
+  if (Parser.parseOptionalKeyword("false").succeeded()) {
+    Out = false;
+    return mlir::success();
+  }
+
+  return Parser.emitError(Loc) << "expected boolean";
+}
+
+static void printBool(mlir::AsmPrinter &Printer, bool Value) {
+  Printer << (Value ? "true" : "false");
+}
+
 //===-------------------------- Class attributes --------------------------===//
 
 using WalkAttrT = llvm::function_ref<void(mlir::Attribute)>;
@@ -372,6 +392,100 @@ void DataModelAttr::print(mlir::AsmPrinter &Printer) const {
   }
 
   Printer << '\n';
+  Printer << '>';
+}
+
+//===--------------------------- CDialectAttr ---------------------------===//
+
+namespace {
+namespace c_dialect {
+
+struct Option {
+  std::string_view Key;
+  bool(CDialect::*Pointer);
+};
+
+static constexpr Option Options[] = {
+#define C_DIALECT_OPTION(Option) { #Option, &CDialect::Option },
+#include "revng/Support/CDialect.inc"
+};
+
+static_assert(std::ranges::is_sorted(Options, std::less(), &Option::Key));
+
+} // namespace c_dialect
+} // namespace
+
+bool CDialectAttr::getAlias(llvm::raw_ostream &OS) const {
+  OS << "c_dialect";
+  return true;
+}
+
+mlir::Attribute CDialectAttr::parse(mlir::AsmParser &Parser, mlir::Type) {
+  std::bitset<std::size(c_dialect::Options)> Configured;
+  CDialect Dialect = CDialect::Default;
+
+  auto ParseOption = [&]() -> mlir::ParseResult {
+    mlir::SMLoc KeyLoc = Parser.getCurrentLocation();
+    llvm::StringRef KeyStringRef;
+    if (Parser.parseKeyword(&KeyStringRef).failed())
+      return mlir::failure();
+
+    std::string_view Key = KeyStringRef;
+    auto I = std::ranges::lower_bound(c_dialect::Options,
+                                      Key,
+                                      std::less(),
+                                      &c_dialect::Option::Key);
+
+    if (I == std::ranges::end(c_dialect::Options) or Key != I->Key)
+      return Parser.emitError(KeyLoc)
+             << "Invalid C dialect option: '" << Key << "'";
+
+    if (Parser.parseEqual().failed())
+      return mlir::failure();
+
+    if (parseBool(Parser, Dialect.*(I->Pointer)).failed())
+      return mlir::failure();
+
+    unsigned Index = I - std::ranges::begin(c_dialect::Options);
+
+    if (Configured.test(Index))
+      return Parser.emitError(KeyLoc) << "C dialect option has already been "
+                                         "specified: '"
+                                      << Key << "'";
+
+    Configured.set(Index);
+    return mlir::success();
+  };
+
+  if (Parser
+        .parseCommaSeparatedList(mlir::AsmParser::Delimiter::LessGreater,
+                                 ParseOption)
+        .failed())
+    return {};
+
+  return CDialectAttr::get(Parser.getContext(), Dialect);
+}
+
+void CDialectAttr::print(mlir::AsmPrinter &Printer) const {
+  const CDialect &Dialect = getDialect();
+
+  Printer << '<';
+
+  bool PrintedAnyOptions = false;
+  for (const auto &Option : c_dialect::Options) {
+    bool Value = Dialect.*(Option.Pointer);
+    if (Value != CDialect::Default.*(Option.Pointer)) {
+      if (std::exchange(PrintedAnyOptions, true))
+        Printer << ',';
+
+      Printer << '\n' << "  " << Option.Key << " = ";
+      printBool(Printer, Value);
+    }
+  }
+
+  if (PrintedAnyOptions)
+    Printer << '\n';
+
   Printer << '>';
 }
 
