@@ -159,8 +159,10 @@ public:
   [[nodiscard]] friend size_t hash_value(const CDataModel &DM) {
     size_t HashCode = llvm::hash_code(DM.PointerSize);
 
-    for (int I = 0; I < static_cast<int>(CStandardType::Count); ++I)
-      HashCode = llvm::hash_combine(llvm::hash_code(DM.StandardTypeSize[I]));
+    for (int I = 0; I < static_cast<int>(CStandardType::Count); ++I) {
+      HashCode = llvm::hash_combine(HashCode,
+                                    llvm::hash_code(DM.StandardTypeSize[I]));
+    }
 
     return HashCode;
   }
