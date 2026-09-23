@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 from urllib.parse import ParseResult, urlparse
 
-from httpx2 import Client, RequestError, Response
+from httpx2 import Client, HTTPTransport, RequestError, Response
 
 from revng.pypeline.container import Container, ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
@@ -184,7 +184,22 @@ class DaemonBackendFactory(BackendFactory):
         parsed = urlparse(url)
         if parsed.scheme == DAEMON_SCHEME:
             parsed = parsed._replace(scheme="http")
-        self._base_url = parsed
+
+        self._unix_path: str | None = None
+        if parsed.netloc == "!unix":
+            if "/-" in parsed.path:
+                parts = parsed.path.split("/-", 1)
+                unix_path = parts[0]
+                path = parts[1]
+            else:
+                unix_path = parsed.path
+                path = ""
+
+            self._base_url = parsed._replace(netloc="localhost", path=path)
+            self._unix_path = unix_path
+        else:
+            self._base_url = parsed
+
         self._pipeline = pipeline
 
     @asynccontextmanager
@@ -196,7 +211,13 @@ class DaemonBackendFactory(BackendFactory):
         token: str | None,
         runner_context: RunnerContext = RunnerContext(),
     ) -> AsyncIterator[Backend]:
-        http = Client(http2=True, timeout=None, event_hooks={"response": [self._raise_for_status]})
+        transport = HTTPTransport(uds=self._unix_path, http2=True)
+        http = Client(
+            http2=True,
+            timeout=None,
+            transport=transport,
+            event_hooks={"response": [self._raise_for_status]},
+        )
         if project_id is not None:
             http.headers["x-project-id"] = project_id
         if token is not None:
