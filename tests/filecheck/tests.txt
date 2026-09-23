@@ -226,6 +226,11 @@ clift/expressions/use-global-variable.mlir
 clift/expressions/use-nonexistent-global-variable.mlir
 clift/implicit-cast-elision/add.mlir
 clift/implicit-cast-elision/assign.mlir
+clift/implicit-cast-elision/dialect-explicit.mlir
+clift/implicit-cast-elision/dialect-explicit-incompatible-pointer-conversions.mlir
+clift/implicit-cast-elision/dialect-explicit-pointer-sign-conversions.mlir
+clift/implicit-cast-elision/dialect-explicit-qualifier-discarding-conversions.mlir
+clift/implicit-cast-elision/dialect-explicit-void-pointer-conversions.mlir
 clift/implicit-cast-elision/if.mlir
 clift/implicit-cast-elision/call.mlir
 clift/implicit-cast-elision/neg.mlir
