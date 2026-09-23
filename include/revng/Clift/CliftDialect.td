@@ -42,6 +42,10 @@ def Clift_Dialect : Dialect {
       return "clift.data_model";
     }
 
+    static llvm::StringRef getCDialectAttrName() {
+      return "clift.c_dialect";
+    }
+
     const CDataModel *getDefaultDataModel() const;
     void setDefaultDataModel(const CDataModel &DataModel);
 
