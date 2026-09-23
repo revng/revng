@@ -17,6 +17,7 @@
 #include "revng/Clift/CliftMutableStringAttr.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CDataModel.h"
+#include "revng/Support/CDialect.h"
 
 namespace clift {
 
