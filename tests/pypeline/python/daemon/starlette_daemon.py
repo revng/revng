@@ -5,19 +5,37 @@
 import logging
 import socket
 import time
+from contextlib import AbstractContextManager
 from multiprocessing import Process
 from signal import SIGTERM
 from tempfile import TemporaryDirectory
 
-import requests
-import websockets
-import websockets.sync.client
+import httpx2
+from httpx2.websockets import WebSocketSession
 
 from revng.pypeline.main import main
 
 from .base import Response, TestServer
 
 logger = logging.getLogger(__name__)
+
+
+class WebSocketAdapter:
+    """
+    Adapts an httpx2 WebSocket session to `SubscribeConnection`. The session is
+    only available as a context manager, which is entered here and left on
+    `close`.
+    """
+
+    def __init__(self, context_manager: AbstractContextManager[WebSocketSession]):
+        self.context_manager = context_manager
+        self.session = context_manager.__enter__()
+
+    def recv(self) -> bytes:
+        return self.session.receive_bytes()
+
+    def close(self):
+        self.context_manager.__exit__(None, None, None)
 
 
 def find_free_port():
@@ -41,14 +59,16 @@ class StarletteTestServer(TestServer):
         self.cache_dir = TemporaryDirectory()
         logger.info("Working with cache directory at %s", self.cache_dir)
 
-        # Configure a session that can directly talk to the daemon
-        self.session = requests.Session()
-
         # The server daemon has to be a daemon so when the tests finish it will
         # be killed. But this silences the exceptions, so if it fails, you need
         # to run it manually to fix them.
         self.server_process: Process | None = Process(target=self._run_server, daemon=True)
+        # `start` pickles `self` to hand it over to the child process, so the
+        # client, which is not picklable, can only be built afterwards.
         self.server_process.start()
+
+        # Configure a client that can directly talk to the daemon
+        self.session = httpx2.Client(http2=True, timeout=None)
         self._wait_for_server()
 
     def __del__(self):
@@ -97,7 +117,7 @@ class StarletteTestServer(TestServer):
                 response = self.session.get(f"{self.base_url}/status", timeout=1)
                 if response.status_code == 200:
                     return
-            except requests.exceptions.RequestException:
+            except httpx2.HTTPError:
                 pass
             time.sleep(1)
         raise RuntimeError(f"Server did not start within {timeout} seconds")
@@ -142,4 +162,6 @@ class StarletteTestServer(TestServer):
         return Response(code=r.status_code, body=r.json())
 
     def subscribe(self):
-        return websockets.sync.client.connect(f"ws://127.0.0.1:{self.port}/api/notifications")
+        return WebSocketAdapter(
+            self.session.websocket(f"ws://127.0.0.1:{self.port}/api/notifications")
+        )

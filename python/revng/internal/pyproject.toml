@@ -11,8 +11,8 @@ dependencies = [
   # Used in `revng.internal.support`
   "xdg",
   # CLI: revng model fetch-debuginfo
-  "requests",
-  "requests-toolbelt",
+  "httpx2[http2]",
+  "httpx-retries",
   "pefile",
   # CLI: revng model import idb
   "python-idb",
