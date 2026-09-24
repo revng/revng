@@ -71,6 +71,13 @@ def AddressofIndirectionPattern
         (replaceWithValue $arg),
         [(TypesAreEquivalent $res, $arg)]>;
 
+// reinterpret(T, x) -> x
+// Constraint: the type of x is equal to T.
+def RedundantReinterpretPattern
+  : Pat<(Clift_ReinterpretOp:$res $arg),
+        (replaceWithValue $arg),
+        [(TypesAreEqual $res, $arg)]>;
+
 // (T)x -> x
 // Constraint: the type of x is equivalent to T.
 def RedundantBitCastPattern

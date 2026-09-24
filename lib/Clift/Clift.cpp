@@ -1417,6 +1417,18 @@ void WhileOp::build(mlir::OpBuilder &Builder,
 
 //===----------------------------- Expressions ----------------------------===//
 
+//===---------------------------- ReinterpretOp ---------------------------===//
+
+bool ReinterpretOp::isLvalueExpression() {
+  return true;
+}
+
+LvalueToRvalueConversion
+ReinterpretOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
+  revng_assert(Operand.getOwner() == getOperation());
+  return LvalueToRvalueConversion::No;
+}
+
 //===------------------------------- TestOp -------------------------------===//
 
 mlir::LogicalResult TestOp::canonicalize(TestOp Op,

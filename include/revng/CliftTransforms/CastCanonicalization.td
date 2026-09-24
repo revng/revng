@@ -14,6 +14,10 @@ class makeCastOp<string extend> : NativeCodeCall<[{
   makeCastOpImpl<clift::}] # extend # [{>($_builder, $_loc, $0.getType(), $1)
 }]>;
 
+def HasDecayableType : Constraint<CPred<[{
+  clift::unwrapped_isa<ArrayType, FunctionType>($0.getType())
+}]>>;
+
 // test(bitcast(x)) -> test(x)
 def TestBitCastPattern
   : Pat<(Clift_TestOp (Clift_BitCastOp $arg)),
@@ -118,5 +122,14 @@ def TruncateSignExtendPattern
 def TruncateTruncatePattern
   : Pat<(Clift_TruncateOp (Clift_TruncateOp $arg)),
         (Clift_TruncateOp $arg)>;
+
+def ReinterpretReinterpretPattern
+  : Pat<(Clift_ReinterpretOp (Clift_ReinterpretOp $arg)),
+        (Clift_ReinterpretOp $arg)>;
+
+def DecayReinterpretPattern
+  : Pat<(Clift_DecayOp (Clift_ReinterpretOp $arg)),
+        (Clift_DecayOp $arg),
+        [(HasDecayableType $arg)]>;
 
 #endif

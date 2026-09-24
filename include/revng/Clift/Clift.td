@@ -930,6 +930,27 @@ def Clift_DecrementOp : Clift_UnaryIntegerMutationOp<"dec">;
 def Clift_PostIncrementOp : Clift_UnaryIntegerMutationOp<"post_inc">;
 def Clift_PostDecrementOp : Clift_UnaryIntegerMutationOp<"post_dec">;
 
+def Clift_ReinterpretOp
+  : Clift_ExpressionOp<"reinterpret",
+                       [Clift_LValueOperand<"operand">,
+                        DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
+                                                  ["isLvalueExpression",
+                                                   "lvalueToRvalueConversion"]>]> {
+
+  let arguments = (ins Clift_AnyNonVoidType:$operand);
+  let results = (outs Clift_AnyNonVoidType:$result);
+
+  let assemblyFormat = [{
+    $operand attr-dict `:` type($operand) `->` type($result)
+  }];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] mlir::Type getOperandType() {
+      return getOperand().getType();
+    }
+  }];
+}
+
 class Clift_CastExpressionOp<string mnemonic, list<Trait> traits = []>
   : Clift_BasicExpressionOp<mnemonic, Clift_CastOpInterface, traits>;
 
