@@ -233,6 +233,13 @@ set(FILECHECK_TESTS
     clift/expressions/truncate.mlir
     clift/expressions/use-global-variable.mlir
     clift/expressions/use-nonexistent-global-variable.mlir
+    clift/implicit-cast-elision/add.mlir
+    clift/implicit-cast-elision/assign.mlir
+    clift/implicit-cast-elision/if.mlir
+    clift/implicit-cast-elision/call.mlir
+    clift/implicit-cast-elision/neg.mlir
+    clift/implicit-cast-elision/not.mlir
+    clift/implicit-cast-elision/shl.mlir
     clift/model-import/ArrayType.yml
     clift/model-import/CABIFunctionType1.yml
     clift/model-import/CABIFunctionType2.yml
@@ -358,13 +365,6 @@ set(FILECHECK_TESTS
     clift/operations/switch-with-pointer-condition.mlir
     clift/operations/switch-without-condition.mlir
     clift/operations/while-without-condition.mlir
-    clift/passes/implicit-cast-elision-add.mlir
-    clift/passes/implicit-cast-elision-assign.mlir
-    clift/passes/implicit-cast-elision-if.mlir
-    clift/passes/implicit-cast-elision-call.mlir
-    clift/passes/implicit-cast-elision-neg.mlir
-    clift/passes/implicit-cast-elision-not.mlir
-    clift/passes/implicit-cast-elision-shl.mlir
     clift/reformat/normalization.mlir
     clift/reformat/tag-preservation.mlir
     clift/serialization/const.mlir
