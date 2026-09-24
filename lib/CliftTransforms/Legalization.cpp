@@ -571,6 +571,44 @@ struct IntrinsicCastPattern : mlir::OpRewritePattern<OpT> {
 
 //===---------------------------- Miscellaneous ---------------------------===//
 
+/// Changes the character type of a string literal to a C char type of size
+/// equivalent to the original character type. This is important in order to
+/// ensure that the character type does not actually match any usual Clift type,
+/// as when the string literal is emitted in C, its character type is `char`
+/// (or other character type), which is not equivalent to any fixed width
+/// integer type representable in Clift.
+struct StringPattern : mlir::OpRewritePattern<StringOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(StringOp Op, mlir::PatternRewriter &Rewriter) const override {
+    auto StringT = mlir::cast<ArrayType>(Op.getType());
+
+    if (mlir::isa<CCharType>(StringT.getElementType()))
+      return mlir::failure();
+
+    auto CharT = mlir::cast<IntegerType>(StringT.getElementType());
+    auto NewCharT = CCharType::get(Rewriter.getContext(),
+                                   CharT.getSize(),
+                                   /*IsConst=*/true);
+
+    auto NewStringT = ArrayType::get(Rewriter.getContext(),
+                                     NewCharT,
+                                     StringT.getElementsCount());
+
+    Rewriter.setInsertionPointAfter(Op);
+    auto Reinterpret = Rewriter.create<ReinterpretOp>(Op->getLoc(),
+                                                      StringT,
+                                                      Op);
+
+    Rewriter.replaceAllUsesExcept(Op, Reinterpret, Reinterpret);
+    Rewriter.updateRootInPlace(Op,
+                               [&]() { Op.getResult().setType(NewStringT); });
+
+    return mlir::success();
+  }
+};
+
 /// Rewrites reinterpret operations into sequences of addressof, bitcast, and
 /// indirection (or equivalent depending on user) using the target pointer size.
 struct ReinterpretPattern : mlir::OpRewritePattern<ReinterpretOp> {
@@ -664,6 +702,7 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   // * Resize pointer operands.
   // * Apply arithmetic promotions.
   // * Canonicalize boolean result types.
+  // * Convert string literals to C character types.
   {
     mlir::RewritePatternSet Set(Context);
 
@@ -699,6 +738,8 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     Set.add<ShiftPromotionPattern<ShlOp>>(Context, DataModel);
     Set.add<ShiftPromotionPattern<SarOp>>(Context, DataModel);
     Set.add<ShiftPromotionPattern<ShrOp>>(Context, DataModel);
+
+    Set.add<StringPattern>(Context);
 
     // Cast canonicalisation is used to collapse casts introduced by the
     // other rewrites.
