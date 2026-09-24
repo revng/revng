@@ -727,6 +727,20 @@ def Clift_StringOp : Clift_ExpressionOp<"str"> {
   }];
 
   let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] uint64_t getStringLength() {
+      return getStringType().getElementsCount() - 1;
+    }
+
+    [[nodiscard]] ArrayType getStringType() {
+      return mlir::cast<ArrayType>(getType());
+    }
+
+    [[nodiscard]] IntegerType getElementType() {
+      return mlir::cast<IntegerType>(getStringType().getElementType());
+    }
+  }];
 }
 
 class Clift_UnaryArithmeticOp<string mnemonic>
