@@ -23,11 +23,9 @@ namespace cast_canonicalization {
 
 template<typename ExtendOpT>
 static mlir::Value makeCastOpImpl(mlir::OpBuilder &Builder,
-                                  mlir::Value ArgumentValue,
-                                  mlir::Value ReplacedValue) {
-  mlir::Type TargetType = ReplacedValue.getType();
-  mlir::Location Loc = ReplacedValue.getDefiningOp()->getLoc();
-
+                                  mlir::Location Loc,
+                                  mlir::Type TargetType,
+                                  mlir::Value ArgumentValue) {
   uint64_t SourceSize = getObjectSize(ArgumentValue.getType());
   uint64_t TargetSize = getObjectSize(TargetType);
 
