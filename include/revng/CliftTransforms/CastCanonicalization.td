@@ -11,7 +11,7 @@ include "revng/Clift/Clift.td"
 include "revng/CliftTransforms/ExpressionHelpers.td"
 
 class makeCastOp<string extend> : NativeCodeCall<[{
-  makeCastOpImpl<clift::}] # extend # [{>($_builder, $1, $0)
+  makeCastOpImpl<clift::}] # extend # [{>($_builder, $_loc, $0.getType(), $1)
 }]>;
 
 // test(bitcast(x)) -> test(x)
