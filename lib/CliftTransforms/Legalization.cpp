@@ -569,6 +569,83 @@ struct IntrinsicCastPattern : mlir::OpRewritePattern<OpT> {
   }
 };
 
+//===---------------------------- Miscellaneous ---------------------------===//
+
+/// Rewrites reinterpret operations into sequences of addressof, bitcast, and
+/// indirection (or equivalent depending on user) using the target pointer size.
+struct ReinterpretPattern : mlir::OpRewritePattern<ReinterpretOp> {
+  uint64_t PointerSize;
+
+  explicit ReinterpretPattern(mlir::MLIRContext *Context,
+                              const CDataModel &DataModel) :
+    OpRewritePattern(Context), PointerSize(DataModel.PointerSize) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(ReinterpretOp Op,
+                  mlir::PatternRewriter &Rewriter) const override {
+
+    // It is assumed that previous cast canonicalization has eliminated any
+    // redundant cast.
+    revng_assert(Op.getOperandType() != Op.getType());
+
+    mlir::OpOperand *Use = getOnlyUse(Op);
+    revng_assert(Use != nullptr);
+
+    Rewriter.setInsertionPoint(Op);
+
+    mlir::Value Result = //
+      Rewriter.create<AddressofOp>(Op->getLoc(),
+                                   PointerType::get(Op.getOperandType(),
+                                                    PointerSize),
+                                   Op.getOperand());
+
+    // If the only user is an address-of, it can be erased and the inner bitcast
+    // type can be adjusted to match the address-of result type.
+    if (auto Addressof = mlir::dyn_cast<AddressofOp>(Use->getOwner())) {
+      // Previous legalization ensures that all address-of operation results
+      // match the target pointer size.
+      revng_assert(getObjectSize(Addressof) == PointerSize);
+
+      Use = getOnlyUse(Addressof);
+      revng_assert(Use != nullptr);
+
+      Result = Rewriter.create<BitCastOp>(Op->getLoc(),
+                                          Addressof.getType(),
+                                          Result);
+
+      Use->drop();
+      Rewriter.eraseOp(Addressof);
+    } else {
+      Result = Rewriter.create<BitCastOp>(Op->getLoc(),
+                                          PointerType::get(Op.getType(),
+                                                           PointerSize),
+                                          Result);
+
+      // If the only user is a direct access operation, then in place of an
+      // indirection, the direct access can be replaced by an indirect one.
+      if (auto Access = mlir::dyn_cast<DirectAccessOp>(Use->getOwner())) {
+        Use = getOnlyUse(Access);
+        revng_assert(Use != nullptr);
+
+        Result = Rewriter.create<IndirectAccessOp>(Op->getLoc(),
+                                                   Result,
+                                                   Access.getMemberIndex());
+
+        Use->drop();
+        Rewriter.eraseOp(Access);
+      } else {
+        // For any other value consumer, an indirection is required.
+        Result = Rewriter.create<IndirectionOp>(Op->getLoc(), Result);
+      }
+    }
+
+    Use->set(Result);
+    Rewriter.eraseOp(Op);
+
+    return mlir::success();
+  }
+};
+
 struct CLegalizationPass
   : clift::impl::CliftCLegalizationBase<CLegalizationPass> {
 
@@ -642,11 +719,13 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   // * Canonicalize boolean extensions.
   //   This should only be done without cast canonicalization rewrites, as those
   //   would undo the boolean extension canonicalization rewrites.
+  // * Convert reinterpret operations to addressof-bitcast-indirection.
   {
     mlir::RewritePatternSet Set(Context);
 
     Set.add<ImmediateCastPattern>(Context, DataModel);
     Set.add<BooleanCanonicalizationPattern>(Context, DataModel);
+    Set.add<ReinterpretPattern>(Context, DataModel);
 
     auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
     if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())

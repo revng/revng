@@ -70,6 +70,9 @@ set(FILECHECK_TESTS
     clift/c-legalization/neg-imm.mlir
     clift/c-legalization/null32.mlir
     clift/c-legalization/ptr32.mlir
+    clift/c-legalization/reinterpret-access.mlir
+    clift/c-legalization/reinterpret-addressof.mlir
+    clift/c-legalization/reinterpret.mlir
     clift/c-legalization/sar-sign.mlir
     clift/c-legalization/sext-unsigned.mlir
     clift/c-legalization/zext-signed.mlir
