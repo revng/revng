@@ -1291,6 +1291,13 @@ mlir::LogicalResult ImplicitCastOp::verify() {
 
 //===----------------------------- ImmediateOp ----------------------------===//
 
+// For the purposes of the assembly syntax, the signedness of the immediate type
+// is ignored. The entire signed-min to unsigned-max range of values for a given
+// bit-width is accepted, but all values are printed as if signed. This is the
+// best choice because the immediate typing rarely has any correspondence with
+// the meaning of the value, and so uniformity of representation is more useful
+// than matching the value to the type.
+
 mlir::ParseResult ImmediateOp::parse(mlir::OpAsmParser &Parser,
                                      mlir::OperationState &Result) {
   llvm::APInt Value;
@@ -1309,8 +1316,15 @@ mlir::ParseResult ImmediateOp::parse(mlir::OpAsmParser &Parser,
 
   if (clift::unwrapped_isa<IntegralType>(Type)) {
     unsigned Width = getObjectSize(Type) * 8;
-    if (Value.getActiveBits() <= Width)
-      Value = Value.sextOrTrunc(Width);
+    if (Value.getBitWidth() != Width) {
+      if (Value.isSignBitSet()) {
+        if (Value.getSignificantBits() <= Width)
+          Value = Value.sextOrTrunc(Width);
+      } else {
+        if (Value.getActiveBits() <= Width)
+          Value = Value.zextOrTrunc(Width);
+      }
+    }
   }
 
   Result.addTypes(Type);
@@ -1323,7 +1337,7 @@ mlir::ParseResult ImmediateOp::parse(mlir::OpAsmParser &Parser,
 
 void ImmediateOp::print(mlir::OpAsmPrinter &Printer) {
   Printer << ' ';
-  Printer << getValue();
+  getValue().print(Printer.getStream(), /*isSigned=*/true);
   Printer.printOptionalAttrDict(getOperation()->getAttrs(), { "value" });
   Printer << " : ";
   Printer << getType();
