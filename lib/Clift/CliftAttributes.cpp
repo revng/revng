@@ -1127,11 +1127,15 @@ void CliftDialect::registerAttributes() {
 /// Parse an attribute registered to this dialect
 mlir::Attribute CliftDialect::parseAttribute(mlir::DialectAsmParser &Parser,
                                              mlir::Type Type) const {
+  const llvm::SMLoc AttrLoc = Parser.getCurrentLocation();
+
   llvm::StringRef Mnemonic;
   if (mlir::Attribute Attr;
       generatedAttributeParser(Parser, &Mnemonic, Type, Attr).has_value())
     return Attr;
 
+  Parser.emitError(AttrLoc) << "unknown attribute `" << Mnemonic
+                            << "` in dialect `" << getNamespace() << "`";
   return {};
 }
 
