@@ -204,6 +204,9 @@ set(FILECHECK_TESTS
     clift/expressions/direct-access-strips-qualifiers.mlir
     clift/expressions/extend-i32-to-i32.mlir
     clift/expressions/extend.mlir
+    clift/expressions/immediate.mlir
+    clift/expressions/immediate-out-of-range-max.mlir
+    clift/expressions/immediate-out-of-range-min.mlir
     clift/expressions/increment-const-local-variable.mlir
     clift/expressions/increment-immediate.mlir
     clift/expressions/increment-local-variable.mlir
