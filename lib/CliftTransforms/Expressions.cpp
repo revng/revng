@@ -74,6 +74,10 @@ pointerOffsetQuotient(mlir::IntegerAttr OffsetAttr,
 
 } // namespace expression_optimization
 
+namespace expression_optional_optimization {
+#include "revng/CliftTransforms/ExpressionsOptional.h.inc"
+} // namespace expression_optional_optimization
+
 static bool isSubjectToLvalueToRvalueConversion(mlir::OpOperand &Operand) {
   if (auto E = mlir::dyn_cast<ExpressionOpInterface>(Operand.getOwner()))
     return E.lvalueToRvalueConversion(Operand) == LvalueToRvalueConversion::Yes;
@@ -270,6 +274,12 @@ void clift::populateWithImmediateCanonicalizations(mlir::RewritePatternSet
 void clift::populateWithExpressionOptimizationPatterns(mlir::RewritePatternSet
                                                          &Set) {
   expression_optimization::populateWithGenerated(Set);
+
+  namespace opt = expression_optional_optimization;
+
+  Set.addWithLabel<opt::SubscriptZeroPattern>( //
+    llvm::StringRef("incompatible-with-efa"),
+    Set.getContext());
 
   populateWithBooleanNegationPatterns(Set);
   populateWithCastCanonicalizations(Set);
