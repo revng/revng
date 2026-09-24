@@ -1529,18 +1529,39 @@ bool StringOp::isLvalueExpression() {
 }
 
 mlir::LogicalResult StringOp::verify() {
-  auto ArrayT = mlir::dyn_cast<ArrayType>(getType());
-  if (not ArrayT or not isConst(ArrayT))
+  auto ArrayT = mlir::dyn_cast<ArrayType>(collapseTypedefs(getType()));
+  if (not ArrayT)
     return emitOpError() << getOperationName()
-                         << " result must have const array type.";
+                         << " result must have array type.";
 
-  auto CharT = mlir::dyn_cast<IntegerType>(ArrayT.getElementType());
-  if (not CharT or CharT.getSize() != 1)
+  mlir::Type CharT = collapseTypedefs(ArrayT.getElementType());
+  if (not mlir::isa<IntegerType, CCharType>(CharT))
     return emitOpError() << getOperationName()
-                         << " result element type must be an 8-bit wide"
-                            " primitive integer type.";
+                         << " result element type must be a primitive integer"
+                            " type or a C character type.";
 
-  if (ArrayT.getElementsCount() != getValue().size() + 1)
+  if (mlir::isa<CCharType>(CharT)) {
+    if (mlir::isa<TypedefType>(getType()))
+      return emitOpError() << getOperationName()
+                           << " result may not have typedef type when the"
+                              " element type is a C character type.";
+
+    if (mlir::isa<TypedefType>(ArrayT.getElementType()))
+      return emitOpError() << getOperationName()
+                           << " result element may not have typedef type with"
+                              " an underlying C character type.";
+  }
+
+  if (not isConst(CharT))
+    return emitOpError() << getOperationName()
+                         << " result element type must be effectively const.";
+
+  uint64_t CharSize = getObjectSize(CharT);
+  if (CharSize != 1)
+    return emitOpError() << getOperationName()
+                         << " result element type must have a width of 8 bits.";
+
+  if (ArrayT.getElementsCount() != getValue().size() + CharSize)
     return emitOpError() << getOperationName()
                          << " result type length must match string length"
                             " (including null terminator).";

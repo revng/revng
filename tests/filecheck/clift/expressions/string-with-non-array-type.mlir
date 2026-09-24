@@ -4,7 +4,5 @@
 
 // RUN: not %root/bin/revng clift-opt %s 2>&1 | FileCheck %s
 
-!char$const = !clift.const<!clift.int<number 1>>
-
-// CHECK: result must have const array type
-clift.str "hello" : !char$const
+// CHECK: result must have array type
+clift.str "hello" : !clift.const<!clift.int<signed 1>>

@@ -1447,6 +1447,34 @@ void clift::writeUnionDefinition(clift::UnionType Type,
   return writeClassDefinition(Type, Writer);
 }
 
+//===------------------------------ CCharType -----------------------------===//
+
+AddressableType CCharType::addConst() const {
+  if (getIsConst())
+    return *this;
+
+  return CCharType::get(getContext(), getSize(), /*IsConst=*/true);
+}
+
+AddressableType CCharType::removeConst() const {
+  if (not getIsConst())
+    return *this;
+
+  return CCharType::get(getContext(), getSize(), /*IsConst=*/false);
+}
+
+uint64_t CCharType::getObjectSize() const {
+  return getSize();
+}
+
+mlir::LogicalResult
+CCharType::verify(EmitErrorType EmitError, uint64_t Size, bool IsConst) {
+  if (Size == 0)
+    return EmitError() << "C char types must have non-zero size.";
+
+  return mlir::success();
+}
+
 //===---------------------------- Type helpers ----------------------------===//
 
 //===------------------------------ Typedefs ------------------------------===//

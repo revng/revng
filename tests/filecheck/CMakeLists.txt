@@ -228,8 +228,10 @@ set(FILECHECK_TESTS
     clift/expressions/pointer-resize.mlir
     clift/expressions/pointer-sub-reversed.mlir
     clift/expressions/string-with-bad-array-size.mlir
+    clift/expressions/string-with-char-array-typedef-type.mlir
+    clift/expressions/string-with-char-typedef-type.mlir
     clift/expressions/string-with-non-array-type.mlir
-    clift/expressions/string-with-non-char-type.mlir
+    clift/expressions/string-with-non-char-like-type.mlir
     clift/expressions/string-with-non-const-type.mlir
     clift/expressions/string.mlir
     clift/expressions/ternary-is-rvalue.mlir

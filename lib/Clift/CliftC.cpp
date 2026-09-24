@@ -75,13 +75,12 @@ static bool isImplicitPointerConversionInC(mlir::Type Source,
   if (Dialect.ImplicitIncompatiblePointerConversions)
     return true;
 
-  // Conversion between integer types of similar width may be implicit,
-  // depending on configuration.
+  // Conversion between integer or C character types of equal width may be
+  // implicit, depending on configuration.
   if (Dialect.ImplicitPointerSignConversions) {
-    auto SI = mlir::dyn_cast<IntegerType>(Source);
-    auto TI = mlir::dyn_cast<IntegerType>(Target);
-
-    if (SI and TI and SI.getSize() == TI.getSize())
+    if (mlir::isa<IntegerType>(Target)
+        and mlir::isa<IntegerType, CCharType>(Source)
+        and getObjectSize(Source) == getObjectSize(Target))
       return true;
   }
 
