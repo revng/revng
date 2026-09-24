@@ -342,6 +342,8 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/llm_rename/prompt.tpl
     revng/internal/cli/_commands/hard_purge.py
     revng/internal/cli/_commands/process_docs_yaml/__init__.py
+    revng/internal/cli/_commands/project_agent/__init__.py
+    revng/internal/cli/_commands/project_agent/prompt.tpl
     revng/internal/cli/_commands/tar_to_yaml.py
     revng/internal/cli/_commands/test_docs/__init__.py
     revng/internal/cli/_commands/test_docs/doctest_runner.py

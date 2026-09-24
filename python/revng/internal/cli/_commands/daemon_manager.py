@@ -15,7 +15,6 @@ import asyncio
 import fcntl
 import os
 import signal
-import socket
 import sys
 from contextlib import contextmanager, suppress
 from pathlib import Path
@@ -32,6 +31,7 @@ import click
 from xdg import xdg_runtime_dir
 
 from revng.internal.cli.common import ClickContext, CommandRegistry, cli_logger, pass_context
+from revng.internal.support import check_unix_socket
 from revng.pypeline.cli.hypercorn import hypercorn_command, is_bind_default, run_hypercorn
 
 # Maximum time (in seconds) between each client refresh request
@@ -360,24 +360,11 @@ def manager_lock():
             os.remove(path)
 
 
-def check_socket(path: Path):
-    if not path.exists() or not path.is_socket():
-        return False
-
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-        sock.settimeout(1.0)
-        try:
-            sock.connect(str(path))
-            return True
-        except OSError:
-            return False
-
-
 def demonize_manager(socket_path: Path):
     log_path = socket_path.parent / "manager.log"
 
     with manager_lock():
-        if check_socket(socket_path):
+        if check_unix_socket(socket_path):
             return
 
         # Delete the socket path, if present
@@ -390,7 +377,7 @@ def demonize_manager(socket_path: Path):
         pid = os.fork()
         if pid > 0:
             # Only return once the daemon is up
-            while not check_socket(socket_path):
+            while not check_unix_socket(socket_path):
                 sleep(0.05)
             return
         else:

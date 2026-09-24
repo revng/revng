@@ -16,6 +16,8 @@ dependencies = [
   "pefile",
   # CLI: revng model import idb
   "python-idb",
+  # CLI: revng project agent
+  "PyJWT",
   # CLI: revng model compare
   "networkx",
   "grandiso",
@@ -37,6 +39,7 @@ revng = [
   "internal/daemon/schema.graphql",
   "internal/cli/_commands/generate_migrations/migration.py.tpl",
   "internal/cli/_commands/llm_rename/prompt.tpl",
+  "internal/cli/_commands/project_agent/prompt.tpl",
 ]
 
 [tool.setuptools]
