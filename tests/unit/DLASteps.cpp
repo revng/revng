@@ -1131,3 +1131,210 @@ BOOST_AUTO_TEST_CASE(ArrangeAccessesHierarchically_onlyLoopingPushIsRefused) {
   revng_check(countInstanceEdges(ChildC, ChildA) == 1);
   revng_check(countInstanceEdges(Parent, ChildA) == 0);
 }
+
+// Runs MergePointeesOfPointerUnion, preceded by the step it depends on.
+static void runMergePointeesOfPointerUnion(LayoutTypeSystem &TS,
+                                           size_t PointerSize) {
+  // Enable expensive checks
+  VerifyLog.enable();
+
+  dla::StepManager SM;
+  // The steps ComputeUpperMemberAccesses depends on, in turn depended upon by
+  // MergePointeesOfPointerUnion.
+  revng_check(SM.addStep<dla::CollapseEqualitySCC>());
+  revng_check(SM.addStep<dla::CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<dla::PruneLayoutNodesWithoutLayout>());
+  revng_check(SM.addStep<dla::ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<dla::MergePointeesOfPointerUnion>(PointerSize));
+  SM.run(TS);
+
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
+}
+
+// Returns the target of the only pointer edge going out of N, and checks that
+// there is exactly one.
+static const LTSN *getOnlyPointee(const LTSN *N) {
+  const LTSN *Result = nullptr;
+  for (const auto &Edge : N->Successors) {
+    if (not isPointerEdge(Edge))
+      continue;
+    revng_check(Result == nullptr);
+    Result = Edge.first;
+  }
+  revng_check(Result != nullptr);
+  return Result;
+}
+
+// Collects the targets of the instance edges going from N to offset 0.
+static std::vector<const LTSN *> getInstancesAtOffset0(const LTSN *N) {
+  std::vector<const LTSN *> Result;
+  for (const auto &Edge : N->Successors)
+    if (isInstanceOff0(Edge))
+      Result.push_back(Edge.first);
+  return Result;
+}
+
+/// A pointer merged with a scalar larger than itself
+///
+/// The two pointees of a union of pointers are merged together. One of them is
+/// a pointer, the other is a plain scalar twice as large. What survives a merge
+/// is the largest of the nodes, so the plain scalar does, and it takes up the
+/// pointer edge of the other. A node carrying a pointer edge is a pointer
+/// though, so it has to be pointer sized, and this one is not. The pointer edge
+/// has to end up on a pointer sized node of its own, reachable from the merged
+/// scalar at offset 0.
+BOOST_AUTO_TEST_CASE(MergePointeesOfPointerUnion_pointerIntoLargerScalar) {
+  dla::LayoutTypeSystem TS;
+  constexpr size_t PointerSize = 4;
+
+  // Two pointers hanging off the same node at the same offset, which is what
+  // makes them a union of pointers.
+  LTSN *Root = createRoot(TS);
+  LTSN *PointerToScalar = addInstanceAtOffset(TS, Root, 0, PointerSize);
+  LTSN *PointerToPointer = addInstanceAtOffset(TS, Root, 0, PointerSize);
+
+  // The first one points to a plain scalar, twice as large as a pointer.
+  LTSN *LargeScalar = TS.createArtificialLayoutType();
+  LargeScalar->Size = 2 * PointerSize;
+  TS.addPointerLink(PointerToScalar, LargeScalar);
+
+  // The second one points to a pointer, which points to a scalar of its own.
+  LTSN *Pointer = TS.createArtificialLayoutType();
+  Pointer->Size = PointerSize;
+  TS.addPointerLink(PointerToPointer, Pointer);
+  LTSN *FinalPointee = TS.createArtificialLayoutType();
+  FinalPointee->Size = PointerSize;
+  TS.addPointerLink(Pointer, FinalPointee);
+
+  runMergePointeesOfPointerUnion(TS, PointerSize);
+
+  // The large scalar survived the merge, with its size.
+  revng_check(not TS.getEqClasses().isRemoved(LargeScalar->ID));
+  revng_check(LargeScalar->Size == 2 * PointerSize);
+
+  // It does not carry the pointer edge itself, since it is not pointer sized.
+  revng_check(not isPointerNode(LargeScalar));
+
+  // The pointer edge sits on a pointer sized node at offset 0 inside it, and
+  // still reaches what it reached before.
+  std::vector<const LTSN *> Instances = getInstancesAtOffset0(LargeScalar);
+  revng_check(Instances.size() == 1);
+  const LTSN *RehomedPointer = Instances.front();
+  revng_check(RehomedPointer->Size == PointerSize);
+  revng_check(getOnlyPointee(RehomedPointer) == FinalPointee);
+}
+
+/// Two pointers of the same size merged together
+///
+/// Both pointees of the union are pointers, so the merged node is pointer
+/// sized, but it ends up with two pointer edges, and a pointer only has one.
+/// Each of them has to end up on a pointer sized node of its own, reachable
+/// from the merged scalar at offset 0.
+BOOST_AUTO_TEST_CASE(MergePointeesOfPointerUnion_twoPointers) {
+  dla::LayoutTypeSystem TS;
+  constexpr size_t PointerSize = 4;
+
+  LTSN *Root = createRoot(TS);
+  LTSN *FirstPointer = addInstanceAtOffset(TS, Root, 0, PointerSize);
+  LTSN *SecondPointer = addInstanceAtOffset(TS, Root, 0, PointerSize);
+
+  // Both point to a pointer, and each of those points to a scalar of its own.
+  LTSN *FirstPointee = TS.createArtificialLayoutType();
+  FirstPointee->Size = PointerSize;
+  TS.addPointerLink(FirstPointer, FirstPointee);
+  LTSN *FirstFinal = TS.createArtificialLayoutType();
+  FirstFinal->Size = PointerSize;
+  TS.addPointerLink(FirstPointee, FirstFinal);
+
+  LTSN *SecondPointee = TS.createArtificialLayoutType();
+  SecondPointee->Size = PointerSize;
+  TS.addPointerLink(SecondPointer, SecondPointee);
+  LTSN *SecondFinal = TS.createArtificialLayoutType();
+  SecondFinal->Size = PointerSize;
+  TS.addPointerLink(SecondPointee, SecondFinal);
+
+  // The merge deallocates the nodes it does not keep, so take note of the IDs
+  // while they are all still around.
+  const unsigned FirstFinalID = FirstFinal->ID;
+  const unsigned SecondFinalID = SecondFinal->ID;
+
+  runMergePointeesOfPointerUnion(TS, PointerSize);
+
+  // One of the two pointees survived the merge, and it is the one with the
+  // lowest ID, since they have the same size.
+  const LTSN *Merged = FirstPointee;
+  revng_check(not TS.getEqClasses().isRemoved(Merged->ID));
+  revng_check(Merged->Size == PointerSize);
+
+  // It does not carry either pointer edge itself, since a pointer has one.
+  revng_check(not isPointerNode(Merged));
+
+  // Both of them sit on a pointer sized node at offset 0 inside it.
+  std::vector<const LTSN *> Instances = getInstancesAtOffset0(Merged);
+  revng_check(Instances.size() == 2);
+
+  // Those two nodes are a union of pointers in their own right, so the step
+  // goes around again and merges what they point to as well. Both of them end
+  // up reaching the same node, the one with the lowest ID of the two.
+  std::set<const LTSN *> Reached;
+  for (const LTSN *Instance : Instances) {
+    revng_check(Instance->Size == PointerSize);
+    Reached.insert(getOnlyPointee(Instance));
+  }
+  revng_check(Reached.size() == 1);
+
+  // What they reach is the merge of the two nodes they used to reach.
+  const auto &EqClass = TS.getEqClasses()
+                          .computeEqClass((*Reached.begin())->ID);
+  revng_check(EqClass.size() == 2);
+  for (const unsigned Collapsed : EqClass)
+    revng_check(Collapsed == FirstFinalID or Collapsed == SecondFinalID);
+}
+
+/// A pointee coming from the model, smaller than the aggregate it is merged
+/// with
+///
+/// A pointee whose type comes from the model is kept apart from the others,
+/// and it is not merged with them. When it is smaller than the aggregate the
+/// other pointees were merged into, the pointer reaching it is moved onto that
+/// aggregate, and it becomes a field of it at offset 0.
+BOOST_AUTO_TEST_CASE(MergePointeesOfPointerUnion_smallerFromModel) {
+  dla::LayoutTypeSystem TS;
+  constexpr size_t PointerSize = 4;
+
+  LTSN *Root = createRoot(TS);
+  LTSN *PointerToAggregate = addInstanceAtOffset(TS, Root, 0, PointerSize);
+  LTSN *PointerToModelType = addInstanceAtOffset(TS, Root, 0, PointerSize);
+
+  // The first one points to an aggregate, which is one because it has a field
+  // of its own. The field sits at a non zero offset, so that it is told apart
+  // from the one the step is expected to add at offset 0.
+  LTSN *Aggregate = TS.createArtificialLayoutType();
+  Aggregate->Size = 2 * PointerSize;
+  TS.addPointerLink(PointerToAggregate, Aggregate);
+  addInstanceAtOffset(TS, Aggregate, PointerSize, PointerSize);
+
+  // The second one points to a type coming from the model, smaller than the
+  // aggregate.
+  LTSN *ModelType = TS.createArtificialLayoutType();
+  ModelType->Size = PointerSize;
+  ModelType->NonScalar = true;
+  TS.addPointerLink(PointerToModelType, ModelType);
+
+  runMergePointeesOfPointerUnion(TS, PointerSize);
+
+  // Both nodes are still around: a type from the model is never merged away.
+  revng_check(Aggregate->Size == 2 * PointerSize);
+  revng_check(ModelType->Size == PointerSize);
+  revng_check(ModelType->NonScalar);
+
+  // The pointer that used to reach the type from the model now reaches the
+  // aggregate.
+  revng_check(getOnlyPointee(PointerToModelType) == Aggregate);
+
+  // And the type from the model became a field of the aggregate at offset 0.
+  std::vector<const LTSN *> Instances = getInstancesAtOffset0(Aggregate);
+  revng_check(Instances.size() == 1);
+  revng_check(Instances.front() == ModelType);
+}

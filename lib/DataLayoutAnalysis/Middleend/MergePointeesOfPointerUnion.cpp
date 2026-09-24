@@ -222,7 +222,7 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
 
         llvm::SmallVector<LTSN *> Scalars = UniquedScalars.takeVector();
         llvm::SmallVector<LTSN *> Aggregates = UniquedAggregates.takeVector();
-        llvm::SmallVector<LTSN *> FromModel = UniquedAggregates.takeVector();
+        llvm::SmallVector<LTSN *> FromModel = UniquedFromModel.takeVector();
 
         const auto Ordering = [](const LTSN *LHS, const LTSN *RHS) {
           auto LSize = LHS->Size;
@@ -255,9 +255,11 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
 
           revng_log(Log, "MergedScalar: " << MergedScalar->ID);
 
-          // Check if we merged more than one scalar that also was a pointer.
-          // In that case we have to create a new union of their pointees,
-          // enqueue it for further analysis
+          // A node with an outgoing pointer edge is a pointer, so it is
+          // pointer sized and that edge is the only one it has. Merging can
+          // break both of those: more than one of the merged scalars can be a
+          // pointer, and a pointer can be merged into a scalar larger than
+          // itself, since what survives a merge is the largest of the nodes.
           llvm::SmallVector<LTSN::NeighborIterator> PointerEdges;
           {
             LTSN::NeighborIterator ChildIt = MergedScalar->Successors.begin();
@@ -265,14 +267,22 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
             for (; ChildIt != ChildEnd; ++ChildIt)
               if (isPointerEdge(*ChildIt))
                 PointerEdges.push_back(ChildIt);
-
-            revng_assert(PointerEdges.empty()
-                         or MergedScalar->Size == PointerSize);
           }
 
-          if (PointerEdges.size() > 1) {
+          // Whatever carries a pointer edge is at least as large as a pointer,
+          // and the merged scalar is at least as large as any of them.
+          revng_assert(PointerEdges.empty()
+                       or MergedScalar->Size >= PointerSize);
+
+          // Give each pointer edge a pointer sized node of its own, reachable
+          // from the merged scalar at offset 0, unless the merged scalar is a
+          // well formed pointer already, which is the case when it is pointer
+          // sized and there is a single edge to hold.
+          bool IsWellFormed = PointerEdges.size() == 1
+                              and MergedScalar->Size == PointerSize;
+          if (not PointerEdges.empty() and not IsWellFormed) {
             revng_log(Log,
-                      "Merged scalar is a union of pointers: "
+                      "Merged scalar cannot hold its pointer edges: "
                         << MergedScalar->ID);
             for (LTSN::NeighborIterator &PointerEdgeIt : PointerEdges) {
               LTSN *NewPointer = TS.createArtificialLayoutType();
