@@ -121,12 +121,11 @@ public:
   }
 
   template<ConstexprString Macro>
-  CAttributeListBuilder &setOrUpdate(uint64_t Value) {
+  CAttributeListBuilder &setOrUpdate(llvm::APSInt Value) {
+    revng_assert(Value.getBitWidth() <= 64,
+                 "Integers wider than 64 bits are not representable in C.");
+
     ptml::Attributes.assertAnnotationName<Macro>();
-
-    revng_assert(Value == uint32_t(Value));
-    llvm::APSInt LLVMValue(llvm::APInt(32, Value));
-
     auto AttributeLocation = pipeline::location(revng::ranks::Macro,
                                                 llvm::StringRef(Macro).str());
 
@@ -134,11 +133,19 @@ public:
     auto AttributeName = IdentifierAttr::get(Context,
                                              Macro,
                                              AttributeLocation.toString());
-    auto ArgAttribute = mlir::IntegerAttr::get(Context, LLVMValue);
+    auto ArgAttribute = mlir::IntegerAttr::get(Context, Value);
     auto Arguments = mlir::ArrayAttr::get(Context, { ArgAttribute });
     return setOrUpdateImpl(clift::CAttributeAttr::get(Context,
                                                       AttributeName,
                                                       Arguments));
+  }
+
+  template<ConstexprString Macro, std::integral IntegerT>
+  CAttributeListBuilder &setOrUpdate(IntegerT Integer) {
+    auto Value = llvm::APSInt(llvm::APInt(64, static_cast<uint64_t>(Integer)),
+                              std::is_unsigned_v<IntegerT>);
+
+    return setOrUpdate<Macro>(std::move(Value));
   }
 
   template<ConstexprString Macro>
