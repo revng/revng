@@ -596,7 +596,6 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     Set.add<ResizePtrDiffPattern>(Context, DataModel);
     Set.add<PointerResizePattern<IndirectionOp>>(Context, DataModel);
     Set.add<PointerResizePattern<SubscriptOp>>(Context, DataModel);
-    Set.add<PointerResizePattern<DirectAccessOp>>(Context, DataModel);
     Set.add<PointerResizePattern<IndirectAccessOp>>(Context, DataModel);
     Set.add<PointerResizePattern<CallOp>>(Context, DataModel);
     Set.add<ResizeAddressofPattern>(Context, DataModel);
