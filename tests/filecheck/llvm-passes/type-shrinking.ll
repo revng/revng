@@ -32,12 +32,12 @@ define i64 @shl32(i64 %0) {
 }
 
 ; Narrowing this shift to i8 would introduce poison: its amount equals the
-; new width. InstCombine folds the original expression to zero.
+; new width. Keep a wider execution type; InstCombine folds it to zero.
 define i64 @shl8_overshift(i64 %a) {
   ; CHECK-LABEL: @shl8_overshift(
   ; CHECK: ret i64 0
   ; DIRECT-LABEL: @shl8_overshift(
-  ; DIRECT: %shifted = shl i64 %a, 8
+  ; DIRECT: shl i16 {{.*}}, 8
   ; DIRECT: ret i64
   %shifted = shl i64 %a, 8
   %masked = and i64 %shifted, 255
@@ -85,8 +85,8 @@ join:
   ret i64 %masked
 }
 
-; A loop counter feeds nothing but the phi it comes back to, so before this
-; the whole chain stayed 64 bits wide.
+; A loop counter feeds only masks and the phi it comes back to, so the whole
+; cycle narrows to 32 bits.
 define i64 @loop_counter32(i64 %n) {
   ; CHECK-LABEL: @loop_counter32(
 entry:
@@ -170,7 +170,8 @@ define i1 @sext_negative(i32 %a) {
 define i1 @zext_large_unchanged(i32 %a) {
   ; DIRECT-LABEL: @zext_large_unchanged(
   %ae = zext i32 %a to i64
-  ; DIRECT: %[[C:[^ ]+]] = icmp eq i64 {{.*}}, %ae
+  ; DIRECT: %[[AE:[^ ]+]] = zext i32 %a to i64
+  ; DIRECT: %[[C:[^ ]+]] = icmp eq i64 {{4294967296|u0x100000000}}, %[[AE]]
   ; DIRECT-NEXT: ret i1 %[[C]]
   %c = icmp eq i64 4294967296, %ae
   ret i1 %c
@@ -180,7 +181,8 @@ define i1 @zext_large_unchanged(i32 %a) {
 define i1 @sext_positive_unchanged(i32 %a) {
   ; DIRECT-LABEL: @sext_positive_unchanged(
   %ae = sext i32 %a to i64
-  ; DIRECT: %[[C:[^ ]+]] = icmp ult i64 %ae, {{.*}}
+  ; DIRECT: %[[AE:[^ ]+]] = sext i32 %a to i64
+  ; DIRECT: %[[C:[^ ]+]] = icmp ult i64 %[[AE]], {{2147483648|u0x80000000}}
   ; DIRECT-NEXT: ret i1 %[[C]]
   %c = icmp ult i64 %ae, 2147483648
   ret i1 %c
@@ -191,8 +193,10 @@ define i1 @mixed_extensions(i32 %a, i32 %b) {
   ; DIRECT-LABEL: @mixed_extensions(
   %ae = zext i32 %a to i64
   %be = sext i32 %b to i64
-  ; DIRECT: %c = icmp eq i64 %ae, %be
-  ; DIRECT-NEXT: ret i1 %c
+  ; DIRECT-DAG: %[[AE:[^ ]+]] = zext i32 %a to i64
+  ; DIRECT-DAG: %[[BE:[^ ]+]] = sext i32 %b to i64
+  ; DIRECT: %[[C:[^ ]+]] = icmp eq i64 %[[AE]], %[[BE]]
+  ; DIRECT-NEXT: ret i1 %[[C]]
   %c = icmp eq i64 %ae, %be
   ret i1 %c
 }
@@ -201,8 +205,9 @@ define i1 @mixed_extensions(i32 %a, i32 %b) {
 define i1 @unextended_operand(i32 %a, i64 %b) {
   ; DIRECT-LABEL: @unextended_operand(
   %ae = zext i32 %a to i64
-  ; DIRECT: %c = icmp ult i64 %ae, %b
-  ; DIRECT-NEXT: ret i1 %c
+  ; DIRECT: %[[AE:[^ ]+]] = zext i32 %a to i64
+  ; DIRECT: %[[C:[^ ]+]] = icmp ult i64 %[[AE]], %b
+  ; DIRECT-NEXT: ret i1 %[[C]]
   %c = icmp ult i64 %ae, %b
   ret i1 %c
 }
