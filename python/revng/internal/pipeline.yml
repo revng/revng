@@ -482,6 +482,7 @@ branches:
             - optimize-statements
             - label-merging
             - refine-types-and-accesses
+            - optimize-expressions
 
             # == Context-free post-processing phase ==
             #
