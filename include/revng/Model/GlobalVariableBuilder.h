@@ -14,9 +14,11 @@ class Binary;
 class StructDefinition;
 
 /// Creates a global variable (i.e., a field in the Type of model::Segment), but
-/// only if there's a hole at the requested address.
+/// only if there's a hole at the requested address or an empty, unnamed struct
+/// covering exactly the same bytes. Replacement only matches direct, non-const
+/// struct types without annotations or singleton flags.
 ///
-/// \note If a Segment does not a have a type, we bail out.
+/// \note If a Segment does not have a type, we bail out.
 class GlobalVariableBuilder {
 private:
   model::Binary &Binary;

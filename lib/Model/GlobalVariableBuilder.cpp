@@ -21,6 +21,25 @@ model::GlobalVariableBuilder::GlobalVariableBuilder(model::Binary &Binary) :
         ++Instances[Definition];
 }
 
+static bool isPlaceholder(const model::Type &Type) {
+  if (Type.isConst())
+    return false;
+
+  const auto *Definition = Type.tryGetAsDefinition();
+  const auto *Struct = dyn_cast_or_null<model::StructDefinition>(Definition);
+  if (Struct == nullptr)
+    return false;
+
+  if (not Struct->Fields().empty() or not Struct->Name().empty()
+      or not Struct->Comment().empty())
+    return false;
+
+  if (Struct->IsSingleton() or Struct->CanContainCode())
+    return false;
+
+  return true;
+}
+
 // TODO: consider to build a cache like map<MetaAddress, StructDefinition>
 static RecursiveCoroutine<std::pair<model::StructDefinition *, uint64_t>>
 processType(const std::map<const model::TypeDefinition *, uint64_t> &Instances,
@@ -62,6 +81,10 @@ processType(const std::map<const model::TypeDefinition *, uint64_t> &Instances,
                                                << " of size " << Size);
 
     if (FieldRange.contains(TargetRange)) {
+      // Replace the field's type without changing the placeholder definition.
+      if (FieldRange == TargetRange and isPlaceholder(*Field.Type()))
+        rc_return{ Struct, Field.Offset() };
+
       // This field contains TargetAddress, recur
       rc_return rc_recur processType(Instances,
                                      TargetRange,
@@ -124,8 +147,14 @@ bool model::GlobalVariableBuilder::insert(const MetaAddress &Address,
             "We can insert the field at offset "
               << FieldOffset << " in " << StructType->toDebugString());
 
-  model::StructField NewField;
-  Struct->addField(FieldOffset, std::move(Type));
+  model::StructField &Field = Struct->Fields()[FieldOffset];
+  if (not Field.Type().isEmpty())
+    if (auto *Definition = Field.Type()->tryGetAsDefinition())
+      --Instances.at(Definition);
+
+  if (auto *Definition = Type->tryGetAsDefinition())
+    ++Instances[Definition];
+  Field.Type() = std::move(Type);
 
   revng_log(Log, "Added");
 
