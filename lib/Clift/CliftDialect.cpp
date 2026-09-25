@@ -136,6 +136,10 @@ public:
         return getCurrentOp()->emitError() << "C character types may only be "
                                               "used by address-of and string "
                                               "literal operations.";
+
+      if (not IsLegalized)
+        return getCurrentOp()->emitError() << "Non-legalized function contains "
+                                              "a C character type.";
     }
 
     if (not isCompleteType(Type))
@@ -178,6 +182,10 @@ public:
                                << " cannot be directly nested within a"
                                   " ModuleOp.";
 
+    IsLegalized = false;
+    if (mlir::isa<FunctionOp>(Op))
+      IsLegalized = Op->hasAttr("clift.legalized");
+
     return mlir::success();
   }
 
@@ -201,6 +209,7 @@ public:
   }
 
 private:
+  bool IsLegalized = false;
   llvm::DenseMap<llvm::StringRef, DefinedType> Definitions;
   llvm::DenseSet<ClassType> ClassTypes;
 };
@@ -272,6 +281,7 @@ static mlir::LogicalResult verifyLegalizedAttr(mlir::Operation *Op,
 
 struct clift::CliftDialectImpl {
   std::optional<CDataModel> DefaultDataModel;
+  bool StrictPassVerification = true;
 };
 
 void CliftDialect::initialize() {
@@ -296,6 +306,14 @@ const CDataModel *CliftDialect::getDefaultDataModel() const {
 
 void CliftDialect::setDefaultDataModel(const CDataModel &DataModel) {
   Impl->DefaultDataModel = DataModel;
+}
+
+bool CliftDialect::isStrictPassVerificationEnabled() const {
+  return Impl->StrictPassVerification;
+}
+
+void CliftDialect::enableStrictPassVerification(bool Enable) {
+  Impl->StrictPassVerification = Enable;
 }
 
 mlir::LogicalResult

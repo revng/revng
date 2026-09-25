@@ -10,6 +10,7 @@
 #include "revng/Clift/CliftOpHelpers.h"
 #include "revng/CliftTransforms/Passes.h"
 #include "revng/CliftTransforms/RewriteHelpers.h"
+#include "revng/CliftTransforms/Verify.h"
 
 namespace clift {
 #define GEN_PASS_DEF_CLIFTWHILECONDITIONPROMOTION
@@ -96,8 +97,10 @@ struct WhileConditionPromotionPass
 
   void runOnOperation() override {
     FunctionOp Function = getOperation();
-    mlir::Region &Body = Function.getBody();
+    if (verifyNonLegalized(Function).failed())
+      return signalPassFailure();
 
+    mlir::Region &Body = Function.getBody();
     if (Body.empty())
       return;
 

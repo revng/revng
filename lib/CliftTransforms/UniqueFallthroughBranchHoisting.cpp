@@ -12,6 +12,7 @@
 #include "revng/CliftTransforms/Expressions.h"
 #include "revng/CliftTransforms/Passes.h"
 #include "revng/CliftTransforms/RewriteHelpers.h"
+#include "revng/CliftTransforms/Verify.h"
 
 namespace clift {
 #define GEN_PASS_DEF_CLIFTUNIQUEFALLTHROUGHBRANCHHOISTING
@@ -67,6 +68,9 @@ struct UniqueFallthroughBranchHoistingPass
   }
 
   void runOnOperation() override {
+    if (verifyNonLegalized(getOperation()).failed())
+      return signalPassFailure();
+
     // TODO: Use walkAndApplyPatterns
     if (mlir::applyPatternsAndFoldGreedily(getOperation(), Patterns).failed())
       signalPassFailure();

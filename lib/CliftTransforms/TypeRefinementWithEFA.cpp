@@ -11,6 +11,7 @@
 #include "revng/CliftTransforms/Expressions.h"
 #include "revng/CliftTransforms/Passes.h"
 #include "revng/CliftTransforms/TypeRefinement.h"
+#include "revng/CliftTransforms/Verify.h"
 
 namespace clift {
 #define GEN_PASS_DEF_CLIFTTYPEREFINEMENTWITHEFA
@@ -51,6 +52,9 @@ struct TypeRefinementWithEFAPass
   }
 
   void runOnOperation() override {
+    if (verifyNonLegalized(getOperation()).failed())
+      return signalPassFailure();
+
     [[maybe_unused]] EFAThreadCache EFACache;
 
     mlir::GreedyRewriteConfig Config;

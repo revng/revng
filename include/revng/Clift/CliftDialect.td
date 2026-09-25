@@ -46,6 +46,9 @@ def Clift_Dialect : Dialect {
       return "clift.c_dialect";
     }
 
+    [[nodiscard]] bool isStrictPassVerificationEnabled() const;
+    void enableStrictPassVerification(bool Enable);
+
     const CDataModel *getDefaultDataModel() const;
     void setDefaultDataModel(const CDataModel &DataModel);
 
