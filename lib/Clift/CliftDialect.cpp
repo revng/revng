@@ -131,6 +131,13 @@ public:
   mlir::LogicalResult visitAddressableType(AddressableType Type) {
     Type = unwrapTypedefs(Type);
 
+    if (mlir::isa<CCharType>(Type)) {
+      if (not mlir::isa<AddressofOp, StringOp>(getCurrentOp()))
+        return getCurrentOp()->emitError() << "C character types may only be "
+                                              "used by address-of and string "
+                                              "literal operations.";
+    }
+
     if (not isCompleteType(Type))
       return getCurrentOp()->emitError() << "Clift ModuleOp contains an "
                                             "incomplete type";

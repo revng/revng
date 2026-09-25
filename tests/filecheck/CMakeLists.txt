@@ -361,8 +361,10 @@ set(FILECHECK_TESTS
     clift/operations/loop-assigns-labels.mlir
     clift/operations/loop-with-bad-label-mask.mlir
     clift/operations/module-with-duplicate-type-id.mlir
+    clift/operations/module-with-invalid-use-of-char-type.mlir
     clift/operations/module-with-non-clift-type.mlir
     clift/operations/module-with-non-global-op.mlir
+    clift/operations/module-with-valid-use-of-char-type.mlir
     clift/operations/return-with-array-type.mlir
     clift/operations/return-with-function-type.mlir
     clift/operations/return-with-mismatched-type.mlir
