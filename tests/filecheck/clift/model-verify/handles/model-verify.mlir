@@ -15,10 +15,14 @@
   "/enum-entry/1003-EnumDefinition/0" : 0
 }>
 !f = !clift.func<"/type-definition/1004-CABIFunctionDefinition" : !void()
-  [#clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>
+  >
 >
 !r = !clift.func<"/type-definition/1005-RawFunctionDefinition" : !void()
-  [#clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"raw_x86_64">]>]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"raw_x86_64">]>
+  >
 >
 !t = !clift.typedef<"/type-definition/1006-TypedefDefinition" : !int32_t>
 

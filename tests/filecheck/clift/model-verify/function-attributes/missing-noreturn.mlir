@@ -9,7 +9,9 @@
 
 !f = !clift.func<
   "/type-definition/0-CABIFunctionDefinition" : !void()
-  [#clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"AAPCS64">]>]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"AAPCS64">]>
+  >
 >
 
 module attributes {clift.module} {
@@ -17,7 +19,6 @@ module attributes {clift.module} {
   // CHECK: Attached function attribute count ('0') does not match the model value ('1'). See '/function/0x1024:Code_aarch64'
 
   clift.func @f_2<!f>() -> !void attributes {
-    clift.c_attributes = [],
     handle = "/function/0x1024:Code_aarch64"
   }
 

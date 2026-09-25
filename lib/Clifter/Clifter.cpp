@@ -898,16 +898,13 @@ private:
     auto NameAttr = makeNameAttr<clift::FunctionType>(Context, Handle);
     auto CommentAttr = makeCommentAttr<clift::FunctionType>(Context, Handle);
 
-    // TODO: should we add something explicitly identifying this as a helper?
-    llvm::ArrayRef<clift::CAttributeAttr> Attributes = {};
-
     auto FunctionType = clift::FunctionType::get(Context,
                                                  Handle,
                                                  NameAttr,
                                                  CommentAttr,
                                                  ReturnType,
                                                  ParameterTypes,
-                                                 Attributes);
+                                                 /*AttributeList=*/{});
 
     return emitHelperCall(Loc,
                           C.getHelperFunction(HelperName, FunctionType),

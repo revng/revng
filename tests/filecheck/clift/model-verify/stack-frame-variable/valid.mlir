@@ -7,7 +7,10 @@
 !void = !clift.void
 !frame = !clift.struct<"/type-definition/0-StructDefinition" as "frame" : size(8) {}>
 !f = !clift.func<"/type-definition/1-CABIFunctionDefinition" as "f" : !void()
-  [#clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>]>
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>
+  >
+>
 
 module attributes { clift.module, clift.types = [ !frame, !f ] } {
 

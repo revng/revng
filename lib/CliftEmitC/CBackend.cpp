@@ -983,7 +983,7 @@ public:
     DeclaratorInfo Declarator{
       .Identifier = Var.getName(),
       .Location = Var.getHandle(),
-      .CAttributes = getDeclarationOpCAttributes(Var),
+      .CAttributeList = getDeclarationOpCAttributes(Var),
       .Kind = CTE::EntityKind::LocalVariable,
     };
 

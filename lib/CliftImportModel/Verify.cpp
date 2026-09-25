@@ -18,6 +18,9 @@ namespace ranks = revng::ranks;
 
 namespace {
 
+using clift::CAttributeAttr;
+using clift::CAttributeListAttr;
+
 static constexpr model::PrimitiveKind::Values
 integerToPrimitiveKind(clift::IntegerKind Kind) {
   switch (Kind) {
@@ -109,7 +112,7 @@ private:
         ptml::Attributes.assertAnnotationName<"_ABI">();
 
         bool ABIFound = false;
-        for (clift::CAttributeAttr Attr : FT.getCAttributes()) {
+        for (CAttributeAttr Attr : FT.getCAttributeList()) {
           if (not ptml::Attributes.isMacro(Attr.getName().getName()))
             return error() << "Unknown c-attribute ('"
                            << Attr.getName().getName() << "') found in '"
@@ -182,7 +185,7 @@ private:
         ptml::Attributes.assertAttributeName<"_CAN_CONTAIN_CODE">();
 
         bool CodeFound = false;
-        for (clift::CAttributeAttr Attr : ST.getCAttributes()) {
+        for (CAttributeAttr Attr : ST.getCAttributeList()) {
           if (not ptml::Attributes.isMacro(Attr.getName().getName()))
             return error() << "Unknown c-attribute ('"
                            << Attr.getName().getName() << "') found in '"
@@ -301,14 +304,10 @@ private:
       if (Handle.empty())
         Handle = "(a no-handle argument)";
 
-      if (auto CAs = View.getOfType<mlir::ArrayAttr>("clift.c_attributes")) {
-        for (mlir::Attribute RawCAttr : CAs) {
-          auto CAttribute = mlir::dyn_cast<clift::CAttributeAttr>(RawCAttr);
-          if (not CAttribute)
-            return error() << "A non c-attribute was found among "
-                              "the `c_attributes` in '"
-                           << Op.getHandle() << "'";
+      if (auto AttributeList = //
+          View.getOfType<CAttributeListAttr>("clift.c_attribute_list")) {
 
+        for (CAttributeAttr CAttribute : AttributeList) {
           auto AttributeName = CAttribute.getName().getName();
           auto Arguments = CAttribute.getArguments();
 
@@ -466,15 +465,10 @@ private:
                      << "'";
     }
 
-    if (mlir::Attribute RawAttributes = Op->getAttr("clift.c_attributes")) {
-      mlir::ArrayAttr Attributes = mlir::cast<mlir::ArrayAttr>(RawAttributes);
-      for (mlir::Attribute RawCAttribute : Attributes) {
-        auto CAttribute = mlir::dyn_cast<clift::CAttributeAttr>(RawCAttribute);
-        if (not CAttribute)
-          return error() << "A non c-attribute was found among "
-                            "the `c_attributes` in '"
-                         << Op.getHandle() << "'";
+    if (auto AttributeList = //
+        Op->getAttrOfType<CAttributeListAttr>("clift.c_attribute_list")) {
 
+      for (CAttributeAttr CAttribute : AttributeList) {
         if (not ptml::Attributes.isMacro(CAttribute.getName().getName())) {
           return error() << "Unknown c-attribute ('"
                          << CAttribute.getName().getName() << "') found in '"

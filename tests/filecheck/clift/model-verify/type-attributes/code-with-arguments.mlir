@@ -7,6 +7,9 @@
 // CHECK: `_CAN_CONTAIN_CODE` attribute must not have any arguments. See '/type-definition/1-StructDefinition'
 
 !s_1 = !clift.struct<"/type-definition/1-StructDefinition" : size(64) {}
-[#clift.c_attribute<"_CAN_CONTAIN_CODE" : "/macro/_CAN_CONTAIN_CODE" [42]>]>
+  #clift.c_attribute_list<
+    <"_CAN_CONTAIN_CODE" : "/macro/_CAN_CONTAIN_CODE" [42]>
+  >
+>
 
 module attributes { clift.module, clift.types = [ !s_1 ] } {}
