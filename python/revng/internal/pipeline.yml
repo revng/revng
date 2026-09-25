@@ -525,6 +525,13 @@ branches:
             - hoist-variable-initializers
             - promote-break-continue
 
+      - pipe: emit-strings
+        arguments: [binaries-container, clift-functions]
+
+      - pipe: pure-mlir-passes-pipe
+        arguments: [clift-functions]
+        configuration:
+          passes:
             # == Backend phase ==
             #
             # C code emitted directly from Clift in the form enforced by the

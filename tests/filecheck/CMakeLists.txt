@@ -252,6 +252,7 @@ set(FILECHECK_TESTS
     clift/implicit-cast-elision/neg.mlir
     clift/implicit-cast-elision/not.mlir
     clift/implicit-cast-elision/shl.mlir
+    clift/implicit-cast-elision/string.mlir
     clift/model-import/ArrayType.yml
     clift/model-import/CABIFunctionType1.yml
     clift/model-import/CABIFunctionType2.yml
