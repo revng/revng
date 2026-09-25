@@ -139,10 +139,10 @@ private:
     if (Declarator and Declarator->Kind == CTE::EntityKind::Function) {
       if (auto Function = mlir::dyn_cast<FunctionType>(Type)) {
         if (Declarator and Declarator->CAttributeList) {
-          Parent.emitCAttributeList(Declarator->CAttributeList,
-                                    /* SpaceBefore = */ false,
-                                    /* SpaceAfter = */ true,
-                                    /* NewlineAfter = */ true);
+          for (CAttributeAttr CAttribute : Declarator->CAttributeList) {
+            Parent.emitCAttribute(CAttribute);
+            Parent.Tokens.emitNewline();
+          }
         }
 
         OutermostFunctionType = Function;
@@ -326,9 +326,8 @@ private:
 
     if (not OutermostFunctionType and Declarator
         and Declarator->CAttributeList) {
-      Parent.emitCAttributeList(Declarator->CAttributeList,
-                                /* SpaceBefore = */ true,
-                                /* SpaceAfter = */ false);
+      Parent.Tokens.emitSpace();
+      Parent.emitCAttributeList(Declarator->CAttributeList);
     }
   }
 };
@@ -441,31 +440,15 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
   }
 }
 
-void CEmitter::emitCAttributeList(CAttributeListAttr AttributeList,
-                                  bool SpaceBefore,
-                                  bool SpaceAfter,
-                                  bool NewlineAfter) {
+void CEmitter::emitCAttributeList(clift::CAttributeListAttr AttributeList) {
   revng_assert(AttributeList);
 
-  if (SpaceBefore)
-    Tokens.emitSpace();
-
-  bool First = true;
-  for (CAttributeAttr Attribute : AttributeList) {
-    if (First)
-      First = false;
-    else if (NewlineAfter)
-      Tokens.emitNewline();
-    else
+  for (auto [I, Attribute] : llvm::enumerate(AttributeList)) {
+    if (I != 0)
       Tokens.emitSpace();
 
     emitCAttribute(Attribute);
   }
-
-  if (NewlineAfter)
-    Tokens.emitNewline();
-  else if (SpaceAfter)
-    Tokens.emitSpace();
 }
 
 //===---------------------------- Declarations ----------------------------===//
