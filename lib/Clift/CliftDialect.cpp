@@ -254,6 +254,20 @@ static mlir::LogicalResult verifyCDialectAttr(mlir::Operation *Op,
   return mlir::success();
 }
 
+static mlir::LogicalResult verifyLegalizedAttr(mlir::Operation *Op,
+                                               mlir::Attribute Attr) {
+  if (not mlir::isa<mlir::UnitAttr>(Attr))
+    return Op->emitOpError() << "expected 'clift.legalized' attribute to be "
+                                "mlir::UnitAttr.";
+
+  if (not mlir::isa<FunctionOp>(Op))
+    return Op->emitOpError() << "expected 'clift.legalized' attribute to be "
+                                "attached to '"
+                             << FunctionOp::getOperationName() << "'";
+
+  return mlir::success();
+}
+
 } // namespace
 
 struct clift::CliftDialectImpl {
@@ -295,6 +309,9 @@ CliftDialect::verifyOperationAttribute(mlir::Operation *Op,
 
   if (Attr.getName() == getCDialectAttrName())
     return verifyCDialectAttr(Op, Attr.getValue());
+
+  if (Attr.getName() == "clift.legalized")
+    return verifyLegalizedAttr(Op, Attr.getValue());
 
   return mlir::success();
 }

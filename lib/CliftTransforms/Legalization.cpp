@@ -855,6 +855,7 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
       return mlir::failure();
   }
 
+  Function->setAttr("clift.legalized", mlir::UnitAttr::get(Context));
   return mlir::success();
 }
 
