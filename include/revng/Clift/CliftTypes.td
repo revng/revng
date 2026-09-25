@@ -2,6 +2,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#ifndef MLIR_CLIFT_TYPES
+#define MLIR_CLIFT_TYPES
+
 // Include the definition of the necessary tablegen constructs for defining our
 // types
 include "mlir/IR/AttrTypeBase.td"
@@ -422,3 +425,5 @@ def Clift_UnionType : Clift_ClassTypeBase<"Union", "union"> {
     }]>,
   ];
 }
+
+#endif

@@ -2,13 +2,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#ifndef MLIR_CLIFT
-#define MLIR_CLIFT
+#ifndef MLIR_CLIFT_DIALECT
+#define MLIR_CLIFT_DIALECT
+
 // Include the definition of the necessary tablegen constructs for defining our
 // dialect
 include "mlir/IR/DialectBase.td"
 
-// Here is a simple definition of a dialect
 def Clift_Dialect : Dialect {
   let summary = "Clift dialect.";
   let description = [{

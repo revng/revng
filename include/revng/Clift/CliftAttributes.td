@@ -2,8 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#ifndef MLIR_CLIFT_ATTRIBUTE
-#define MLIR_CLIFT_ATTRIBUTE
+#ifndef MLIR_CLIFT_ATTRIBUTES
+#define MLIR_CLIFT_ATTRIBUTES
 
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/SubElementInterfaces.td"

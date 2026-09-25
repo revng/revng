@@ -2,6 +2,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#ifndef MLIR_CLIFT_ENUMS
+#define MLIR_CLIFT_ENUMS
+
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 
@@ -19,3 +22,5 @@ def Clift_IntegerKind: I32EnumAttr<"IntegerKind", "integer type kinds", [
   // attribute wrapping it.
   let genSpecializedAttr = 0;
 }
+
+#endif
