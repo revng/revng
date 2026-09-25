@@ -11,10 +11,10 @@
 
 !f_1 = !clift.func<
   "/type-definition/1-CABIFunctionDefinition" : !void()
-  [
-    #clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"AAPCS64">]>,
-    #clift.c_attribute<"_STACK" : "/macro/_STACK">
-  ]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"AAPCS64">]>,
+    <"_STACK" : "/macro/_STACK">
+  >
 >
 
 module attributes { clift.module, clift.types = [ !f_1 ] } {}

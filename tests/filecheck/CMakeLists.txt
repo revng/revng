@@ -314,8 +314,6 @@ set(FILECHECK_TESTS
     clift/model-verify/unknown-attributes/function-argument.mlir
     clift/model-verify/unknown-attributes/function-type.mlir
     clift/model-verify/unknown-attributes/function.mlir
-    clift/model-verify/unknown-attributes/non-c-argument.mlir
-    clift/model-verify/unknown-attributes/non-c-function.mlir
     clift/model-verify/unknown-attributes/struct.mlir
     clift/model-verify/unknown-attributes/valid.mlir
     clift/name-import/function-body/comments.mlir

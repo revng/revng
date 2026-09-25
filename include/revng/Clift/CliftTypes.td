@@ -304,7 +304,7 @@ def Clift_FunctionType
                         "clift::MutableStringAttr":$mutable_comment,
                         "mlir::Type":$return_type,
                         OptionalArrayRefParameter<"mlir::Type">:$argument_types,
-                        OptionalArrayRefParameter<"clift::CAttributeAttr">:$c_attributes);
+                        Clift_CAttributeListAttr:$c_attribute_list);
 
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef NameAttrKey = "function-name";
@@ -368,8 +368,8 @@ class Clift_ClassTypeBase<string name, string mnemonic>
       return getDefinition().getFields();
     }
 
-    llvm::ArrayRef<clift::CAttributeAttr> getCAttributes() const {
-      return getDefinition().getCAttributes();
+    clift::CAttributeListAttr getCAttributeList() const {
+      return getDefinition().getCAttributeList();
     }
   }];
 

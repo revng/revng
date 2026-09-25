@@ -33,13 +33,13 @@ Functions:
 TypeDefinitions:
   # CHECK: !_type_definition_0_CABIFunctionDefinition = !clift.func<
   # CHECK:   "/type-definition/0-CABIFunctionDefinition" : !uint8_t(!uint16_t, !uint32_t)
-  # CHECK:   [
-  # CHECK:     #clift.c_attribute<"_ABI" : "/macro/_ABI"
+  # CHECK:   #clift.c_attribute_list<
+  # CHECK:     <"_ABI" : "/macro/_ABI"
   # CHECK:       [
   # CHECK:         #clift.identifier<"SystemV_x86_64">
   # CHECK:       ]
   # CHECK:     >
-  # CHECK:   ]
+  # CHECK:   >
   # CHECK: >
   - ID: 0
     Kind: CABIFunctionDefinition
@@ -62,13 +62,13 @@ TypeDefinitions:
 
   # CHECK: !_type_definition_1_CABIFunctionDefinition = !clift.func<
   # CHECK:   "/type-definition/1-CABIFunctionDefinition" : !uint8_t(!uint16_t, !uint32_t)
-  # CHECK:   [
-  # CHECK:     #clift.c_attribute<"_ABI" : "/macro/_ABI"
+  # CHECK:   #clift.c_attribute_list<
+  # CHECK:     <"_ABI" : "/macro/_ABI"
   # CHECK:       [
   # CHECK:         #clift.identifier<"SystemV_x86_64">
   # CHECK:       ]
   # CHECK:     >
-  # CHECK:   ]
+  # CHECK:   >
   # CHECK: >
   - ID: 1
     Kind: CABIFunctionDefinition
@@ -92,13 +92,13 @@ TypeDefinitions:
 
   # CHECK: !_type_definition_2_CABIFunctionDefinition = !clift.func<
   # CHECK:   "/type-definition/2-CABIFunctionDefinition" : !uint8_t(!uint16_t, !uint32_t)
-  # CHECK:   [
-  # CHECK:     #clift.c_attribute<"_ABI" : "/macro/_ABI"
+  # CHECK:   #clift.c_attribute_list<
+  # CHECK:     <"_ABI" : "/macro/_ABI"
   # CHECK:       [
   # CHECK:         #clift.identifier<"SystemV_x86_64">
   # CHECK:       ]
   # CHECK:     >
-  # CHECK:   ]
+  # CHECK:   >
   # CHECK: >
   - ID: 2
     Kind: CABIFunctionDefinition

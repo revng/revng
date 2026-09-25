@@ -10,9 +10,9 @@
 
 !f_3 = !clift.func<
   "/type-definition/3-RawFunctionDefinition" : !void()
-  [
-    #clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"AAPCS64">]>
-  ]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"AAPCS64">]>
+  >
 >
 
 module attributes { clift.module, clift.types = [ !f_3 ] } {}

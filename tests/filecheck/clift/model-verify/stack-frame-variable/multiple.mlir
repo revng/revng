@@ -7,7 +7,10 @@
 !void = !clift.void
 !frame = !clift.struct<"/type-definition/0-StructDefinition" as "frame" : size(8) {}>
 !f = !clift.func<"/type-definition/1-CABIFunctionDefinition" as "f" : !void()
-  [#clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>]>
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>
+  >
+>
 
 // CHECK: More than one `stack_frame` local declared in '/function/0x1000:Code_x86_64'
 

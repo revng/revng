@@ -30,10 +30,10 @@ def Clift_ClassType : Clift_TypeInterface<"ClassType", [Clift_ObjectType,
     >,
     InterfaceMethod<
       "Returns the c attributes attached to this type",
-      "llvm::ArrayRef<clift::CAttributeAttr>", "getCAttributes", (ins),
+      "clift::CAttributeListAttr", "getCAttributeList", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        return $_type.getCAttributes();
+        return $_type.getCAttributeList();
       }]
     >,
   ];

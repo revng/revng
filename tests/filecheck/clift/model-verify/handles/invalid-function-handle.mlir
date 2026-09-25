@@ -6,7 +6,9 @@
 
 !void = !clift.void
 !f = !clift.func<"/type-definition/1004-CABIFunctionDefinition" : !void()
-  [#clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>
+  >
 >
 
 module attributes {clift.module} {

@@ -39,11 +39,11 @@ void TypeDefinitionEmitter::emitDeclarationTypedef(clift::DefinedType Type) {
 
   emitTypeKeyword(Type);
 
-  emitCAttributes(clift::CAttributeListBuilder(Type.getContext())
-                    .setOrUpdate<"_PACKED">()
-                    .getRaw(),
-                  /* SpaceBefore = */ true,
-                  /* SpaceAfter = */ true);
+  emitCAttributeList(clift::CAttributeListBuilder(Type.getContext())
+                       .setOrUpdate<"_PACKED">()
+                       .getAttributeListOrNull(),
+                     /* SpaceBefore = */ true,
+                     /* SpaceAfter = */ true);
 
   Tokens.emitIdentifier(Type.getName(),
                         Type.getHandle(),
@@ -70,7 +70,6 @@ void TypeDefinitionEmitter::emitTypedefDefinition(clift::TypedefType Typedef) {
                   CEmitter::DeclaratorInfo{
                     .Identifier = Typedef.getName(),
                     .Location = Typedef.getHandle(),
-                    .CAttributes = {},
                     .Kind = ptml::CTokenEmitter::EntityKind::Typedef });
   Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
   Tokens.emitNewline();
@@ -87,12 +86,12 @@ void TypeDefinitionEmitter::emitFunctionTypedef(clift::FunctionType Function) {
   Tokens.emitSpace();
 
   auto Attrs = clift::CAttributeListBuilder(Function.getContext(),
-                                            Function.getCAttributes());
+                                            Function.getCAttributeList());
   emitDeclaration(Function,
                   CEmitter::DeclaratorInfo{
                     .Identifier = Function.getName(),
                     .Location = Function.getHandle(),
-                    .CAttributes = Attrs.get(),
+                    .CAttributeList = Attrs.getAttributeListOrNull(),
                     .Kind = ptml::CTokenEmitter::EntityKind::Function,
                     .Parameters = {},
                   });
@@ -141,7 +140,6 @@ void TypeDefinitionEmitter::emitPaddingField(clift::ClassType Class,
                   DeclaratorInfo{
                     .Identifier = paddingFieldName(CurrentOffset),
                     .Location = {},
-                    .CAttributes = {},
                     .Kind = ptml::CTokenEmitter::EntityKind::Field });
 
   Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
@@ -159,15 +157,15 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class,
     emitTypeKeyword(Class);
 
     clift::CAttributeListBuilder AttributeBuilder{ Class.getContext(),
-                                                   Class.getCAttributes() };
+                                                   Class.getCAttributeList() };
     AttributeBuilder.setOrUpdate<"_PACKED">();
 
     if (auto S = mlir::dyn_cast<clift::StructType>(Class))
       AttributeBuilder.setOrUpdate<"_SIZE">(S.getSize());
 
-    emitCAttributes(AttributeBuilder.getRaw(),
-                    /* SpaceBefore = */ true,
-                    /* SpaceAfter = */ true);
+    emitCAttributeList(AttributeBuilder.getAttributeListOrNull(),
+                       /* SpaceBefore = */ true,
+                       /* SpaceAfter = */ true);
 
     Tokens.emitIdentifier(Class.getName(),
                           Class.getHandle(),
@@ -198,7 +196,6 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class,
                       CEmitter::DeclaratorInfo{
                         .Identifier = Field.getName(),
                         .Location = Field.getHandle(),
-                        .CAttributes = {},
                         .Kind = ptml::CTokenEmitter::EntityKind::Field,
                       });
 
@@ -225,11 +222,11 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class,
                                                    Field.getName());
         }
         if (Pin) {
-          emitCAttributes(clift::CAttributeListBuilder(Class.getContext())
-                            .setOrUpdate<"_STARTS_AT">(Field.getOffset())
-                            .getRaw(),
-                          /* SpaceBefore = */ true,
-                          /* SpaceAfter = */ false);
+          emitCAttributeList(clift::CAttributeListBuilder(Class.getContext())
+                               .setOrUpdate<"_STARTS_AT">(Field.getOffset())
+                               .getAttributeListOrNull(),
+                             /* SpaceBefore = */ true,
+                             /* SpaceAfter = */ false);
         }
       }
 
@@ -256,10 +253,10 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class,
                           Declarator->Location,
                           Declarator->Kind,
                           ptml::CTokenEmitter::IdentifierKind::Definition);
-    if (Declarator->CAttributes) {
-      emitCAttributes(Declarator->CAttributes,
-                      /* SpaceBefore = */ true,
-                      /* SpaceAfter = */ false);
+    if (Declarator->CAttributeList) {
+      emitCAttributeList(Declarator->CAttributeList,
+                         /* SpaceBefore = */ true,
+                         /* SpaceAfter = */ false);
     }
   }
 }
@@ -273,12 +270,12 @@ void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
     Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Enum);
 
     mlir::Type Type = Enum.getUnderlyingType();
-    emitCAttributes(clift::CAttributeListBuilder(Enum.getContext())
-                      .setOrUpdate<"_ENUM_UNDERLYING">(Type)
-                      .setOrUpdate<"_PACKED">()
-                      .getRaw(),
-                    /* SpaceBefore = */ true,
-                    /* SpaceAfter = */ true);
+    emitCAttributeList(clift::CAttributeListBuilder(Enum.getContext())
+                         .setOrUpdate<"_ENUM_UNDERLYING">(Type)
+                         .setOrUpdate<"_PACKED">()
+                         .getAttributeListOrNull(),
+                       /* SpaceBefore = */ true,
+                       /* SpaceAfter = */ true);
 
     Tokens.emitIdentifier(Enum.getName(),
                           Enum.getHandle(),

@@ -138,11 +138,11 @@ private:
     // expanded.
     if (Declarator and Declarator->Kind == CTE::EntityKind::Function) {
       if (auto Function = mlir::dyn_cast<FunctionType>(Type)) {
-        if (Declarator) {
-          Parent.emitCAttributes(Declarator->CAttributes,
-                                 /* SpaceBefore = */ false,
-                                 /* SpaceAfter = */ true,
-                                 /* NewlineAfter = */ true);
+        if (Declarator and Declarator->CAttributeList) {
+          Parent.emitCAttributeList(Declarator->CAttributeList,
+                                    /* SpaceBefore = */ false,
+                                    /* SpaceAfter = */ true,
+                                    /* NewlineAfter = */ true);
         }
 
         OutermostFunctionType = Function;
@@ -304,10 +304,12 @@ private:
             DeclaratorInfo const *InnerDeclarator = nullptr;
 
             if (F == OutermostFunctionType && Declarator->Parameters) {
+              auto &P = Declarator->Parameters.value()[J];
+
               ParameterDeclarator = DeclaratorInfo{
-                .Identifier = Declarator->Parameters.value()[J].Identifier,
-                .Location = Declarator->Parameters.value()[J].Location,
-                .CAttributes = Declarator->Parameters.value()[J].CAttributes,
+                .Identifier = P.Identifier,
+                .Location = P.Location,
+                .CAttributeList = P.CAttributeList,
                 .Kind = CTE::EntityKind::FunctionParameter,
               };
 
@@ -322,10 +324,11 @@ private:
       }
     }
 
-    if (Declarator and not OutermostFunctionType) {
-      Parent.emitCAttributes(Declarator->CAttributes,
-                             /* SpaceBefore = */ true,
-                             /* SpaceAfter = */ false);
+    if (not OutermostFunctionType and Declarator
+        and Declarator->CAttributeList) {
+      Parent.emitCAttributeList(Declarator->CAttributeList,
+                                /* SpaceBefore = */ true,
+                                /* SpaceAfter = */ false);
     }
   }
 };
@@ -376,16 +379,11 @@ void CEmitter::emitType(mlir::Type Type) {
 
 //===----------------------------- Attributes -----------------------------===//
 
-bool CEmitter::isValidCAttributeArray(mlir::ArrayAttr ArrayAttr) {
-  auto IsCAttributeAttr = [](mlir::Attribute Attr) {
-    return mlir::isa<CAttributeAttr>(Attr);
-  };
-  return std::ranges::all_of(ArrayAttr, IsCAttributeAttr);
-}
+CAttributeListAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
+  auto ExistingAttributes = //
+    Op->getAttrOfType<CAttributeListAttr>("clift.c_attribute_list");
 
-mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
-  CAttributeListBuilder Builder(Op->getContext(),
-                                Op->getAttr("clift.c_attributes"));
+  CAttributeListBuilder Builder(Op->getContext(), ExistingAttributes);
 
   if (auto Function = mlir::dyn_cast<FunctionOp>(Op)) {
     if (Function->hasAttr("noreturn"))
@@ -395,19 +393,15 @@ mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
     if (Function->hasAttr("has_one_broken_return"))
       Builder.setOrUpdate<"_HAS_ONE_BROKEN_RETURN">();
 
-    Builder.append(Function.getFunctionType().getCAttributes());
+    Builder.append(Function.getFunctionType().getCAttributeList());
   }
 
-  mlir::ArrayAttr Result = Builder.get();
-  if (not isValidCAttributeArray(Result)) {
-    Op->dump();
-    revng_abort("Invalid `clift.c_attributes` array");
-  }
-
-  return Result;
+  return Builder.getAttributeListOrNull();
 }
 
 void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
+  revng_assert(CAttribute);
+
   auto Name = CAttribute.getName();
 
   Tokens.emitIdentifier(Name.getName(),
@@ -447,19 +441,17 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
   }
 }
 
-void // formatting
-CEmitter::emitCAttributes(llvm::ArrayRef<CAttributeAttr> CAttributes,
-                          bool SpaceBefore,
-                          bool SpaceAfter,
-                          bool NewlineAfter) {
-  if (CAttributes.empty())
-    return;
+void CEmitter::emitCAttributeList(CAttributeListAttr AttributeList,
+                                  bool SpaceBefore,
+                                  bool SpaceAfter,
+                                  bool NewlineAfter) {
+  revng_assert(AttributeList);
 
   if (SpaceBefore)
     Tokens.emitSpace();
 
   bool First = true;
-  for (CAttributeAttr Attribute : CAttributes) {
+  for (CAttributeAttr Attribute : AttributeList) {
     if (First)
       First = false;
     else if (NewlineAfter)
@@ -474,17 +466,6 @@ CEmitter::emitCAttributes(llvm::ArrayRef<CAttributeAttr> CAttributes,
     Tokens.emitNewline();
   else if (SpaceAfter)
     Tokens.emitSpace();
-}
-
-void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
-                               bool SpaceBefore,
-                               bool SpaceAfter,
-                               bool NewlineAfter) {
-  if (not CAttributes)
-    return;
-
-  auto Range = llvm::to_vector(CAttributes.getAsRange<CAttributeAttr>());
-  emitCAttributes(Range, SpaceBefore, SpaceAfter, NewlineAfter);
 }
 
 //===---------------------------- Declarations ----------------------------===//
@@ -510,12 +491,12 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
       revng_assert(Attrs.getOfType<mlir::StringAttr>("clift.name"),
                    "Function argument name (clift.name) is missing.");
 
-      auto Attributes = Attrs.getOfType<mlir::ArrayAttr>("clift.c_attributes");
-      revng_assert(not Attributes or isValidCAttributeArray(Attributes));
+      auto AttributeList = //
+        Attrs.getOfType<CAttributeListAttr>("clift.c_attribute_list");
 
       ParameterDeclarators.emplace_back(Attrs.getString("clift.name"),
                                         Attrs.getStringOrEmpty("clift.handle"),
-                                        Attributes);
+                                        AttributeList);
     }
 
     Parameters = ParameterDeclarators;
@@ -531,7 +512,7 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
                   CEmitter::DeclaratorInfo{
                     .Identifier = Op.getName(),
                     .Location = Op.getHandle(),
-                    .CAttributes = getDeclarationOpCAttributes(Op),
+                    .CAttributeList = getDeclarationOpCAttributes(Op),
                     .Kind = ptml::CTokenEmitter::EntityKind::Function,
                     .Parameters = Parameters,
                   });
