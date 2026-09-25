@@ -840,10 +840,6 @@ branches:
               This artifact contains one single-function module per function defined
               in this binary.
 
-              The output is similar to the output of `make-segment-ref` but it's
-              cleaned up from rev.ng-specific artifacts in order to be more easily
-              consumed as standard LLVM IR.
-
               This is an appropriate artifact on top of which write analyses, such
               as a taint analysis.
             container: llvm-root-merged
