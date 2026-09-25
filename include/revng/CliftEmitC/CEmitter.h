@@ -37,11 +37,13 @@ public:
   static bool isValidCAttributeArray(mlir::ArrayAttr Array);
   clift::CAttributeListAttr getDeclarationOpCAttributes(mlir::Operation *Op);
 
+  /// Emit a single C attribute.
+  /// \pre The attribute is non-null.
   void emitCAttribute(clift::CAttributeAttr Attribute);
-  void emitCAttributeList(clift::CAttributeListAttr AttributeList,
-                          bool SpaceBefore,
-                          bool SpaceAfter,
-                          bool NewlineAfter = false);
+
+  /// Emit a C attribute list, with attributes separated by spaces.
+  /// \pre The attribute list is non-null.
+  void emitCAttributeList(clift::CAttributeListAttr AttributeList);
 
   //===---------------------------- Prototype -----------------------------===//
 

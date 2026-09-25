@@ -38,12 +38,12 @@ void TypeDefinitionEmitter::emitDeclarationTypedef(clift::DefinedType Type) {
   Tokens.emitSpace();
 
   emitTypeKeyword(Type);
+  Tokens.emitSpace();
 
   emitCAttributeList(clift::CAttributeListBuilder(Type.getContext())
                        .setOrUpdate<"_PACKED">()
-                       .getAttributeListOrNull(),
-                     /* SpaceBefore = */ true,
-                     /* SpaceAfter = */ true);
+                       .getAttributeListOrNull());
+  Tokens.emitSpace();
 
   Tokens.emitIdentifier(Type.getName(),
                         Type.getHandle(),
@@ -155,6 +155,7 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class,
 
     emitDoxygenComment(Class);
     emitTypeKeyword(Class);
+    Tokens.emitSpace();
 
     clift::CAttributeListBuilder AttributeBuilder{ Class.getContext(),
                                                    Class.getCAttributeList() };
@@ -163,9 +164,8 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class,
     if (auto S = mlir::dyn_cast<clift::StructType>(Class))
       AttributeBuilder.setOrUpdate<"_SIZE">(S.getSize());
 
-    emitCAttributeList(AttributeBuilder.getAttributeListOrNull(),
-                       /* SpaceBefore = */ true,
-                       /* SpaceAfter = */ true);
+    emitCAttributeList(AttributeBuilder.getAttributeListOrNull());
+    Tokens.emitSpace();
 
     Tokens.emitIdentifier(Class.getName(),
                           Class.getHandle(),
@@ -222,11 +222,10 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class,
                                                    Field.getName());
         }
         if (Pin) {
+          Tokens.emitSpace();
           emitCAttributeList(clift::CAttributeListBuilder(Class.getContext())
                                .setOrUpdate<"_STARTS_AT">(Field.getOffset())
-                               .getAttributeListOrNull(),
-                             /* SpaceBefore = */ true,
-                             /* SpaceAfter = */ false);
+                               .getAttributeListOrNull());
         }
       }
 
@@ -254,9 +253,8 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class,
                           Declarator->Kind,
                           ptml::CTokenEmitter::IdentifierKind::Definition);
     if (Declarator->CAttributeList) {
-      emitCAttributeList(Declarator->CAttributeList,
-                         /* SpaceBefore = */ true,
-                         /* SpaceAfter = */ false);
+      Tokens.emitSpace();
+      emitCAttributeList(Declarator->CAttributeList);
     }
   }
 }
@@ -268,14 +266,14 @@ void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
 
     emitDoxygenComment(Enum);
     Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Enum);
+    Tokens.emitSpace();
 
     mlir::Type Type = Enum.getUnderlyingType();
     emitCAttributeList(clift::CAttributeListBuilder(Enum.getContext())
                          .setOrUpdate<"_ENUM_UNDERLYING">(Type)
                          .setOrUpdate<"_PACKED">()
-                         .getAttributeListOrNull(),
-                       /* SpaceBefore = */ true,
-                       /* SpaceAfter = */ true);
+                         .getAttributeListOrNull());
+    Tokens.emitSpace();
 
     Tokens.emitIdentifier(Enum.getName(),
                           Enum.getHandle(),
