@@ -2,8 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#ifndef MLIR_CLIFT_OPS
-#define MLIR_CLIFT_OPS
+#ifndef MLIR_CLIFT
+#define MLIR_CLIFT
 
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
