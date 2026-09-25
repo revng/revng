@@ -176,6 +176,11 @@ public:
   }
 
   RecursiveCoroutine<void> emitIntrinsicCastExpression(CastOpInterface E) {
+    revng_assert((mlir::isa<BoolExtendOp,
+                            ZeroExtendOp,
+                            SignExtendOp,
+                            TruncateOp>(E)));
+
     emitIntrinsicMacro(getIntrinsicIdentifier(E));
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
 
@@ -216,6 +221,37 @@ public:
       if (not mlir::isa<TestOp>(Op))
         return emitIntrinsicCastExpression(E);
     }
+
+    revng_assert((mlir::isa<TestOp,
+                            NegOp,
+                            AddOp,
+                            SubOp,
+                            MulOp,
+                            SDivOp,
+                            UDivOp,
+                            SRemOp,
+                            URemOp,
+                            ShlOp,
+                            ShrOp,
+                            SarOp,
+                            BitwiseNotOp,
+                            BitwiseAndOp,
+                            BitwiseOrOp,
+                            BitwiseXorOp,
+                            IncrementOp,
+                            DecrementOp,
+                            PostIncrementOp,
+                            PostDecrementOp,
+                            CmpEqOp,
+                            CmpNeOp,
+                            SCmpLtOp,
+                            UCmpLtOp,
+                            SCmpGtOp,
+                            UCmpGtOp,
+                            SCmpLeOp,
+                            UCmpLeOp,
+                            SCmpGeOp,
+                            UCmpGeOp>(Op)));
 
     return emitUsualIntrinsicExpression(Op);
   }
