@@ -91,7 +91,7 @@ def test_local_upload_cannot_overwrite_project_files(tmp_path: Path):
     assert stored_file.read_bytes() == contents
 
 
-def test_daemon(daemon_server: TestServer):
+def test_daemon(daemon_server: TestServer, storage_provider_url: str):
     # Test epoch endpoint
     logger.info("Testing epoch endpoint")
     response = daemon_server.get_epoch()
@@ -155,6 +155,20 @@ def test_daemon(daemon_server: TestServer):
     put_file_data = response.body
     assert put_file_data["name"] == "test"
     assert put_file_data["hash"] == sha256(contents).hexdigest()
+
+    if isinstance(daemon_server, StarletteTestServer) and storage_provider_url == "local://":
+        model_file = daemon_server.tmp_dir_path / "model.yml"
+        original_model = model_file.read_bytes()
+        outside_file = model_file.parent.parent / f"{model_file.parent.name}-outside"
+        assert not outside_file.exists()
+
+        for name in ("model.yml", f"../{outside_file.name}"):
+            response = daemon_server.put_file({"name": name, "contents": b"uploaded"})
+            assert response.code == 200
+            assert response.body == {"name": name, "hash": sha256(b"uploaded").hexdigest()}
+
+        assert model_file.read_bytes() == original_model
+        assert not outside_file.exists()
 
     # Connect to the websocket
     notifications_websocket = daemon_server.subscribe()
