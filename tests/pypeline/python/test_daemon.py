@@ -8,6 +8,7 @@ import json
 import logging
 import sys
 from hashlib import sha256
+from pathlib import Path
 
 # Import the pipebox, even if unused it will populate the registries
 import pipebox as _  # noqa: F401
@@ -18,6 +19,9 @@ from daemon.starlette_daemon import StarletteTestServer
 
 import revng
 from revng.pypeline import initialize_pypeline
+from revng.pypeline.storage.file_provider import FileRequest
+from revng.pypeline.storage.local_provider import LocalStorageProvider
+from revng.pypeline.storage.storage_provider import FileStorageEntry
 
 initialize_pypeline()
 
@@ -48,7 +52,46 @@ def daemon_server(request, storage_provider_url):
     instance.stop()
 
 
-def test_daemon(daemon_server: TestServer):
+def test_local_upload_cannot_overwrite_project_files(tmp_path: Path):
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    model_file = project_dir / "model.yml"
+    other_project_file = project_dir / "model-other.yml"
+    outside_file = tmp_path / "outside"
+    model_file.write_bytes(b"model")
+    other_project_file.write_bytes(b"other project")
+
+    provider = LocalStorageProvider.__new__(LocalStorageProvider)
+    provider._model_directory = project_dir
+    provider._cache_dir = tmp_path / "cache"
+
+    names = ("../outside", str(outside_file), model_file.name, other_project_file.name)
+    for index, name in enumerate(names):
+        contents = f"upload {index}".encode()
+        hash_ = sha256(contents).hexdigest()
+        provider.put_files_in_storage([FileStorageEntry(name, contents=contents)])
+        assert provider.get_files_from_storage([FileRequest(hash_, name)]) == {hash_: contents}
+
+    assert not outside_file.exists()
+    assert model_file.read_bytes() == b"model"
+    assert other_project_file.read_bytes() == b"other project"
+
+    (provider._cache_dir / "resources" / f"{hash_}.link").unlink()
+    assert provider.get_files_from_storage([FileRequest(hash_, name)]) == {hash_: contents}
+
+    symlink_target = tmp_path / "symlink-target"
+    symlink_target.write_bytes(b"original")
+    contents = b"new upload"
+    hash_ = sha256(contents).hexdigest()
+    stored_file = project_dir / f".revng-upload-{hash_}"
+    stored_file.symlink_to(symlink_target)
+    provider.put_files_in_storage([FileStorageEntry("upload", contents=contents)])
+    assert symlink_target.read_bytes() == b"original"
+    assert not stored_file.is_symlink()
+    assert stored_file.read_bytes() == contents
+
+
+def test_daemon(daemon_server: TestServer, storage_provider_url: str):
     # Test epoch endpoint
     logger.info("Testing epoch endpoint")
     response = daemon_server.get_epoch()
@@ -112,6 +155,20 @@ def test_daemon(daemon_server: TestServer):
     put_file_data = response.body
     assert put_file_data["name"] == "test"
     assert put_file_data["hash"] == sha256(contents).hexdigest()
+
+    if isinstance(daemon_server, StarletteTestServer) and storage_provider_url == "local://":
+        model_file = daemon_server.tmp_dir_path / "model.yml"
+        original_model = model_file.read_bytes()
+        outside_file = model_file.parent.parent / f"{model_file.parent.name}-outside"
+        assert not outside_file.exists()
+
+        for name in ("model.yml", f"../{outside_file.name}"):
+            response = daemon_server.put_file({"name": name, "contents": b"uploaded"})
+            assert response.code == 200
+            assert response.body == {"name": name, "hash": sha256(b"uploaded").hexdigest()}
+
+        assert model_file.read_bytes() == original_model
+        assert not outside_file.exists()
 
     # Connect to the websocket
     notifications_websocket = daemon_server.subscribe()
