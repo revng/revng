@@ -714,9 +714,13 @@ class LocalStorageProvider(StorageProvider):
         result = []
         for file in files:
             if file.contents is not None:
-                file_path = self._model_directory / file.name
-                file_path.write_bytes(file.contents)
                 hash_ = compute_hash(file.contents)
+                # Uploaded names come from HTTP, so keep storage paths server-generated.
+                file_path = self._model_directory / f".revng-upload-{hash_}"
+                with TemporaryDirectory(dir=self._model_directory) as temp_dir:
+                    temporary_file = Path(temp_dir) / "upload"
+                    temporary_file.write_bytes(file.contents)
+                    temporary_file.replace(file_path)
 
             elif file.path is not None:
                 if file.path.parent.resolve() != self._model_directory:
