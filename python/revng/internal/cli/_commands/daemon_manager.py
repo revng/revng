@@ -190,7 +190,8 @@ class DaemonManager:
 
     @locked
     async def register_client(self, client_id: str):
-        self._check_client_registered(client_id)
+        if client_id in self._client_last_refresh:
+            raise ClientError("client-id is already registered")
         cancel_task(self._termination)
         self._termination = None
         self._client_last_refresh[client_id] = monotonic()
