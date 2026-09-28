@@ -528,6 +528,9 @@ branches:
       - pipe: emit-strings
         arguments: [binaries-container, clift-functions]
 
+      - pipe: configure-function-c-dialect
+        arguments: [clift-functions]
+
       - pipe: pure-mlir-passes-pipe
         arguments: [clift-functions]
         configuration:
