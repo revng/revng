@@ -1716,6 +1716,19 @@ ClassType DirectAccessOp::getClassType() {
   return mlir::cast<ClassType>(removeConst(ObjectType));
 }
 
+void DirectAccessOp::build(mlir::OpBuilder &Builder,
+                           mlir::OperationState &State,
+                           mlir::Value Operand,
+                           uint64_t MemberIndex) {
+  auto Class = clift::unwrapped_cast<ClassType>(Operand.getType());
+  auto Type = Class.getFields()[MemberIndex].getType();
+
+  if (isConst(Operand.getType()))
+    Type = addConst(Type);
+
+  build(Builder, State, Type, Operand, MemberIndex);
+}
+
 mlir::LogicalResult DirectAccessOp::verify() {
   auto Class = mlir::dyn_cast<ClassType>(collapseTypedefs(getValue()
                                                             .getType()));
@@ -1736,6 +1749,20 @@ ClassType IndirectAccessOp::getClassType() {
   auto PtrType = clift::unwrapped_cast<PointerType>(getValue().getType());
   auto ObjectType = unwrapTypedefs(PtrType.getPointeeType());
   return mlir::cast<ClassType>(removeConst(ObjectType));
+}
+
+void IndirectAccessOp::build(mlir::OpBuilder &Builder,
+                             mlir::OperationState &State,
+                             mlir::Value Operand,
+                             uint64_t MemberIndex) {
+  auto Pointer = clift::unwrapped_cast<PointerType>(Operand.getType());
+  auto Class = clift::unwrapped_cast<ClassType>(Pointer.getPointeeType());
+  auto Type = Class.getFields()[MemberIndex].getType();
+
+  if (isConst(Pointer.getPointeeType()))
+    Type = addConst(Type);
+
+  build(Builder, State, Type, Operand, MemberIndex);
 }
 
 mlir::LogicalResult IndirectAccessOp::verify() {

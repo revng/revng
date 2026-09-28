@@ -1104,6 +1104,10 @@ class Clift_AccessOp<string mnemonic, list<string> expr_methods>
   let arguments = (ins AnyType:$value, I64Attr:$member_index);
   let results = (outs AnyType:$result);
 
+  let builders = [
+    OpBuilder<(ins "mlir::Value":$Operand, "uint64_t":$MemberIndex)>
+  ];
+
   let assemblyFormat = [{
     `<` $member_index `>` $value attr-dict `:` type($value) `->` type($result)
   }];
