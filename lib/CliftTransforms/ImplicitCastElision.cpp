@@ -192,7 +192,19 @@ private:
 
   void elideDecayCasts(mlir::OpOperand &Operand) {
     if (auto Cast = Operand.get().getDefiningOp<DecayOp>()) {
-      if (isImplicitConversionInC(Cast))
+      // Decay casts in non-coercing contexts may only be elided if the
+      // conversion applies no change in typing. The operand type (or element
+      // type in the case of an array) must match the decayed pointee type
+      // exactly, including qualification. Typedefs may be ignored, as they are
+      // simple aliases in C, but any qualifiers introduced by typedefs must be
+      // collapsed.
+
+      auto Element = collapseTypedefs(Cast.getValueType());
+      if (auto Array = mlir::dyn_cast<ArrayType>(Element))
+        Element = collapseTypedefs(Array.getElementType());
+
+      auto Pointer = clift::unwrapped_cast<PointerType>(Cast.getType());
+      if (Element == collapseTypedefs(Pointer.getPointeeType()))
         addImplicitConversion(Cast);
     }
   }
