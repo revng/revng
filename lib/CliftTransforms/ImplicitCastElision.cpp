@@ -192,7 +192,12 @@ private:
 
   void elideDecayCasts(mlir::OpOperand &Operand) {
     if (auto Cast = Operand.get().getDefiningOp<DecayOp>()) {
-      if (isImplicitConversionInC(Cast))
+      auto Element = collapseTypedefs(Cast.getValueType());
+      if (auto Array = mlir::dyn_cast<ArrayType>(Element))
+        Element = collapseTypedefs(Array.getElementType());
+
+      auto Pointer = clift::unwrapped_cast<PointerType>(Cast.getType());
+      if (Element == collapseTypedefs(Pointer.getPointeeType()))
         addImplicitConversion(Cast);
     }
   }
