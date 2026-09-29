@@ -151,6 +151,14 @@ class GroupRegistry(CommandRegistry):
             self.register(group, self._build_external_command(group, name, path))
 
 
+def _version_callback(ctx: click.Context, param, value: bool):
+    if value:
+        hashes = collect_files([get_root()], ["share", "revng", "component-hashes"], "*")
+        version = "-".join(Path(path).read_text().strip()[:7] for path in sorted(hashes))
+        sys.stdout.write(f"rev.ng version {version}\n")
+        ctx.exit()
+
+
 def patch_pype():
     """
     revng is based on `pype`, but we want to change some defaults to be revng specific,
@@ -175,6 +183,8 @@ def patch_pype():
     for param in pype.params:
         if param.name == "pipebox":
             param.default = Path(__file__).parent.parent / "pipebox.py"
+        elif param.name == "version":
+            param.callback = _version_callback
 
     # Change the default for pipeline
     for param in project.params:
