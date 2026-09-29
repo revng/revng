@@ -14,6 +14,7 @@ import click
 import psutil
 from click.shell_completion import get_completion_class
 
+from revng.pypeline import __version__ as pypeline_version
 from revng.pypeline.cli.context import ClickContext, ContextObject, pass_context
 from revng.pypeline.utils import PypelineException
 
@@ -62,6 +63,12 @@ def parse_base_directory(path: str, ctx: ClickContext):
         ctx.obj.base_directory = Path(path)
 
 
+def _version_callback(ctx: ClickContext, param, value: bool):
+    if value:
+        sys.stdout.write(f"pype version {pypeline_version}\n")
+        ctx.exit()
+
+
 @click.group
 @click.option(
     "-C",
@@ -100,6 +107,14 @@ def parse_base_directory(path: str, ctx: ClickContext):
     "--verbose",
     is_flag=True,
     help="Enable debug logging for the pypeline related code.",
+)
+@click.option(
+    "--version",
+    is_flag=True,
+    callback=_version_callback,
+    is_eager=True,
+    expose_value=False,
+    help="Display version information and exit.",
 )
 @pass_context
 def pype(ctx: ClickContext, verbose: bool) -> None:
