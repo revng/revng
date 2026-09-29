@@ -73,3 +73,19 @@ def compute_hash(input_: Path | BufferedIOBase | bytes | Buffer) -> str:
         return hashlib.sha256(input_).hexdigest()
     else:
         raise ValueError(f"Unknown input, {type(input_)}")
+
+
+# Verify that a name does not contain any special path characters, such as:
+# * Empty string
+# * Path separators or '\0'
+# * `.` or `-` at the beginning
+# TODO: on windows there are more corner-cases (e.g. NUL)
+def string_is_filename(name: str) -> bool:
+    if len(name) == 0:
+        return False
+    for banned_char in '/\\\0<>"|?*':
+        if banned_char in name:
+            return False
+    if name.startswith((".", "-")):
+        return False
+    return True
