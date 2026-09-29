@@ -311,7 +311,8 @@ static void serializeRegisterInCSVs(revng::IRBuilder &Builder,
   }
 
   for (const model::Register::CSV &CSV : model::Register::getCSVs(Register)) {
-    revng_assert(CSV.StartOffset <= SizeInBytes);
+    if (CSV.StartOffset + CSV.Size > SizeInBytes)
+      continue;
 
     auto *Variable = Builder.getModule()->getGlobalVariable(CSV.Name, true);
     if (Variable == nullptr)
