@@ -12,11 +12,12 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
 
+#include "revng/Clift/CliftAttrInterfaces.h"
 #include "revng/Clift/CliftEnums.h"
-#include "revng/Clift/CliftInterfaces.h"
 #include "revng/Clift/CliftMutableStringAttr.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CDataModel.h"
+#include "revng/Support/CDialect.h"
 
 namespace clift {
 
@@ -135,20 +136,20 @@ struct ClassDefinition {
   bool IsOpaque;
 
   llvm::ArrayRef<FieldAttr> Fields;
-  llvm::ArrayRef<CAttributeAttr> CAttributes;
+  CAttributeListAttr CAttributeList;
 
   ClassDefinition(MutableStringAttr Name,
                   MutableStringAttr Comment,
                   uint64_t Size,
                   bool IsOpaque,
                   llvm::ArrayRef<FieldAttr> Fields,
-                  llvm::ArrayRef<CAttributeAttr> CAttributes) :
+                  CAttributeListAttr CAttributeList) :
     Name(Name),
     Comment(Comment),
     Size(Size),
     IsOpaque(IsOpaque),
     Fields(Fields),
-    CAttributes(CAttributes) {}
+    CAttributeList(CAttributeList) {}
 
   MutableStringAttr getMutableName() const { return Name; }
   MutableStringAttr getMutableComment() const { return Comment; }
@@ -157,7 +158,7 @@ struct ClassDefinition {
 
   llvm::ArrayRef<FieldAttr> getFields() const { return Fields; }
 
-  llvm::ArrayRef<CAttributeAttr> getCAttributes() const { return CAttributes; }
+  CAttributeListAttr getCAttributeList() const { return CAttributeList; }
 
   bool isOpaque() const { return IsOpaque; }
 
@@ -194,6 +195,10 @@ public:
 
   bool isOpaque() const { return getDefinition().isOpaque(); }
 
+  CAttributeListAttr getCAttributeList() const {
+    return getDefinition().getCAttributeList();
+  }
+
   bool hasDefinition() const;
   const ClassDefinition *getDefinitionOrNull() const;
   const ClassDefinition &getDefinition() const;
@@ -229,7 +234,7 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
          MutableStringAttr Comment,
          uint64_t Size,
          llvm::ArrayRef<FieldAttr> Fields,
-         llvm::ArrayRef<CAttributeAttr> Attributes);
+         CAttributeListAttr AttributeList);
 
   mlir::LogicalResult
   verifyDefinition(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError)
@@ -259,7 +264,7 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
                         uint64_t Size,
                         bool IsOpaque,
                         llvm::ArrayRef<FieldAttr> Fields,
-                        llvm::ArrayRef<CAttributeAttr> Attributes);
+                        CAttributeListAttr AttributeList);
 
   static StructAttr
   getChecked(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
@@ -270,13 +275,9 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
              uint64_t Size,
              bool IsOpaque,
              llvm::ArrayRef<FieldAttr> Fields,
-             llvm::ArrayRef<CAttributeAttr> Attributes);
+             CAttributeListAttr AttributeList);
 
   uint64_t getSize() const { return getDefinition().getSize(); }
-
-  llvm::ArrayRef<CAttributeAttr> getCAttributes() const {
-    return getDefinition().getCAttributes();
-  }
 };
 
 struct UnionAttr : ClassAttrImpl<UnionAttr> {
@@ -301,7 +302,7 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
          MutableStringAttr Name,
          MutableStringAttr Comment,
          llvm::ArrayRef<FieldAttr> Fields,
-         llvm::ArrayRef<CAttributeAttr> Attributes);
+         CAttributeListAttr AttributeList);
 
   mlir::LogicalResult
   verifyDefinition(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError)
@@ -329,7 +330,7 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
                        MutableStringAttr Name,
                        MutableStringAttr Comment,
                        llvm::ArrayRef<FieldAttr> Fields,
-                       llvm::ArrayRef<CAttributeAttr> Attributes);
+                       CAttributeListAttr AttributeList);
 
   static UnionAttr
   getChecked(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
@@ -338,13 +339,9 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
              MutableStringAttr Name,
              MutableStringAttr Comment,
              llvm::ArrayRef<FieldAttr> Fields,
-             llvm::ArrayRef<CAttributeAttr> Attributes);
+             CAttributeListAttr AttributeList);
 
   uint64_t getSize() const;
-
-  llvm::ArrayRef<CAttributeAttr> getCAttributes() const {
-    return getDefinition().getCAttributes();
-  }
 };
 
 extern template class ClassAttrImpl<StructAttr>;

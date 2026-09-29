@@ -10,6 +10,7 @@
 #include "revng/Clift/CliftOpHelpers.h"
 #include "revng/CliftTransforms/Expressions.h"
 #include "revng/CliftTransforms/Passes.h"
+#include "revng/CliftTransforms/Verify.h"
 
 namespace clift {
 #define GEN_PASS_DEF_CLIFTOPTIMIZEEXPRESSIONS
@@ -23,11 +24,9 @@ namespace cast_canonicalization {
 
 template<typename ExtendOpT>
 static mlir::Value makeCastOpImpl(mlir::OpBuilder &Builder,
-                                  mlir::Value ArgumentValue,
-                                  mlir::Value ReplacedValue) {
-  mlir::Type TargetType = ReplacedValue.getType();
-  mlir::Location Loc = ReplacedValue.getDefiningOp()->getLoc();
-
+                                  mlir::Location Loc,
+                                  mlir::Type TargetType,
+                                  mlir::Value ArgumentValue) {
   uint64_t SourceSize = getObjectSize(ArgumentValue.getType());
   uint64_t TargetSize = getObjectSize(TargetType);
 
@@ -75,6 +74,10 @@ pointerOffsetQuotient(mlir::IntegerAttr OffsetAttr,
 #include "revng/CliftTransforms/Expressions.h.inc"
 
 } // namespace expression_optimization
+
+namespace expression_optional_optimization {
+#include "revng/CliftTransforms/ExpressionsOptional.h.inc"
+} // namespace expression_optional_optimization
 
 static bool isSubjectToLvalueToRvalueConversion(mlir::OpOperand &Operand) {
   if (auto E = mlir::dyn_cast<ExpressionOpInterface>(Operand.getOwner()))
@@ -244,8 +247,10 @@ struct OptimizeExpressionsPass
 
   void runOnOperation() override {
     FunctionOp Function = getOperation();
-    mlir::Region &Body = Function.getBody();
+    if (verifyNonLegalized(Function).failed())
+      return signalPassFailure();
 
+    mlir::Region &Body = Function.getBody();
     if (Body.empty())
       return;
 
@@ -272,6 +277,12 @@ void clift::populateWithImmediateCanonicalizations(mlir::RewritePatternSet
 void clift::populateWithExpressionOptimizationPatterns(mlir::RewritePatternSet
                                                          &Set) {
   expression_optimization::populateWithGenerated(Set);
+
+  namespace opt = expression_optional_optimization;
+
+  Set.addWithLabel<opt::SubscriptZeroPattern>( //
+    llvm::StringRef("incompatible-with-efa"),
+    Set.getContext());
 
   populateWithBooleanNegationPatterns(Set);
   populateWithCastCanonicalizations(Set);

@@ -301,7 +301,7 @@ def Clift_FunctionType
                         "clift::MutableStringAttr":$mutable_comment,
                         "mlir::Type":$return_type,
                         OptionalArrayRefParameter<"mlir::Type">:$argument_types,
-                        OptionalArrayRefParameter<"clift::CAttributeAttr">:$c_attributes);
+                        Clift_CAttributeListAttr:$c_attribute_list);
 
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef NameAttrKey = "function-name";
@@ -365,8 +365,8 @@ class Clift_ClassTypeBase<string name, string mnemonic>
       return getDefinition().getFields();
     }
 
-    llvm::ArrayRef<clift::CAttributeAttr> getCAttributes() const {
-      return getDefinition().getCAttributes();
+    clift::CAttributeListAttr getCAttributeList() const {
+      return getDefinition().getCAttributeList();
     }
   }];
 
@@ -421,4 +421,32 @@ def Clift_UnionType : Clift_ClassTypeBase<"Union", "union"> {
       return $_get(Definition.getContext(), Definition, IsConst);
     }]>,
   ];
+}
+
+def Clift_CCharType
+  : Clift_Type<"CChar",
+               "c_char",
+               [DeclareTypeInterfaceMethods<Clift_AddressableType>,
+                DeclareTypeInterfaceMethods<Clift_ObjectType>]> {
+
+  let summary = "Clift C character type";
+
+  let description = [{
+    This type represents a C character type of a specific size. This type is
+    only intended for use in the backend phase after legalization, where it is
+    used to disambiguate between usual Clift types (e.g. `uint8_t`) and C
+    character types (e.g. `char`), which are never equivalent, but the latter of
+    which is the element type of string literals emitted in C.
+
+    Cannot be emitted by the C emitter.
+  }];
+
+  let parameters = (ins "uint64_t":$size,
+                        DefaultValuedParameter<"bool", "false">:$is_const);
+
+  let assemblyFormat = [{
+    `<` $size `>`
+  }];
+
+  let genVerifyDecl = 1;
 }

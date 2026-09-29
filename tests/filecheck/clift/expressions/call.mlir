@@ -23,13 +23,13 @@
 %mi = clift.undef : !int32_t
 %ci = clift.undef : !int32_t$const
 
-%g = clift.undef : !g
-%h = clift.undef : !h
+%g = clift.undef : !clift.ptr<8 to !g>
+%h = clift.undef : !clift.ptr<8 to !h>
 
-clift.call %g(%mi) : !g
-clift.call %g(%mi : !int32_t) : !g
-clift.call %g(%ci : !int32_t$const) : !g
+clift.call %g(%mi) : !clift.ptr<8 to !g>
+clift.call %g(%mi : !int32_t) : !clift.ptr<8 to !g>
+clift.call %g(%ci : !int32_t$const) : !clift.ptr<8 to !g>
 
-clift.call %h(%mi) : !h
-clift.call %h(%mi : !int32_t) : !h
-clift.call %h(%ci : !int32_t$const) : !h
+clift.call %h(%mi) : !clift.ptr<8 to !h>
+clift.call %h(%mi : !int32_t) : !clift.ptr<8 to !h>
+clift.call %h(%ci : !int32_t$const) : !clift.ptr<8 to !h>

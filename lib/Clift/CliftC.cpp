@@ -6,9 +6,27 @@
 
 using namespace clift;
 
-//===------------------------ Implicit conversions ------------------------===//
+bool clift::equivalentInC(mlir::Type LHS, mlir::Type RHS) {
+  if (LHS == RHS)
+    return true;
 
-static bool isNullPointerConstantInC(mlir::Value Value) {
+  if (auto LI = mlir::dyn_cast<IntegerType>(LHS)) {
+    if (auto RI = mlir::dyn_cast<IntegerType>(RHS)) {
+
+      static constexpr IntegerKind Signed = IntegerKind::Signed;
+
+      // Primitive integer types of the same size and signedness are equivalent.
+      if (LI.getSize() == RI.getSize()
+          and (LI.getKind() == Signed) == (RI.getKind() == Signed)
+          and LI.getIsConst() == RI.getIsConst())
+        return true;
+    }
+  }
+
+  return false;
+}
+
+bool clift::isNullPointerConstantInC(mlir::Value Value) {
   if (Value.getDefiningOp<NullOp>())
     return true;
 
@@ -20,8 +38,11 @@ static bool isNullPointerConstantInC(mlir::Value Value) {
   return false;
 }
 
+//===------------------------ Implicit conversions ------------------------===//
+
 static bool isImplicitPointerConversionInC(mlir::Type Source,
-                                           mlir::Type Target) {
+                                           mlir::Type Target,
+                                           const CDialect &Dialect) {
   Source = collapseTypedefs(Source);
   Target = collapseTypedefs(Target);
 
@@ -29,26 +50,49 @@ static bool isImplicitPointerConversionInC(mlir::Type Source,
   if (mlir::isa<FunctionType>(Source) or mlir::isa<FunctionType>(Target))
     return false;
 
-  // Conversion which remove qualifiers are not implicit.
-  if (isConst(Source) and not isConst(Target))
+  // Conversion which remove qualifiers may not be implicit, depending on
+  // configuration.
+  if (not Dialect.ImplicitQualifierDiscardingConversions and isConst(Source)
+      and not isConst(Target))
     return false;
 
-  // Otherwise, conversions between pointers with equivalent pointee
-  // types are implicit.
-  if (equivalent(Source, Target))
+  Source = removeConst(Source);
+  Target = removeConst(Target);
+
+  // Otherwise, conversions between pointers with equivalent pointee types are
+  // implicit.
+  if (equivalentInC(Source, Target))
     return true;
 
-  // Conversion to and from void pointers are implicit.
-  if (mlir::isa<VoidType>(Source) or mlir::isa<VoidType>(Target))
+  // Conversions to void pointer are implicit.
+  if (mlir::isa<VoidType>(Target))
     return true;
+
+  // Conversions from void pointer may be implicit, depending on configuration.
+  if (Dialect.ImplicitVoidPointerConversions and mlir::isa<VoidType>(Source))
+    return true;
+
+  if (Dialect.ImplicitIncompatiblePointerConversions)
+    return true;
+
+  // Conversion between integer or C character types of equal width may be
+  // implicit, depending on configuration.
+  if (Dialect.ImplicitPointerSignConversions) {
+    if (mlir::isa<IntegerType>(Target)
+        and mlir::isa<IntegerType, CCharType>(Source)
+        and getObjectSize(Source) == getObjectSize(Target))
+      return true;
+  }
 
   // No other conversion between pointer types is implicit.
   return false;
 }
 
-bool clift::isImplicitlyConvertibleInC(mlir::Type Source, mlir::Type Target) {
-  Source = unwrapTypedefs(Source);
-  Target = unwrapTypedefs(Target);
+bool clift::isImplicitlyConvertibleInC(mlir::Type Source,
+                                       mlir::Type Target,
+                                       const CDialect &Dialect) {
+  Source = collapseTypedefs(Source);
+  Target = collapseTypedefs(Target);
 
   // All conversions between boolean and integer types are implicit.
   if (mlir::isa<BoolType, IntegralType>(Source)
@@ -67,7 +111,8 @@ bool clift::isImplicitlyConvertibleInC(mlir::Type Source, mlir::Type Target) {
         return false;
 
       if (isImplicitPointerConversionInC(SP.getPointeeType(),
-                                         TP.getPointeeType()))
+                                         TP.getPointeeType(),
+                                         Dialect))
         return true;
     }
 
@@ -79,24 +124,23 @@ bool clift::isImplicitlyConvertibleInC(mlir::Type Source, mlir::Type Target) {
     // pointer conversion is implicit.
     if (auto SA = mlir::dyn_cast<ArrayType>(Source))
       return isImplicitPointerConversionInC(SA.getElementType(),
-                                            TP.getPointeeType());
+                                            TP.getPointeeType(),
+                                            Dialect);
   }
 
   return false;
 }
 
-bool clift::isImplicitConversionInC(CastOpInterface Cast) {
-  mlir::Type Target = unwrapTypedefs(Cast.getType());
+bool clift::isImplicitConversionInC(CastOpInterface Cast,
+                                    const CDialect &Dialect) {
+  CDialect LocalDialect = Dialect;
 
-  if (mlir::isa<BitCastOp>(Cast)) {
-    // Bitwise conversion from null pointer constants to any pointer type are
-    // implicit.
-    if (mlir::isa<PointerType>(Target)
-        and isNullPointerConstantInC(Cast.getValue()))
-      return true;
-  }
+  // Conversion from void pointer to another pointer type is always considered
+  // implicit when the converted expression is a null pointer constant.
+  if (mlir::isa<BitCastOp>(Cast) and isNullPointerConstantInC(Cast.getValue()))
+    LocalDialect.ImplicitVoidPointerConversions = true;
 
-  mlir::Type Source = unwrapTypedefs(Cast.getValueType());
-
-  return isImplicitlyConvertibleInC(Source, Target);
+  return isImplicitlyConvertibleInC(Cast.getValueType(),
+                                    Cast.getType(),
+                                    LocalDialect);
 }

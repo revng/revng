@@ -569,6 +569,121 @@ struct IntrinsicCastPattern : mlir::OpRewritePattern<OpT> {
   }
 };
 
+//===---------------------------- Miscellaneous ---------------------------===//
+
+/// Changes the character type of a string literal to a C char type of size
+/// equivalent to the original character type. This is important in order to
+/// ensure that the character type does not actually match any usual Clift type,
+/// as when the string literal is emitted in C, its character type is `char`
+/// (or other character type), which is not equivalent to any fixed width
+/// integer type representable in Clift.
+struct StringPattern : mlir::OpRewritePattern<StringOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(StringOp Op, mlir::PatternRewriter &Rewriter) const override {
+    auto StringT = mlir::cast<ArrayType>(Op.getType());
+
+    if (mlir::isa<CCharType>(StringT.getElementType()))
+      return mlir::failure();
+
+    auto CharT = mlir::cast<IntegerType>(StringT.getElementType());
+    auto NewCharT = CCharType::get(Rewriter.getContext(),
+                                   CharT.getSize(),
+                                   /*IsConst=*/true);
+
+    auto NewStringT = ArrayType::get(Rewriter.getContext(),
+                                     NewCharT,
+                                     StringT.getElementsCount());
+
+    Rewriter.setInsertionPointAfter(Op);
+    auto Reinterpret = Rewriter.create<ReinterpretOp>(Op->getLoc(),
+                                                      StringT,
+                                                      Op);
+
+    Rewriter.replaceAllUsesExcept(Op, Reinterpret, Reinterpret);
+    Rewriter.updateRootInPlace(Op,
+                               [&]() { Op.getResult().setType(NewStringT); });
+
+    return mlir::success();
+  }
+};
+
+/// Rewrites reinterpret operations into sequences of addressof, bitcast, and
+/// indirection (or equivalent depending on user) using the target pointer size.
+struct ReinterpretPattern : mlir::OpRewritePattern<ReinterpretOp> {
+  uint64_t PointerSize;
+
+  explicit ReinterpretPattern(mlir::MLIRContext *Context,
+                              const CDataModel &DataModel) :
+    OpRewritePattern(Context), PointerSize(DataModel.PointerSize) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(ReinterpretOp Op,
+                  mlir::PatternRewriter &Rewriter) const override {
+
+    // It is assumed that previous cast canonicalization has eliminated any
+    // redundant cast.
+    revng_assert(Op.getOperandType() != Op.getType());
+
+    mlir::OpOperand *Use = getOnlyUse(Op);
+    revng_assert(Use != nullptr);
+
+    Rewriter.setInsertionPoint(Op);
+
+    mlir::Value Result = //
+      Rewriter.create<AddressofOp>(Op->getLoc(),
+                                   PointerType::get(Op.getOperandType(),
+                                                    PointerSize),
+                                   Op.getOperand());
+
+    // If the only user is an address-of, it can be erased and the inner bitcast
+    // type can be adjusted to match the address-of result type.
+    if (auto Addressof = mlir::dyn_cast<AddressofOp>(Use->getOwner())) {
+      // Previous legalization ensures that all address-of operation results
+      // match the target pointer size.
+      revng_assert(getObjectSize(Addressof) == PointerSize);
+
+      Use = getOnlyUse(Addressof);
+      revng_assert(Use != nullptr);
+
+      Result = Rewriter.create<BitCastOp>(Op->getLoc(),
+                                          Addressof.getType(),
+                                          Result);
+
+      Use->drop();
+      Rewriter.eraseOp(Addressof);
+    } else {
+      Result = Rewriter.create<BitCastOp>(Op->getLoc(),
+                                          PointerType::get(Op.getType(),
+                                                           PointerSize),
+                                          Result);
+
+      // If the only user is a direct access operation, then in place of an
+      // indirection, the direct access can be replaced by an indirect one.
+      if (auto Access = mlir::dyn_cast<DirectAccessOp>(Use->getOwner())) {
+        Use = getOnlyUse(Access);
+        revng_assert(Use != nullptr);
+
+        Result = Rewriter.create<IndirectAccessOp>(Op->getLoc(),
+                                                   Result,
+                                                   Access.getMemberIndex());
+
+        Use->drop();
+        Rewriter.eraseOp(Access);
+      } else {
+        // For any other value consumer, an indirection is required.
+        Result = Rewriter.create<IndirectionOp>(Op->getLoc(), Result);
+      }
+    }
+
+    Use->set(Result);
+    Rewriter.eraseOp(Op);
+
+    return mlir::success();
+  }
+};
+
 struct CLegalizationPass
   : clift::impl::CliftCLegalizationBase<CLegalizationPass> {
 
@@ -587,6 +702,7 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   // * Resize pointer operands.
   // * Apply arithmetic promotions.
   // * Canonicalize boolean result types.
+  // * Convert string literals to C character types.
   {
     mlir::RewritePatternSet Set(Context);
 
@@ -596,7 +712,6 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     Set.add<ResizePtrDiffPattern>(Context, DataModel);
     Set.add<PointerResizePattern<IndirectionOp>>(Context, DataModel);
     Set.add<PointerResizePattern<SubscriptOp>>(Context, DataModel);
-    Set.add<PointerResizePattern<DirectAccessOp>>(Context, DataModel);
     Set.add<PointerResizePattern<IndirectAccessOp>>(Context, DataModel);
     Set.add<PointerResizePattern<CallOp>>(Context, DataModel);
     Set.add<ResizeAddressofPattern>(Context, DataModel);
@@ -624,6 +739,8 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     Set.add<ShiftPromotionPattern<SarOp>>(Context, DataModel);
     Set.add<ShiftPromotionPattern<ShrOp>>(Context, DataModel);
 
+    Set.add<StringPattern>(Context);
+
     // Cast canonicalisation is used to collapse casts introduced by the
     // other rewrites.
     populateWithCastCanonicalizations(Set);
@@ -643,11 +760,13 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   // * Canonicalize boolean extensions.
   //   This should only be done without cast canonicalization rewrites, as those
   //   would undo the boolean extension canonicalization rewrites.
+  // * Convert reinterpret operations to addressof-bitcast-indirection.
   {
     mlir::RewritePatternSet Set(Context);
 
     Set.add<ImmediateCastPattern>(Context, DataModel);
     Set.add<BooleanCanonicalizationPattern>(Context, DataModel);
+    Set.add<ReinterpretPattern>(Context, DataModel);
 
     auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
     if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
@@ -736,6 +855,7 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
       return mlir::failure();
   }
 
+  Function->setAttr("clift.legalized", mlir::UnitAttr::get(Context));
   return mlir::success();
 }
 

@@ -11,6 +11,9 @@ def ValuesAreEqual : Constraint<CPred<[{ $0 == $1 }]>>;
 
 def ValuesAreNotEqual : Constraint<CPred<[{ $0 != $1 }]>>;
 
+def TypesAreEqual
+  : Constraint<CPred<[{ $0.getType() == $1.getType() }]>>;
+
 def TypesAreEquivalent
   : Constraint<CPred<[{ clift::equivalent($0.getType(), $1.getType()) }]>>;
 

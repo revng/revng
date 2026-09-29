@@ -11,7 +11,9 @@
 
 !f_1 = !clift.func<
   "/type-definition/1-RawFunctionDefinition" : !void(!uint64_t, !uint64_t, !uint64_t)
-  [#clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"raw_aarch64">]>]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"raw_aarch64">]>
+  >
 >
 
 module attributes {clift.module} {
@@ -20,19 +22,24 @@ module attributes {clift.module} {
 
   clift.func @f_1<!f_1>(
     !uint64_t {
-      clift.c_attributes = [#clift.c_attribute<"_REG" : "/macro/_REG" [#clift.identifier<"x0_aarch64">]>],
+      clift.c_attribute_list = #clift.c_attribute_list<
+        <"_REG" : "/macro/_REG" [#clift.identifier<"x0_aarch64">]>
+      >,
       clift.handle = "/raw-argument/1-RawFunctionDefinition/x0_aarch64"
     },
     !uint64_t {
-      clift.c_attributes = [#clift.c_attribute<"_REG" : "/macro/_REG" [#clift.identifier<"x1_aarch64">]>],
+      clift.c_attribute_list = #clift.c_attribute_list<
+        <"_REG" : "/macro/_REG" [#clift.identifier<"x1_aarch64">]>
+      >,
       clift.handle = "/raw-argument/1-RawFunctionDefinition/x1_aarch64"
     },
     !s_0 {
-      clift.c_attributes = [#clift.c_attribute<"_REG" : "/macro/_REG" [#clift.identifier<"x2_aarch64">]>],
+      clift.c_attribute_list = #clift.c_attribute_list<
+        <"_REG" : "/macro/_REG" [#clift.identifier<"x2_aarch64">]>
+      >,
       clift.handle = "/raw-stack-arguments/1-RawFunctionDefinition"
     }
   ) -> !void attributes {
-    clift.c_attributes = [],
     handle = "/function/0x1004:Code_aarch64"
   }
 

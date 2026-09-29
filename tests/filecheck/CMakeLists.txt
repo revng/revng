@@ -18,6 +18,8 @@ function(add_filecheck_test PATH)
 endfunction()
 
 set(FILECHECK_TESTS
+    clift/attributes/c-attribute-list.mlir
+    clift/attributes/c-dialect.mlir
     clift/attributes/data-model.mlir
     clift/attributes/switch.mlir
     clift/backend-transforms/immediate-radix-switch.mlir
@@ -68,6 +70,9 @@ set(FILECHECK_TESTS
     clift/c-legalization/neg-imm.mlir
     clift/c-legalization/null32.mlir
     clift/c-legalization/ptr32.mlir
+    clift/c-legalization/reinterpret-access.mlir
+    clift/c-legalization/reinterpret-addressof.mlir
+    clift/c-legalization/reinterpret.mlir
     clift/c-legalization/sar-sign.mlir
     clift/c-legalization/sext-unsigned.mlir
     clift/c-legalization/zext-signed.mlir
@@ -201,11 +206,16 @@ set(FILECHECK_TESTS
     clift/expressions/decay-array.mlir
     clift/expressions/decay-function.mlir
     clift/expressions/decay-int.mlir
+    clift/expressions/direct-access-strips-qualifiers.mlir
     clift/expressions/extend-i32-to-i32.mlir
     clift/expressions/extend.mlir
+    clift/expressions/immediate.mlir
+    clift/expressions/immediate-out-of-range-max.mlir
+    clift/expressions/immediate-out-of-range-min.mlir
     clift/expressions/increment-const-local-variable.mlir
     clift/expressions/increment-immediate.mlir
     clift/expressions/increment-local-variable.mlir
+    clift/expressions/indirect-access-strips-qualifiers.mlir
     clift/expressions/object-access-of-wrong-type.mlir
     clift/expressions/object-access-out-of-range.mlir
     clift/expressions/pointer-add-of-two-pointers.mlir
@@ -218,8 +228,10 @@ set(FILECHECK_TESTS
     clift/expressions/pointer-resize.mlir
     clift/expressions/pointer-sub-reversed.mlir
     clift/expressions/string-with-bad-array-size.mlir
+    clift/expressions/string-with-char-array-typedef-type.mlir
+    clift/expressions/string-with-char-typedef-type.mlir
     clift/expressions/string-with-non-array-type.mlir
-    clift/expressions/string-with-non-char-type.mlir
+    clift/expressions/string-with-non-char-like-type.mlir
     clift/expressions/string-with-non-const-type.mlir
     clift/expressions/string.mlir
     clift/expressions/ternary-is-rvalue.mlir
@@ -228,6 +240,19 @@ set(FILECHECK_TESTS
     clift/expressions/truncate.mlir
     clift/expressions/use-global-variable.mlir
     clift/expressions/use-nonexistent-global-variable.mlir
+    clift/implicit-cast-elision/add.mlir
+    clift/implicit-cast-elision/assign.mlir
+    clift/implicit-cast-elision/if.mlir
+    clift/implicit-cast-elision/call.mlir
+    clift/implicit-cast-elision/dialect-explicit.mlir
+    clift/implicit-cast-elision/dialect-implicit-incompatible-pointer-conversions.mlir
+    clift/implicit-cast-elision/dialect-implicit-pointer-sign-conversions.mlir
+    clift/implicit-cast-elision/dialect-implicit-qualifier-discarding-conversions.mlir
+    clift/implicit-cast-elision/dialect-implicit-void-pointer-conversions.mlir
+    clift/implicit-cast-elision/neg.mlir
+    clift/implicit-cast-elision/not.mlir
+    clift/implicit-cast-elision/shl.mlir
+    clift/implicit-cast-elision/string.mlir
     clift/model-import/ArrayType.yml
     clift/model-import/CABIFunctionType1.yml
     clift/model-import/CABIFunctionType2.yml
@@ -337,8 +362,10 @@ set(FILECHECK_TESTS
     clift/operations/loop-assigns-labels.mlir
     clift/operations/loop-with-bad-label-mask.mlir
     clift/operations/module-with-duplicate-type-id.mlir
+    clift/operations/module-with-invalid-use-of-char-type.mlir
     clift/operations/module-with-non-clift-type.mlir
     clift/operations/module-with-non-global-op.mlir
+    clift/operations/module-with-valid-use-of-char-type.mlir
     clift/operations/return-with-array-type.mlir
     clift/operations/return-with-function-type.mlir
     clift/operations/return-with-mismatched-type.mlir
@@ -353,13 +380,6 @@ set(FILECHECK_TESTS
     clift/operations/switch-with-pointer-condition.mlir
     clift/operations/switch-without-condition.mlir
     clift/operations/while-without-condition.mlir
-    clift/passes/implicit-cast-elision-add.mlir
-    clift/passes/implicit-cast-elision-assign.mlir
-    clift/passes/implicit-cast-elision-if.mlir
-    clift/passes/implicit-cast-elision-call.mlir
-    clift/passes/implicit-cast-elision-neg.mlir
-    clift/passes/implicit-cast-elision-not.mlir
-    clift/passes/implicit-cast-elision-shl.mlir
     clift/reformat/normalization.mlir
     clift/reformat/tag-preservation.mlir
     clift/serialization/const.mlir

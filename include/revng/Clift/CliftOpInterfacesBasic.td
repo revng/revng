@@ -154,15 +154,15 @@ def Clift_StatementRegionOpInterface
       /*methodBody=*/[{}],
       /*defaultImplementation=*/ [{}]
     >,
-    InterfaceMethod<
-      /*desc=*/"Returns the statement regions of this operation.",
-      "clift::StatementRegionRange", "getStatementRegions", (ins),
-      /*methodBody=*/[{}],
-      /*defaultImplementation=*/ [{
-        return StatementRegionRange($_op, 0, $_op.getStatementRegionCount());
-      }]
-    >,
   ];
+
+  let extraSharedClassDeclaration = [{
+    [[nodiscard]] StatementRegionRange getStatementRegions() {
+      return StatementRegionRange($_op,
+                                  0,
+                                  $_op.getStatementRegionCount());
+    }
+  }];
 }
 
 def Clift_ExpressionRegionOpInterface
@@ -187,15 +187,15 @@ def Clift_ExpressionRegionOpInterface
       /*methodBody=*/[{}],
       /*defaultImplementation=*/ [{}]
     >,
-    InterfaceMethod<
-      /*desc=*/"Returns the expression regions of this operation.",
-      "clift::ExpressionRegionRange", "getExpressionRegions", (ins),
-      /*methodBody=*/[{}],
-      /*defaultImplementation=*/ [{
-        return ExpressionRegionRange($_op, 0, $_op.getExpressionRegionCount());
-      }]
-    >,
   ];
+
+  let extraSharedClassDeclaration = [{
+    [[nodiscard]] ExpressionRegionRange getExpressionRegions() {
+      return ExpressionRegionRange($_op,
+                                   0,
+                                   $_op.getExpressionRegionCount());
+    }
+  }];
 }
 
 #endif

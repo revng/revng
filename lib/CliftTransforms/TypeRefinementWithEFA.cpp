@@ -11,6 +11,7 @@
 #include "revng/CliftTransforms/Expressions.h"
 #include "revng/CliftTransforms/Passes.h"
 #include "revng/CliftTransforms/TypeRefinement.h"
+#include "revng/CliftTransforms/Verify.h"
 
 namespace clift {
 #define GEN_PASS_DEF_CLIFTTYPEREFINEMENTWITHEFA
@@ -33,14 +34,27 @@ struct TypeRefinementWithEFAPass
     populateWithTypeRefinementPatterns(Set);
     populateWithExpressionOptimizationPatterns(Set);
 
+    llvm::SmallVector<std::string> DisabledPatterns(disabledPatterns.begin(),
+                                                    disabledPatterns.end());
+
+    // EFA cannot handle simplification of certain subscript-related rewrites.
+    // Applying such rewrite would cause the pass to never converge due to
+    // non-idempotence of EFA.
+    //
+    // TODO: Fix EFA and re-enable the relevant rewrite patterns.
+    DisabledPatterns.emplace_back("incompatible-with-efa");
+
     Patterns = mlir::FrozenRewritePatternSet(std::move(Set),
-                                             disabledPatterns,
+                                             DisabledPatterns,
                                              enabledPatterns);
 
     return mlir::success();
   }
 
   void runOnOperation() override {
+    if (verifyNonLegalized(getOperation()).failed())
+      return signalPassFailure();
+
     [[maybe_unused]] EFAThreadCache EFACache;
 
     mlir::GreedyRewriteConfig Config;

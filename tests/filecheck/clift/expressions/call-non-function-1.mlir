@@ -8,5 +8,5 @@
 
 %i = clift.undef : !int32_t
 
-// CHECK: expected Clift function or pointer-to-function type
+// CHECK: callee must have pointer-to-function type
 clift.call %i() : !int32_t

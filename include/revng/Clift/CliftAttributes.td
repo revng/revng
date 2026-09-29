@@ -45,6 +45,16 @@ def Clift_DataModelAttr
   let genVerifyDecl = 1;
 }
 
+def Clift_CSemanticsAttr
+  : Clift_Attr<"CDialect",
+               "c_dialect",
+               [DeclareAttrInterfaceMethods<Clift_AliasableAttr>]> {
+
+  let parameters = (ins Clift_ConstRefParameter<"CDialect">:$Dialect);
+
+  let hasCustomAssemblyFormat = 1;
+}
+
 def Clift_StringPairAttr : AttrDef<Clift_Dialect, "StringPair"> {
   let parameters = (ins StringRefParameter<>:$first,
                         StringRefParameter<>:$second);
@@ -68,6 +78,29 @@ def Clift_CAttributeAttr : Clift_Attr<"CAttribute",
   let hasCustomAssemblyFormat = 1;
 
   let genVerifyDecl = 1;
+}
+
+def Clift_CAttributeListAttr : Clift_Attr<"CAttributeList",
+                                          "c_attribute_list",
+                                          [SubElementAttrInterface]> {
+
+  let parameters = (ins ArrayRefParameter<"clift::CAttributeAttr">:$attributes);
+
+  let assemblyFormat = [{
+    `<` $attributes `>`
+  }];
+
+  let genVerifyDecl = 1;
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] llvm::ArrayRef<CAttributeAttr>::iterator begin() const {
+      return getAttributes().begin();
+    }
+
+    [[nodiscard]] llvm::ArrayRef<CAttributeAttr>::iterator end() const {
+      return getAttributes().end();
+    }
+  }];
 }
 
 def Clift_FieldAttr

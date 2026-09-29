@@ -22,11 +22,8 @@ static PointerType getPointerOperationType(ExpressionOpInterface Op) {
   if (mlir::isa<DecayOp>(Op))
     return clift::unwrapped_cast<PointerType>(Op.getType());
 
-  if (auto C = mlir::dyn_cast<CallOp>(Op.getOperation())) {
-    if (auto T = clift::unwrapped_dyn_cast<PointerType>(C.getFunction()
-                                                          .getType()))
-      return T;
-  }
+  if (auto C = mlir::dyn_cast<CallOp>(Op.getOperation()))
+    return C.getCalleeType();
 
   return {};
 }

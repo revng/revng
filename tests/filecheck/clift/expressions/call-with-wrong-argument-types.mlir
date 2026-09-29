@@ -12,8 +12,8 @@
   "/type-definition/1-CABIFunctionDefinition" : !void(!int32_t)
 >
 
-%f = clift.undef : !f
+%f = clift.undef : !clift.ptr<8 to !f>
 %u = clift.undef : !uint32_t
 
 // CHECK: argument types must match the parameter types
-clift.call %f(%u : !uint32_t) : !f
+clift.call %f(%u : !uint32_t) : !clift.ptr<8 to !f>

@@ -8,9 +8,11 @@
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/CliftPipes/Clifter.h"
+#include "revng/CliftPipes/ConfigureCDialect.h"
 #include "revng/CliftPipes/EmitC.h"
 #include "revng/CliftPipes/EmitCAsDirectory.h"
 #include "revng/CliftPipes/EmitCAsSingleFile.h"
+#include "revng/CliftPipes/EmitStrings.h"
 #include "revng/CliftPipes/Headers.h"
 #include "revng/CliftPipes/ImportDataModel.h"
 #include "revng/CliftPipes/ImportDescriptiveInfo.h"
@@ -106,9 +108,11 @@ using namespace revng::pypeline::piperuns;
 REGISTER(FunctionPipeRun, AttachDebugInfo);
 REGISTER(FunctionPipeRun, Clifter);
 REGISTER(FunctionPipeRun, CollectCFG);
+REGISTER(FunctionPipeRun, ConfigureFunctionCDialect);
 REGISTER(FunctionPipeRun, EmitC);
 REGISTER(FunctionPipeRun, EmitFunctionPointers);
 REGISTER(FunctionPipeRun, EmitStringConstants);
+REGISTER(FunctionPipeRun, EmitStrings);
 REGISTER(FunctionPipeRun, EnforceABI);
 REGISTER(FunctionPipeRun, ImportDescriptiveFunctionInfo);
 REGISTER(FunctionPipeRun, ImportFunctionDataModel);

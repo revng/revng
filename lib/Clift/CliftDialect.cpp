@@ -131,6 +131,17 @@ public:
   mlir::LogicalResult visitAddressableType(AddressableType Type) {
     Type = unwrapTypedefs(Type);
 
+    if (mlir::isa<CCharType>(Type)) {
+      if (not mlir::isa<AddressofOp, StringOp>(getCurrentOp()))
+        return getCurrentOp()->emitError() << "C character types may only be "
+                                              "used by address-of and string "
+                                              "literal operations.";
+
+      if (not IsLegalized)
+        return getCurrentOp()->emitError() << "Non-legalized function contains "
+                                              "a C character type.";
+    }
+
     if (not isCompleteType(Type))
       return getCurrentOp()->emitError() << "Clift ModuleOp contains an "
                                             "incomplete type";
@@ -171,6 +182,10 @@ public:
                                << " cannot be directly nested within a"
                                   " ModuleOp.";
 
+    IsLegalized = false;
+    if (mlir::isa<FunctionOp>(Op))
+      IsLegalized = Op->hasAttr("clift.legalized");
+
     return mlir::success();
   }
 
@@ -194,6 +209,7 @@ public:
   }
 
 private:
+  bool IsLegalized = false;
   llvm::DenseMap<llvm::StringRef, DefinedType> Definitions;
   llvm::DenseSet<ClassType> ClassTypes;
 };
@@ -231,10 +247,41 @@ static mlir::LogicalResult verifyDataModelAttr(mlir::Operation *Op,
   return mlir::success();
 }
 
+static mlir::LogicalResult verifyCDialectAttr(mlir::Operation *Op,
+                                              mlir::Attribute Attr) {
+  if (not mlir::isa<CDialectAttr>(Attr))
+    return Op->emitOpError()
+           << "expected '" << CliftDialect::getCDialectAttrName()
+           << "' attribute to be of type CDialectAttr.";
+
+  if (not mlir::isa<mlir::ModuleOp>(Op))
+    return Op->emitOpError()
+           << "expected '" << CliftDialect::getCDialectAttrName()
+           << "' attribute to be attached to '"
+           << mlir::ModuleOp::getOperationName() << "'";
+
+  return mlir::success();
+}
+
+static mlir::LogicalResult verifyLegalizedAttr(mlir::Operation *Op,
+                                               mlir::Attribute Attr) {
+  if (not mlir::isa<mlir::UnitAttr>(Attr))
+    return Op->emitOpError() << "expected 'clift.legalized' attribute to be "
+                                "mlir::UnitAttr.";
+
+  if (not mlir::isa<FunctionOp>(Op))
+    return Op->emitOpError() << "expected 'clift.legalized' attribute to be "
+                                "attached to '"
+                             << FunctionOp::getOperationName() << "'";
+
+  return mlir::success();
+}
+
 } // namespace
 
 struct clift::CliftDialectImpl {
   std::optional<CDataModel> DefaultDataModel;
+  bool StrictPassVerification = true;
 };
 
 void CliftDialect::initialize() {
@@ -261,6 +308,14 @@ void CliftDialect::setDefaultDataModel(const CDataModel &DataModel) {
   Impl->DefaultDataModel = DataModel;
 }
 
+bool CliftDialect::isStrictPassVerificationEnabled() const {
+  return Impl->StrictPassVerification;
+}
+
+void CliftDialect::enableStrictPassVerification(bool Enable) {
+  Impl->StrictPassVerification = Enable;
+}
+
 mlir::LogicalResult
 CliftDialect::verifyOperationAttribute(mlir::Operation *Op,
                                        mlir::NamedAttribute Attr) {
@@ -269,6 +324,12 @@ CliftDialect::verifyOperationAttribute(mlir::Operation *Op,
 
   if (Attr.getName() == getDataModelAttrName())
     return verifyDataModelAttr(Op, Attr.getValue());
+
+  if (Attr.getName() == getCDialectAttrName())
+    return verifyCDialectAttr(Op, Attr.getValue());
+
+  if (Attr.getName() == "clift.legalized")
+    return verifyLegalizedAttr(Op, Attr.getValue());
 
   return mlir::success();
 }

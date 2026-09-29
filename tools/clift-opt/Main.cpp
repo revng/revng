@@ -26,6 +26,10 @@ static void initializeCliftDialect(mlir::MLIRContext *Context,
   DataModel.ExtendedIntegerSizeMask |= 128 / 8;
 
   Dialect->setDefaultDataModel(DataModel);
+
+  // There is not much value in enabling strict pass verification in clift-opt,
+  // since it is a debugging tool and not used as part of the rev.ng pipeline.
+  Dialect->enableStrictPassVerification(false);
 }
 
 int main(int Argc, char *Argv[]) {

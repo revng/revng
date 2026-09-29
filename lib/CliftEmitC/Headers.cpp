@@ -161,7 +161,6 @@ public:
                         CEmitter::DeclaratorInfo{
                           .Identifier = Segment.getName(),
                           .Location = Segment.getHandle(),
-                          .CAttributes = {},
                           .Kind = EntityKind::GlobalVariable,
                           .Parameters = {} });
 

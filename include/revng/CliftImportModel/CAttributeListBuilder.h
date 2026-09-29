@@ -20,10 +20,9 @@ namespace clift {
 
 /// This is a helper for correctly structuring c-attribute lists.
 ///
-/// You can find examples of c-attribute lists as either `clift.c_attributes`
-/// attribute attached to operations (like `clift::FunctionOp`) or
-/// as an inherent attribute array (`mlir::ArrayAttr`) attached to some types,
-/// like `mlir::ClassType`.
+/// You can find examples of c-attribute lists as either
+/// `clift.c_attribute_list` attribute attached to operations (such as
+/// `clift::FunctionOp`) or types (such as `clift::StructType`).
 ///
 /// Usage is simple: you create a new object by passing the context and
 /// an optional list of the existing attributes (when updating
@@ -57,26 +56,24 @@ private:
 public:
   explicit CAttributeListBuilder(mlir::MLIRContext *Context,
                                  CAttributeArray ExistingAttributes = {}) :
-    Context(Context),
-    Result(ExistingAttributes.begin(), ExistingAttributes.end()) {}
+    Context(Context), Result(ExistingAttributes) {}
 
   explicit CAttributeListBuilder(mlir::MLIRContext *Context,
-                                 mlir::ArrayAttr CAttributes) :
+                                 CAttributeListAttr AttributeList) :
     Context(Context) {
 
-    if (CAttributes != nullptr)
-      for (auto Attribute : CAttributes)
-        Result.emplace_back(mlir::cast<clift::CAttributeAttr>(Attribute));
+    if (AttributeList)
+      Result.assign(AttributeList.begin(), AttributeList.end());
   }
-
-  explicit CAttributeListBuilder(mlir::MLIRContext *Context,
-                                 mlir::Attribute CAttributes) :
-    CAttributeListBuilder(Context,
-                          mlir::cast_or_null<mlir::ArrayAttr>(CAttributes)) {}
 
 public:
   void append(CAttributeArray ExistingAttributes) {
     Result.append(ExistingAttributes.begin(), ExistingAttributes.end());
+  }
+
+  void append(CAttributeListAttr AttributeList) {
+    if (AttributeList)
+      Result.append(AttributeList.begin(), AttributeList.end());
   }
 
 public:
@@ -121,12 +118,11 @@ public:
   }
 
   template<ConstexprString Macro>
-  CAttributeListBuilder &setOrUpdate(uint64_t Value) {
+  CAttributeListBuilder &setOrUpdate(llvm::APSInt Value) {
+    revng_assert(Value.getBitWidth() <= 64,
+                 "Integers wider than 64 bits are not representable in C.");
+
     ptml::Attributes.assertAnnotationName<Macro>();
-
-    revng_assert(Value == uint32_t(Value));
-    llvm::APSInt LLVMValue(llvm::APInt(32, Value));
-
     auto AttributeLocation = pipeline::location(revng::ranks::Macro,
                                                 llvm::StringRef(Macro).str());
 
@@ -134,11 +130,19 @@ public:
     auto AttributeName = IdentifierAttr::get(Context,
                                              Macro,
                                              AttributeLocation.toString());
-    auto ArgAttribute = mlir::IntegerAttr::get(Context, LLVMValue);
+    auto ArgAttribute = mlir::IntegerAttr::get(Context, Value);
     auto Arguments = mlir::ArrayAttr::get(Context, { ArgAttribute });
     return setOrUpdateImpl(clift::CAttributeAttr::get(Context,
                                                       AttributeName,
                                                       Arguments));
+  }
+
+  template<ConstexprString Macro, std::integral IntegerT>
+  CAttributeListBuilder &setOrUpdate(IntegerT Integer) {
+    auto Value = llvm::APSInt(llvm::APInt(64, static_cast<uint64_t>(Integer)),
+                              std::is_unsigned_v<IntegerT>);
+
+    return setOrUpdate<Macro>(std::move(Value));
   }
 
   template<ConstexprString Macro>
@@ -160,10 +164,22 @@ public:
   }
 
 public:
-  llvm::ArrayRef<clift::CAttributeAttr> getRaw() const { return Result; }
-  mlir::ArrayAttr get() const {
-    return mlir::ArrayAttr::get(Context, { Result.begin(), Result.end() });
+  [[nodiscard]] bool empty() const { return Result.empty(); }
+
+  [[nodiscard]] CAttributeListAttr getAttributeList() const {
+    revng_assert(not Result.empty());
+    return CAttributeListAttr::get(Context, Result);
   }
+
+  [[nodiscard]] CAttributeListAttr getAttributeListOrNull() const {
+    return Result.empty() ? CAttributeListAttr(nullptr) : getAttributeList();
+  }
+
+  [[nodiscard]] CAttributeArray::iterator begin() const {
+    return Result.begin();
+  }
+
+  [[nodiscard]] CAttributeArray::iterator end() const { return Result.end(); }
 
 private:
   CAttributeListBuilder &setOrUpdateImpl(clift::CAttributeAttr NewAttribute) {
