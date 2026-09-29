@@ -7,6 +7,7 @@ from __future__ import annotations
 import enum
 import json
 import os
+import re
 import shutil
 import sqlite3
 from collections import defaultdict
@@ -37,13 +38,16 @@ from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedOb
 from .storage_provider import ObjectsToInvalidate, PipeDependencies, ProjectID, ProjectMetadata
 from .storage_provider import SetModelResult, StorageProvider, StorageProviderFactory
 from .util import _OBJECTID_MAXSIZE, check_kind_structure, check_object_id_supported_by_sql
-from .util import compute_hash
+from .util import compute_hash, string_is_filename
 
 # This is a binary mask that will be used for invalidation, thanks to the
 # binary structure of ObjectID, all children are guaranteed to have the parent
 # prefixed, so, to check for all children the check will be
 # target_object_id <= checked_object_id <= CONCAT(target_object_id, _OBJECTID_MASK)  # noqa: E800
 _OBJECTID_MASK = f"x'{"ff" * _OBJECTID_MAXSIZE}'"
+
+# Regex that matches a UUIDv4 (which is used for `ProjectID`s)
+UUID_RE = re.compile(r"^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
 
 CREATE_TABLE_INVALIDATE = """
 CREATE TEMPORARY TABLE model_paths_{uuid}(
@@ -342,6 +346,8 @@ class LocalStorageProviderFactory(StorageProviderFactory):
             assert cache_dir is not None, "Cache directory must be provided"
         if project_id is not None and not (self.temporary or self.multiproject):
             raise ValueError("By default LocalStorageProvider supports only one project")
+        if project_id is not None and not UUID_RE.match(project_id):
+            raise ValueError("ProjectIDs must be UUIDs")
 
         # Get or create the provider for the given project ID
         async with self.providers() as providers:
@@ -710,10 +716,20 @@ class LocalStorageProvider(StorageProvider):
             last_model_save=datetime.fromtimestamp(result[3], timezone.utc),
         )
 
+    def _assert_no_overwrite(self, filename: str):
+        """Checks that the filename will not overwrite a file in the model directory"""
+        path = self._model_directory / filename
+        if path.exists():
+            raise ValueError(f"{path!s} already exists")
+
     def put_files_in_storage(self, files: list[FileStorageEntry]) -> list[str]:
         result = []
         for file in files:
+            if not string_is_filename(file.name):
+                raise ValueError(f"{file.name} is not a valid filename")
+
             if file.contents is not None:
+                self._assert_no_overwrite(file.name)
                 file_path = self._model_directory / file.name
                 file_path.write_bytes(file.contents)
                 hash_ = compute_hash(file.contents)
@@ -722,6 +738,7 @@ class LocalStorageProvider(StorageProvider):
                 if file.path.parent.resolve() != self._model_directory:
                     # If here, the file is not in the directory where the model
                     # is present, copy it there
+                    self._assert_no_overwrite(file.path.name)
                     file_path = self._model_directory / file.path.name
                     shutil.copy2(file.path, file_path)
                 else:
