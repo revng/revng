@@ -130,7 +130,6 @@ def run_test(project_getter: Callable[[], Project], binary: str):
     # Load the project again, this should also load the model and
     # pipeline description
     project = project_getter()
-    project.upload_binary(binary)
 
     # make sure that the second name changes was commit
     assert project.model.Functions[function_idx].Name == function_new_name2

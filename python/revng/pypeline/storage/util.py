@@ -4,6 +4,9 @@
 
 import graphlib
 import hashlib
+import ntpath
+import os
+import posixpath
 from collections.abc import Buffer
 from io import BufferedIOBase
 from pathlib import Path
@@ -73,3 +76,23 @@ def compute_hash(input_: Path | BufferedIOBase | bytes | Buffer) -> str:
         return hashlib.sha256(input_).hexdigest()
     else:
         raise ValueError(f"Unknown input, {type(input_)}")
+
+
+# Verify that a name is a "normal" filename, banning strings such as:
+# * Empty string
+# * Path separators, '\0' or reserved NT filenames
+def string_is_filename(name: str) -> bool:
+    if os.name not in ("nt", "posix"):
+        raise ValueError(f"Unsupported OS family: {os.name}")
+    if name in ("", ".", ".."):
+        return False
+    if os.name == "posix" and (posixpath.sep in name or "\0" in name):
+        return False
+    if os.name == "nt" and (
+        ntpath.sep in name
+        or ntpath.altsep in name
+        or ntpath.isreserved(name)
+        or ntpath.splitdrive(name)[0] != ""
+    ):
+        return False
+    return True
