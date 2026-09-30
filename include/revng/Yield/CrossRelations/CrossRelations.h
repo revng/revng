@@ -8,6 +8,7 @@
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/Model/Binary.h"
 #include "revng/Yield/CallGraphs/Graph.h"
+#include "revng/Yield/CrossRelations/GlobalDescription.h"
 #include "revng/Yield/CrossRelations/RelationDescription.h"
 
 #include "revng/Yield/CrossRelations/Generated/Early/CrossRelations.h"
@@ -47,6 +48,22 @@ public:
           return revng::createError("Relocation map has an invalid caller: '"
                                     + SerializedCaller + "'.");
       }
+    }
+
+    for (const GlobalDescription &Global : Globals()) {
+      using pipeline::locationFromString;
+      if (not locationFromString(revng::ranks::StructField, Global.Location()))
+        return revng::createError("Global variable has an invalid location: '"
+                                  + Global.Location() + "'.");
+
+      if (not Global.Address().isValid())
+        return revng::createError("Global variable '" + Global.Location()
+                                  + "' has an invalid address.");
+
+      for (const std::string &User : Global.Users())
+        if (not locationFromString(revng::ranks::Function, User))
+          return revng::createError("Global variable '" + Global.Location()
+                                    + "' has an invalid user: '" + User + "'.");
     }
 
     return llvm::Error::success();

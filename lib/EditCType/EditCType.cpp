@@ -867,8 +867,19 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
         Struct->Size() = OldSize;
   }
 
-  if (parseStringAnnotation<"_CAN_CONTAIN_CODE">(*RD, Errors))
+  if (parseStringAnnotation<"_SINGLETON">(*RD, Errors))
+    Struct->IsSingleton() = true;
+
+  if (parseStringAnnotation<"_CAN_CONTAIN_CODE">(*RD, Errors)) {
+    // _CAN_CONTAIN_CODE is only allowed in a _SINGLETON struct
+    if (not Struct->IsSingleton()) {
+      Errors.emplace_back("edit-c-type failed: `_CAN_CONTAIN_CODE` is only "
+                          "meaningful on a `_SINGLETON` struct.");
+      return false;
+    }
+
     Struct->CanContainCode() = true;
+  }
 
   switch (AnalysisOption) {
   case EditCTypeOption::EditType:

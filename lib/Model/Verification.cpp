@@ -86,6 +86,13 @@ bool Segment::verify(VerifyHelper &VH) const {
       return VH.fail("Segment's `Type()` does not verify.", *this);
 
     const model::StructDefinition &Struct = *type();
+
+    // A segment has its own singleton struct.
+    if (not Struct.IsSingleton()) {
+      return VH.fail("The struct describing a segment must be a singleton.",
+                     *this);
+    }
+
     if (VirtualSize() != Struct.Size()) {
       return VH.fail(Twine("Segment's virtual size is not equal to the size of "
                            "its type.\n`VirtualSize`: ")
@@ -547,6 +554,10 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   if (T.Size() == 0)
     rc_return VH.fail("Struct size must be greater than zero.", T);
 
+  // Only singleton structs can contain code in their padding.
+  if (T.CanContainCode() and not T.IsSingleton())
+    rc_return VH.fail("A struct that can contain code must be a singleton.", T);
+
   auto FieldIt = T.Fields().begin();
   auto FieldEnd = T.Fields().end();
   for (; FieldIt != FieldEnd; ++FieldIt) {
@@ -848,6 +859,62 @@ bool Binary::verifyTypeDefinitions(VerifyHelper &VH) const {
 }
 
 //
+// Singleton structs
+//
+
+/// Return the definition if it is a singleton struct.
+static const model::StructDefinition *
+getAsSingleton(const model::TypeDefinition &Definition) {
+  const auto *Struct = llvm::dyn_cast<model::StructDefinition>(&Definition);
+  if (Struct == nullptr or not Struct->IsSingleton())
+    return nullptr;
+
+  return Struct;
+}
+
+/// Singleton fields must refer directly to their definition.
+static bool verifySingletonUse(VerifyHelper &VH,
+                               const model::Type &Type,
+                               bool InASingleton) {
+  const model::DefinedType *Defined = Type.skipToDefinedType();
+  if (Defined != nullptr and getAsSingleton(Defined->unwrap()) != nullptr) {
+    if (not InASingleton)
+      return VH.fail("Singleton struct " + Defined->Definition().toString()
+                     + " may only be a field of another singleton.");
+
+    if (Defined != &Type)
+      return VH.fail("Singleton struct " + Defined->Definition().toString()
+                     + " cannot be used through a pointer or an array.");
+  }
+
+  return true;
+}
+
+static bool verifySingletonUses(VerifyHelper &VH, const model::Binary &Binary) {
+  auto Guard = VH.suspendTracking(Binary);
+
+  // Checking every definition also rejects typedefs of singletons, so no
+  // alias traversal is needed. Only singleton structs may contain them.
+  for (const model::UpcastableTypeDefinition &Definition :
+       Binary.TypeDefinitions()) {
+    bool InASingleton = getAsSingleton(*Definition) != nullptr;
+    for (const model::Type *Edge : Definition->edges())
+      if (not verifySingletonUse(VH, *Edge, InASingleton))
+        return false;
+  }
+
+  // Segments and stack frames already require structs. Prototypes require
+  // function types, whose arguments and returns are checked above.
+  for (const model::Function &Function : Binary.Functions())
+    for (const model::LocalVariable &Variable : Function.LocalVariables())
+      if (not Variable.Type().isEmpty()
+          and not verifySingletonUse(VH, *Variable.Type(), false))
+        return false;
+
+  return true;
+}
+
+//
 // Configuration
 //
 
@@ -1046,6 +1113,9 @@ bool Binary::verify(VerifyHelper &VH) const {
   // Verify the configuration and the type system
   if (not Configuration().verify(VH) or not verifyTypeDefinitions(VH))
     return false;
+
+  if (not verifySingletonUses(VH, *this))
+    return VH.fail();
 
   // And, finally, ensure there are no colliding names.
   llvm::Expected Namespaces = collectNamespaces(*this);

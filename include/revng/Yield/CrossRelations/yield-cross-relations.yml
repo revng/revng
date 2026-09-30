@@ -12,6 +12,17 @@ definitions:
         sequence:
           type: SortedVector
           elementType: RelationDescription
+      - name: Globals
+        sequence:
+          type: SortedVector
+          elementType: GlobalDescription
+        doc: |-
+          The global variables of the binary, and the functions using them.
+
+          A global variable is a field of the innermost singleton `struct`
+          reached from a segment: the layers that say where things are, the
+          segment and the sections in it, are walked through, and what they
+          arrive at is a variable.
   - name: RelationDescription
     type: struct
     fields:
@@ -21,5 +32,63 @@ definitions:
         sequence:
           type: SortedVector
           elementType: string
+    key:
+      - Location
+  - name: StringEncoding
+    type: enum
+    doc: The encoding of a global variable holding a string.
+    members:
+      - name: UTF8
+      - name: UTF16LE
+      - name: UTF16BE
+  - name: GlobalDescription
+    type: struct
+    doc: |-
+      A global variable, and what reaches it.
+
+      The string fields are set only when the global holds one, which is to say
+      when its type is an array of constant characters.
+      `Encoding` is `Invalid` on every other global.
+    fields:
+      - name: Location
+        type: string
+        doc: |-
+          The location of the field this global variable is, as a
+          `struct-field` location: `/struct-field/2000-StructDefinition/16` is
+          the field at offset 16 of the singleton struct holding it.
+      - name: Name
+        type: string
+        doc: |-
+          The name of the field representing the global variable. Empty when
+          the field is unnamed.
+      - name: Address
+        type: MetaAddress
+        doc: The address of the global variable.
+      - name: Size
+        type: uint64_t
+        doc: The size of the global variable, in bytes.
+      - name: Users
+        sequence:
+          type: SortedVector
+          elementType: string
+        doc: |-
+          The locations of the functions reaching this global variable, whether
+          reading it or writing it. Empty when no references were found.
+
+          An access landing anywhere inside the global variable counts, so a
+          reference to the middle of a string is attributed to the string.
+      - name: Encoding
+        type: StringEncoding
+        doc: The encoding of the string, if the global variable holds one.
+      - name: CodePoints
+        type: uint64_t
+        doc: The length of the string, in code points, terminator excluded.
+      - name: Preview
+        type: string
+        doc: |-
+          The first 64 code points of the string.
+
+          A preview rather than the whole text: the bytes are in the binary,
+          which is where a consumer wanting all of them should read them from.
     key:
       - Location

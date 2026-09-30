@@ -12,6 +12,7 @@ TypeDefinitions:
     Kind: StructDefinition
     Size: 64
     Fields: []
+    IsSingleton: true
     CanContainCode: true
 
   - ID: 2

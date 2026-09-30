@@ -93,6 +93,7 @@ populateSegmentTypeStruct(model::Binary &Binary,
   revng_assert(Segment.VirtualSize() > 0);
   auto &&[SegmentStruct,
           SegmentType] = Binary.makeStructDefinition(Segment.VirtualSize());
+  SegmentStruct.IsSingleton() = true;
   SegmentStruct.CanContainCode() = SegmentIsExecutable;
 
   for (const auto &Section : Sections) {
@@ -107,6 +108,7 @@ populateSegmentTypeStruct(model::Binary &Binary,
 
     // Create a struct for each section
     auto &&[SectionStruct, Type] = Binary.makeStructDefinition(Section.Size);
+    SectionStruct.IsSingleton() = true;
     SectionStruct.CanContainCode() = (SegmentIsExecutable
                                       and Section.CanContainCode);
 

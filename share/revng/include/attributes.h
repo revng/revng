@@ -15,6 +15,7 @@
 
 // Custom attributes
 #define _STACK _CUSTOM_ATTRIBUTE(stack)
+#define _SINGLETON _CUSTOM_ATTRIBUTE(singleton)
 #define _CAN_CONTAIN_CODE _CUSTOM_ATTRIBUTE(can_contain_code)
 #define _HAS_ONE_BROKEN_RETURN _CUSTOM_ATTRIBUTE(has_one_broken_return)
 

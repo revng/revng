@@ -39,6 +39,7 @@ sources:
       - struct-with-a-rare-type
       - struct-with-a-typo
       - struct-with-code
+      - struct-with-code-outside-a-segment
       - struct-with-conflicting-annotations
       - struct-with-conflicting-padding
       - struct-with-conflicting-padding-information

@@ -6,6 +6,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Support/ConvertUTF.h"
 
 #include "revng/Support/Debug.h"
 #include "revng/Support/Unicode.h"
@@ -15,6 +16,45 @@ using namespace llvm;
 static Logger Log("unicode");
 
 using CodePointProcessor = UnicodeCStringView::CodePointProcessor;
+
+std::string UnicodeCStringView::toUTF8() const {
+  revng_assert(isValid());
+  llvm::StringRef Text = Data.drop_back(charSize());
+  if (TheEncoding == Encoding::UTF8)
+    return Text.str();
+
+  bool IsLittleEndian = TheEncoding == Encoding::UTF16LE;
+  llvm::SmallVector<llvm::UTF16> Wide;
+  Wide.reserve(Text.size() / 2);
+  for (size_t Index = 0; Index + 1 < Text.size(); Index += 2) {
+    auto First = static_cast<uint8_t>(Text[Index]);
+    auto Second = static_cast<uint8_t>(Text[Index + 1]);
+    Wide.push_back(IsLittleEndian ? (Second << 8) | First :
+                                    (First << 8) | Second);
+  }
+
+  std::string Result;
+  if (not llvm::convertUTF16ToUTF8String(Wide, Result))
+    return {};
+
+  return Result;
+}
+
+std::string UnicodeCStringView::truncate(size_t Limit) const {
+  std::string Result = toUTF8();
+  size_t Index = 0;
+  for (size_t Count = 0; Index < Result.size() and Count < Limit; ++Count) {
+    // A code point is one leading byte followed by its continuation bytes.
+    ++Index;
+    while (Index < Result.size()
+           and (static_cast<uint8_t>(Result[Index]) & 0xC0) == 0x80) {
+      ++Index;
+    }
+  }
+
+  Result.resize(Index);
+  return Result;
+}
 
 UnicodeCStringView::UnicodeCStringView(llvm::StringRef Data,
                                        Encoding TheEncoding,

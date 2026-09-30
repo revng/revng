@@ -7,6 +7,7 @@ bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/GlobalVariableBuilder.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/Processing.h"
 #include "revng/Support/MetaAddress.h"
@@ -26,6 +27,217 @@ static_assert(revng::__any_imp::_IsSmallObject<MetaAddress>::value);
 auto ARM1000 = MetaAddress::fromString("0x1000:Code_arm");
 auto ARM2000 = MetaAddress::fromString("0x2000:Code_arm");
 auto ARM3000 = MetaAddress::fromString("0x3000:Code_arm");
+
+struct GlobalVariableBuilderFixture {
+  TupleTree<model::Binary> Model;
+  MetaAddress Start = MetaAddress::fromString("0x1000:Generic64");
+
+  GlobalVariableBuilderFixture() {
+    Model->Architecture() = model::Architecture::x86_64;
+    auto &&[Struct, Type] = Model->makeStructDefinition(64);
+    Struct.IsSingleton() = true;
+    auto &Segment = Model->Segments()[Start];
+    Segment.VirtualSize() = Struct.Size();
+    Segment.FileSize() = Struct.Size();
+    Segment.Type() = std::move(Type);
+  }
+
+  model::StructDefinition &segmentType() {
+    return *Model->Segments().at(Start).Type()->getStruct();
+  }
+};
+
+BOOST_FIXTURE_TEST_CASE(TestReplaceGlobalPlaceholder,
+                        GlobalVariableBuilderFixture) {
+  auto &&[Placeholder, Type] = Model->makeStructDefinition(8);
+  auto &Field = segmentType().addField(8, Type.copy());
+  Field.Name() = "global";
+  Field.Comment() = "Keep this comment";
+  segmentType().addField(24, Type.copy());
+
+  GlobalVariableBuilder Builder(*Model);
+  auto Array = ArrayType::make(PrimitiveType::makeConstUnsigned(2), 4);
+  revng_check(Builder.insert(Start + 8, std::move(Array)));
+  const auto &Replaced = segmentType().Fields().at(8);
+  revng_check(Replaced.Name() == "global");
+  revng_check(Replaced.Comment() == "Keep this comment");
+  revng_check(Replaced.Type()->isArray());
+  revng_check(Replaced.Type()->toArray().ElementType()->isConst());
+  revng_check(Placeholder.Fields().empty());
+  revng_check(*segmentType().Fields().at(24).Type() == *Type);
+  revng_check(Model->verify(true));
+
+  // Only one instance remains: inserting into its interior is now safe.
+  revng_check(Builder.insert(Start + 28, PrimitiveType::makeUnsigned(4)));
+  revng_check(Placeholder.Fields().size() == 1);
+  revng_check(Placeholder.Fields().at(4).Type()->isUnsignedPrimitive());
+  revng_check(Model->verify(true));
+}
+
+BOOST_FIXTURE_TEST_CASE(TestPreserveGlobalDefinitions,
+                        GlobalVariableBuilderFixture) {
+  auto &&[Named, NamedType] = Model->makeStructDefinition(8);
+  Named.Name() = "named";
+  segmentType().addField(0, NamedType.copy());
+  auto &&[Annotated, AnnotatedType] = Model->makeStructDefinition(8);
+  Annotated.Comment() = "Keep this definition";
+  segmentType().addField(8, AnnotatedType.copy());
+  auto &&[Singleton, SingletonType] = Model->makeStructDefinition(8);
+  Singleton.IsSingleton() = true;
+  segmentType().addField(16, SingletonType.copy());
+  auto &&[Underlying, UnderlyingType] = Model->makeStructDefinition(8);
+  auto &&[Alias,
+          AliasType] = Model->makeTypedefDefinition(UnderlyingType.copy());
+  segmentType().addField(24, AliasType.copy());
+  auto &&[Populated, PopulatedType] = Model->makeStructDefinition(8);
+  Populated.addField(0, PrimitiveType::makeUnsigned(8));
+  segmentType().addField(32, PopulatedType.copy());
+  auto &&[Constant, ConstantType] = Model->makeStructDefinition(8);
+  ConstantType->IsConst() = true;
+  segmentType().addField(40, ConstantType.copy());
+  auto &&[Element, ElementType] = Model->makeStructDefinition(8);
+  auto Array = ArrayType::make(std::move(ElementType), 1);
+  segmentType().addField(48, Array.copy());
+  revng_check(Model->verify(true));
+
+  GlobalVariableBuilder Builder(*Model);
+  for (uint64_t Offset : { 0, 8, 16, 24, 40 }) {
+    const auto Original = segmentType().Fields().at(Offset).Type().copy();
+    revng_check(Builder.insert(Start + Offset, PrimitiveType::makeUnsigned(8)));
+    revng_check(*segmentType().Fields().at(Offset).Type() == *Original);
+  }
+  revng_check(not Builder.insert(Start + 32, PrimitiveType::makeUnsigned(8)));
+  revng_check(*segmentType().Fields().at(32).Type() == *PopulatedType);
+  revng_check(not Builder.insert(Start + 48, PrimitiveType::makeUnsigned(8)));
+  revng_check(*segmentType().Fields().at(48).Type() == *Array);
+  revng_check(Model->verify(true));
+}
+
+BOOST_FIXTURE_TEST_CASE(TestGlobalInsertionRanges,
+                        GlobalVariableBuilderFixture) {
+  auto &&[Placeholder, Type] = Model->makeStructDefinition(8);
+  segmentType().addField(8, Type.copy());
+
+  GlobalVariableBuilder Builder(*Model);
+  revng_check(not Builder.insert(Start + 4, PrimitiveType::makeUnsigned(8)));
+  revng_check(not Builder.insert(Start + 12, PrimitiveType::makeUnsigned(8)));
+  revng_check(Placeholder.Fields().empty());
+  revng_check(*segmentType().Fields().at(8).Type() == *Type);
+  revng_check(Builder.insert(Start + 24, PrimitiveType::makeUnsigned(8)));
+  revng_check(segmentType().Fields().at(24).Type()->isUnsignedPrimitive());
+
+  // Inserting another instance must prevent later mutations of the shared type.
+  revng_check(Builder.insert(Start + 40, Type.copy()));
+  revng_check(not Builder.insert(Start + 12, PrimitiveType::makeUnsigned(4)));
+  revng_check(Placeholder.Fields().empty());
+  revng_check(Model->verify(true));
+}
+
+BOOST_AUTO_TEST_CASE(TestSingletonContainment) {
+  TupleTree<model::Binary> Model;
+  Model->Architecture() = model::Architecture::x86_64;
+  auto &&[Parent, ParentType] = Model->makeStructDefinition();
+  Parent.Size() = 16;
+  Parent.IsSingleton() = true;
+  auto &&[Child, ChildType] = Model->makeStructDefinition();
+  Child.Size() = 8;
+  Child.IsSingleton() = true;
+  Parent.Fields()[0].Type() = ChildType.copy();
+  revng_check(Model->verify(true));
+
+  Parent.Fields()[0].Type() = PointerType::make(ChildType.copy(), 8);
+  revng_check(not Model->verify());
+  Parent.Fields()[0].Type() = ArrayType::make(ChildType.copy(), 1);
+  revng_check(not Model->verify());
+
+  Parent.Fields()[0].Type() = ChildType.copy();
+  Parent.IsSingleton() = false;
+  revng_check(not Model->verify());
+  Child.IsSingleton() = false;
+  revng_check(Model->verify(true));
+
+  Child.CanContainCode() = true;
+  revng_check(not Model->verify());
+  Child.IsSingleton() = true;
+  Parent.IsSingleton() = true;
+  revng_check(Model->verify(true));
+}
+
+BOOST_AUTO_TEST_CASE(TestSingletonTypedef) {
+  TupleTree<model::Binary> Model;
+  Model->Architecture() = model::Architecture::x86_64;
+  auto &&[Struct, StructType] = Model->makeStructDefinition();
+  Struct.Size() = 8;
+  Struct.IsSingleton() = true;
+  auto &&[Alias, AliasType] = Model->makeTypedefDefinition(StructType.copy());
+  revng_check(not Model->verify());
+
+  auto &&[Parent, ParentType] = Model->makeStructDefinition();
+  Parent.Size() = 8;
+  Parent.IsSingleton() = true;
+  Parent.Fields()[0].Type() = AliasType.copy();
+  revng_check(not Model->verify());
+
+  Struct.IsSingleton() = false;
+  revng_check(Model->verify(true));
+}
+
+BOOST_AUTO_TEST_CASE(TestSingletonPrototypeTypes) {
+  TupleTree<model::Binary> Model;
+  Model->Architecture() = model::Architecture::x86_64;
+  auto &&[Struct, StructType] = Model->makeStructDefinition();
+  Struct.Size() = 8;
+  Struct.IsSingleton() = true;
+  auto &&[Prototype, PrototypeType] = Model->makeCABIFunctionDefinition();
+  Prototype.ABI() = model::ABI::SystemV_x86_64;
+  Prototype.ReturnType() = StructType.copy();
+  Model->DefaultPrototype() = PrototypeType.copy();
+  revng_check(not Model->verify());
+
+  Prototype.ReturnType() = model::UpcastableType{};
+  Prototype.addArgument(StructType.copy());
+  revng_check(not Model->verify());
+  Struct.IsSingleton() = false;
+  revng_check(Model->verify(true));
+}
+
+BOOST_AUTO_TEST_CASE(TestSingletonFunctionTypes) {
+  TupleTree<model::Binary> Model;
+  Model->Architecture() = model::Architecture::x86_64;
+  auto &&[Code, CodeType] = Model->makeStructDefinition();
+  Code.Size() = 4096;
+  Code.IsSingleton() = true;
+  Code.CanContainCode() = true;
+  auto &Segment = Model->Segments()[MetaAddress::fromString("0x1000:"
+                                                            "Generic64")];
+  Segment.VirtualSize() = Code.Size();
+  Segment.FileSize() = Code.Size();
+  Segment.IsExecutable() = true;
+  Segment.Type() = CodeType.copy();
+
+  auto Entry = MetaAddress::fromString("0x1000:Code_x86_64");
+  auto &Function = Model->Functions()[Entry];
+  auto &&[Frame, FrameType] = Model->makeStructDefinition();
+  Frame.Size() = 8;
+  Frame.IsSingleton() = true;
+  Function.StackFrame().Type() = FrameType.copy();
+  revng_check(Model->verify(true));
+
+  auto &&[Struct, StructType] = Model->makeStructDefinition();
+  Struct.Size() = 8;
+  Struct.IsSingleton() = true;
+  auto &Variable = Function.LocalVariables()["local"];
+  Variable.Location().insert(Entry);
+  Variable.Type() = StructType.copy();
+  revng_check(not Model->verify());
+  Variable.Type() = PointerType::make(StructType.copy(), 8);
+  revng_check(not Model->verify());
+  Struct.IsSingleton() = false;
+  revng_check(Model->verify(true));
+
+  Code.IsSingleton() = false;
+  revng_check(not Model->verify());
+}
 
 BOOST_AUTO_TEST_CASE(TestIntrospection) {
   using namespace llvm;

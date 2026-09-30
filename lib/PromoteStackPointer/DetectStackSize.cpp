@@ -314,8 +314,10 @@ void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
   if (StackSize and isValidStackSize(*StackSize)) {
     revng_log(Log, "Final StackSize: " << *StackSize);
 
-    auto EmptyStruct = Binary->makeStructDefinition(*StackSize).second;
-    ModelFunction.StackFrame().Type() = std::move(EmptyStruct);
+    // A stack frame's struct belongs to this function alone.
+    auto &&[Struct, Type] = Binary->makeStructDefinition(*StackSize);
+    Struct.IsSingleton() = true;
+    ModelFunction.StackFrame().Type() = std::move(Type);
   } else {
     if (Log.isEnabled()) {
       Log << "No valid stack size: ";

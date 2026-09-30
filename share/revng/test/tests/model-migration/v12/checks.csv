@@ -1,0 +1,24 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# The executable segment and the section within it.
+.TypeDefinitions[0].IsSingleton,true
+.TypeDefinitions[1].IsSingleton,true
+
+# The segment holding no code: its own struct is recovered, the section in it
+# is not, since an old model records nothing telling it from an object.
+.TypeDefinitions[2].IsSingleton,true
+.TypeDefinitions[3].IsSingleton,null
+
+# The stack frame.
+.TypeDefinitions[5].IsSingleton,true
+
+# The unmarked parent of the code-capable section and siblings at both levels.
+.TypeDefinitions[6].IsSingleton,true
+.TypeDefinitions[7].IsSingleton,true
+.TypeDefinitions[8].IsSingleton,true
+
+# Objects within sections remain ordinary structs.
+.TypeDefinitions[9].IsSingleton,null
+.TypeDefinitions[10].IsSingleton,null
