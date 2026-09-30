@@ -85,6 +85,13 @@ protected:
     return { nullptr, false };
   }
 
+  std::optional<int64_t> getStride(const SCEVAddRecExpr *RE) const {
+    const auto *Stride = dyn_cast<SCEVConstant>(RE->getStepRecurrence(*SE));
+    if (not Stride or Stride->isZero())
+      return std::nullopt;
+    return getSCEVConstantSExtVal(Stride);
+  }
+
   bool addInstanceLink(Value *PointerVal,
                        const SCEV *BaseAddrSCEV,
                        const BasicBlock &B) {
@@ -142,21 +149,14 @@ protected:
     const SCEV *OffsetSCEV = SE->getMinusSCEV(PointerValSCEV, BaseAddrSCEV);
 
     OffsetExpression OE{};
-    while (isa<SCEVAddRecExpr>(OffsetSCEV)) {
-      const auto *Rec = cast<SCEVAddRecExpr>(OffsetSCEV);
-      const SCEV *StrideExpr = Rec->getStepRecurrence(*SE);
-
-      // If the stride is not a constant we cannot handle it, so we bail out.
-      if (not isa<SCEVConstant>(StrideExpr))
+    while (const auto *Rec = dyn_cast<SCEVAddRecExpr>(OffsetSCEV)) {
+      std::optional<int64_t> Stride = getStride(Rec);
+      // Don't add links for unknown or negative strides.
+      if (not Stride or *Stride < 0)
         return Created;
 
-      auto StrideValue = getSCEVConstantSExtVal(StrideExpr);
+      OE.Strides.push_back(*Stride);
 
-      // Don't add links for recurring expressions with non-positive strides.
-      if (StrideValue <= 0LL)
-        return Created;
-
-      OE.Strides.push_back(StrideValue);
       const Loop *L = Rec->getLoop();
       revng_assert(L != nullptr);
       std::optional<int64_t> TripCount;
