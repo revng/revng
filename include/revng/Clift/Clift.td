@@ -148,7 +148,6 @@ def Clift_FunctionOp : Clift_Op<"func",
                                 [Clift_GlobalOpInterface,
                                  CallableOpInterface,
                                  FunctionOpInterface,
-                                 AutomaticAllocationScope,
                                  IsolatedFromAbove]> {
   let arguments = (ins StrAttr:$sym_name,
                        TypeAttrOf<Clift_AnyFunctionType>:$type,
