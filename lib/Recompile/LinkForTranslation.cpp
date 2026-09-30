@@ -311,8 +311,19 @@ void linkForTranslation(const model::Binary &Model,
 namespace revng::pypeline::piperuns {
 
 llvm::Error LinkForTranslation::checkPrecondition(const class Model &Model) {
-  if (Model.get().get()->Binaries().size() != 1)
+  const model::Binary &Binary = *Model.get().get();
+  if (Binary.Binaries().size() != 1)
     return revng::createError("Binaries must have exactly one element");
+
+  if (Binary.Architecture() != model::Architecture::x86_64
+      and not Binary.ImportedLibraries().empty()) {
+    auto Name = model::Architecture::getName(Binary.Architecture()).str();
+    return revng::createError("Cannot translate a dynamic %s binary: "
+                              "translation of dynamic binaries is only "
+                              "supported for x86_64.",
+                              Name.c_str());
+  }
+
   return llvm::Error::success();
 }
 
