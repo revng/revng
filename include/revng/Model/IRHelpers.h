@@ -109,24 +109,29 @@ getUniqueIsolatedFunction(ConstOrNot<llvm::Module> auto &Module,
   return *Function;
 }
 
+inline llvm::IntegerType *toLLVMType(llvm::LLVMContext &Context,
+                                     const model::Register::Portion &P) {
+  uint64_t RegisterSize = model::Register::getSize(P.Register);
+
+  // Ensure we always have at least one *full* CSV no matter what.
+  if (model::Register::getCSVCount(P.Register) == 1)
+    return llvm::IntegerType::getIntNTy(Context, 8 * RegisterSize);
+
+  // For multi-CSV registers, also make sure it's in fact a power of two.
+  uint64_t RealSize = llvm::PowerOf2Ceil(P.Size);
+
+  // And verify we have a whole number of CSVs.
+  uint64_t CSVSize = RegisterSize / model::Register::getCSVCount(P.Register);
+  revng_check(RealSize % CSVSize == 0);
+
+  return llvm::IntegerType::getIntNTy(Context, 8 * RealSize);
+}
+
 inline llvm::SmallVector<llvm::Type *>
 toLLVMTypes(llvm::LLVMContext &Context,
             RangeOf<model::Register::Portion> auto const &RegisterPortions) {
   auto IntoLLVMType = [&Context](const model::Register::Portion &P) {
-    uint64_t RegisterSize = model::Register::getSize(P.Register);
-
-    // Ensure we always have at least one *full* CSV no matter what.
-    if (model::Register::getCSVCount(P.Register) == 1)
-      return llvm::IntegerType::getIntNTy(Context, 8 * RegisterSize);
-
-    // For multi-CSV registers, also make sure it's in fact a power of two.
-    uint64_t RealSize = llvm::PowerOf2Ceil(P.Size);
-
-    // And verify we have a whole number of CSVs.
-    uint64_t CSVSize = RegisterSize / model::Register::getCSVCount(P.Register);
-    revng_check(RealSize % CSVSize == 0);
-
-    return llvm::IntegerType::getIntNTy(Context, 8 * RealSize);
+    return toLLVMType(Context, P);
   };
 
   llvm::SmallVector<llvm::Type *> Result;
