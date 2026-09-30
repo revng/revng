@@ -134,15 +134,6 @@ toLLVMTypes(llvm::LLVMContext &Context,
                     std::back_inserter(Result));
   return Result;
 }
-inline llvm::SmallVector<llvm::Type *>
-toLLVMTypes(llvm::LLVMContext &Context,
-            RangeOf<model::Register::Values> auto const &Registers) {
-  auto FullSizePortion = [](const model::Register::Values &R) {
-    return model::Register::Portion{ R, model::Register::getSize(R) };
-  };
-  return toLLVMTypes(Context,
-                     Registers | std::views::transform(FullSizePortion));
-}
 
 namespace SegmentGlobal {
 
