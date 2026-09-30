@@ -46,10 +46,12 @@ static int64_t getSCEVConstantSExtVal(const SCEV *S) {
 
 class DLATypeSystemLLVMBuilder::InstanceLinkAdder {
 public:
-  InstanceLinkAdder(const model::Binary &M) : Model(M) {}
+  InstanceLinkAdder(const model::Binary &M, DLATypeSystemLLVMBuilder &B) :
+    Model(M), Builder(B) {}
 
 private:
   const model::Binary &Model;
+  DLATypeSystemLLVMBuilder &Builder;
   Function *F = nullptr;
   ScalarEvolution *SE = nullptr;
   llvm::DominatorTree DT;
@@ -59,8 +61,7 @@ private:
 
 protected:
   std::pair<LayoutTypeSystemNode *, bool>
-  getOrCreateSCEVLayout(const SCEV *BaseAddress,
-                        DLATypeSystemLLVMBuilder &Builder) {
+  getOrCreateSCEVLayout(const SCEV *BaseAddress) {
     // Check if the SCEV associated to the base address already has an
     // associated LayoutTypeSystemNode.
     // If it has, we want don't need to create a new node in TS for the source
@@ -84,8 +85,7 @@ protected:
     return { nullptr, false };
   }
 
-  bool addInstanceLink(DLATypeSystemLLVMBuilder &Builder,
-                       Value *PointerVal,
+  bool addInstanceLink(Value *PointerVal,
                        const SCEV *BaseAddrSCEV,
                        const BasicBlock &B) {
     revng_assert(PointerVal != nullptr);
@@ -96,7 +96,7 @@ protected:
     revng_assert(B.getParent() == F);
     bool Created = false; // Created LayoutTypeSystemNode, or Link
 
-    const auto &[Src, New] = getOrCreateSCEVLayout(BaseAddrSCEV, Builder);
+    const auto &[Src, New] = getOrCreateSCEVLayout(BaseAddrSCEV);
     Created |= New;
     if (not Src)
       return Created;
@@ -242,7 +242,7 @@ public:
     SCEVToLayoutType.clear();
   }
 
-  bool getOrCreateSCEVTypes(DLATypeSystemLLVMBuilder &Builder) {
+  bool getOrCreateSCEVTypes() {
     bool Changed = false;
 
     // Add entry in SCEVToLayoutType map for arguments. We always add these
@@ -706,9 +706,7 @@ public:
     return Changed;
   }
 
-  bool createBaseAddrWithInstanceLink(DLATypeSystemLLVMBuilder &Builder,
-                                      Value *PointerVal,
-                                      const BasicBlock &B) {
+  bool createBaseAddrWithInstanceLink(Value *PointerVal, const BasicBlock &B) {
     revng_assert(PointerVal);
 
     bool AddedSomething = false;
@@ -723,7 +721,7 @@ public:
                                                       PtrSCEV,
                                                       SCEVToLayoutType);
     for (const SCEV *BaseAddrSCEV : PossibleBaseAddresses)
-      AddedSomething |= addInstanceLink(Builder, PointerVal, BaseAddrSCEV, B);
+      AddedSomething |= addInstanceLink(PointerVal, BaseAddrSCEV, B);
 
     return AddedSomething;
   }
@@ -789,7 +787,7 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call) {
 
 bool Builder::createIntraproceduralTypes(llvm::Module &M) {
   bool Changed = false;
-  InstanceLinkAdder ILA(Model);
+  InstanceLinkAdder ILA(Model, *this);
 
   // Own the new-pass-manager infrastructure for the whole module. A single FAM
   // serves every function here because it caches per llvm::Function; it lives
@@ -811,7 +809,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M) {
 
     ScalarEvolution &SE = FAM.getResult<ScalarEvolutionAnalysis>(F);
     ILA.setupForProcessingFunction(SE, &F);
-    Changed |= ILA.getOrCreateSCEVTypes(*this);
+    Changed |= ILA.getOrCreateSCEVTypes();
 
     llvm::ReversePostOrderTraversal RPOT(&F.getEntryBlock());
     for (BasicBlock *B : RPOT) {
@@ -865,7 +863,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M) {
           }
 
           // Create Base node
-          Changed |= ILA.createBaseAddrWithInstanceLink(*this, PointerVal, *B);
+          Changed |= ILA.createBaseAddrWithInstanceLink(PointerVal, *B);
 
           // Create Access node.
           uint64_t AccessSize;
@@ -1030,9 +1028,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M) {
 
         for (Value *PointerVal : Pointers) {
           if (PointerVal and not isa<StructType>(PointerVal->getType()))
-            Changed |= ILA.createBaseAddrWithInstanceLink(*this,
-                                                          PointerVal,
-                                                          *B);
+            Changed |= ILA.createBaseAddrWithInstanceLink(PointerVal, *B);
         }
 
         // For indirect calls, we want to enforce the following: if this call
