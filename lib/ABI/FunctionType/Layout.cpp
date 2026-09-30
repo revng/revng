@@ -541,6 +541,8 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
   revng_log(LayoutLog,
             "Layout of " + toString(Function.key()) + " is:\n"
               << toString(*this));
+
+  revng_assert(verify());
 }
 
 Layout::Layout(const model::RawFunctionDefinition &Function) {
@@ -583,6 +585,8 @@ Layout::Layout(const model::RawFunctionDefinition &Function) {
   revng_log(LayoutLog,
             "Layout of " + toString(Function.key()) + " is:\n"
               << toString(*this));
+
+  revng_assert(verify());
 }
 
 /// A value either takes a portion of a single register or one or more full
