@@ -92,6 +92,29 @@ protected:
     return getSCEVConstantSExtVal(Stride);
   }
 
+  // Gets the trip count. Returns nullopt for unknown trip counts.
+  std::optional<uint64_t> getTripCount(const SCEVAddRecExpr *RE) const {
+    const Loop *L = RE->getLoop();
+    revng_assert(L);
+    if (not L->isLoopSimplifyForm())
+      return std::nullopt;
+
+    const auto
+      *TakenCount = dyn_cast<SCEVConstant>(SE->getBackedgeTakenCount(L));
+    if (not TakenCount)
+      return std::nullopt;
+
+    // In general, the trip count is the TakenCount + 1.
+    // However, this can wrap, if TakenCount is all ones. That case is
+    // equivalent to not being able to detect the actual trip count.
+    if (TakenCount->getAPInt().isAllOnes())
+      return std::nullopt;
+
+    const auto *One = SE->getOne(TakenCount->getType());
+    const auto *TripCount = cast<SCEVConstant>(SE->getAddExpr(TakenCount, One));
+    return TripCount->getAPInt().getZExtValue();
+  }
+
   bool addInstanceLink(Value *PointerVal,
                        const SCEV *BaseAddrSCEV,
                        const BasicBlock &B) {
@@ -155,50 +178,10 @@ protected:
       if (not Stride or *Stride < 0)
         return Created;
 
-      OE.Strides.push_back(*Stride);
-
-      const Loop *L = Rec->getLoop();
-      revng_assert(L != nullptr);
-      std::optional<int64_t> TripCount;
-      if (L->isLoopSimplifyForm()) {
-        // If the loop is simplified, use getBackedgeTakenCount to infer the
-        // trip count.
-        const SCEV *SCEVBackedgeCount = SE->getBackedgeTakenCount(L);
-        auto *Count = dyn_cast<SCEVConstant>(SCEVBackedgeCount);
-        if (Count != nullptr and not Count->isZero()) {
-          SmallVector<BasicBlock *, 4> ExitBlocks;
-          L->getUniqueExitBlocks(ExitBlocks);
-          const auto IsDominatedByB = [&DT = this->DT,
-                                       &B](const BasicBlock *OtherB) {
-            return DT.dominates(&B, OtherB);
-          };
-          if (std::all_of(ExitBlocks.begin(),
-                          ExitBlocks.end(),
-                          IsDominatedByB)) {
-            // If B (where the memory access is) dominates all the exit
-            // blocks, then B is executed the same number of times as the
-            // loop header.
-            // This number is the trip count of the loop, which in
-            // loop-simplified form is SCEVBackedgeCount + 1, because in
-            // loop-simplified form we only have one back edge.
-            TripCount = Count->getAPInt().getSExtValue() + 1;
-          } else if (PDT.dominates(L->getHeader(), &B)) {
-            // If the loop header postdominates B, B is executed the same
-            // number of times as the only backedge
-            TripCount = Count->getAPInt().getSExtValue();
-          } // In all the other cases we know nothing
-        }
-      } else {
-        // If the loop is not simplified, getBackedgeTakenCount may give some
-        // results, but not enough to reliably infer the trip count.
-        // Just set it as missing and keep going.
-      }
-
-      // Don't add links for recurring expressions with negative trip counts.
-      if (TripCount.has_value() and TripCount.value() < 0LL)
-        return Created;
+      std::optional<uint64_t> TripCount = getTripCount(Rec);
 
       OE.TripCounts.push_back(std::move(TripCount));
+      OE.Strides.push_back(*Stride);
       OffsetSCEV = Rec->getStart();
     }
 
