@@ -137,8 +137,7 @@ protected:
                                              BaseAddrSCEV->getType());
     }
 
-    const SCEV *NegBaseAddrSCEV = SE->getNegativeSCEV(BaseAddrSCEV);
-    const SCEV *OffsetSCEV = SE->getAddExpr(NegBaseAddrSCEV, PointerValSCEV);
+    const SCEV *OffsetSCEV = SE->getMinusSCEV(PointerValSCEV, BaseAddrSCEV);
 
     // For now we only support constant offsets and recurring expressions
     // representing arrays
