@@ -139,12 +139,6 @@ protected:
 
     const SCEV *OffsetSCEV = SE->getMinusSCEV(PointerValSCEV, BaseAddrSCEV);
 
-    // For now we only support constant offsets and recurring expressions
-    // representing arrays
-    if (not isa<SCEVConstant>(OffsetSCEV)
-        and not isa<SCEVAddRecExpr>(OffsetSCEV))
-      return Created;
-
     OffsetExpression OE{};
     while (isa<SCEVAddRecExpr>(OffsetSCEV)) {
       const auto *Rec = cast<SCEVAddRecExpr>(OffsetSCEV);
