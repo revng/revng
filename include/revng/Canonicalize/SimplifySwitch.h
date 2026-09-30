@@ -4,10 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/Analysis/LazyValueInfo.h"
-#include "llvm/IR/Dominators.h"
-#include "llvm/IR/LegacyPassManager.h"
-#include "llvm/Pass.h"
+#include "llvm/ADT/StringRef.h"
 
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/RawBinaryView.h"
@@ -22,11 +19,6 @@ private:
   LLVMFunctionContainer &ModuleContainer;
   const model::Binary &Binary;
   RawBinaryView BinaryView;
-
-  /// The entry of the function `PM` is about to run on
-  MetaAddress Entry = MetaAddress::invalid();
-
-  llvm::legacy::PassManager PM;
 
 public:
   static constexpr llvm::StringRef Name = "simplify-switch";
