@@ -28,3 +28,4 @@ build_dir = os.environ.get("REVNG_BUILD_DIR", os.getcwd())
 config.test_exec_root_handle = tempfile.TemporaryDirectory(prefix="revng-filecheck-")
 config.test_exec_root = config.test_exec_root_handle.name
 config.substitutions.append(("%root", build_dir))
+config.substitutions.append(("%pipe_input", "tar -c --transform 's;.*;/binary;'"))
