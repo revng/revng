@@ -388,6 +388,24 @@ convertToRaw(const model::CABIFunctionDefinition &FunctionType,
 
 static Logger LayoutLog("function-type-layout");
 
+/// A value either takes a portion of a single register or one or more full
+/// registers
+static llvm::SmallVector<model::Register::Portion, 2>
+toPortions(const DistributedValue &Value) {
+  revng_assert(not Value.RepresentsPadding);
+
+  llvm::SmallVector<model::Register::Portion, 2> Result;
+
+  if (Value.Registers.size() == 1 and Value.SizeOnStack == 0) {
+    Result.emplace_back(Value.Registers[0], Value.Size);
+  } else {
+    for (model::Register::Values Register : Value.Registers)
+      Result.emplace_back(Register, model::Register::getSize(Register));
+  }
+
+  return Result;
+}
+
 Layout::Layout(const model::CABIFunctionDefinition &Function) {
   const abi::Definition &ABI = abi::Definition::get(Function.ABI());
   ToRawConverter Converter(ABI);
@@ -406,7 +424,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
       } else {
         // Nothing on the stack, the return value fits into the registers.
         auto &NewRV = ReturnValues.emplace_back(Function.ReturnType().copy());
-        NewRV.Registers = std::move(RV.Registers);
+        NewRV.Registers = toPortions(RV);
       }
     } else {
       revng_assert(RV.Registers.empty(),
@@ -423,7 +441,8 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
       if (ABI.ReturnValueLocationRegister() != model::Register::Invalid) {
         // Return value is passed using the stack (with a pointer to the
         // location in the dedicated register).
-        RVLocationIn.Registers.emplace_back(ABI.ReturnValueLocationRegister());
+        RVLocationIn.Registers.emplace_back(ABI.ReturnValueLocationRegister(),
+                                            ABI.getPointerSize());
       } else if (ABI.ReturnValueLocationOnStack()) {
         // The location, where return value should be put in, is also
         // communicated using the stack.
@@ -442,7 +461,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
         revng_assert(RVOut.Size == model::ABI::getPointerSize(ABI.ABI()));
         revng_assert(RVOut.Registers.size() == 1);
         revng_assert(RVOut.SizeOnStack == 0);
-        LocationOut.Registers = std::move(RVOut.Registers);
+        LocationOut.Registers = toPortions(RVOut);
       }
     }
   }
@@ -471,7 +490,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
       else
         Current.Kind = ArgumentKind::ReferenceToAggregate;
 
-      Current.Registers = std::move(Distributed.Registers);
+      Current.Registers = toPortions(Distributed);
       if (Distributed.SizeOnStack != 0) {
         // The argument has a part (or is placed entirely) on the stack.
         Current.Stack = Layout::Argument::StackSpan{
@@ -506,14 +525,16 @@ Layout::Layout(const model::RawFunctionDefinition &Function) {
     revng_assert(Register.Type()->isScalar());
 
     auto &Argument = Arguments.emplace_back(Register.Type().copy());
-    Argument.Registers = { Register.Location() };
+    Argument.Registers.emplace_back(Register.Location(),
+                                    *Register.Type()->size());
     Argument.Kind = ArgumentKind::Scalar;
   }
 
   // Lay the return value out.
   for (const model::NamedTypedRegister &Register : Function.ReturnValues()) {
     auto &ReturnValue = ReturnValues.emplace_back(Register.Type().copy());
-    ReturnValue.Registers = { Register.Location() };
+    ReturnValue.Registers.emplace_back(Register.Location(),
+                                       *Register.Type()->size());
   }
 
   // Lay stack arguments out.
@@ -540,6 +561,19 @@ Layout::Layout(const model::RawFunctionDefinition &Function) {
               << toString(*this));
 }
 
+/// A value either takes a portion of a single register or one or more full
+/// registers
+static bool usesFullRegisters(const Layout::ReturnValue &Value) {
+  if (Value.Registers.size() <= 1)
+    return true;
+
+  for (const model::Register::Portion &Portion : Value.Registers)
+    if (Portion.Size != model::Register::getSize(Portion.Register))
+      return false;
+
+  return true;
+}
+
 bool Layout::verify() const {
   model::Architecture::Values ExpectedA = model::Architecture::Invalid;
   std::unordered_set<model::Register::Values> LookupHelper;
@@ -559,20 +593,28 @@ bool Layout::verify() const {
 
   // Verify arguments
   LookupHelper.clear();
-  for (model::Register::Values Register : argumentRegisters())
-    if (!VerificationHelper(Register))
+  for (const model::Register::Portion &Portion : argumentRegisters())
+    if (!VerificationHelper(Portion.Register))
       return false;
 
   // Verify return values
   LookupHelper.clear();
-  for (model::Register::Values Register : returnValueRegisters())
-    if (!VerificationHelper(Register))
+  for (const model::Register::Portion &Portion : returnValueRegisters())
+    if (!VerificationHelper(Portion.Register))
       return false;
 
   // Verify callee saved registers
   LookupHelper.clear();
   for (model::Register::Values Register : CalleeSavedRegisters)
     if (!VerificationHelper(Register))
+      return false;
+
+  for (const Argument &Argument : Arguments)
+    if (not usesFullRegisters(Argument))
+      return false;
+
+  for (const ReturnValue &ReturnValue : ReturnValues)
+    if (not usesFullRegisters(ReturnValue))
       return false;
 
   using namespace abi::FunctionType::ArgumentKind;
@@ -641,8 +683,8 @@ size_t Layout::returnValueRegisterCount() const {
   return Result;
 }
 
-llvm::SmallVector<model::Register::Values> Layout::argumentRegisters() const {
-  llvm::SmallVector<model::Register::Values> Result;
+llvm::SmallVector<model::Register::Portion> Layout::argumentRegisters() const {
+  llvm::SmallVector<model::Register::Portion> Result;
 
   for (const auto &Argument : Arguments)
     Result.append(Argument.Registers.begin(), Argument.Registers.end());
@@ -650,9 +692,9 @@ llvm::SmallVector<model::Register::Values> Layout::argumentRegisters() const {
   return Result;
 }
 
-llvm::SmallVector<model::Register::Values>
+llvm::SmallVector<model::Register::Portion>
 Layout::returnValueRegisters() const {
-  llvm::SmallVector<model::Register::Values> Result;
+  llvm::SmallVector<model::Register::Portion> Result;
 
   for (const ReturnValue &ReturnValue : ReturnValues)
     Result.append(ReturnValue.Registers.begin(), ReturnValue.Registers.end());
@@ -678,22 +720,7 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
   if (!Function.ReturnType().isEmpty())
     RV = ToRawConverter(ABI).distributeReturnValue(*Function.ReturnType());
 
-  auto SetMaximumPortionSize = std::views::transform([](model::Register::Values
-                                                          Register) {
-    // TODO: we can be a bit smarter when setting the sizes here, but it's
-    //       not trivial, requires extensive testing, and is not *that*
-    //       impactful (it only triggers for structs that a bigger than
-    //       a general purpose register while also not having a size that's
-    //       a multiple of the register size), so use a simple fallback for now.
-    return model::Register::Portion(Register,
-                                    model::Register::getSize(Register));
-  });
-
-  if (RV.Registers.size() == 1)
-    Result.ReturnValues.emplace_back(RV.Registers[0], RV.Size);
-  else
-    std::ranges::move(RV.Registers | SetMaximumPortionSize,
-                      std::back_inserter(Result.ReturnValues));
+  Result.ReturnValues = toPortions(RV);
 
   // Handle shadow pointer return value gracefully.
   ArgumentDistributor Distributor(ABI);
@@ -724,15 +751,8 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
   for (const model::Argument &Argument : Function.Arguments().asVector()) {
     auto Distributed = Distributor.nextArgument(*Argument.Type());
     for (DistributedValue SingleArg : Distributed) {
-      if (!SingleArg.RepresentsPadding) {
-        if (SingleArg.Registers.size() == 1) {
-          Result.Arguments.emplace_back(SingleArg.Registers[0], SingleArg.Size);
-
-        } else {
-          std::ranges::move(SingleArg.Registers | SetMaximumPortionSize,
-                            std::back_inserter(Result.Arguments));
-        }
-      }
+      if (!SingleArg.RepresentsPadding)
+        Result.Arguments.append(toPortions(SingleArg));
     }
 
     if (!Distributor.canNextArgumentUseRegisters())

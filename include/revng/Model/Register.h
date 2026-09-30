@@ -723,9 +723,13 @@ cppcoro::generator<model::Register::CSV> getCSVs(Values V);
 
 /// A portion of a register.
 struct Portion {
+public:
   Values Register = Values::Invalid;
   uint64_t StartOffset = 0;
   uint64_t Size = 0;
+
+public:
+  Portion() = default;
 
   /// This constructor initializes the portion to a given size at the *start*
   /// of the given register. That is to say, it forces \ref StartOffset to 0.
@@ -988,6 +992,15 @@ inline model::Register::Values
 getInvalidValueFromYAMLScalar<model::Register::Values>() {
   return model::Register::Invalid;
 }
+
+template<>
+struct llvm::yaml::MappingTraits<model::Register::Portion> {
+  static void mapping(IO &IO, model::Register::Portion &Portion) {
+    IO.mapRequired("Register", Portion.Register);
+    IO.mapRequired("Size", Portion.Size);
+  }
+};
+LLVM_YAML_IS_SEQUENCE_VECTOR(model::Register::Portion)
 
 namespace model::Architecture {
 
