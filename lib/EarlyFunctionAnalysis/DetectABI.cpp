@@ -977,8 +977,9 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
     const bool WritesSP = WrittenRegisters.contains(StackPointer);
 
     using std::ranges::count_if;
-    auto IsWrittenByCaller = [this, &WrittenRegisters](auto &Argument) {
-      auto *CSV = M.getGlobalVariable(model::Register::getName(Argument));
+    auto IsWrittenByCaller = [this, &WrittenRegisters](auto &Portion) {
+      auto Name = model::Register::getName(Portion.Register);
+      auto *CSV = M.getGlobalVariable(Name);
       return WrittenRegisters.count(CSV);
     };
     const auto &Arguments = CalleeLayout.argumentRegisters();
