@@ -53,7 +53,6 @@ getPointerSizedInteger(llvm::LLVMContext &C,
 }
 
 /// \note This is the final prototype, after segregate-stack-access
-template<bool LegacyLocalVariables>
 inline llvm::FunctionType &
 layoutToLLVMFunctionType(llvm::LLVMContext &Context,
                          model::Architecture::Values Architecture,
@@ -95,16 +94,10 @@ layoutToLLVMFunctionType(llvm::LLVMContext &Context,
     break;
 
   case ReturnMethod::ModelAggregate: {
-    auto TargetPointerSizedInteger = getPointerSizedInteger(Context,
-                                                            Architecture);
-    if constexpr (LegacyLocalVariables) {
-      ReturnType = TargetPointerSizedInteger;
-    } else {
-      const model::Type &ReturnAggregate = Layout.returnValueAggregateType();
-      size_t ReturnSize = *ReturnAggregate.size();
-      auto *Int8 = llvm::IntegerType::getInt8Ty(Context);
-      ReturnType = llvm::ArrayType::get(Int8, ReturnSize);
-    }
+    const model::Type &ReturnAggregate = Layout.returnValueAggregateType();
+    size_t ReturnSize = *ReturnAggregate.size();
+    auto *Int8 = llvm::IntegerType::getInt8Ty(Context);
+    ReturnType = llvm::ArrayType::get(Int8, ReturnSize);
   } break;
 
   case ReturnMethod::Scalar: {

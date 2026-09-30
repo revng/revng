@@ -977,9 +977,9 @@ private:
     auto Architecture = Binary.Architecture();
 
     Type *OldReturnType = OldFunction->getReturnType();
-    FunctionType &NewType = layoutToLLVMFunctionType<false>(Context,
-                                                            Architecture,
-                                                            Layout);
+    FunctionType &NewType = layoutToLLVMFunctionType(Context,
+                                                     Architecture,
+                                                     Layout);
 
     // NOTE: all the model *must* be read above this line!
     //       If we don't do this, we will break invalidation tracking
@@ -1683,9 +1683,7 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
   } else {
     LLVMContext &Context = OldCall->getContext();
     auto Architecture = SSA.Binary.Architecture();
-    CalleeType = &layoutToLLVMFunctionType<false>(Context,
-                                                  Architecture,
-                                                  Layout);
+    CalleeType = &layoutToLLVMFunctionType(Context, Architecture, Layout);
     CalledValue = B.CreateBitCast(OldCall->getCalledOperand(),
                                   CalleeType->getPointerTo());
   }

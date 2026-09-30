@@ -97,9 +97,9 @@ private:
                          const model::Function &ModelFunction) const {
     auto *Prototype = Binary.prototypeOrDefault(ModelFunction.prototype());
     auto TheLayout = abi::FunctionType::Layout::make(notNull(Prototype));
-    auto &FT = layoutToLLVMFunctionType<false>(M.getContext(),
-                                               Binary.Architecture(),
-                                               TheLayout);
+    auto &FT = layoutToLLVMFunctionType(M.getContext(),
+                                        Binary.Architecture(),
+                                        TheLayout);
     std::string LLVMName = llvmName(ModelFunction);
     llvm::Function *Result = M.getFunction(LLVMName);
 
