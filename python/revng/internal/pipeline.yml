@@ -293,6 +293,18 @@ branches:
             - remove-extractvalues
             - sroa
             - instsimplify
+            # TODO: when porting this chunk of the pipeline to LLVM's new pass
+            # manager, remember that we have to schedule
+            # InvalidateAnalysisPass<LazyValueAnalysis>
+            # right after jump-threading to clear LVI caches and unregister its
+            # deletion callbacks. This will reduce memory usage, and avoid the
+            # cost calling the callbacks. The latter in particular is very
+            # wasteful: since no pass is using LVI after jump-threading here,
+            # all the calls to the LVI callbacks will be wasted time.
+            # This is not necessary here because this pipe is still using the
+            # legacy pass manager, and no other pass after jump-threading uses
+            # LVI results, so the legacy pass manager calls removeDeadPasses
+            # that already clears the LVI caches.
             - jump-threading
             - licm
             - unreachableblockelim
