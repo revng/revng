@@ -216,6 +216,7 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
       // TODO: find reproducers and handle the cases where multiple vector
       //       registers are used together.
       DistributedValue Result;
+      Result.Size = Size;
       Result.Registers.emplace_back(RegisterList[(*RegisterCounter)++]);
       return { Result };
     } else {
