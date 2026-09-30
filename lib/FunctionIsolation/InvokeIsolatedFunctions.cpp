@@ -168,8 +168,9 @@ public:
         auto ThePrototype = Binary.prototypeOrDefault(ModelF->prototype());
         auto Layout = abi::FunctionType::Layout::make(*ThePrototype);
         for (const auto &ArgumentLayout : Layout.Arguments) {
-          for (model::Register::Values Register : ArgumentLayout.Registers) {
-            auto Name = model::Register::singleCSVName(Register);
+          for (const model::Register::Portion &Portion :
+               ArgumentLayout.Registers) {
+            auto Name = model::Register::singleCSVName(Portion.Register);
             GlobalVariable *CSV = RootModule.getGlobalVariable(Name, true);
             revng_assert(CSV != nullptr);
             Arguments.push_back(Builder.createLoad(CSV));

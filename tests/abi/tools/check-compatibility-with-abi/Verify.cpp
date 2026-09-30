@@ -149,7 +149,7 @@ VH::LeftToVerify VH::adjustForSPTAR(LeftToVerify Remaining) const {
     revng_assert(ShadowArgument.Kind == ShadowPointerToAggregateReturnValue);
     if (ShadowArgument.Registers.size() == 1) {
       // It's in a register, drop one if needed.
-      model::Register::Values Register = *ShadowArgument.Registers.begin();
+      model::Register::Values Register = ShadowArgument.Registers[0].Register;
       revng_assert(Register == ABI.ReturnValueLocationRegister());
       if (!Remaining.Registers.empty())
         if (Remaining.Registers.front() == ABI.ReturnValueLocationRegister())
@@ -297,7 +297,12 @@ void VH::arguments(const abi::runtime_test::ArgumentTest &Test) const {
   // pending verification.
   // NOTE: they are going to be consumed piece by piece during the verification
   //       process.
-  auto Registers = ABI.sortArguments(FunctionLayout.argumentRegisters());
+  llvm::SmallVector<model::Register::Values> ArgumentRegisters;
+  for (const model::Register::Portion &Portion :
+       FunctionLayout.argumentRegisters()) {
+    ArgumentRegisters.push_back(Portion.Register);
+  }
+  auto Registers = ABI.sortArguments(ArgumentRegisters);
   auto Stack = dropInterArgumentPadding(Test.StateBeforeTheCall.Stack);
   LeftToVerify Remaining{ .Registers = Registers, .Stack = Stack };
 
@@ -409,11 +414,11 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
 
       // Check if SPTAR is where we expect to be.
       const auto &Registers = Test.StateBeforeTheCall.Registers;
-      llvm::ArrayRef RegisterBytes = Registers.at(SPTAR.Registers[0]).Bytes;
+      model::Register::Values SPTARRegister = SPTAR.Registers[0].Register;
+      llvm::ArrayRef RegisterBytes = Registers.at(SPTARRegister).Bytes;
       if (RegisterBytes != llvm::ArrayRef(Test.ReturnValue.AddressBytes)) {
         fail("Verification of the return value location register (`"
-             + model::Register::getName(SPTAR.Registers[0]).str()
-             + "`) failed.");
+             + model::Register::getName(SPTARRegister).str() + "`) failed.");
       }
 
       // Save the location to be used further up.
@@ -444,7 +449,7 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
              "functions.");
       }
 
-      const auto &RVReg = FunctionLayout.ReturnValues[0].Registers[0];
+      auto RVReg = FunctionLayout.ReturnValues[0].Registers[0].Register;
       llvm::ArrayRef Bytes = Test.StateAfterTheReturn.Registers.at(RVReg).Bytes;
       if (ReturnValueLocationBytes != Bytes) {
         fail("Returned pointer (`" + model::Register::getName(RVReg).str()
@@ -468,7 +473,8 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
     llvm::ArrayRef ReturnValueBytes = Test.ReturnValue.FoundBytes;
 
     for (const auto &ReturnValue : FunctionLayout.ReturnValues) {
-      for (const auto &Register : ReturnValue.Registers) {
+      for (const model::Register::Portion &Portion : ReturnValue.Registers) {
+        model::Register::Values Register = Portion.Register;
         const auto &RegState = Test.StateAfterTheReturn.Registers.at(Register);
         llvm::ArrayRef Bytes = RegState.Bytes;
         revng_assert(Bytes.size() <= PointerSize);
