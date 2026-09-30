@@ -1321,7 +1321,7 @@ void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
         Argument *OldArgument = ArgumentToRegister.at(Register);
         Type *OldArgumentType = OldArgument->getType();
         auto OldArgumentSize = OldArgumentType->getIntegerBitWidth() / 8;
-        revng_assert(model::Register::getSize(Register) == OldArgumentSize);
+        revng_assert(OldArgumentType == toLLVMType(B.getContext(), Portion));
 
         unsigned ShiftAmount = shiftAmount(OffsetInNewArgument,
                                            NewArgumentSize,
