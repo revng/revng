@@ -46,10 +46,12 @@ static int64_t getSCEVConstantSExtVal(const SCEV *S) {
 
 class DLATypeSystemLLVMBuilder::InstanceLinkAdder {
 public:
-  InstanceLinkAdder(const model::Binary &M) : Model(M) {}
+  InstanceLinkAdder(const model::Binary &M, DLATypeSystemLLVMBuilder &B) :
+    Model(M), Builder(B) {}
 
 private:
   const model::Binary &Model;
+  DLATypeSystemLLVMBuilder &Builder;
   Function *F = nullptr;
   ScalarEvolution *SE = nullptr;
   llvm::DominatorTree DT;
@@ -58,8 +60,62 @@ private:
   SCEVTypeMap SCEVToLayoutType;
 
 protected:
-  bool addInstanceLink(DLATypeSystemLLVMBuilder &Builder,
-                       Value *PointerVal,
+  std::pair<LayoutTypeSystemNode *, bool>
+  getOrCreateSCEVLayout(const SCEV *BaseAddress) {
+    // Check if the SCEV associated to the base address already has an
+    // associated LayoutTypeSystemNode.
+    // If it has, we want don't need to create a new node in TS for the source
+    // of the instance link, and we can add the instance link directly from
+    // the type of the base address link.
+    auto It = SCEVToLayoutType.lower_bound(BaseAddress);
+    if (It != SCEVToLayoutType.end()
+        and not SCEVToLayoutType.key_comp()(BaseAddress, It->first)) {
+      return { &*It->second, false };
+    }
+    if (auto *U = dyn_cast<SCEVUnknown>(BaseAddress)) {
+      // If the BaseAddress doesn't have an associated type, we want to
+      // create it and add it.
+      Value *BaseAddr = U->getValue();
+      revng_assert(nullptr != BaseAddr);
+      revng_assert(not isa<Function>(BaseAddr));
+      const auto &[Layout, NewType] = Builder.getOrCreateLayoutType(BaseAddr);
+      auto P = std::make_pair(BaseAddress, Layout);
+      return { SCEVToLayoutType.emplace_hint(It, std::move(P))->second, true };
+    }
+    return { nullptr, false };
+  }
+
+  std::optional<int64_t> getStride(const SCEVAddRecExpr *RE) const {
+    const auto *Stride = dyn_cast<SCEVConstant>(RE->getStepRecurrence(*SE));
+    if (not Stride or Stride->isZero())
+      return std::nullopt;
+    return getSCEVConstantSExtVal(Stride);
+  }
+
+  // Gets the trip count. Returns nullopt for unknown trip counts.
+  std::optional<uint64_t> getTripCount(const SCEVAddRecExpr *RE) const {
+    const Loop *L = RE->getLoop();
+    revng_assert(L);
+    if (not L->isLoopSimplifyForm())
+      return std::nullopt;
+
+    const auto
+      *TakenCount = dyn_cast<SCEVConstant>(SE->getBackedgeTakenCount(L));
+    if (not TakenCount)
+      return std::nullopt;
+
+    // In general, the trip count is the TakenCount + 1.
+    // However, this can wrap, if TakenCount is all ones. That case is
+    // equivalent to not being able to detect the actual trip count.
+    if (TakenCount->getAPInt().isAllOnes())
+      return std::nullopt;
+
+    const auto *One = SE->getOne(TakenCount->getType());
+    const auto *TripCount = cast<SCEVConstant>(SE->getAddExpr(TakenCount, One));
+    return TripCount->getAPInt().getZExtValue();
+  }
+
+  bool addInstanceLink(Value *PointerVal,
                        const SCEV *BaseAddrSCEV,
                        const BasicBlock &B) {
     revng_assert(PointerVal != nullptr);
@@ -70,34 +126,10 @@ protected:
     revng_assert(B.getParent() == F);
     bool Created = false; // Created LayoutTypeSystemNode, or Link
 
-    LayoutTypeSystemNode *Src = nullptr;
-    {
-      // Check if the SCEV associated to the base address already has an
-      // associated LayoutTypeSystemNode.
-      // If it has, we want don't need to create a new node in TS for the source
-      // of the instance link, and we can add the instance link directly from
-      // the type of the base address link.
-      auto It = SCEVToLayoutType.lower_bound(BaseAddrSCEV);
-      if (It != SCEVToLayoutType.end()
-          and not SCEVToLayoutType.key_comp()(BaseAddrSCEV, It->first)) {
-        Src = &*It->second;
-      } else if (auto *U = dyn_cast<SCEVUnknown>(BaseAddrSCEV)) {
-        // If the BaseAddrSCEV doesn't have an associated type, we want to
-        // create it and add it.
-        Value *BaseAddr = U->getValue();
-        revng_assert(nullptr != BaseAddr);
-        revng_assert(not isa<Function>(BaseAddr));
-        const auto &[Layout, NewType] = Builder.getOrCreateLayoutType(BaseAddr);
-        Created |= NewType;
-        auto P = std::make_pair(BaseAddrSCEV, Layout);
-        Src = SCEVToLayoutType.emplace_hint(It, std::move(P))->second;
-      } else {
-        // If BaseAddrSCEV is not typed and it does not refer to a global
-        // variable we cannot go on.
-        return Created;
-      }
-    }
-    revng_assert(Src != nullptr);
+    const auto &[Src, New] = getOrCreateSCEVLayout(BaseAddrSCEV);
+    Created |= New;
+    if (not Src)
+      return Created;
 
     const auto &[Tgt, IsNewType] = Builder.getOrCreateLayoutType(PointerVal);
     Created |= IsNewType;
@@ -137,73 +169,19 @@ protected:
                                              BaseAddrSCEV->getType());
     }
 
-    const SCEV *NegBaseAddrSCEV = SE->getNegativeSCEV(BaseAddrSCEV);
-    const SCEV *OffsetSCEV = SE->getAddExpr(NegBaseAddrSCEV, PointerValSCEV);
-
-    // For now we only support constant offsets and recurring expressions
-    // representing arrays
-    if (not isa<SCEVConstant>(OffsetSCEV)
-        and not isa<SCEVAddRecExpr>(OffsetSCEV))
-      return Created;
+    const SCEV *OffsetSCEV = SE->getMinusSCEV(PointerValSCEV, BaseAddrSCEV);
 
     OffsetExpression OE{};
-    while (isa<SCEVAddRecExpr>(OffsetSCEV)) {
-      const auto *Rec = cast<SCEVAddRecExpr>(OffsetSCEV);
-      const SCEV *StrideExpr = Rec->getStepRecurrence(*SE);
-
-      // If the stride is not a constant we cannot handle it, so we bail out.
-      if (not isa<SCEVConstant>(StrideExpr))
+    while (const auto *Rec = dyn_cast<SCEVAddRecExpr>(OffsetSCEV)) {
+      std::optional<int64_t> Stride = getStride(Rec);
+      // Don't add links for unknown or negative strides.
+      if (not Stride or *Stride < 0)
         return Created;
 
-      auto StrideValue = getSCEVConstantSExtVal(StrideExpr);
-
-      // Don't add links for recurring expressions with non-positive strides.
-      if (StrideValue <= 0LL)
-        return Created;
-
-      OE.Strides.push_back(StrideValue);
-      const Loop *L = Rec->getLoop();
-      revng_assert(L != nullptr);
-      std::optional<int64_t> TripCount;
-      if (L->isLoopSimplifyForm()) {
-        // If the loop is simplified, use getBackedgeTakenCount to infer the
-        // trip count.
-        const SCEV *SCEVBackedgeCount = SE->getBackedgeTakenCount(L);
-        auto *Count = dyn_cast<SCEVConstant>(SCEVBackedgeCount);
-        if (Count != nullptr and not Count->isZero()) {
-          SmallVector<BasicBlock *, 4> ExitBlocks;
-          L->getUniqueExitBlocks(ExitBlocks);
-          const auto IsDominatedByB = [&DT = this->DT,
-                                       &B](const BasicBlock *OtherB) {
-            return DT.dominates(&B, OtherB);
-          };
-          if (std::all_of(ExitBlocks.begin(),
-                          ExitBlocks.end(),
-                          IsDominatedByB)) {
-            // If B (where the memory access is) dominates all the exit
-            // blocks, then B is executed the same number of times as the
-            // loop header.
-            // This number is the trip count of the loop, which in
-            // loop-simplified form is SCEVBackedgeCount + 1, because in
-            // loop-simplified form we only have one back edge.
-            TripCount = Count->getAPInt().getSExtValue() + 1;
-          } else if (PDT.dominates(L->getHeader(), &B)) {
-            // If the loop header postdominates B, B is executed the same
-            // number of times as the only backedge
-            TripCount = Count->getAPInt().getSExtValue();
-          } // In all the other cases we know nothing
-        }
-      } else {
-        // If the loop is not simplified, getBackedgeTakenCount may give some
-        // results, but not enough to reliably infer the trip count.
-        // Just set it as missing and keep going.
-      }
-
-      // Don't add links for recurring expressions with negative trip counts.
-      if (TripCount.has_value() and TripCount.value() < 0LL)
-        return Created;
+      std::optional<uint64_t> TripCount = getTripCount(Rec);
 
       OE.TripCounts.push_back(std::move(TripCount));
+      OE.Strides.push_back(*Stride);
       OffsetSCEV = Rec->getStart();
     }
 
@@ -247,7 +225,7 @@ public:
     SCEVToLayoutType.clear();
   }
 
-  bool getOrCreateSCEVTypes(DLATypeSystemLLVMBuilder &Builder) {
+  bool getOrCreateSCEVTypes() {
     bool Changed = false;
 
     // Add entry in SCEVToLayoutType map for arguments. We always add these
@@ -711,9 +689,7 @@ public:
     return Changed;
   }
 
-  bool createBaseAddrWithInstanceLink(DLATypeSystemLLVMBuilder &Builder,
-                                      Value *PointerVal,
-                                      const BasicBlock &B) {
+  bool createBaseAddrWithInstanceLink(Value *PointerVal, const BasicBlock &B) {
     revng_assert(PointerVal);
 
     bool AddedSomething = false;
@@ -728,7 +704,7 @@ public:
                                                       PtrSCEV,
                                                       SCEVToLayoutType);
     for (const SCEV *BaseAddrSCEV : PossibleBaseAddresses)
-      AddedSomething |= addInstanceLink(Builder, PointerVal, BaseAddrSCEV, B);
+      AddedSomething |= addInstanceLink(PointerVal, BaseAddrSCEV, B);
 
     return AddedSomething;
   }
@@ -794,7 +770,7 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call) {
 
 bool Builder::createIntraproceduralTypes(llvm::Module &M) {
   bool Changed = false;
-  InstanceLinkAdder ILA(Model);
+  InstanceLinkAdder ILA(Model, *this);
 
   // Own the new-pass-manager infrastructure for the whole module. A single FAM
   // serves every function here because it caches per llvm::Function; it lives
@@ -816,7 +792,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M) {
 
     ScalarEvolution &SE = FAM.getResult<ScalarEvolutionAnalysis>(F);
     ILA.setupForProcessingFunction(SE, &F);
-    Changed |= ILA.getOrCreateSCEVTypes(*this);
+    Changed |= ILA.getOrCreateSCEVTypes();
 
     llvm::ReversePostOrderTraversal RPOT(&F.getEntryBlock());
     for (BasicBlock *B : RPOT) {
@@ -870,7 +846,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M) {
           }
 
           // Create Base node
-          Changed |= ILA.createBaseAddrWithInstanceLink(*this, PointerVal, *B);
+          Changed |= ILA.createBaseAddrWithInstanceLink(PointerVal, *B);
 
           // Create Access node.
           uint64_t AccessSize;
@@ -1035,9 +1011,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M) {
 
         for (Value *PointerVal : Pointers) {
           if (PointerVal and not isa<StructType>(PointerVal->getType()))
-            Changed |= ILA.createBaseAddrWithInstanceLink(*this,
-                                                          PointerVal,
-                                                          *B);
+            Changed |= ILA.createBaseAddrWithInstanceLink(PointerVal, *B);
         }
 
         // For indirect calls, we want to enforce the following: if this call
