@@ -58,6 +58,32 @@ private:
   SCEVTypeMap SCEVToLayoutType;
 
 protected:
+  std::pair<LayoutTypeSystemNode *, bool>
+  getOrCreateSCEVLayout(const SCEV *BaseAddress,
+                        DLATypeSystemLLVMBuilder &Builder) {
+    // Check if the SCEV associated to the base address already has an
+    // associated LayoutTypeSystemNode.
+    // If it has, we want don't need to create a new node in TS for the source
+    // of the instance link, and we can add the instance link directly from
+    // the type of the base address link.
+    auto It = SCEVToLayoutType.lower_bound(BaseAddress);
+    if (It != SCEVToLayoutType.end()
+        and not SCEVToLayoutType.key_comp()(BaseAddress, It->first)) {
+      return { &*It->second, false };
+    }
+    if (auto *U = dyn_cast<SCEVUnknown>(BaseAddress)) {
+      // If the BaseAddress doesn't have an associated type, we want to
+      // create it and add it.
+      Value *BaseAddr = U->getValue();
+      revng_assert(nullptr != BaseAddr);
+      revng_assert(not isa<Function>(BaseAddr));
+      const auto &[Layout, NewType] = Builder.getOrCreateLayoutType(BaseAddr);
+      auto P = std::make_pair(BaseAddress, Layout);
+      return { SCEVToLayoutType.emplace_hint(It, std::move(P))->second, true };
+    }
+    return { nullptr, false };
+  }
+
   bool addInstanceLink(DLATypeSystemLLVMBuilder &Builder,
                        Value *PointerVal,
                        const SCEV *BaseAddrSCEV,
@@ -70,34 +96,10 @@ protected:
     revng_assert(B.getParent() == F);
     bool Created = false; // Created LayoutTypeSystemNode, or Link
 
-    LayoutTypeSystemNode *Src = nullptr;
-    {
-      // Check if the SCEV associated to the base address already has an
-      // associated LayoutTypeSystemNode.
-      // If it has, we want don't need to create a new node in TS for the source
-      // of the instance link, and we can add the instance link directly from
-      // the type of the base address link.
-      auto It = SCEVToLayoutType.lower_bound(BaseAddrSCEV);
-      if (It != SCEVToLayoutType.end()
-          and not SCEVToLayoutType.key_comp()(BaseAddrSCEV, It->first)) {
-        Src = &*It->second;
-      } else if (auto *U = dyn_cast<SCEVUnknown>(BaseAddrSCEV)) {
-        // If the BaseAddrSCEV doesn't have an associated type, we want to
-        // create it and add it.
-        Value *BaseAddr = U->getValue();
-        revng_assert(nullptr != BaseAddr);
-        revng_assert(not isa<Function>(BaseAddr));
-        const auto &[Layout, NewType] = Builder.getOrCreateLayoutType(BaseAddr);
-        Created |= NewType;
-        auto P = std::make_pair(BaseAddrSCEV, Layout);
-        Src = SCEVToLayoutType.emplace_hint(It, std::move(P))->second;
-      } else {
-        // If BaseAddrSCEV is not typed and it does not refer to a global
-        // variable we cannot go on.
-        return Created;
-      }
-    }
-    revng_assert(Src != nullptr);
+    const auto &[Src, New] = getOrCreateSCEVLayout(BaseAddrSCEV, Builder);
+    Created |= New;
+    if (not Src)
+      return Created;
 
     const auto &[Tgt, IsNewType] = Builder.getOrCreateLayoutType(PointerVal);
     Created |= IsNewType;
