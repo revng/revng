@@ -10,13 +10,18 @@
 #include "llvm/Object/MachOUniversal.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/MemoryBuffer.h"
 
 #include "revng/Model/Importer/Binary/BinaryImporter.h"
 #include "revng/Model/Importer/Binary/Options.h"
+#include "revng/Support/Debug.h"
 
+#include "COFFDataDirectorySanitizer.h"
 #include "Importers.h"
 
 using namespace llvm;
+
+static Logger Log("binary-importer");
 
 Error importBinary(TupleTree<model::Binary> &Model,
                    llvm::object::ObjectFile &ObjectFile,
@@ -79,6 +84,14 @@ Error importBinary(TupleTree<model::Binary> &Model,
                                                      false);
   if (not MaybeBuffer)
     return llvm::errorCodeToError(MaybeBuffer.getError());
+
+  if (auto Patched = sanitizeCOFFLoadConfigDirectory(**MaybeBuffer)) {
+    revng_log(Log,
+             "Ignoring malformed PE load config table in "
+               << FullPathForExternalTools
+               << ": its RVA is not contained in any section");
+    *MaybeBuffer = std::move(Patched);
+  }
 
   auto BinaryOrError = object::createBinary(**MaybeBuffer);
   if (not BinaryOrError)
