@@ -1172,7 +1172,7 @@ def Clift_UseOp
 }
 
 def Clift_CallOp : Clift_ExpressionOp<"call"> {
-  let arguments = (ins AnyType:$function,
+  let arguments = (ins AnyType:$callee,
                        Variadic<AnyType>:$arguments);
 
   let results = (outs Clift_AnyNonConstType<AnyType>:$result);
@@ -1181,6 +1181,10 @@ def Clift_CallOp : Clift_ExpressionOp<"call"> {
   let hasVerifier = 1;
 
   let extraClassDeclaration = [{
+    [[nodiscard]] mlir::Type getCalleeType() {
+      return getCallee().getType();
+    }
+
     [[nodiscard]] FunctionType getFunctionType();
   }];
 }
