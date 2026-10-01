@@ -390,7 +390,14 @@ branches:
             - loop-simplify
             - instcombine-noarrays
             - remove-extractvalues
+            - simplify-comparisons
             # We need to re-run type shrinking after instcombine.
+            - early-type-shrinking
+            - type-shrinking
+            - early-cse
+            # Merge the exposed narrow predicates, e.g., x != 0 && x >= 0.
+            - instcombine-noarrays
+            # Restore widths that instcombine may have widened again.
             - early-type-shrinking
             - type-shrinking
             - early-cse

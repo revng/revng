@@ -452,6 +452,7 @@ set(FILECHECK_TESTS
     llvm-passes/split-exponential-dataflow.ll
     llvm-passes/split-struct-phis.ll
     llvm-passes/switch-to-statements.ll
+    llvm-passes/type-shrinking-flags.ll
     llvm-passes/type-shrinking-ranges.ll
     llvm-passes/type-shrinking-widths.ll
     llvm-passes/type-shrinking.ll
