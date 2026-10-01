@@ -38,11 +38,16 @@ PromoteGlobalToLocalPass::run(llvm::Function &F,
 
   revng::IRBuilder Builder(&F.getEntryBlock().front());
 
+  llvm::SmallVector<GlobalVariable *> CSVsToPromote;
+  for (GlobalVariable *CSV : llvm::make_first_range(CSVMap))
+    CSVsToPromote.push_back(CSV);
+  CSVInFunctionReplacer Replacer(CSVsToPromote, F);
+
   // Create an equivalent local variable, replace all the uses of the CSV.
-  for (GlobalVariable *CSV : toSortedByName(llvm::make_first_range(CSVMap))) {
+  for (GlobalVariable *CSV : Replacer.csvs()) {
     auto *CSVTy = CSV->getValueType();
     auto *Alloca = Builder.CreateAlloca(CSVTy, nullptr, CSV->getName());
-    replaceAllUsesInFunctionWith(&F, CSV, Alloca);
+    Replacer.replaceCSVWithAlloca(CSV, Alloca);
 
     CSVMap[CSV] = Alloca;
   }
