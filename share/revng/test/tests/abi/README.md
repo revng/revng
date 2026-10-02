@@ -123,6 +123,16 @@ The artifact provides information that can be used to verify whether a given arg
 
 `revng check-compatibility-with-abi` tool goes through every function present in both the artifact and the model it was passed and and checks the conformity of the data within the model. For example, if the function within the model was fiddled with (its type was changed, for example) and was changed in a non-backwards-compatible way, this could be a good way to detect the problem.
 
+It prints nothing while verifying, and then emits a single YAML document naming every test that failed, together with the reason:
+
+```yaml
+failed-tests:
+- test_union_then_structs: Argument 0 uses neither the expected stack part nor the expected registers.
+- test_double_return_value: The value was lost during the call - only 2 of 8 bytes match.
+```
+
+or `failed-tests: []` when everything passed.
+
 ### `revng ensure-rft-equivalence`
 
 This tool is used to compare `downgraded_reference_binary.yml` and `downgraded_upgraded_downgraded_reference_binary.yml`. If no information was lost during these conversions, the models are to be the same.
