@@ -732,11 +732,13 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
     Distributor.addShadowPointerReturnValueLocationArgument();
 
     revng_assert(Result.ReturnValues.empty());
-    const auto &GPRs = ABI.GeneralPurposeReturnValueRegisters();
-    revng_assert(!GPRs.empty());
+    if (ABI.ReturnValueLocationIsReturned()) {
+      const auto &GPRs = ABI.GeneralPurposeReturnValueRegisters();
+      revng_assert(!GPRs.empty());
 
-    // SPTAR is guaranteed to be a pointer, so the size is set as such.
-    Result.ReturnValues.emplace_back(GPRs[0], ABI.getPointerSize());
+      // SPTAR is guaranteed to be a pointer, so the size is set as such.
+      Result.ReturnValues.emplace_back(GPRs[0], ABI.getPointerSize());
+    }
 
     if (ABI.ReturnValueLocationRegister() != model::Register::Invalid)
       Result.Arguments.emplace_back(ABI.ReturnValueLocationRegister(),
