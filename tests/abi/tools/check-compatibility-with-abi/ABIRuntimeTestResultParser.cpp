@@ -20,13 +20,21 @@ struct RawState {
   State extract(model::Architecture::Values Architecture) {
     State Result;
     for (auto Register : model::Architecture::registers(Architecture)) {
-      constexpr auto PoN = model::PrimitiveKind::PointerOrNumber;
-      if (model::Register::getPrimitiveKind(Register) != PoN) {
-        // Only support generic registers for now.
-        // TODO: add vector register support.
-        continue;
+      // Explicitly skip x86 floating point registers, as the testing suite does
+      // not support them yet,
+      if (Architecture == model::Architecture::x86) {
+        namespace PK = model::PrimitiveKind;
+        if (model::Register::getPrimitiveKind(Register) != PK::PointerOrNumber)
+          continue;
       }
 
+      // also ignore `fs_x86_64`
+      else if (Architecture == model::Architecture::x86_64) {
+        if (Register == model::Register::fs_x86_64)
+          continue;
+      }
+
+      // while ensuring *everything* else is present.
       auto Iterator = llvm::find_if(Registers, [Register](const RawWord &Raw) {
         return Raw.Name == getRegisterName(Register);
       });
