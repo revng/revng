@@ -1990,7 +1990,8 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
       }
 
       revng_assert(OldCall->use_empty());
-    } else {
+    } else if (not OldReturnType->isVoidTy()) {
+      // The old call is void if the ABI does not return the SPTAR
       OldCall->replaceAllUsesWith(ReturnValuePointer);
     }
 
