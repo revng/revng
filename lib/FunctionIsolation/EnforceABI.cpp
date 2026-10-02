@@ -226,12 +226,6 @@ Function *EnforceABI::recreateFunction(Function &OldFunction,
   return Result;
 }
 
-static Value *getCSVOrUndef(Module *M, model::Register::CSV RegCSV) {
-  if (auto *CSV = M->getGlobalVariable(RegCSV.Name, true))
-    return CSV;
-
-  return UndefValue::get(PointerType::get(M->getContext(), 0));
-}
 static Value *loadCSVOrUndef(revng::IRBuilder &Builder,
                              model::Register::CSV RegCSV) {
   if (auto *CSV = Builder.getModule()->getGlobalVariable(RegCSV.Name, true))
@@ -305,7 +299,9 @@ static void serializeRegisterInCSVs(revng::IRBuilder &Builder,
   if (model::Register::getCSVCount(Register) == 1) {
     revng_assert(SizeInBytes == model::Register::getSize(Register));
     for (model::Register::CSV &CSV : model::Register::getCSVs(Register)) {
-      Builder.CreateStore(WideValue, getCSVOrUndef(Builder.getModule(), CSV));
+      auto *Variable = Builder.getModule()->getGlobalVariable(CSV.Name, true);
+      if (Variable != nullptr)
+        Builder.CreateStore(WideValue, Variable);
       return;
     }
   }
