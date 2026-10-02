@@ -5,7 +5,7 @@
 // TODO: this test should start *only* from the model, as the clift for it can
 //       easily be generated from it.
 
-// RUN: %root/bin/revng pipeline run-pipe import-descriptive-info %S/../model.yml <(tar -c --transform 's;.*;/binary;' %s) /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
+// RUN: %root/bin/revng pipeline run-pipe import-descriptive-info %S/../model.yml <(%pipe_input %s) /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
 
 !void = !clift.void
 !uint64_t = !clift.int<unsigned 8>
@@ -16,19 +16,19 @@
 
 // CHECK: !h = !clift.func<"/type-definition/1002-RawFunctionDefinition" as "h" :
 // CHECK:   !void(!uint64_t, !stack_1002_)
-// CHECK:   [
-// CHECK:     #clift.c_attribute<"_ABI" : "/macro/_ABI"
+// CHECK:   #clift.c_attribute_list<
+// CHECK:     <"_ABI" : "/macro/_ABI"
 // CHECK:     [
 // CHECK:       #clift.identifier<"raw_x86_64">
 // CHECK:     ]>
-// CHECK:   ]
+// CHECK:   >
 // CHECK: >
 !h = !clift.func<
   "/type-definition/1002-RawFunctionDefinition"
   : !void(!uint64_t, !stack_1002_)
-  [
-    #clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"raw_x86_64">]>
-  ]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"raw_x86_64">]>
+  >
 >
 
 module attributes { clift.module } {

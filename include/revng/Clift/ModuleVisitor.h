@@ -138,11 +138,6 @@ private:
         return mlir::failure();
     }
 
-    for (mlir::Type Type : Op->getOperandTypes()) {
-      if (internalVisitType(Type).failed())
-        return mlir::failure();
-    }
-
     for (auto &&Attr : Op->getAttrs()) {
       if (internalVisitAttr(Attr.getValue()).failed())
         return mlir::failure();

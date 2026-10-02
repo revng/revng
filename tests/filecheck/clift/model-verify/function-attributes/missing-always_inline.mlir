@@ -2,14 +2,16 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: not FileCheck < <(%root/bin/revng pipeline run-pipe verify-against-model %S/model.yml <(tar -c --transform 's;.*;/binary;' %s) /dev/null -- --debug-log=model-verify 2>&1)
+// RUN: not --crash %root/bin/revng pipeline run-pipe verify-against-model %S/model.yml <(%pipe_input %s) /dev/null -- --debug-log=model-verify 2>&1 | FileCheck %s
 
 !void = !clift.void
 !generic64_t = !clift.int<generic 8>
 
 !f = !clift.func<
   "/type-definition/0-CABIFunctionDefinition" : !void()
-  [#clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"AAPCS64">]>]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"AAPCS64">]>
+  >
 >
 
 module attributes {clift.module} {
@@ -17,7 +19,6 @@ module attributes {clift.module} {
   // CHECK: Attached function attribute count ('0') does not match the model value ('1'). See '/function/0x1044:Code_aarch64'
 
   clift.func @f_3<!f>() -> !void attributes {
-    clift.c_attributes = [],
     handle = "/function/0x1044:Code_aarch64"
   }
 

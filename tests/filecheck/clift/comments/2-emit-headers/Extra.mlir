@@ -24,17 +24,23 @@
 
 !cabifunction_0_ = !clift.func<
   "/type-definition/0-CABIFunctionDefinition" as "cabifunction_0" : !uint8_t(!uint16_t, !uint32_t)
-  [ #clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]> ]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>
+  >
 >
 
 !cabifunction_1_ = !clift.func<
   "/type-definition/1-CABIFunctionDefinition" as "cabifunction_0" : !uint8_t(!uint16_t, !uint32_t)
-  [ #clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]> ]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>
+  >
 >
 
 !cabifunction_2_ = !clift.func<
   "/type-definition/2-CABIFunctionDefinition" as "cabifunction_0" : !uint8_t(!uint16_t, !uint32_t)
-  [ #clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]> ]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>
+  >
 >
 
 module attributes {clift.module} {
@@ -51,7 +57,6 @@ module attributes {clift.module} {
       clift.name = "argument_1"
     }
   ) -> !uint8_t attributes {
-    clift.c_attributes = [],
     clift.comment = "This function only has the function comment, with nothing attached\0Ato the prototype!",
     handle = "/function/0x4:Code_x86_64"
   }
@@ -68,7 +73,6 @@ module attributes {clift.module} {
       clift.name = "argument_1"
     }
   ) -> !uint8_t attributes {
-    clift.c_attributes = [],
     clift.comment = "",
     handle = "/function/0x8:Code_x86_64"
   }
@@ -85,7 +89,6 @@ module attributes {clift.module} {
       clift.name = "argument_1"
     }
   ) -> !uint8_t attributes {
-    clift.c_attributes = [],
     clift.comment = "",
     clift.return_value_comment = "This function only has a return value comment!",
     handle = "/function/0xb:Code_x86_64"

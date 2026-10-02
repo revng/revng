@@ -102,6 +102,7 @@ static void printComment(mlir::AsmPrinter &Printer, llvm::StringRef Value) {
   return printSimpleStringAttributeImpl(Printer, "comment", Value);
 }
 
+// TODO: Use DialectBytecodeReader::readBool once LLVM is upgraded.
 static mlir::LogicalResult readBool(bool &Value,
                                     mlir::DialectBytecodeReader &Reader) {
   uint64_t Integer;
@@ -113,8 +114,31 @@ static mlir::LogicalResult readBool(bool &Value,
   return mlir::success();
 }
 
+// TODO: Use DialectBytecodeReader::writeBool once LLVM is upgraded.
 static void writeBool(bool Value, mlir::DialectBytecodeWriter &Writer) {
   Writer.writeVarInt(Value);
+}
+
+// TODO: Use DialectBytecodeReader::readOptionalAttribute once LLVM is upgraded.
+template<typename AttrT = mlir::Attribute>
+static mlir::LogicalResult
+readOptionalAttribute(AttrT &Attr, mlir::DialectBytecodeReader &Reader) {
+  bool Discriminator = false;
+  if (readBool(Discriminator, Reader).failed())
+    return mlir::failure();
+  if (Discriminator and Reader.readAttribute(Attr).failed())
+    return mlir::failure();
+  return mlir::success();
+}
+
+// TODO: Use DialectBytecodeReader::writeOptionalAttribute once LLVM is
+//       upgraded.
+template<typename AttrT = mlir::Attribute>
+static void
+writeOptionalAttribute(AttrT Attr, mlir::DialectBytecodeWriter &Writer) {
+  writeBool(static_cast<bool>(Attr), Writer);
+  if (Attr)
+    Writer.writeAttribute(Attr);
 }
 
 //===------------------------------ LabelType -----------------------------===//
@@ -686,14 +710,13 @@ static void writeType(clift::TypedefType Type,
 
 //===---------------------------- FunctionType ----------------------------===//
 
-mlir::LogicalResult
-FunctionType::verify(EmitErrorType EmitError,
-                     llvm::StringRef Handle,
-                     MutableStringAttr Name,
-                     MutableStringAttr Comment,
-                     mlir::Type ReturnType,
-                     llvm::ArrayRef<mlir::Type> Args,
-                     llvm::ArrayRef<CAttributeAttr> Attributes) {
+mlir::LogicalResult FunctionType::verify(EmitErrorType EmitError,
+                                         llvm::StringRef Handle,
+                                         MutableStringAttr Name,
+                                         MutableStringAttr Comment,
+                                         mlir::Type ReturnType,
+                                         llvm::ArrayRef<mlir::Type> Args,
+                                         CAttributeListAttr AttributeList) {
   for (mlir::Type T : Args) {
     if (not clift::unwrapped_isa<ValueType>(T))
       return EmitError() << "Function parameter type must be a value type.";
@@ -723,29 +746,6 @@ AddressableType FunctionType::removeConst() const {
 
 llvm::ArrayRef<mlir::Type> FunctionType::getResultTypes() const {
   return llvm::ArrayRef<Type>(getImpl()->return_type);
-}
-
-static mlir::LogicalResult
-parseAttributeArrayImpl(mlir::AsmParser &Parser,
-                        llvm::SmallVector<clift::CAttributeAttr> &Out) {
-  revng_assert(Out.empty());
-
-  mlir::ArrayAttr RawAttributes;
-  auto MaybeResult = Parser.parseOptionalAttribute(RawAttributes);
-  if (not MaybeResult.has_value())
-    return mlir::success(); // no attributes - no problem
-
-  else if (MaybeResult.value().failed())
-    return mlir::failure();
-
-  for (mlir::Attribute RawAttribute : RawAttributes) {
-    if (auto CAttribute = mlir::cast<clift::CAttributeAttr>(RawAttribute))
-      Out.emplace_back(CAttribute);
-    else
-      return mlir::failure();
-  }
-
-  return mlir::success();
 }
 
 mlir::Type FunctionType::parse(mlir::AsmParser &Parser) {
@@ -787,8 +787,9 @@ mlir::Type FunctionType::parse(mlir::AsmParser &Parser) {
         .failed())
     return {};
 
-  llvm::SmallVector<clift::CAttributeAttr> Attributes;
-  if (parseAttributeArrayImpl(Parser, Attributes).failed())
+  CAttributeListAttr AttributeList;
+  if (auto R = Parser.parseOptionalAttribute(AttributeList);
+      R.has_value() && R.value().failed())
     return {};
 
   std::string Comment;
@@ -809,7 +810,7 @@ mlir::Type FunctionType::parse(mlir::AsmParser &Parser) {
                                   CommentAttr,
                                   ReturnType,
                                   llvm::ArrayRef(ParameterTypes),
-                                  llvm::ArrayRef(Attributes));
+                                  AttributeList);
 }
 
 void FunctionType::print(mlir::AsmPrinter &Printer) const {
@@ -832,12 +833,10 @@ void FunctionType::print(mlir::AsmPrinter &Printer) const {
 
   Printer << ")";
 
-  if (not getCAttributes().empty()) {
-    llvm::ArrayRef<mlir::Attribute> Attributes = { getCAttributes().begin(),
-                                                   getCAttributes().end() };
-
+  if (auto AttributeList = getCAttributeList()) {
     Printer << '\n';
-    Printer.printAttribute(mlir::ArrayAttr::get(getContext(), Attributes));
+    Printer.printAttribute(AttributeList);
+    Printer << '\n';
   }
 
   printComment(Printer, getComment());
@@ -867,11 +866,8 @@ static clift::FunctionType readType(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readList(ParameterTypes, ReadType).failed())
     return {};
 
-  llvm::SmallVector<clift::CAttributeAttr> Attributes;
-  auto ReadAttribute = [&](clift::CAttributeAttr &Attribute) {
-    return Reader.readAttribute(Attribute);
-  };
-  if (Reader.readList(Attributes, ReadAttribute).failed())
+  CAttributeListAttr AttributeList;
+  if (readOptionalAttribute(AttributeList, Reader).failed())
     return {};
 
   llvm::StringRef Comment;
@@ -888,7 +884,7 @@ static clift::FunctionType readType(mlir::DialectBytecodeReader &Reader) {
                                          CommentAttr,
                                          ReturnType,
                                          std::move(ParameterTypes),
-                                         llvm::ArrayRef(Attributes));
+                                         AttributeList);
 }
 
 static void writeType(clift::FunctionType Type,
@@ -898,11 +894,7 @@ static void writeType(clift::FunctionType Type,
   Writer.writeType(Type.getReturnType());
   Writer.writeList(Type.getArgumentTypes(),
                    [&](mlir::Type Type) { Writer.writeType(Type); });
-
-  Writer.writeList(Type.getCAttributes(), [&](clift::CAttributeAttr Attribute) {
-    Writer.writeAttribute(Attribute);
-  });
-
+  writeOptionalAttribute(Type.getCAttributeList(), Writer);
   Writer.writeOwnedString(Type.getComment());
 }
 
@@ -1031,8 +1023,9 @@ static TypeT parseClassType(mlir::AsmParser &Parser) {
         .failed())
     return {};
 
-  llvm::SmallVector<clift::CAttributeAttr> Attributes;
-  if (parseAttributeArrayImpl(Parser, Attributes).failed())
+  CAttributeListAttr AttributeList;
+  if (auto R = Parser.parseOptionalAttribute(AttributeList);
+      R.has_value() && R.value().failed())
     return {};
 
   std::string Comment;
@@ -1054,7 +1047,7 @@ static TypeT parseClassType(mlir::AsmParser &Parser) {
                                   CommentAttr,
                                   Args...,
                                   llvm::ArrayRef(Fields),
-                                  llvm::ArrayRef(Attributes));
+                                  AttributeList);
 
     if (not Attr)
       return {};
@@ -1131,13 +1124,10 @@ static void printClassType(TypeT Type, mlir::AsmPrinter &Printer) {
   }
   Printer << "}";
 
-  if (not Type.getDefinition().getCAttributes().empty()) {
-    llvm::SmallVector<mlir::Attribute> Attributes;
-    for (mlir::Attribute Attribute : Type.getDefinition().getCAttributes())
-      Attributes.emplace_back(Attribute);
-
+  if (auto AttributeList = Type.getCAttributeList()) {
     Printer << '\n';
-    Printer.printAttribute(mlir::ArrayAttr::get(Type.getContext(), Attributes));
+    Printer.printAttribute(AttributeList);
+    Printer << '\n';
   }
 
   printComment(Printer, Type.getComment());
@@ -1311,11 +1301,8 @@ static TypeT readClassDefinition(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readList(Fields, ReadField).failed())
     return {};
 
-  llvm::SmallVector<clift::CAttributeAttr> Attributes;
-  auto ReadAttribute = [&](clift::CAttributeAttr &Attribute) {
-    return Reader.readAttribute(Attribute);
-  };
-  if (Reader.readList(Attributes, ReadAttribute).failed())
+  CAttributeListAttr AttributeList;
+  if (readOptionalAttribute(AttributeList, Reader).failed())
     return {};
 
   llvm::StringRef Comment;
@@ -1334,7 +1321,7 @@ static TypeT readClassDefinition(mlir::DialectBytecodeReader &Reader) {
                                   CommentAttr,
                                   Args...,
                                   llvm::ArrayRef(Fields),
-                                  Attributes);
+                                  AttributeList);
 
     if (not Attr)
       return {};
@@ -1374,10 +1361,7 @@ writeClassDefinition(TypeT Type, mlir::DialectBytecodeWriter &Writer) {
     Writer.writeOwnedString(Field.getComment());
   });
 
-  Writer.writeList(Type.getCAttributes(), [&](clift::CAttributeAttr Attribute) {
-    Writer.writeAttribute(Attribute);
-  });
-
+  writeOptionalAttribute(Type.getCAttributeList(), Writer);
   Writer.writeOwnedString(Type.getComment());
 }
 
@@ -1597,16 +1581,6 @@ bool clift::isScalarType(mlir::Type Type) {
                               FloatType,
                               EnumType,
                               PointerType>(Type);
-}
-
-clift::FunctionType
-clift::getFunctionOrFunctionPointerFunctionType(mlir::Type Type) {
-  Type = unwrapTypedefs(Type);
-
-  if (auto P = mlir::dyn_cast<PointerType>(Type))
-    Type = unwrapTypedefs(P.getPointeeType());
-
-  return mlir::dyn_cast<clift::FunctionType>(Type);
 }
 
 //===---------------------------- CliftDialect ----------------------------===//

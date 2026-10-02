@@ -23,8 +23,7 @@ static PointerType getPointerOperationType(ExpressionOpInterface Op) {
     return clift::unwrapped_cast<PointerType>(Op.getType());
 
   if (auto C = mlir::dyn_cast<CallOp>(Op.getOperation())) {
-    if (auto T = clift::unwrapped_dyn_cast<PointerType>(C.getFunction()
-                                                          .getType()))
+    if (auto T = clift::unwrapped_dyn_cast<PointerType>(C.getCalleeType()))
       return T;
   }
 

@@ -17,6 +17,9 @@ mlir_tablegen(ImmediateCanonicalization.h.inc -gen-rewriters)
 set(LLVM_TARGET_DEFINITIONS Expressions.td)
 mlir_tablegen(Expressions.h.inc -gen-rewriters)
 
+set(LLVM_TARGET_DEFINITIONS ExpressionsOptional.td)
+mlir_tablegen(ExpressionsOptional.h.inc -gen-rewriters)
+
 set(LLVM_TARGET_DEFINITIONS ExpressionPostProcessing.td)
 mlir_tablegen(ExpressionPostProcessing.h.inc -gen-rewriters)
 

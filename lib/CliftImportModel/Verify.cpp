@@ -18,6 +18,9 @@ namespace ranks = revng::ranks;
 
 namespace {
 
+using clift::CAttributeAttr;
+using clift::CAttributeListAttr;
+
 static constexpr model::PrimitiveKind::Values
 integerToPrimitiveKind(clift::IntegerKind Kind) {
   switch (Kind) {
@@ -101,29 +104,31 @@ private:
                        llvm::ArrayRef<FlagAttribute> Flags) {
     llvm::SmallVector<bool> Found(Flags.size(), false);
 
-    for (clift::CAttributeAttr Attr : Type.getCAttributes()) {
-      llvm::StringRef Name = Attr.getName().getName();
+    if (CAttributeListAttr AttributeList = Type.getCAttributeList()) {
+      for (CAttributeAttr Attr : AttributeList) {
+        llvm::StringRef Name = Attr.getName().getName();
 
-      if (not ptml::Attributes.isMacro(Name))
-        return error() << "Unknown c-attribute ('" << Name << "') found in '"
-                       << Type.getHandle() << "'";
+        if (not ptml::Attributes.isMacro(Name))
+          return error() << "Unknown c-attribute ('" << Name << "') found in '"
+                         << Type.getHandle() << "'";
 
-      const FlagAttribute *Flag = llvm::find_if(Flags,
-                                                [Name](const FlagAttribute &F) {
-                                                  return F.Name == Name;
-                                                });
-      if (Flag == Flags.end())
-        return error() << "Forbidden c-attribute ('" << Name << "') found in '"
-                       << Type.getHandle() << "'";
+        const FlagAttribute
+          *Flag = llvm::find_if(Flags, [Name](const FlagAttribute &F) {
+            return F.Name == Name;
+          });
+        if (Flag == Flags.end())
+          return error() << "Forbidden c-attribute ('" << Name
+                         << "') found in '" << Type.getHandle() << "'";
 
-      if (std::exchange(Found[Flag - Flags.begin()], true))
-        return error() << "Duplicate `" << Name << "` attributes found in: '"
-                       << Type.getHandle() << "'";
+        if (std::exchange(Found[Flag - Flags.begin()], true))
+          return error() << "Duplicate `" << Name << "` attributes found in: '"
+                         << Type.getHandle() << "'";
 
-      if (Attr.getArguments())
-        return error() << "`" << Name
-                       << "` attribute must not have any arguments. See '"
-                       << Type.getHandle() << "'";
+        if (Attr.getArguments())
+          return error() << "`" << Name
+                         << "` attribute must not have any arguments. See '"
+                         << Type.getHandle() << "'";
+      }
     }
 
     for (auto &&[Flag, IsPresent] : llvm::zip_equal(Flags, Found)) {
@@ -160,52 +165,57 @@ private:
         ptml::Attributes.assertAnnotationName<"_ABI">();
 
         bool ABIFound = false;
-        for (clift::CAttributeAttr Attr : FT.getCAttributes()) {
-          if (not ptml::Attributes.isMacro(Attr.getName().getName()))
-            return error() << "Unknown c-attribute ('"
-                           << Attr.getName().getName() << "') found in '"
-                           << Type.getHandle() << "'";
+        if (CAttributeListAttr AttributeList = FT.getCAttributeList()) {
+          for (CAttributeAttr Attr : AttributeList) {
+            if (not ptml::Attributes.isMacro(Attr.getName().getName()))
+              return error()
+                     << "Unknown c-attribute ('" << Attr.getName().getName()
+                     << "') found in '" << Type.getHandle() << "'";
 
-          if (Attr.getName().getName() == "_ABI") {
-            if (std::exchange(ABIFound, true))
-              return error() << "Duplicate `_ABI` attributes found in: '"
-                             << Type.getHandle() << "'";
+            if (Attr.getName().getName() == "_ABI") {
+              if (std::exchange(ABIFound, true))
+                return error() << "Duplicate `_ABI` attributes found in: '"
+                               << Type.getHandle() << "'";
 
-            mlir::ArrayAttr Arguments = Attr.getArguments();
-            if (not Arguments)
-              return error() << "`_ABI` attribute must have an argument. See '"
-                             << Type.getHandle() << "'";
+              mlir::ArrayAttr Arguments = Attr.getArguments();
+              if (not Arguments)
+                return error() << "`_ABI` attribute must have an argument. See "
+                                  "'"
+                               << Type.getHandle() << "'";
 
-            if (Arguments.size() != 1)
-              return error() << "`_ABI` attribute must have exactly one "
-                                "argument. See '"
-                             << Type.getHandle() << "'";
+              if (Arguments.size() != 1)
+                return error() << "`_ABI` attribute must have exactly one "
+                                  "argument. See '"
+                               << Type.getHandle() << "'";
 
-            using clift::CIdentifierAttr;
-            auto Identifier = mlir::dyn_cast<CIdentifierAttr>(Arguments[0]);
-            if (not Identifier)
-              return error() << "`_ABI` attribute argument must be "
-                                "an identifier. See '"
-                             << Type.getHandle() << "'";
+              using clift::CIdentifierAttr;
+              auto Identifier = mlir::dyn_cast<CIdentifierAttr>(Arguments[0]);
+              if (not Identifier)
+                return error() << "`_ABI` attribute argument must be "
+                                  "an identifier. See '"
+                               << Type.getHandle() << "'";
 
-            std::string ModelABI = "raw_";
-            if (auto CF = llvm::dyn_cast<model::CABIFunctionDefinition>(&D))
-              ModelABI = model::ABI::getName(CF->ABI());
-            else if (auto RF = llvm::dyn_cast<model::RawFunctionDefinition>(&D))
-              ModelABI += model::Architecture::getName(RF->Architecture());
-            else
-              revng_abort("Unsupported function type");
+              std::string ModelABI = "raw_";
+              if (auto CF = llvm::dyn_cast<model::CABIFunctionDefinition>(&D))
+                ModelABI = model::ABI::getName(CF->ABI());
+              else if (auto
+                         RF = llvm::dyn_cast<model::RawFunctionDefinition>(&D))
+                ModelABI += model::Architecture::getName(RF->Architecture());
+              else
+                revng_abort("Unsupported function type");
 
-            llvm::StringRef AttrABIName = Identifier.getName();
-            if (AttrABIName != ModelABI)
-              return error() << "`_ABI` attribute value ('" << AttrABIName
-                             << "') differs from the model value ('" << ModelABI
-                             << "'). See '" << Type.getHandle() << "'";
+              llvm::StringRef AttrABIName = Identifier.getName();
+              if (AttrABIName != ModelABI)
+                return error()
+                       << "`_ABI` attribute value ('" << AttrABIName
+                       << "') differs from the model value ('" << ModelABI
+                       << "'). See '" << Type.getHandle() << "'";
 
-          } else {
-            return error() << "Forbidden c-attribute ('"
-                           << Attr.getName().getName() << "') found in '"
-                           << Type.getHandle() << "'";
+            } else {
+              return error()
+                     << "Forbidden c-attribute ('" << Attr.getName().getName()
+                     << "') found in '" << Type.getHandle() << "'";
+            }
           }
         }
 
@@ -331,14 +341,10 @@ private:
       if (Handle.empty())
         Handle = "(a no-handle argument)";
 
-      if (auto CAs = View.getOfType<mlir::ArrayAttr>("clift.c_attributes")) {
-        for (mlir::Attribute RawCAttr : CAs) {
-          auto CAttribute = mlir::dyn_cast<clift::CAttributeAttr>(RawCAttr);
-          if (not CAttribute)
-            return error() << "A non c-attribute was found among "
-                              "the `c_attributes` in '"
-                           << Op.getHandle() << "'";
+      if (auto AttributeList = //
+          View.getOfType<CAttributeListAttr>("clift.c_attribute_list")) {
 
+        for (CAttributeAttr CAttribute : AttributeList) {
           auto AttributeName = CAttribute.getName().getName();
           auto Arguments = CAttribute.getArguments();
 
@@ -496,15 +502,10 @@ private:
                      << "'";
     }
 
-    if (mlir::Attribute RawAttributes = Op->getAttr("clift.c_attributes")) {
-      mlir::ArrayAttr Attributes = mlir::cast<mlir::ArrayAttr>(RawAttributes);
-      for (mlir::Attribute RawCAttribute : Attributes) {
-        auto CAttribute = mlir::dyn_cast<clift::CAttributeAttr>(RawCAttribute);
-        if (not CAttribute)
-          return error() << "A non c-attribute was found among "
-                            "the `c_attributes` in '"
-                         << Op.getHandle() << "'";
+    if (auto AttributeList = //
+        Op->getAttrOfType<CAttributeListAttr>("clift.c_attribute_list")) {
 
+      for (CAttributeAttr CAttribute : AttributeList) {
         if (not ptml::Attributes.isMacro(CAttribute.getName().getName())) {
           return error() << "Unknown c-attribute ('"
                          << CAttribute.getName().getName() << "') found in '"

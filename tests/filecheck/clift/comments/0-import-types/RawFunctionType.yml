@@ -27,13 +27,13 @@ TypeDefinitions:
   # CHECK: >
   # CHECK: !_type_definition_0_RawFunctionDefinition = !clift.func<
   # CHECK:   "/type-definition/0-RawFunctionDefinition" : !uint64_t(!uint64_t, !_type_definition_1_StructDefinition)
-  # CHECK:   [
-  # CHECK:     #clift.c_attribute<"_ABI" : "/macro/_ABI"
+  # CHECK:   #clift.c_attribute_list<
+  # CHECK:     <"_ABI" : "/macro/_ABI"
   # CHECK:       [
   # CHECK:         #clift.identifier<"raw_x86_64">
   # CHECK:       ]
   # CHECK:     >
-  # CHECK:   ]
+  # CHECK:   >
   # CHECK: >
 
   # CHECK:     module attributes {

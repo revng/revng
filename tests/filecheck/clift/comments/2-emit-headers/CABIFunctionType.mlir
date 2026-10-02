@@ -34,7 +34,9 @@
 
 !cabifunction_0_ = !clift.func<
   "/type-definition/0-CABIFunctionDefinition" as "cabifunction_0" : !uint8_t(!uint16_t, !uint32_t)
-  [ #clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]> ]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>
+  >
   comment "This comment is attached to the prototype (do not mistake it for\0Athe comment attached to the function itself!)"
 >
 module attributes {clift.module} {
@@ -50,7 +52,6 @@ module attributes {clift.module} {
       clift.name = "argument_1"
     }
   ) -> !uint8_t attributes {
-    clift.c_attributes = [],
     clift.comment = "Unlike raw functions and all their complexities, CFTs are pretty\0Astraightforward as far as arguments are concerned. You just have the main\0Acomment, one for a return value, and one for each argument.",
     clift.return_value_comment = "This comment is attached to the prototype (do not mistake it for\0Athe comment attached to the function itself!)",
     handle = "/function/0x4:Code_x86_64"

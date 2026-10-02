@@ -2,6 +2,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#ifndef MLIR_CLIFT_TYPES
+#define MLIR_CLIFT_TYPES
+
 // Include the definition of the necessary tablegen constructs for defining our
 // types
 include "mlir/IR/AttrTypeBase.td"
@@ -301,7 +304,7 @@ def Clift_FunctionType
                         "clift::MutableStringAttr":$mutable_comment,
                         "mlir::Type":$return_type,
                         OptionalArrayRefParameter<"mlir::Type">:$argument_types,
-                        OptionalArrayRefParameter<"clift::CAttributeAttr">:$c_attributes);
+                        Clift_CAttributeListAttr:$c_attribute_list);
 
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef NameAttrKey = "function-name";
@@ -365,8 +368,8 @@ class Clift_ClassTypeBase<string name, string mnemonic>
       return getDefinition().getFields();
     }
 
-    llvm::ArrayRef<clift::CAttributeAttr> getCAttributes() const {
-      return getDefinition().getCAttributes();
+    clift::CAttributeListAttr getCAttributeList() const {
+      return getDefinition().getCAttributeList();
     }
   }];
 
@@ -422,3 +425,5 @@ def Clift_UnionType : Clift_ClassTypeBase<"Union", "union"> {
     }]>,
   ];
 }
+
+#endif

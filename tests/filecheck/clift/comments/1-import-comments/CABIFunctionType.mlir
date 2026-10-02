@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng pipeline run-pipe import-descriptive-info %S/../0-import-types/CABIFunctionType.yml <(tar -c --transform 's;.*;/binary;' %s) /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
+// RUN: %root/bin/revng pipeline run-pipe import-descriptive-info %S/../0-import-types/CABIFunctionType.yml <(%pipe_input %s) /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
 
 !uint8_t = !clift.int<unsigned 1>
 !uint16_t = !clift.int<unsigned 2>
@@ -10,13 +10,13 @@
 
 // CHECK: !cabifunction_0_ = !clift.func<
 // CHECK:   "/type-definition/0-CABIFunctionDefinition" as "cabifunction_0" : !uint8_t(!uint16_t, !uint32_t)
-// CHECK:   [
-// CHECK:     #clift.c_attribute<"_ABI" : "/macro/_ABI"
+// CHECK:   #clift.c_attribute_list<
+// CHECK:     <"_ABI" : "/macro/_ABI"
 // CHECK:       [
 // CHECK:         #clift.identifier<"SystemV_x86_64">
 // CHECK:       ]
 // CHECK:     >
-// CHECK:   ]
+// CHECK:   >
 // CHECK:   comment "This comment is attached to the prototype (do not mistake it for\0Athe comment attached to the function itself!)"
 // CHECK: >
 // CHECK: module attributes {clift.module} {
@@ -32,7 +32,6 @@
 // CHECK:       clift.name = "argument_1"
 // CHECK:     }
 // CHECK:   ) -> !uint8_t attributes {
-// CHECK:     clift.c_attributes = [],
 // CHECK:     clift.comment = "Unlike raw functions and all their complexities, CFTs are pretty\0Astraightforward as far as arguments are concerned. You just have the main\0Acomment, one for a return value, and one for each argument.",
 // CHECK:     clift.return_value_comment = "And this is what return value one is like!",
 // CHECK:     handle = "/function/0x4:Code_x86_64"
@@ -41,11 +40,11 @@
 
 !_type_definition_0_CABIFunctionDefinition = !clift.func<
   "/type-definition/0-CABIFunctionDefinition" : !uint8_t(!uint16_t, !uint32_t)
-  [
-    #clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>
-  ]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>
+  >
 >
 module attributes {clift.module} {
   clift.func @"0x4:Code_x86_64"<!_type_definition_0_CABIFunctionDefinition>(!uint16_t, !uint32_t) -> !uint8_t
-  attributes {clift.c_attributes = [], handle = "/function/0x4:Code_x86_64"}
+  attributes {handle = "/function/0x4:Code_x86_64"}
 }

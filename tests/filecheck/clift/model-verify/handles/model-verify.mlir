@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng pipeline run-pipe verify-against-model %S/model.yml <(tar -c --transform 's;.*;/binary;' %s) /dev/null
+// RUN: %root/bin/revng pipeline run-pipe verify-against-model %S/model.yml <(%pipe_input %s) /dev/null
 
 !void = !clift.void
 !int32_t = !clift.int<signed 4>
@@ -15,10 +15,14 @@
   "/enum-entry/1003-EnumDefinition/0" : 0
 }>
 !f = !clift.func<"/type-definition/1004-CABIFunctionDefinition" : !void()
-  [#clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>
+  >
 >
 !r = !clift.func<"/type-definition/1005-RawFunctionDefinition" : !void()
-  [#clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"raw_x86_64">]>]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"raw_x86_64">]>
+  >
 >
 !t = !clift.typedef<"/type-definition/1006-TypedefDefinition" : !int32_t>
 

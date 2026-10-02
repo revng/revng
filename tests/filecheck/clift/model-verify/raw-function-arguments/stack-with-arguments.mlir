@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: not FileCheck < <(%root/bin/revng pipeline run-pipe verify-against-model %S/model.yml <(tar -c --transform 's;.*;/binary;' %s) /dev/null -- --debug-log=model-verify 2>&1)
+// RUN: not --crash %root/bin/revng pipeline run-pipe verify-against-model %S/model.yml <(%pipe_input %s) /dev/null -- --debug-log=model-verify 2>&1 | FileCheck %s
 
 !void = !clift.void
 !uint64_t = !clift.int<unsigned 8>
@@ -11,7 +11,9 @@
 
 !f_1 = !clift.func<
   "/type-definition/1-RawFunctionDefinition" : !void(!s_0)
-  [#clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"raw_aarch64">]>]
+  #clift.c_attribute_list<
+    <"_ABI" : "/macro/_ABI" [#clift.identifier<"raw_aarch64">]>
+  >
 >
 
 module attributes {clift.module} {
@@ -20,11 +22,12 @@ module attributes {clift.module} {
 
   clift.func @f_1<!f_1>(
     !s_0 {
-      clift.c_attributes = [#clift.c_attribute<"_STACK" : "/macro/_STACK" [42]>],
+      clift.c_attribute_list = #clift.c_attribute_list<
+        <"_STACK" : "/macro/_STACK" [42]>
+      >,
       clift.handle = "/raw-stack-arguments/1-RawFunctionDefinition"
     }
   ) -> !void attributes {
-    clift.c_attributes = [],
     handle = "/function/0x1004:Code_aarch64"
   }
 

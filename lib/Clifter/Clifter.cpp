@@ -892,16 +892,13 @@ private:
     auto NameAttr = makeNameAttr<clift::FunctionType>(Context, Handle);
     auto CommentAttr = makeCommentAttr<clift::FunctionType>(Context, Handle);
 
-    // TODO: should we add something explicitly identifying this as a helper?
-    llvm::ArrayRef<clift::CAttributeAttr> Attributes = {};
-
     auto FunctionType = clift::FunctionType::get(Context,
                                                  Handle,
                                                  NameAttr,
                                                  CommentAttr,
                                                  ReturnType,
                                                  ParameterTypes,
-                                                 Attributes);
+                                                 /*AttributeList=*/{});
 
     return emitHelperCall(Loc,
                           C.getHelperFunction(HelperName, FunctionType),
@@ -1366,29 +1363,27 @@ private:
       auto CallType = C.importType<clift::FunctionType>(*ModelCallType);
 
       revng_log(ExpressionLog, "Callee subexpression:");
-      mlir::Value Function = (LoggerIndent(ExpressionLog),
-                              rc_recur emitExpression(I->getCalledOperand(),
-                                                      Loc));
+      mlir::Value Callee = (LoggerIndent(ExpressionLog),
+                            rc_recur emitExpression(I->getCalledOperand(),
+                                                    Loc));
 
-      clift::FunctionType
-        FunctionType = getFunctionOrFunctionPointerFunctionType(Function
-                                                                  .getType());
+      auto FuncType = clift::unwrapped_dyn_cast<FunctionType>(Callee.getType());
+
+      if (auto P = clift::unwrapped_dyn_cast<PointerType>(Callee.getType()))
+        FuncType = clift::unwrapped_dyn_cast<FunctionType>(P.getPointeeType());
 
       // If the call type does not match the function type of the callee,
       // the callee must first be converted to a pointer to the appropriate
       // function type:
-      if (CallType != FunctionType) {
-        // If the callee is a function and not a pointer to function, it must
-        // be decayed to a pointer before applying the type conversion:
-        if (mlir::isa<clift::FunctionType>(Function.getType())) {
-          Function = Builder.create<DecayOp>(Loc,
-                                             C.getPointerType(FunctionType),
-                                             Function);
-        }
+      if (FuncType != CallType) {
+        // If the callee is a function, it must be decayed to a pointer before
+        // applying the type conversion:
+        if (clift::unwrapped_isa<FunctionType>(Callee.getType()))
+          Callee = Builder.create<DecayOp>(Loc,
+                                           C.getPointerType(Callee.getType()),
+                                           Callee);
 
-        Function = emitImplicitBitcast(Loc,
-                                       Function,
-                                       C.getPointerType(CallType));
+        Callee = emitImplicitBitcast(Loc, Callee, C.getPointerType(CallType));
       }
 
       llvm::ArrayRef LayoutArguments = getLayoutArguments(Layout);
@@ -1424,7 +1419,7 @@ private:
       revng_log(ExpressionLog, "CallOp");
       mlir::Value Result = Builder.create<CallOp>(Loc,
                                                   CallType.getReturnType(),
-                                                  Function,
+                                                  Callee,
                                                   Arguments);
 
       if (Layout.returnMethod() == abi::FunctionType::ReturnMethod::Scalar) {

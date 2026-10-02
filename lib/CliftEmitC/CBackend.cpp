@@ -176,6 +176,11 @@ public:
   }
 
   RecursiveCoroutine<void> emitIntrinsicCastExpression(CastOpInterface E) {
+    revng_assert((mlir::isa<BoolExtendOp,
+                            ZeroExtendOp,
+                            SignExtendOp,
+                            TruncateOp>(E)));
+
     emitIntrinsicMacro(getIntrinsicIdentifier(E));
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
 
@@ -216,6 +221,37 @@ public:
       if (not mlir::isa<TestOp>(Op))
         return emitIntrinsicCastExpression(E);
     }
+
+    revng_assert((mlir::isa<TestOp,
+                            NegOp,
+                            AddOp,
+                            SubOp,
+                            MulOp,
+                            SDivOp,
+                            UDivOp,
+                            SRemOp,
+                            URemOp,
+                            ShlOp,
+                            ShrOp,
+                            SarOp,
+                            BitwiseNotOp,
+                            BitwiseAndOp,
+                            BitwiseOrOp,
+                            BitwiseXorOp,
+                            IncrementOp,
+                            DecrementOp,
+                            PostIncrementOp,
+                            PostDecrementOp,
+                            CmpEqOp,
+                            CmpNeOp,
+                            SCmpLtOp,
+                            UCmpLtOp,
+                            SCmpGtOp,
+                            UCmpGtOp,
+                            SCmpLeOp,
+                            UCmpLeOp,
+                            SCmpGeOp,
+                            UCmpGeOp>(Op)));
 
     return emitUsualIntrinsicExpression(Op);
   }
@@ -415,7 +451,7 @@ public:
     // Parenthesizing a nested unary postfix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPostfix);
 
-    rc_recur emitExpression(E.getFunction());
+    rc_recur emitExpression(E.getCallee());
 
     // The precedence here must be comma, because an argument list cannot
     // contain an unparenthesized comma expression. It would be parsed as two
@@ -947,7 +983,7 @@ public:
     DeclaratorInfo Declarator{
       .Identifier = Var.getName(),
       .Location = Var.getHandle(),
-      .CAttributes = getDeclarationOpCAttributes(Var),
+      .CAttributeList = getDeclarationOpCAttributes(Var),
       .Kind = CTE::EntityKind::LocalVariable,
     };
 

@@ -2,8 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#ifndef MLIR_CLIFT_ATTRIBUTE
-#define MLIR_CLIFT_ATTRIBUTE
+#ifndef MLIR_CLIFT_ATTRIBUTES
+#define MLIR_CLIFT_ATTRIBUTES
 
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/SubElementInterfaces.td"
@@ -68,6 +68,29 @@ def Clift_CAttributeAttr : Clift_Attr<"CAttribute",
   let hasCustomAssemblyFormat = 1;
 
   let genVerifyDecl = 1;
+}
+
+def Clift_CAttributeListAttr : Clift_Attr<"CAttributeList",
+                                          "c_attribute_list",
+                                          [SubElementAttrInterface]> {
+
+  let parameters = (ins ArrayRefParameter<"clift::CAttributeAttr">:$attributes);
+
+  let assemblyFormat = [{
+    `<` $attributes `>`
+  }];
+
+  let genVerifyDecl = 1;
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] llvm::ArrayRef<CAttributeAttr>::iterator begin() const {
+      return getAttributes().begin();
+    }
+
+    [[nodiscard]] llvm::ArrayRef<CAttributeAttr>::iterator end() const {
+      return getAttributes().end();
+    }
+  }];
 }
 
 def Clift_FieldAttr

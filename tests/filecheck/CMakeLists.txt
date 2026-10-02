@@ -18,6 +18,7 @@ function(add_filecheck_test PATH)
 endfunction()
 
 set(FILECHECK_TESTS
+    clift/attributes/c-attribute-list.mlir
     clift/attributes/data-model.mlir
     clift/attributes/switch.mlir
     clift/backend-transforms/immediate-radix-switch.mlir
@@ -201,11 +202,16 @@ set(FILECHECK_TESTS
     clift/expressions/decay-array.mlir
     clift/expressions/decay-function.mlir
     clift/expressions/decay-int.mlir
+    clift/expressions/direct-access-strips-qualifiers.mlir
     clift/expressions/extend-i32-to-i32.mlir
     clift/expressions/extend.mlir
+    clift/expressions/immediate.mlir
+    clift/expressions/immediate-out-of-range-max.mlir
+    clift/expressions/immediate-out-of-range-min.mlir
     clift/expressions/increment-const-local-variable.mlir
     clift/expressions/increment-immediate.mlir
     clift/expressions/increment-local-variable.mlir
+    clift/expressions/indirect-access-strips-qualifiers.mlir
     clift/expressions/object-access-of-wrong-type.mlir
     clift/expressions/object-access-out-of-range.mlir
     clift/expressions/pointer-add-of-two-pointers.mlir
@@ -228,6 +234,13 @@ set(FILECHECK_TESTS
     clift/expressions/truncate.mlir
     clift/expressions/use-global-variable.mlir
     clift/expressions/use-nonexistent-global-variable.mlir
+    clift/implicit-cast-elision/add.mlir
+    clift/implicit-cast-elision/assign.mlir
+    clift/implicit-cast-elision/if.mlir
+    clift/implicit-cast-elision/call.mlir
+    clift/implicit-cast-elision/neg.mlir
+    clift/implicit-cast-elision/not.mlir
+    clift/implicit-cast-elision/shl.mlir
     clift/model-import/ArrayType.yml
     clift/model-import/CABIFunctionType1.yml
     clift/model-import/CABIFunctionType2.yml
@@ -290,8 +303,10 @@ set(FILECHECK_TESTS
     clift/model-verify/type-attributes/double-abi.mlir
     clift/model-verify/type-attributes/double-code.mlir
     clift/model-verify/type-attributes/extra-code.mlir
+    clift/model-verify/type-attributes/extra-singleton.mlir
     clift/model-verify/type-attributes/missing-abi.mlir
     clift/model-verify/type-attributes/missing-code.mlir
+    clift/model-verify/type-attributes/missing-singleton.mlir
     clift/model-verify/type-attributes/multi-argument-abi.mlir
     clift/model-verify/type-attributes/non-identifier-abi.mlir
     clift/model-verify/type-attributes/rft-with-c-abi.mlir
@@ -299,8 +314,6 @@ set(FILECHECK_TESTS
     clift/model-verify/unknown-attributes/function-argument.mlir
     clift/model-verify/unknown-attributes/function-type.mlir
     clift/model-verify/unknown-attributes/function.mlir
-    clift/model-verify/unknown-attributes/non-c-argument.mlir
-    clift/model-verify/unknown-attributes/non-c-function.mlir
     clift/model-verify/unknown-attributes/struct.mlir
     clift/model-verify/unknown-attributes/valid.mlir
     clift/name-import/function-body/comments.mlir
@@ -353,13 +366,6 @@ set(FILECHECK_TESTS
     clift/operations/switch-with-pointer-condition.mlir
     clift/operations/switch-without-condition.mlir
     clift/operations/while-without-condition.mlir
-    clift/passes/implicit-cast-elision-add.mlir
-    clift/passes/implicit-cast-elision-assign.mlir
-    clift/passes/implicit-cast-elision-if.mlir
-    clift/passes/implicit-cast-elision-call.mlir
-    clift/passes/implicit-cast-elision-neg.mlir
-    clift/passes/implicit-cast-elision-not.mlir
-    clift/passes/implicit-cast-elision-shl.mlir
     clift/reformat/normalization.mlir
     clift/reformat/tag-preservation.mlir
     clift/serialization/const.mlir
