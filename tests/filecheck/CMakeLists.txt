@@ -290,8 +290,10 @@ set(FILECHECK_TESTS
     clift/model-verify/type-attributes/double-abi.mlir
     clift/model-verify/type-attributes/double-code.mlir
     clift/model-verify/type-attributes/extra-code.mlir
+    clift/model-verify/type-attributes/extra-singleton.mlir
     clift/model-verify/type-attributes/missing-abi.mlir
     clift/model-verify/type-attributes/missing-code.mlir
+    clift/model-verify/type-attributes/missing-singleton.mlir
     clift/model-verify/type-attributes/multi-argument-abi.mlir
     clift/model-verify/type-attributes/non-identifier-abi.mlir
     clift/model-verify/type-attributes/rft-with-c-abi.mlir
