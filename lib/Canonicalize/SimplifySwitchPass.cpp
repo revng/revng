@@ -14,8 +14,12 @@
 // them to a more human-readable format. This enhancement is crucial for
 // improving code comprehension.
 
+#include "llvm/ADT/Triple.h"
+#include "llvm/Analysis/AssumptionCache.h"
+#include "llvm/Analysis/LazyValueInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/Passes/PassBuilder.h"
+#include "llvm/IR/Module.h"
 
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Model/Architecture.h"
@@ -174,56 +178,6 @@ static bool handleSwitch(SwitchInst *Switch,
 
 namespace revng::pypeline::piperuns {
 
-struct SimplifySwitchPass : public llvm::ModulePass {
-private:
-  const model::Binary &Binary;
-  RawBinaryView &BinaryView;
-  const MetaAddress &Entry;
-
-public:
-  static inline char ID = 0;
-
-  SimplifySwitchPass(const model::Binary &Binary,
-                     RawBinaryView &BinaryView,
-                     const MetaAddress &Entry) :
-    llvm::ModulePass(ID),
-    Binary(Binary),
-    BinaryView(BinaryView),
-    Entry(Entry) {}
-
-  bool runOnModule(llvm::Module &M) override {
-    llvm::Function &Function = getUniqueIsolatedFunction(M, Entry);
-    // TODO: LazyValueInfo could be instantiated manually and that would save
-    //       us from using an LLVM pass, however the nesting of dependencies is
-    //       substantial so for now it's an LLVM pass.
-    auto &LVI = getAnalysis<LazyValueInfoWrapperPass>(Function).getLVI();
-    DominatorTree DT(Function);
-    DataFlowRangeAnalysis DFRA(M);
-    RawBinaryMemoryOracle MO(BinaryView, Binary.Architecture());
-
-    bool Result = false;
-    for (BasicBlock &BB : Function) {
-      for (Instruction &I : make_early_inc_range(BB)) {
-        SwitchInst *Switch = dyn_cast<SwitchInst>(&I);
-        if (not Switch)
-          continue;
-
-        if (handleSwitch(Switch, LVI, DFRA, DT, MO)) {
-          Switch->eraseFromParent();
-          Result |= true;
-        }
-      }
-    }
-
-    return Result;
-  }
-
-public:
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.addRequired<LazyValueInfoWrapperPass>();
-  }
-};
-
 SimplifySwitch::SimplifySwitch(const class Model &Model,
                                llvm::StringRef Config,
                                llvm::StringRef DynamicConfig,
@@ -232,13 +186,35 @@ SimplifySwitch::SimplifySwitch(const class Model &Model,
   ModuleContainer(ModuleContainer),
   Binary(*Model.get().get()),
   BinaryView(makeBinaryView(Model, BinariesContainer)) {
-  PM.add(new SimplifySwitchPass(Binary, BinaryView, Entry));
-};
+}
 
-void SimplifySwitch::runOnFunction(const model::Function &Function) {
-  Entry = Function.Entry();
-  llvm::Module &Module = ModuleContainer.getModule(ObjectID(Entry));
-  PM.run(Module);
+void SimplifySwitch::runOnFunction(const model::Function &ModelFunction) {
+  MetaAddress Entry = ModelFunction.Entry();
+  llvm::Module &M = ModuleContainer.getModule(ObjectID(Entry));
+  llvm::Function &Function = getUniqueIsolatedFunction(M, Entry);
+
+  // LazyValueInfo is usually handed out by an analysis pass, but the things it
+  // needs are few and cheap enough to build here, which saves us from running
+  // a pass manager just for this.
+  TargetLibraryInfoImpl TLIImpl(Triple(M.getTargetTriple()));
+  TargetLibraryInfo TLI(TLIImpl, &Function);
+  AssumptionCache AC(Function);
+  LazyValueInfo LVI(&AC, &M.getDataLayout(), &TLI);
+
+  DominatorTree DT(Function);
+  DataFlowRangeAnalysis DFRA(M);
+  RawBinaryMemoryOracle MO(BinaryView, Binary.Architecture());
+
+  for (BasicBlock &BB : Function) {
+    for (Instruction &I : make_early_inc_range(BB)) {
+      SwitchInst *Switch = dyn_cast<SwitchInst>(&I);
+      if (not Switch)
+        continue;
+
+      if (handleSwitch(Switch, LVI, DFRA, DT, MO))
+        Switch->eraseFromParent();
+    }
+  }
 }
 
 } // namespace revng::pypeline::piperuns

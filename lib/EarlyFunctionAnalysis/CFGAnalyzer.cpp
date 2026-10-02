@@ -7,6 +7,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
+#include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/CodeGen/UnreachableBlockElim.h"
 #include "llvm/IR/InstIterator.h"
@@ -626,6 +627,14 @@ void CFGAnalyzer::runOptimizationPipeline(llvm::Function *F) {
     FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(JumpThreadingPass());
+
+    // No other pass after JumpThreading depends or uses LVI.
+    // LazyValueAnalysis registers deletion callbacks that get called by
+    // following modifications of the IR. The cost of calling these callbacks
+    // can get very high, and nobody will use the results anyway.
+    // So let's invalidate LazyValueAnalysis straight after JT.
+    FPM.addPass(InvalidateAnalysisPass<LazyValueAnalysis>());
+
     FPM.addPass(UnreachableBlockElimPass());
     FPM.addPass(InstCombinePass());
     FPM.addPass(EarlyCSEPass(true));
