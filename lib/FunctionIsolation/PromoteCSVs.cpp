@@ -370,36 +370,29 @@ void PromoteCSVs::promoteCSVs(Function *F) {
   auto *Separator = InitializersBuilder.CreateUnreachable();
   revng::IRBuilder AllocaBuilder(&Entry, Entry.begin());
 
-  // For each GlobalVariable representing a CSV used in F, create a dedicated
-  // alloca and save it in CSVMaps.
-  std::map<GlobalVariable *, AllocaInst *> CSVAllocas;
-  for (GlobalVariable *CSV : CSVs) {
-    AllocaInst *Alloca = nullptr;
+  // For each GlobalVariable representing a CSV, create a dedicated alloca,
+  // initialize it, and replace with it the uses of the CSV in F.
+  CSVInFunctionReplacer Replacer(CSVs.getArrayRef(), *F);
+  for (GlobalVariable *CSV : Replacer.csvs()) {
+    // Create the alloca
+    Type *CSVType = CSV->getValueType();
+    auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
 
-    auto It = CSVAllocas.find(CSV);
-    if (It != CSVAllocas.end()) {
-      Alloca = It->second;
+    // Check if already have an initializer
+    Value *Initializer = nullptr;
+    auto It = InitializerForCSV.find(CSV);
+    if (It != InitializerForCSV.end()) {
+      Function *InitializerFunction = InitializerForCSV.at(CSV);
+      Initializer = InitializersBuilder.CreateCall(InitializerFunction);
     } else {
-      // Create the alloca
-      Type *CSVType = CSV->getValueType();
-      Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
-
-      // Check if already have an initializer
-      Value *Initializer = nullptr;
-      auto It = InitializerForCSV.find(CSV);
-      if (It != InitializerForCSV.end()) {
-        Function *InitializerFunction = InitializerForCSV.at(CSV);
-        Initializer = InitializersBuilder.CreateCall(InitializerFunction);
-      } else {
-        Initializer = CSV->getInitializer();
-      }
-
-      // Initialize the alloca
-      InitializersBuilder.CreateStore(Initializer, Alloca);
+      Initializer = CSV->getInitializer();
     }
 
+    // Initialize the alloca
+    InitializersBuilder.CreateStore(Initializer, Alloca);
+
     // Replace users
-    replaceAllUsesInFunctionWith(F, CSV, Alloca);
+    Replacer.replaceCSVWithAlloca(CSV, Alloca);
   }
 
   // Drop separators

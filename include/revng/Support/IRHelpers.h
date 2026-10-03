@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <map>
 #include <queue>
 #include <set>
 #include <sstream>
@@ -1092,69 +1093,72 @@ inline llvm::User *getUniqueUser(llvm::Value *V) {
 
 const llvm::BasicBlock *getJumpTargetBlock(const llvm::BasicBlock *BB);
 
-/// Replace all uses of \Old, with \New in \F.
+/// Replaces the uses of CSVs within one function with function-local allocas
 ///
-/// \return true if it changes something, false otherwise.
-inline bool replaceAllUsesInFunctionWith(llvm::Function *F,
-                                         llvm::Value *Old,
-                                         llvm::Value *New) {
-  using namespace llvm;
-  if (Old == New)
-    return false;
+/// A CSV is a global variable, so `llvm::Value::replaceAllUsesWith` is not an
+/// option: only the uses within one function have to be replaced. Doing that by
+/// walking the use list of the CSV and keeping the uses that belong to the
+/// function costs one traversal of every use of that CSV in the whole module,
+/// and the callers need it once per CSV, which makes the whole operation
+/// quadratic in the size of the module.
+///
+/// This class walks the function once, recording where each of the given CSVs
+/// is used, so that every replacement afterwards costs no more than the number
+/// of uses it replaces.
+///
+/// The index is computed by the constructor: while the replacer is alive, no
+/// instruction of the function can be erased and no new use of an indexed CSV
+/// can be created in it, or the recorded uses go stale.
+class CSVInFunctionReplacer {
+public:
+  using CSVArray = llvm::ArrayRef<llvm::GlobalVariable *>;
 
-  bool Changed = false;
+private:
+  /// A use of a CSV by an instruction through a cast `llvm::ConstantExpr`
+  struct ConstantExpressionUse {
+    /// The cast expression wrapping the CSV
+    const llvm::ConstantExpr *Expression = nullptr;
 
-  SmallPtrSet<ConstantExpr *, 8> OldUserConstExprs;
-  auto UI = Old->use_begin();
-  auto E = Old->use_end();
-  while (UI != E) {
-    Use &U = *UI;
-    ++UI;
+    /// The operand of the instruction using `Expression`
+    llvm::Use *TheUse = nullptr;
+  };
 
-    if (auto *I = dyn_cast<Instruction>(U.getUser())) {
-      if (I->getFunction() == F) {
-        U.set(New);
-        Changed = true;
-      }
-    } else if (auto *CE = dyn_cast<ConstantExpr>(U.getUser())) {
-      // We can't convert ConstantExprs to Instructions while iterating on Old
-      // uses. This would create new uses of Old (the new Instructions generated
-      // by converting the ConstantExprs to Instructions) while iterating on Old
-      // uses, so the trick with pre-incrementing the iterators used above would
-      // not be enough to guard us from iterator invalidation.
-      // We store ConstantExpr uses in a helper vector and process them later.
-      if (CE->isCast())
-        OldUserConstExprs.insert(CE);
-    }
-  }
+  /// All the uses of a single CSV
+  struct Uses {
+    /// The operands referring to the CSV directly
+    llvm::SmallVector<llvm::Use *, 8> Direct;
 
-  // Iterate on all ConstantExpr that use Old.
-  for (ConstantExpr *OldUserCE : OldUserConstExprs) {
-    // For each ConstantExpr that uses Old, we are interested in its uses in F,
-    // so we iterate on all uses of OldUserCE, looking for uses in Instructions
-    // that are in F.
-    // When we find one, we cannot directly substitute the use of Old in
-    // OldUserCE, because that is a constant expression that might be used
-    // somewhere else, possibly outside of F.
-    // What we do instead is to create an Instruction in F that is equivalent to
-    // OldUserCE, and substitute Old with New only in that instruction.
-    auto CEIt = OldUserCE->use_begin();
-    auto CEEnd = OldUserCE->use_end();
-    for (; CEIt != CEEnd;) {
-      Use &CEUse = *CEIt;
-      ++CEIt;
-      auto *CEInstrUser = dyn_cast<Instruction>(CEUse.getUser());
-      if (CEInstrUser and CEInstrUser->getFunction() == F) {
-        Instruction *CastInst = OldUserCE->getAsInstruction();
-        CastInst->replaceUsesOfWith(Old, New);
-        CastInst->insertBefore(CEInstrUser);
-        CEUse.set(CastInst);
-        Changed = true;
-      }
-    }
-  }
-  return Changed;
-}
+    /// The operands referring to the CSV through a cast expression
+    llvm::SmallVector<ConstantExpressionUse, 2> ThroughExpression;
+  };
+
+private:
+  /// The function whose uses have been indexed
+  const llvm::Function *TheFunction = nullptr;
+
+  /// The CSVs this replacer knows about, sorted by name
+  llvm::SmallVector<llvm::GlobalVariable *> CSVs;
+
+  /// Where each of the CSVs is used within the function
+  std::map<const llvm::GlobalVariable *, Uses> Index;
+
+  /// The CSVs replaced so far, so that replacing the same one twice, which
+  /// would operate on stale uses, can be caught
+  std::set<const llvm::GlobalVariable *> Replaced;
+
+public:
+  CSVInFunctionReplacer(CSVArray CSVsToIndex, llvm::Function &F);
+
+public:
+  /// \return the CSVs this replacer knows about, sorted by name
+  CSVArray csvs() const { return CSVs; }
+
+  /// Replace with \p Alloca all the uses of \p CSV within the function
+  ///
+  /// \return true if at least one use has been replaced
+  bool replaceCSVWithAlloca(llvm::GlobalVariable *CSV,
+                            llvm::AllocaInst *Alloca);
+};
 
 inline llvm::Constant *toLLVMConstant(llvm::LLVMContext &Context,
                                       const llvm::APInt &Value) {

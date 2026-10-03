@@ -9,6 +9,7 @@
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -1177,4 +1178,68 @@ InliningPolicy deserializeInliningPolicy(const llvm::Function &Helper) {
     if (Value[I])
       Result.CriticalArguments.set(I);
   return Result;
+}
+
+CSVInFunctionReplacer::CSVInFunctionReplacer(CSVArray CSVsToIndex,
+                                             llvm::Function &F) :
+  TheFunction(&F), CSVs(CSVsToIndex.begin(), CSVsToIndex.end()) {
+  llvm::sort(CSVs, CompareByName);
+
+  llvm::SmallPtrSet<const llvm::GlobalVariable *, 16> Interesting;
+  Interesting.insert(CSVs.begin(), CSVs.end());
+
+  for (llvm::BasicBlock &BB : F) {
+    for (llvm::Instruction &I : BB) {
+      for (llvm::Use &TheUse : I.operands()) {
+        const llvm::Value *Operand = TheUse.get();
+
+        if (auto *CSV = llvm::dyn_cast<llvm::GlobalVariable>(Operand)) {
+          if (Interesting.contains(CSV))
+            Index[CSV].Direct.push_back(&TheUse);
+          continue;
+        }
+
+        // A CSV can also be used through a cast expression. Such an expression
+        // can be used outside of this function too, so it cannot be edited in
+        // place: record it, replacing it takes an equivalent instruction.
+        auto *Expression = llvm::dyn_cast<llvm::ConstantExpr>(Operand);
+        if (Expression == nullptr or not Expression->isCast())
+          continue;
+
+        const llvm::Value *Wrapped = Expression->getOperand(0);
+        if (auto *CSV = llvm::dyn_cast<llvm::GlobalVariable>(Wrapped))
+          if (Interesting.contains(CSV))
+            Index[CSV].ThroughExpression.push_back({ Expression, &TheUse });
+      }
+    }
+  }
+}
+
+bool CSVInFunctionReplacer::replaceCSVWithAlloca(llvm::GlobalVariable *CSV,
+                                                 llvm::AllocaInst *Alloca) {
+  revng_assert(CSV != nullptr);
+  revng_assert(Alloca != nullptr);
+  revng_assert(Alloca->getFunction() == TheFunction);
+
+  bool IsFirstTime = Replaced.insert(CSV).second;
+  revng_assert(IsFirstTime, "A CSV can only be replaced once");
+
+  auto It = Index.find(CSV);
+  if (It == Index.end())
+    return false;
+
+  const Uses &TheUses = It->second;
+
+  for (llvm::Use *TheUse : TheUses.Direct)
+    TheUse->set(Alloca);
+
+  for (const ConstantExpressionUse &Each : TheUses.ThroughExpression) {
+    auto *User = llvm::cast<llvm::Instruction>(Each.TheUse->getUser());
+    llvm::Instruction *Equivalent = Each.Expression->getAsInstruction();
+    Equivalent->replaceUsesOfWith(CSV, Alloca);
+    Equivalent->insertBefore(User);
+    Each.TheUse->set(Equivalent);
+  }
+
+  return not TheUses.Direct.empty() or not TheUses.ThroughExpression.empty();
 }
