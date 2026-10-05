@@ -22,3 +22,23 @@
 - ABI: .*
   Test: .*(?:float|double).*
   Error: .*
+
+#
+# Known failures that require more expressive power in RFTs to enable.
+#
+# NOTE: these are issues with the test system, not with the `revngABI`.
+#
+
+- ABI: .*(?:AAPCS|MIPS).* # ALL the ARMs and MIPSes
+  Test: extra_alignment_scalar_in_registers_64
+  Error: Argument 1 uses neither the expected stack part nor the expected registers.
+- ABI: Microsoft_AAPCS64
+  Test: extra_alignment_scalar_in_registers_64
+  Error: There are 8 unconsumed stack bytes - the layout shows the need for more stack bytes than necessary.
+
+- ABI: .*AAPCS[^6][^4].* # ALL the 32-bit ARMs
+  Test: extra_alignment_scalar_in_registers_32
+  Error: There are 4 unconsumed stack bytes - the layout shows the need for more stack bytes than necessary.
+- ABI: .*AAPCS[^6][^4].* # ALL the 32-bit ARMs
+  Test: extra_alignment_scalar_in_registers_32
+  Error: Argument 1 uses neither the expected stack part nor the expected registers.
