@@ -1322,7 +1322,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
   LoggerIndent Indent(ELFImporterLog);
 
   for (auto [Index, Relocation] : llvm::enumerate(Relocations)) {
-    auto Type = static_cast<unsigned char>(Relocation.getType(false));
+    uint32_t Type = Relocation.getType(false);
     uint64_t Addend = RelocationHelper<T, HasAddend>::getAddend(Relocation);
     MetaAddress Address = relocate(fromGeneric(Relocation.r_offset));
 
@@ -1369,7 +1369,8 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
 
     bool HasName = SymbolName.size() != 0;
     bool IsBaseRelative = isELFRelocationBaseRelative(Model->Architecture(),
-                                                      Type);
+                                                      Type,
+                                                      HasName);
 
     if (HasName and IsBaseRelative) {
       revng_log(ELFImporterLog,

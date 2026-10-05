@@ -268,7 +268,7 @@ namespace RelocationType {
 
 std::pair<Values, uint64_t>
 fromELFRelocation(model::Architecture::Values Architecture,
-                  unsigned char ELFRelocation) {
+                  uint32_t ELFRelocation) {
   using namespace llvm::ELF;
   switch (Architecture) {
   case model::Architecture::x86:
@@ -313,6 +313,7 @@ fromELFRelocation(model::Architecture::Values Architecture,
 
     case R_ARM_JUMP_SLOT:
     case R_ARM_GLOB_DAT:
+    case R_ARM_ABS32:
       return { Absolute, 4 };
 
     case R_ARM_COPY:
@@ -322,12 +323,24 @@ fromELFRelocation(model::Architecture::Values Architecture,
     }
 
   case model::Architecture::aarch64:
-    return { Invalid, 0 };
+    switch (ELFRelocation) {
+    case R_AARCH64_RELATIVE:
+      return { Absolute, 8 };
+
+    case R_AARCH64_JUMP_SLOT:
+    case R_AARCH64_GLOB_DAT:
+    case R_AARCH64_ABS64:
+      return { Absolute, 8 };
+
+    default:
+      return { Invalid, 0 };
+    }
 
   case model::Architecture::mips:
   case model::Architecture::mipsel:
     switch (ELFRelocation) {
     case R_MIPS_IMPLICIT_RELATIVE:
+    case R_MIPS_REL32:
       return { Absolute, 4 };
 
     case R_MIPS_JUMP_SLOT:
@@ -342,7 +355,12 @@ fromELFRelocation(model::Architecture::Values Architecture,
 
   case model::Architecture::systemz:
     switch (ELFRelocation) {
+    case R_390_RELATIVE:
+      return { Absolute, 8 };
+
+    case R_390_JMP_SLOT:
     case R_390_GLOB_DAT:
+    case R_390_64:
       return { Absolute, 8 };
 
     case R_390_COPY:
@@ -357,7 +375,8 @@ fromELFRelocation(model::Architecture::Values Architecture,
 }
 
 bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
-                                 unsigned char ELFRelocation) {
+                                 uint32_t ELFRelocation,
+                                 bool HasSymbol) {
   using namespace llvm::ELF;
   switch (Architecture) {
   case model::Architecture::x86:
@@ -402,6 +421,7 @@ bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
 
     case R_ARM_JUMP_SLOT:
     case R_ARM_GLOB_DAT:
+    case R_ARM_ABS32:
       return false;
 
     case R_ARM_COPY:
@@ -411,13 +431,14 @@ bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
     }
 
   case model::Architecture::aarch64:
-    return Invalid;
+    return ELFRelocation == R_AARCH64_RELATIVE;
 
   case model::Architecture::mips:
   case model::Architecture::mipsel:
     switch (ELFRelocation) {
     case R_MIPS_IMPLICIT_RELATIVE:
-      return true;
+    case R_MIPS_REL32:
+      return not HasSymbol;
 
     case R_MIPS_JUMP_SLOT:
     case R_MIPS_GLOB_DAT:
@@ -431,7 +452,12 @@ bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
 
   case model::Architecture::systemz:
     switch (ELFRelocation) {
+    case R_390_RELATIVE:
+      return true;
+
+    case R_390_JMP_SLOT:
     case R_390_GLOB_DAT:
+    case R_390_64:
       return false;
 
     case R_390_COPY:
