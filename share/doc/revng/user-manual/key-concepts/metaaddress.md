@@ -39,7 +39,8 @@ Let's review each field in detail:
 * `uint32_t Epoch`: a progressive value that enables us to distinguish different things at the same address in different points during the execution of the program;
 * `uint16_t AddressSpace`: certain architectures can access different type of memories (e.g., a large ROM and a smaller RAM) through different instructions.
   The `AddressSpace` field enables us to distinguish them.
-  Note that currently we do not attribute any particular meaning to `AddressSpace`, but in the future we might use them to support multi-binary analysis: every dynamic library you'll feed to rev.ng will be distinguished by a different value of `AddressSpace`.
+  The properties of an address space, such as whether its content is position independent, are described by [`Binary.AddressSpaces`](../../references/model.md#Binary.AddressSpaces).
+  In the future we might use address spaces to support multi-binary analysis: every dynamic library you'll feed to rev.ng will be distinguished by a different value of `AddressSpace`.
 
 ## Textual representation
 

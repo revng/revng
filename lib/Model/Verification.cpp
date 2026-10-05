@@ -2,7 +2,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <limits>
 #include <tuple>
+#include <utility>
 
 #include "llvm/ADT/SmallSet.h"
 
@@ -133,6 +135,18 @@ bool BinaryIdentifier::verify(VerifyHelper &VH) const {
     return VH.fail("Hash has invalid format. A series of 64 lowercase hex "
                    "digits representing SHA256 is expected.",
                    Hash());
+
+  return true;
+}
+
+bool AddressSpace::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  using AddressSpaceIndex = decltype(std::declval<MetaAddress>()
+                                       .addressSpace());
+  if (Index() > std::numeric_limits<AddressSpaceIndex>::max())
+    return VH.fail("Index exceeds the range of MetaAddress::addressSpace()",
+                   *this);
 
   return true;
 }
@@ -1025,6 +1039,11 @@ bool Binary::verify(VerifyHelper &VH) const {
       return VH.fail();
   }
 
+  // Verify AddressSpaces
+  for (const model::AddressSpace &AddressSpace : AddressSpaces())
+    if (not AddressSpace.verify(VH))
+      return VH.fail();
+
   // Verify EntryPoint
   if (EntryPoint().isValid()) {
     if (not EntryPoint().isCode())
@@ -1150,6 +1169,14 @@ bool Segment::verify(bool Assert) const {
   return verify(VH);
 }
 bool Segment::verify() const {
+  return verify(false);
+}
+
+bool AddressSpace::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool AddressSpace::verify() const {
   return verify(false);
 }
 

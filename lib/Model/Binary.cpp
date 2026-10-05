@@ -264,6 +264,14 @@ MetaAddressRangeSet Binary::executableRanges() const {
   return ExecutableRanges;
 }
 
+const model::AddressSpace &
+Binary::getAddressSpaceFor(const MetaAddress &Address) const {
+  static const model::AddressSpace Default;
+  if (const auto *Result = AddressSpaces().tryGet(Address.addressSpace()))
+    return *Result;
+  return Default;
+}
+
 namespace RelocationType {
 
 std::pair<Values, uint64_t>

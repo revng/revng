@@ -74,6 +74,14 @@ definitions:
           type: SortedVector
           elementType: BinaryIdentifier
 
+      - name: AddressSpaces
+        doc: |-
+          Properties of the address spaces in use, see `AddressSpace`.
+          An address space without an entry here has the default properties.
+        sequence:
+          type: SortedVector
+          elementType: AddressSpace
+
       - name: Segments
         doc: |-
           `Segment`s represent instructions on what part of the raw binary needs to
@@ -728,6 +736,31 @@ definitions:
           In case of Windows binaries, use UNIX paths relative to C:\ (e.g., use
           /Windows for C:\Windows).
         type: string
+
+  - name: AddressSpace
+    type: struct
+
+    doc: |-
+      Properties of an address space, i.e., the `AddressSpace` component of a
+      `MetaAddress`.
+
+    key:
+      - Index
+
+    fields:
+      - name: Index
+        doc: The address space these properties apply to.
+        type: uint64_t
+
+      - name: IsPositionIndependent
+        doc: |-
+          Whether the content of the segments in this address space can be
+          loaded at an arbitrary address.
+          If `true`, every absolute pointer they contain is described by a
+          `Relocation`, so analyses do not look for pointers in their raw
+          content.
+        type: bool
+        default: true
 
   - name: Segment
     type: struct

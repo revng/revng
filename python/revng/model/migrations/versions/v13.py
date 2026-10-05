@@ -49,12 +49,17 @@ def _migrate_relocations(relocations):
 
 
 class Migration(MigrationBase):
-    """Make primitive sizes explicit and move the size of relocations out of
-    their type.
+    """Make primitive sizes explicit, address space 0 position dependent and
+    move the size of relocations out of their type.
 
     Absent fields take the default value declared in the schema, which, for
     `PrimitiveType.Size`, is -1. In previous versions, an absent `Size`
     (e.g., in `void`) stood for 0.
+
+    Address spaces are position independent by default, which makes analyses
+    rely on relocations alone to find pointers in global data. Models
+    predating `AddressSpaces` might lack such relocations, so we keep looking
+    for pointers in the raw content of their segments.
 
     Relocation types no longer encode the size, which is now in
     `Relocation.Size`. `Add*` types, which add to the value in place, are
@@ -68,3 +73,9 @@ class Migration(MigrationBase):
             _migrate_relocations(segment.get("Relocations", []))
         for function in binary.get("ImportedDynamicFunctions", []):
             _migrate_relocations(function.get("Relocations", []))
+
+        address_spaces = binary.setdefault("AddressSpaces", [])
+        for address_space in address_spaces:
+            if address_space.get("Index", 0) == 0:
+                return
+        address_spaces.insert(0, {"Index": 0, "IsPositionIndependent": False})

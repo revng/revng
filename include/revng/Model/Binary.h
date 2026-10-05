@@ -246,6 +246,11 @@ public:
   getSegmentFor(const MetaAddress &Address);
 
   MetaAddressRangeSet executableRanges() const;
+
+  /// \return the address space of \p Address or, if it has no entry in
+  ///         `AddressSpaces`, an address space with the default properties.
+  const model::AddressSpace &
+  getAddressSpaceFor(const MetaAddress &Address) const;
 };
 
 #include "revng/Model/Generated/Late/Binary.h"
