@@ -105,6 +105,7 @@ public:
   };
 
 public:
+  model::Architecture::Values Architecture = model::Architecture::Invalid;
   llvm::SmallVector<Argument, 4> Arguments;
   llvm::SmallVector<ReturnValue, 2> ReturnValues;
   llvm::SmallVector<model::Register::Values, 24> CalleeSavedRegisters;
@@ -339,6 +340,7 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(FTL::Argument)
 template<>
 struct llvm::yaml::MappingTraits<FTL> {
   static void mapping(IO &IO, FTL &L) {
+    IO.mapRequired("Architecture", L.Architecture);
     IO.mapRequired("Arguments", L.Arguments);
     IO.mapRequired("ReturnValues", L.ReturnValues);
     IO.mapRequired("CalleeSavedRegisters", L.CalleeSavedRegisters);
