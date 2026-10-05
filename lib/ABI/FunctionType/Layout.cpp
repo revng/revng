@@ -566,35 +566,97 @@ Layout::Layout(const model::RawFunctionDefinition &Function) :
   revng_assert(verify());
 }
 
-/// A value either takes a portion of a single register or one or more full
-/// registers
-static bool usesFullRegisters(const Layout::ReturnValue &Value) {
-  if (Value.Registers.size() <= 1)
-    return true;
-
-  for (const model::Register::Portion &Portion : Value.Registers)
-    if (Portion.Size != model::Register::getSize(Portion.Register))
+/// Verify that \p Registers and \p StackSize bytes of stack hold a value of
+/// \p Size bytes. A value either takes a portion of a single register or
+/// one or more full registers, possibly followed by the stack.
+static bool verifyValue(llvm::ArrayRef<model::Register::Portion> Registers,
+                        uint64_t StackSize,
+                        uint64_t Size) {
+  if (Registers.empty()) {
+    if (StackSize < Size) {
+      revng_log(LayoutLog,
+                "A value of " << Size << " bytes takes " << StackSize
+                              << " bytes of stack and no registers");
       return false;
+    }
+
+    return true;
+  }
+
+  if (Registers.size() == 1 and StackSize == 0) {
+    const model::Register::Portion &Portion = Registers[0];
+    if (Portion.Size != Size) {
+      revng_log(LayoutLog,
+                "A value of " << Size << " bytes takes " << Portion.Size
+                              << " bytes of "
+                              << model::Register::getName(Portion.Register));
+      return false;
+    }
+
+    return true;
+  }
+
+  // TODO: some ABIs pass a value in portions of multiple registers. For
+  //       instance, on hard-float AAPCS, the second argument of
+  //       `void f(struct { float A, B; }, struct { float A, B, C; })` takes
+  //       s2, s3 and s4: the second half of q0 and a quarter of q1.
+  uint64_t RegistersSize = 0;
+  for (const model::Register::Portion &Portion : Registers) {
+    if (Portion.Size != model::Register::getSize(Portion.Register)) {
+      revng_log(LayoutLog,
+                "A value in multiple locations takes "
+                  << Portion.Size << " bytes of "
+                  << model::Register::getName(Portion.Register));
+      return false;
+    }
+
+    RegistersSize += Portion.Size;
+  }
+
+  if (StackSize == 0) {
+    // Every register but the last one is used in its entirety
+    uint64_t LastSize = Registers.back().Size;
+    if (RegistersSize < Size or RegistersSize - LastSize >= Size) {
+      revng_log(LayoutLog,
+                "A value of " << Size << " bytes takes " << RegistersSize
+                              << " bytes of registers");
+      return false;
+    }
+  } else {
+    // The registers hold the start of the value, the stack the rest
+    if (RegistersSize >= Size or RegistersSize + StackSize < Size) {
+      revng_log(LayoutLog,
+                "A value of " << Size << " bytes takes " << RegistersSize
+                              << " bytes of registers and " << StackSize
+                              << " bytes of stack");
+      return false;
+    }
+  }
 
   return true;
 }
 
 bool Layout::verify() const {
-  if (Architecture == model::Architecture::Invalid)
+  if (Architecture == model::Architecture::Invalid) {
+    revng_log(LayoutLog, "The architecture is invalid");
     return false;
+  }
 
-  model::Architecture::Values ExpectedA = model::Architecture::Invalid;
   std::unordered_set<model::Register::Values> LookupHelper;
   auto VerificationHelper = [&](model::Register::Values Register) -> bool {
     // Ensure each register is present only once
-    if (!LookupHelper.emplace(Register).second)
+    if (!LookupHelper.emplace(Register).second) {
+      revng_log(LayoutLog,
+                model::Register::getName(Register) << " is used twice");
       return false;
+    }
 
-    // Ensure all the registers belong to the same architecture
-    if (ExpectedA == model::Architecture::Invalid)
-      ExpectedA = model::Register::getReferenceArchitecture(Register);
-    else if (ExpectedA != model::Register::getReferenceArchitecture(Register))
+    // Ensure all the registers belong to the architecture
+    if (not model::Register::isUsedInArchitecture(Register, Architecture)) {
+      llvm::StringRef Name = model::Register::getName(Register);
+      revng_log(LayoutLog, Name << " belongs to another architecture");
       return false;
+    }
 
     return true;
   };
@@ -617,43 +679,75 @@ bool Layout::verify() const {
     if (!VerificationHelper(Register))
       return false;
 
-  for (const Argument &Argument : Arguments)
-    if (not usesFullRegisters(Argument))
-      return false;
-
-  for (const ReturnValue &ReturnValue : ReturnValues)
-    if (not usesFullRegisters(ReturnValue))
-      return false;
-
   using namespace abi::FunctionType::ArgumentKind;
+  uint64_t PointerSize = model::Architecture::getPointerSize(Architecture);
+  for (auto &&[Index, Argument] : llvm::enumerate(Arguments)) {
+    uint64_t Size = *Argument.Type->size();
+    if (Argument.Kind == PointerToCopy)
+      Size = PointerSize;
+
+    if (Argument.Stack and Argument.Stack->Size == 0) {
+      revng_log(LayoutLog, "Argument " << Index << " takes 0 bytes of stack");
+      return false;
+    }
+
+    uint64_t StackSize = Argument.Stack ? Argument.Stack->Size : 0;
+    if (not verifyValue(Argument.Registers, StackSize, Size)) {
+      revng_log(LayoutLog, "Argument " << Index << " is invalid");
+      return false;
+    }
+  }
+
+  for (auto &&[Index, ReturnValue] : llvm::enumerate(ReturnValues)) {
+    // The distributor drops floating point return values on ABIs without
+    // vector return value registers
+    if (ReturnValue.Registers.empty())
+      continue;
+
+    uint64_t Size = *ReturnValue.Type->size();
+    if (not verifyValue(ReturnValue.Registers, 0, Size)) {
+      revng_log(LayoutLog, "Return value " << Index << " is invalid");
+      return false;
+    }
+  }
+
   auto SPTAR = ShadowPointerToAggregateReturnValue;
   bool SPTARFound = false;
   bool IsFirst = true;
   for (const auto &Argument : Arguments) {
     if (Argument.Kind == SPTAR) {
       // SPTAR must be the first argument
-      if (!IsFirst)
+      if (!IsFirst) {
+        revng_log(LayoutLog, "The SPTAR is not the first argument");
         return false;
+      }
 
       // There can be only one SPTAR
-      if (SPTARFound)
+      if (SPTARFound) {
+        revng_log(LayoutLog, "There is more than one SPTAR");
         return false;
+      }
 
       if (Argument.Stack.has_value()) {
         // SPTAR can be on the stack if ABI allows that.
         //
         // TODO: we should probably verify that, but such a verification would
         //       require access to the ABI in question.
-        auto PointerSize = model::Architecture::getPointerSize(Architecture);
 
         // The space SPTAR occupies on stack has to be that of a single pointer.
         // It also has to be the first argument (with offset equal to zero).
-        if (Argument.Stack->Size != PointerSize || Argument.Stack->Offset != 0)
+        if (Argument.Stack->Size != PointerSize
+            || Argument.Stack->Offset != 0) {
+          revng_log(LayoutLog,
+                    "The SPTAR on the stack is not a pointer at offset 0");
           return false;
+        }
       } else {
         // SPTAR is not on the stack, so it has to be a single register
-        if (Argument.Registers.size() != 1)
+        if (Argument.Registers.size() != 1) {
+          revng_log(LayoutLog, "The SPTAR is not in a single register");
           return false;
+        }
       }
     }
 
@@ -662,10 +756,15 @@ bool Layout::verify() const {
 
   // If we have more than one return value, each return value should take at
   // most a single register
-  if (ReturnValues.size() > 1)
-    for (const ReturnValue &ReturnValue : ReturnValues)
-      if (ReturnValue.Registers.size() > 1)
+  if (ReturnValues.size() > 1) {
+    for (const ReturnValue &ReturnValue : ReturnValues) {
+      if (ReturnValue.Registers.size() > 1) {
+        revng_log(LayoutLog,
+                  "One of multiple return values takes multiple registers");
         return false;
+      }
+    }
+  }
 
   return true;
 }
