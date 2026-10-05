@@ -163,12 +163,15 @@ static void convertFunctionsToCABI(TupleTree<model::Binary> &Model,
       model::ABI::Microsoft_x86_stdcall_gcc,
       model::ABI::Microsoft_x86_thiscall,
       model::ABI::Microsoft_x86_vectorcall,
-      model::ABI::AAPCS,
+      model::ABI::AAPCS_hardfloat,
+      model::ABI::AAPCS_softfloat,
       model::ABI::AAPCS64
 
       // There are known issues
-      // model::ABI::SystemV_MIPS_o32,
-      // model::ABI::SystemV_MIPSEL_o32
+      // model::ABI::SystemV_MIPS_o32_hardfloat,
+      // model::ABI::SystemV_MIPS_o32_softfloat,
+      // model::ABI::SystemV_MIPSEL_o32_hardfloat,
+      // model::ABI::SystemV_MIPSEL_o32_softfloat,
 
       // Unable to reliably test: QEMU aborts
       // model::ABI::SystemZ_s390x,

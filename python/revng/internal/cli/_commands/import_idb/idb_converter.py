@@ -48,22 +48,22 @@ revng_arch_to_metaaddr_code_type = {
 }
 
 revng_arch_to_abi = {
-    m.Architecture.arm: m.ABI.AAPCS,
+    m.Architecture.arm: m.ABI.AAPCS_hardfloat,
     m.Architecture.aarch64: m.ABI.AAPCS64,
     m.Architecture.x86: m.ABI.SystemV_x86,
     m.Architecture.x86_64: m.ABI.SystemV_x86_64,
-    m.Architecture.mips: m.ABI.SystemV_MIPS_o32,
-    m.Architecture.mipsel: m.ABI.SystemV_MIPSEL_o32,
+    m.Architecture.mips: m.ABI.SystemV_MIPS_o32_hardfloat,
+    m.Architecture.mipsel: m.ABI.SystemV_MIPSEL_o32_hardfloat,
     m.Architecture.systemz: m.ABI.SystemZ_s390x,
 }
 
 revng_arch_to_abiname = {
-    m.Architecture.arm: "AAPCS",
+    m.Architecture.arm: "AAPCS_hardfloat",
     m.Architecture.aarch64: "AAPCS64",
     m.Architecture.x86: "SystemV_x86",
     m.Architecture.x86_64: "SystemV_x86_64",
-    m.Architecture.mips: "SystemV_MIPS_o32",
-    m.Architecture.mipsel: "SystemV_MIPSEL_o32",
+    m.Architecture.mips: "SystemV_MIPS_o32_hardfloat",
+    m.Architecture.mipsel: "SystemV_MIPSEL_o32_hardfloat",
     m.Architecture.systemz: "SystemZ_s390x",
 }
 
