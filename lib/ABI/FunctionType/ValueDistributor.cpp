@@ -98,10 +98,16 @@ ValueDistributor::distribute(uint64_t Size,
         Padding.RepresentsPadding = true;
       }
 
-      revng_assert(SizeCounter >= PointerSize);
-      SizeCounter -= PointerSize;
-      if (ConsideredRegisterCounter < LastRegister)
-        ++ConsideredRegisterCounter;
+      // Replace the padding register with the next one
+      if (ConsideredRegisterCounter < LastRegister) {
+        // It has the same size, so SizeCounter does not change
+        auto NextRegister = Registers[ConsideredRegisterCounter++];
+        revng_assert(model::Register::getSize(NextRegister) == PointerSize);
+      } else {
+        // There is no next register, the space of the padding one is lost
+        revng_assert(SizeCounter >= PointerSize);
+        SizeCounter -= PointerSize;
+      }
     }
   }
 
