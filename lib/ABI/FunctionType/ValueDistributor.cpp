@@ -75,9 +75,7 @@ ValueDistributor::distribute(uint64_t Size,
   // padding to be inserted even for arguments passed in registers.
   if (ABI.OnlyStartDoubleArgumentsFromAnEvenRegister()) {
     const uint64_t PointerSize = ABI.getPointerSize();
-    bool MultiAligned = (Size >= PointerSize && Alignment > PointerSize)
-                        || (Size > PointerSize
-                            && ABI.BigArgumentsUsePointersToCopy());
+    bool MultiAligned = Size >= PointerSize && Alignment > PointerSize;
     bool LastRegisterUsed = ConsideredRegisterCounter == Registers.size();
     bool FirstRegisterOdd = (OccupiedRegisterCount & 1) != 0;
     if (MultiAligned && !LastRegisterUsed && FirstRegisterOdd) {
