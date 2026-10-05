@@ -240,11 +240,10 @@ bool VH::tryToVerifyStack(llvm::ArrayRef<std::byte> &Bytes,
 
 uint64_t VH::checkRegister(llvm::ArrayRef<std::byte> RegisterBytes,
                            llvm::ArrayRef<std::byte> ArgumentBytes) const {
-  revng_assert(RegisterBytes.size() == ABI.getPointerSize());
-  if (ArgumentBytes.size() > ABI.getPointerSize())
-    ArgumentBytes = ArgumentBytes.take_front(ABI.getPointerSize());
-  uint64_t ComparedByteCount = std::min(RegisterBytes.size(),
-                                        ArgumentBytes.size());
+  uint64_t RegisterSize = RegisterBytes.size();
+  if (ArgumentBytes.size() > RegisterSize)
+    ArgumentBytes = ArgumentBytes.take_front(RegisterSize);
+  uint64_t ComparedByteCount = std::min(RegisterSize, ArgumentBytes.size());
 
   llvm::ArrayRef RHS = ArgumentBytes.take_front(ComparedByteCount);
   llvm::ArrayRef LHSTop = RegisterBytes.take_front(ComparedByteCount);
