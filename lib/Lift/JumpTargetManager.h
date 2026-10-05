@@ -440,25 +440,14 @@ public:
 
     translateIndirectJumps();
 
-    using namespace model::Architecture;
-    uint64_t ReadSize = getPointerSize(Model->Architecture());
-    for (MetaAddress MemoryAddress : UnusedCodePointers) {
-      // Read using the original endianness, we want the correct address
-      auto MaybeRawPC = BinaryView.readInteger(MemoryAddress, ReadSize);
-      MetaAddress PC = MetaAddress::invalid();
-      if (MaybeRawPC)
-        PC = fromPC(*MaybeRawPC);
+    for (const auto &[MemoryAddress, PC] : UnusedCodePointers) {
+      // Set as reason UnusedGlobalData and ensure it's not empty
+      llvm::BasicBlock *BB = registerJT(PC, JumpTargetReason::UnusedGlobalData);
 
-      if (PC.isValid()) {
-        // Set as reason UnusedGlobalData and ensure it's not empty
-        llvm::BasicBlock *BB = registerJT(PC,
-                                          JumpTargetReason::UnusedGlobalData);
+      // TODO: can this happen?
+      revng_assert(BB != nullptr);
 
-        // TODO: can this happen?
-        revng_assert(BB != nullptr);
-
-        revng_assert(!BB->empty());
-      }
+      revng_assert(!BB->empty());
     }
 
     // We no longer need this information
@@ -557,6 +546,12 @@ private:
 
   void prepareDispatcher();
 
+  /// Register as jump targets the code pointers described by relocations
+  void findRelocatedCodePointers();
+
+  /// Register \p PC, stored at \p Location, as a jump target
+  void registerCodePointer(MetaAddress Location, MetaAddress PC);
+
   template<typename value_type, unsigned endian>
   void findCodePointers(MetaAddress StartVirtualAddress,
                         const unsigned char *Start,
@@ -591,7 +586,9 @@ private:
 
   unsigned NewBranches = 0;
 
-  std::set<MetaAddress> UnusedCodePointers;
+  /// Code pointers found in global data and never loaded, indexed by the
+  /// address where they are stored
+  std::map<MetaAddress, MetaAddress> UnusedCodePointers;
   interval_set ReadIntervalSet;
 
   CFGForm::Values CurrentCFGForm;

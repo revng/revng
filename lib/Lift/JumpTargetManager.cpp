@@ -561,6 +561,13 @@ void JumpTargetManager::harvestGlobalData() {
     registerJT(Address, JumpTargetReason::GlobalData);
 
   for (auto &[Segment, Data] : BinaryView.segments()) {
+    // Harvesting pointers in global data only makes sense for non-PIC code.
+    // However, for PIC-code we exploit relocations (see
+    // `findRelocatedCodePointers`)
+    auto &AddressSpace = Model->getAddressSpaceFor(Segment.StartAddress());
+    if (AddressSpace.IsPositionIndependent())
+      continue;
+
     MetaAddress StartVirtualAddress = Segment.StartAddress();
     const unsigned char *DataStart = Data.begin();
     const unsigned char *DataEnd = Data.end();
@@ -590,9 +597,31 @@ void JumpTargetManager::harvestGlobalData() {
     }
   }
 
+  findRelocatedCodePointers();
+
   revng_log(JTCountLog,
             "JumpTargets found in global data: " << std::dec
                                                  << Unexplored.size());
+}
+
+void JumpTargetManager::findRelocatedCodePointers() {
+  for (const model::Segment &Segment : Model->Segments()) {
+    for (const model::Relocation &Relocation : Segment.Relocations()) {
+      MetaAddress Target = Segment.StartAddress() + Relocation.Addend();
+      if (Target.isValid())
+        registerCodePointer(Relocation.Address(),
+                            Target.toPC(Model->Architecture()));
+    }
+  }
+}
+
+void JumpTargetManager::registerCodePointer(MetaAddress Location,
+                                            MetaAddress PC) {
+  if (PC.isInvalid())
+    return;
+
+  if (registerJT(PC, JumpTargetReason::GlobalData) != nullptr)
+    UnusedCodePointers[Location] = PC;
 }
 
 template<typename value_type, unsigned endian>
@@ -614,15 +643,13 @@ void JumpTargetManager::findCodePointers(MetaAddress StartVirtualAddress,
 
   for (; Offset + Step <= Size; Offset += Step) {
     auto Read = read<value_type, static_cast<endianness>(endian), 1>;
-    uint64_t RawValue = Read(Start + Offset);
-    MetaAddress Value = fromPC(RawValue);
-    if (Value.isInvalid())
-      continue;
 
-    BasicBlock *Result = registerJT(Value, JumpTargetReason::GlobalData);
-
-    if (Result != nullptr)
-      UnusedCodePointers.insert(StartVirtualAddress + Offset);
+    // Assume the pointer targets the address space of the segment
+    MetaAddress PC = MetaAddress::fromPC(Model->Architecture(),
+                                         Read(Start + Offset),
+                                         StartVirtualAddress.epoch(),
+                                         StartVirtualAddress.addressSpace());
+    registerCodePointer(StartVirtualAddress + Offset, PC);
   }
 }
 
