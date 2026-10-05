@@ -1118,9 +1118,12 @@ private:
     return llvm::ConstantInt::get(SSA.TargetPointerSizedInteger, Value);
   }
 
+  /// Shift of the piece at \p Offset of size \p OldSize in a value of size
+  /// \p NewSize
   unsigned
   shiftAmount(unsigned Offset, unsigned NewSize, unsigned OldSize) const {
-    if (NewSize >= OldSize)
+    // The value fits in a single piece
+    if (NewSize <= OldSize)
       return 0;
     if (model::Architecture::isLittleEndian(SSA.Binary.Architecture())) {
       return Offset * 8;
@@ -1783,7 +1786,7 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
                                            OldSize);
         Value *Shifted = Extended;
         if (ShiftAmount != 0)
-          Shifted = B.CreateLShr(Extended, ShiftAmount);
+          Shifted = B.CreateShl(Extended, ShiftAmount);
 
         Accumulator = B.CreateOr(Accumulator, Shifted);
 
