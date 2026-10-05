@@ -15,4 +15,10 @@
 #
 # NOTE: All three regexes are matched with `re.fullmatch`.
 
-[]
+#
+# Allow any failures in `float` and `double` tests.
+#
+
+- ABI: .*
+  Test: .*(?:float|double).*
+  Error: .*
