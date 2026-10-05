@@ -426,6 +426,7 @@ void ELFImporter<T, HasAddend>::parseDynamicAndSymbols(object::ELFFile<T>
   RelpltPortion = std::make_unique<FilePortion>(File);
   GotPortion = std::make_unique<FilePortion>(File);
   HashHeaderPortion = std::make_unique<FilePortion>(File);
+  RelrPortion = std::make_unique<FilePortion>(File);
   bool IsX86 = Model->Architecture() == model::Architecture::x86;
   bool IsMIPS = (Model->Architecture() == model::Architecture::mips
                  or Model->Architecture() == model::Architecture::mipsel);
@@ -511,6 +512,25 @@ void ELFImporter<T, HasAddend>::parseDynamicAndSymbols(object::ELFFile<T>
                           *DynstrPortion.get());
     }
   }
+
+  if (ParseRelocations and RelrPortion->isAvailable())
+    registerRelrRelocations(TheELF);
+}
+
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::registerRelrRelocations(object::ELFFile<T>
+                                                          &TheELF) {
+  using Elf_Addr = typename object::ELFFile<T>::Elf_Addr;
+  using Elf_Relr = typename object::ELFFile<T>::Elf_Relr;
+
+  revng_log(ELFImporterLog, "Parsing relocations in .relr.dyn");
+  LoggerIndent Indent(ELFImporterLog);
+
+  auto Relocations = TheELF.decode_relrs(RelrPortion->extractAs<Elf_Relr>());
+  for (const auto &Relocation : Relocations) {
+    registerInPlaceRelocation(relocate(fromGeneric(Relocation.r_offset)),
+                              sizeof(Elf_Addr));
+  }
 }
 
 template<typename T, bool HasAddend>
@@ -593,6 +613,20 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
   case ELF::DT_PLTGOT:
     GotPortion->setAddress(GenericAddress);
     break;
+
+  case ELF::DT_RELR:
+    RelrPortion->setAddress(GenericAddress);
+    break;
+
+  case ELF::DT_RELRSZ:
+    RelrPortion->setSize(Val);
+    break;
+
+  case ELF::DT_RELRENT: {
+    using Elf_Relr = typename object::ELFFile<T>::Elf_Relr;
+    if (Val != sizeof(Elf_Relr))
+      revng_log(ELFImporterLog, "Unexpected DT_RELRENT: " << Val);
+  } break;
 
   case ELF::DT_HASH:
     HashHeaderPortion->setAddress(GenericAddress);

@@ -90,6 +90,7 @@ protected:
   std::unique_ptr<FilePortion> RelpltPortion;
   std::unique_ptr<FilePortion> GotPortion;
   std::unique_ptr<FilePortion> HashHeaderPortion;
+  std::unique_ptr<FilePortion> RelrPortion;
 
 public:
   ELFImporter(TupleTree<model::Binary> &Model,
@@ -199,6 +200,9 @@ protected:
   /// Register an `R_*_RELATIVE` relocation of \p Size bytes at \p Address,
   /// whose addend is stored in place
   void registerInPlaceRelocation(MetaAddress Address, uint64_t Size);
+
+  /// Register the relocations in the DT_RELR table
+  void registerRelrRelocations(llvm::object::ELFFile<T> &TheELF);
 
   void parseDynamicTag(uint64_t Tag,
                        uint64_t Val,
