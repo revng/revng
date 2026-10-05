@@ -224,7 +224,8 @@ set(PYTHON_MODEL_MIGRATIONS_FILES
     revng/model/migrations/versions/v11.py
     revng/model/migrations/versions/v12.py
     revng/model/migrations/versions/v13.py
-    revng/model/migrations/versions/v14.py)
+    revng/model/migrations/versions/v14.py
+    revng/model/migrations/versions/v15.py)
 python_module(TARGET_NAME python-model-migrations WHEEL revng MODULE_FILES
               ${PYTHON_MODEL_MIGRATIONS_FILES})
 

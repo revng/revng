@@ -36,13 +36,16 @@ getArchitecture(model::ABI::Values V) {
   case model::ABI::Microsoft_AAPCS64:
   case model::ABI::Apple_AAPCS64:
     return model::Architecture::aarch64;
-  case model::ABI::AAPCS:
+  case model::ABI::AAPCS_hardfloat:
+  case model::ABI::AAPCS_softfloat:
     return model::Architecture::arm;
 
-  case model::ABI::SystemV_MIPS_o32:
+  case model::ABI::SystemV_MIPS_o32_hardfloat:
+  case model::ABI::SystemV_MIPS_o32_softfloat:
     return model::Architecture::mips;
 
-  case model::ABI::SystemV_MIPSEL_o32:
+  case model::ABI::SystemV_MIPSEL_o32_hardfloat:
+  case model::ABI::SystemV_MIPSEL_o32_softfloat:
     return model::Architecture::mipsel;
 
   case model::ABI::SystemZ_s390x:
@@ -61,10 +64,13 @@ getArchitecture(model::ABI::Values V) {
 /// the `abi::Definition`.
 inline constexpr model::Architecture::Values
 getRegisterArchitecture(model::ABI::Values V) {
-  if (V == model::ABI::SystemV_MIPSEL_o32)
+  switch (V) {
+  case model::ABI::SystemV_MIPSEL_o32_hardfloat:
+  case model::ABI::SystemV_MIPSEL_o32_softfloat:
     return model::Architecture::mips;
-  else
+  default:
     return getArchitecture(V);
+  }
 }
 
 /// \return the size of the pointer under the specified ABI.
@@ -83,11 +89,11 @@ getDefaultForELF(model::Architecture::Values V) {
   case model::Architecture::aarch64:
     return model::ABI::AAPCS64;
   case model::Architecture::arm:
-    return model::ABI::AAPCS;
+    return model::ABI::AAPCS_hardfloat;
   case model::Architecture::mips:
-    return model::ABI::SystemV_MIPS_o32;
+    return model::ABI::SystemV_MIPS_o32_hardfloat;
   case model::Architecture::mipsel:
-    return model::ABI::SystemV_MIPSEL_o32;
+    return model::ABI::SystemV_MIPSEL_o32_hardfloat;
   case model::Architecture::systemz:
     return model::ABI::SystemZ_s390x;
   default:
@@ -184,14 +190,26 @@ inline constexpr llvm::StringRef getDescription(model::ABI::Values V) {
     return "Microsoft version of 64-bit ARM abi";
   case model::ABI::Apple_AAPCS64:
     return "Apple version of 64-bit ARM abi";
-  case model::ABI::AAPCS:
-    return "32-bit ARM abi";
+  case model::ABI::AAPCS_hardfloat:
+    return "32-bit ARM abi, passing the floating point arguments in the "
+           "floating point registers";
+  case model::ABI::AAPCS_softfloat:
+    return "32-bit ARM abi, passing the floating point arguments in the "
+           "general purpose registers";
 
-  case model::ABI::SystemV_MIPS_o32:
-    return "The \"old\" 32-bit MIPS abi";
+  case model::ABI::SystemV_MIPS_o32_hardfloat:
+    return "The \"old\" 32-bit MIPS abi, passing the floating point "
+           "arguments in the floating point registers";
+  case model::ABI::SystemV_MIPS_o32_softfloat:
+    return "The \"old\" 32-bit MIPS abi, passing the floating point "
+           "arguments in the general purpose registers";
 
-  case model::ABI::SystemV_MIPSEL_o32:
-    return "The \"old\" 32-bit MIPS abi (little endian edition)";
+  case model::ABI::SystemV_MIPSEL_o32_hardfloat:
+    return "The \"old\" 32-bit MIPS abi (little endian edition), passing "
+           "the floating point arguments in the floating point registers";
+  case model::ABI::SystemV_MIPSEL_o32_softfloat:
+    return "The \"old\" 32-bit MIPS abi (little endian edition), passing "
+           "the floating point arguments in the general purpose registers";
 
   case model::ABI::SystemZ_s390x:
     return "The s390x SystemZ ABI";
