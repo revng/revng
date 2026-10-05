@@ -1,0 +1,18 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# This file lists the abi test failures we are temporarily ok with.
+#
+# The format is the following:
+#
+#     - ABI: abi-name-regex
+#       Test: test-name-regex
+#       Error: error-message-regex
+#
+# A failure is accepted if it matches *any* one of the entries, BUT all *three*
+# regexes must match *within* an entry for it to apply.
+#
+# NOTE: All three regexes are matched with `re.fullmatch`.
+
+[]

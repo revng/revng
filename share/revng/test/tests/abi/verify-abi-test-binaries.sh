@@ -57,26 +57,26 @@ revng pipeline run-analysis convert-functions-to-raw \
     -o "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"
 
 # Verify that no step contradicts the actual state.
-revng \
-    check-compatibility-with-abi \
+python3 \
+    "${SCRIPT_DIRECTORY}/verify-abi-compatibility.py" \
     -abi="${ABI_NAME}" \
     "${OUTPUT_DIRECTORY}/reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
-revng \
-    check-compatibility-with-abi \
+python3 \
+    "${SCRIPT_DIRECTORY}/verify-abi-compatibility.py" \
     -abi="${ABI_NAME}" \
     "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
-revng \
-    check-compatibility-with-abi \
+python3 \
+    "${SCRIPT_DIRECTORY}/verify-abi-compatibility.py" \
     -abi="${ABI_NAME}" \
     "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
-revng \
-    check-compatibility-with-abi \
+python3 \
+    "${SCRIPT_DIRECTORY}/verify-abi-compatibility.py" \
     -abi="${ABI_NAME}" \
     "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
