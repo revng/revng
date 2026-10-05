@@ -406,7 +406,8 @@ toPortions(const DistributedValue &Value) {
   return Result;
 }
 
-Layout::Layout(const model::CABIFunctionDefinition &Function) {
+Layout::Layout(const model::CABIFunctionDefinition &Function) :
+  Architecture(model::ABI::getArchitecture(Function.ABI())) {
   const abi::Definition &ABI = abi::Definition::get(Function.ABI());
   ToRawConverter Converter(ABI);
 
@@ -416,7 +417,6 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
 
   bool UsesSPTAR = false;
   if (!Function.ReturnType().isEmpty()) {
-    const auto Architecture = model::ABI::getArchitecture(Function.ABI());
     auto RV = Converter.distributeReturnValue(*Function.ReturnType());
     if (RV.SizeOnStack == 0) {
       if (Function.ReturnType().isEmpty()) {
@@ -521,7 +521,8 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
   revng_assert(verify());
 }
 
-Layout::Layout(const model::RawFunctionDefinition &Function) {
+Layout::Layout(const model::RawFunctionDefinition &Function) :
+  Architecture(Function.Architecture()) {
   // Lay register arguments out.
   for (const model::NamedTypedRegister &Register : Function.Arguments()) {
     revng_assert(Register.Type()->isScalar());
@@ -579,6 +580,9 @@ static bool usesFullRegisters(const Layout::ReturnValue &Value) {
 }
 
 bool Layout::verify() const {
+  if (Architecture == model::Architecture::Invalid)
+    return false;
+
   model::Architecture::Values ExpectedA = model::Architecture::Invalid;
   std::unordered_set<model::Register::Values> LookupHelper;
   auto VerificationHelper = [&](model::Register::Values Register) -> bool {
@@ -640,10 +644,7 @@ bool Layout::verify() const {
         //
         // TODO: we should probably verify that, but such a verification would
         //       require access to the ABI in question.
-
-        revng_assert(ExpectedA != model::Architecture::Invalid,
-                     "Unable to figure out the architecture.");
-        auto PointerSize = model::Architecture::getPointerSize(ExpectedA);
+        auto PointerSize = model::Architecture::getPointerSize(Architecture);
 
         // The space SPTAR occupies on stack has to be that of a single pointer.
         // It also has to be the first argument (with offset equal to zero).
