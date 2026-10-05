@@ -736,7 +736,15 @@ public:
   Portion(model::Register::Values Register, uint64_t Size) :
     Register(Register), StartOffset(0), Size(Size) {
 
-    revng_assert(Size <= model::Register::getSize(Register));
+    if (Size > model::Register::getSize(Register)) {
+      std::string Error = "Unable to create a portion of size "
+                          + std::to_string(Size) + " for a register (`"
+                          + model::Register::getName(Register).str()
+                          + "`) of size "
+                          + std::to_string(model::Register::getSize(Register))
+                          + ".";
+      revng_abort(Error.c_str());
+    }
   }
 
   /// This constructor initializes a register portion from the matching CSV.
