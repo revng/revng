@@ -613,8 +613,14 @@ RootAnalyzer::promoteCSVsToAlloca(Function *OptimizedFunction) {
     CSVs.insert(CSV);
 
   // Create and initialize an alloca per CSV (except for the PC-affecting ones)
+  //
+  // The initializing stores go at the end of the entry block on purpose: the
+  // code already there has to keep reading the allocas before anything writes
+  // them, or the initial program counter becomes visible to the optimizer and
+  // the dispatcher gets constant-propagated away.
   BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
-  revng::IRBuilder AllocaBuilder(&*EntryBB->begin());
+  revng::IRBuilder AllocaBuilder(OptimizedFunction->getContext());
+  AllocaBuilder.SetInsertPointPastAllocas(OptimizedFunction);
   revng::IRBuilder InitBuilder(EntryBB->getTerminator());
 
   for (GlobalVariable *CSV : toSortedByName(CSVs)) {

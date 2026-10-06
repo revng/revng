@@ -148,7 +148,7 @@ void PromoteStackPointer::runOnLLVMFunction(const model::Function &Function,
   AllocaInst *LocalSP = Builder.CreateAlloca(SPType, nullptr, "local_sp");
 
   // Call InitLocalSP, to initialize the value of the local stack pointer.
-  Builder.setInsertPointToFirstNonAlloca(LLVMFunction);
+  Builder.SetInsertPointPastAllocas(&LLVMFunction);
   auto *SPVal = Builder.CreateCall(InitLocalSP);
 
   // Store the initial SP value in the new alloca.
