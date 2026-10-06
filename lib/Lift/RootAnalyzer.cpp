@@ -36,8 +36,8 @@
 #include "revng/Support/NewPC.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 #include "revng/Support/Statistics.h"
-#include "revng/TypeShrinking/BitLiveness.h"
 #include "revng/TypeShrinking/TypeShrinking.h"
+#include "revng/TypeShrinking/TypeShrinkingAnalysis.h"
 #include "revng/ValueMaterializer/DataFlowGraph.h"
 
 #include "JumpTargetManager.h"
@@ -733,7 +733,9 @@ SummaryCallsBuilder RootAnalyzer::optimize(llvm::Function *OptimizedFunction,
     FPM.addPass(ValueMaterializerPass(MO));
 
     FunctionAnalysisManager FAM;
-    FAM.registerPass([]() { return TypeShrinking::BitLivenessPass(); });
+    FAM.registerPass([]() {
+      return TypeShrinking::TypeShrinkingAnalysisPass();
+    });
     FAM.registerPass([] {
       AAManager AA;
       AA.registerFunctionAnalysis<BasicAA>();

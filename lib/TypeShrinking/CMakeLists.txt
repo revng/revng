@@ -3,7 +3,7 @@
 #
 
 revng_add_analyses_library_internal(
-  revngTypeShrinking EarlyTypeShrinking.cpp TypeShrinking.cpp BitLiveness.cpp
-  DataFlowGraph.cpp)
+  revngTypeShrinking EarlyTypeShrinking.cpp RewritePlans.cpp TypeShrinking.cpp
+  TypeShrinkingAnalysis.cpp)
 
 target_link_libraries(revngTypeShrinking revngSupport ${LLVM_LIBRARIES})

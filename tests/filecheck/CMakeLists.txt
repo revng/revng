@@ -433,6 +433,7 @@ set(FILECHECK_TESTS
     llvm-passes/arithmetic-to-gep.ll
     llvm-passes/dagify.ll
     llvm-passes/detect-uninlinable-helpers.ll
+    llvm-passes/early-type-shrinking.ll
     llvm-passes/enforce-single-exit.ll
     llvm-passes/example.ll
     llvm-passes/exit-ssa.ll
@@ -447,9 +448,14 @@ set(FILECHECK_TESTS
     llvm-passes/remove-extractvalues.ll
     llvm-passes/scope-graph-dumper.ll
     llvm-passes/select-scope.ll
+    llvm-passes/simplify-comparisons.ll
     llvm-passes/split-exponential-dataflow.ll
     llvm-passes/split-struct-phis.ll
     llvm-passes/switch-to-statements.ll
+    llvm-passes/type-shrinking-flags.ll
+    llvm-passes/type-shrinking-ranges.ll
+    llvm-passes/type-shrinking-widths.ll
+    llvm-passes/type-shrinking.ll
     model/drop-types/ArrayPropagation.yml
     model/drop-types/DropStructField.yml
     model/drop-types/DropViaPointer.yml
