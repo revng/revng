@@ -87,7 +87,7 @@ public:
 
 private:
   void wrap(CallInst *Call,
-            const DenseSet<GlobalVariable *> &Alive,
+            const DenseSet<const GlobalVariable *> &Alive,
             const std::vector<GlobalVariable *> &Read,
             const std::vector<GlobalVariable *> &Written);
 
@@ -102,11 +102,12 @@ private:
   /// CSVs accessed by an instruction of \p F or of a function whose body is
   /// reachable (and thus inlinable) from \p F, ignoring other isolated
   /// functions.
-  DenseSet<GlobalVariable *> computeAliveCSVs(Function *F);
+  DenseSet<const GlobalVariable *> computeAliveCSVs(const Function *F);
 
   /// A CSV that is neither an ABI register nor alive within \p F can only ever
   /// hold its opaque default value, so it needs no alloca/load/store.
-  bool isDeadCSV(GlobalVariable *CSV, const DenseSet<GlobalVariable *> &Alive) {
+  bool isDeadCSV(GlobalVariable *CSV,
+                 const DenseSet<const GlobalVariable *> &Alive) {
     return CSVs.contains(CSV) and not Globals.isABIRegister(CSV)
            and not Alive.contains(CSV);
   }
@@ -257,7 +258,7 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
 // but dead CSVs get no per-call alloca/load/store: we pass `undef` for reads
 // and a null out-argument for writes, and skip the restore store.
 void PromoteCSVs::wrap(CallInst *Call,
-                       const DenseSet<GlobalVariable *> &Alive,
+                       const DenseSet<const GlobalVariable *> &Alive,
                        const std::vector<GlobalVariable *> &Read,
                        const std::vector<GlobalVariable *> &Written) {
 
@@ -327,8 +328,8 @@ void PromoteCSVs::promoteCSVs(Function *F) {
   QuickMetadata QMD(Context);
 
   // Get/create initializers
-  std::map<GlobalVariable *, Function *> InitializerForCSV;
-  for (GlobalVariable *CSV : CSVs) {
+  std::map<const GlobalVariable *, Function *> InitializerForCSV;
+  for (const GlobalVariable *CSV : CSVs) {
     // Initialize all allocas with opaque, CSV-specific values
     Type *CSVType = CSV->getValueType();
     llvm::StringRef CSVName = CSV->getName();
@@ -569,38 +570,39 @@ ArrayRef<T> oneElement(T &Element) {
   return ArrayRef(&Element, 1);
 }
 
-DenseSet<GlobalVariable *> PromoteCSVs::computeAliveCSVs(Function *F) {
+DenseSet<const GlobalVariable *>
+PromoteCSVs::computeAliveCSVs(const Function *F) {
   // Functions whose body is reachable from F, stopping at declarations and at
   // other isolated functions (which are not inlined into F).
-  OnceQueue<Function *> Queue;
+  OnceQueue<const Function *> Queue;
   Queue.insert(F);
   while (not Queue.empty()) {
-    for (Instruction &I : instructions(Queue.pop())) {
-      Function *Callee = getCallee(&I);
+    for (const Instruction &I : instructions(Queue.pop())) {
+      const Function *Callee = getCallee(&I);
       if (Callee != nullptr and not Callee->isDeclaration()
           and not FunctionTags::Isolated.isTagOf(Callee))
         Queue.insert(Callee);
     }
   }
-  std::set<Function *> Reachable = Queue.visited();
+  std::set<const Function *> Reachable = Queue.visited();
 
   // A CSV is alive if one of its users, followed through constant expressions,
   // is an instruction living in a reachable function.
-  DenseSet<GlobalVariable *> Alive;
-  for (GlobalVariable *CSV : CSVs) {
-    OnceQueue<User *> Users;
-    for (User *U : CSV->users())
+  DenseSet<const GlobalVariable *> Alive;
+  for (const GlobalVariable *CSV : CSVs) {
+    OnceQueue<const User *> Users;
+    for (const User *U : CSV->users())
       Users.insert(U);
 
     while (not Users.empty()) {
-      User *U = Users.pop();
+      const User *U = Users.pop();
       if (auto *I = dyn_cast<Instruction>(U)) {
         if (Reachable.contains(I->getFunction())) {
           Alive.insert(CSV);
           break;
         }
       } else if (isa<Constant>(U)) {
-        for (User *TransitiveUser : U->users())
+        for (const User *TransitiveUser : U->users())
           Users.insert(TransitiveUser);
       }
     }
@@ -637,7 +639,7 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
 
   // Compute this before wrapping: wrap() introduces new CSV loads/stores that
   // would otherwise pollute the set of CSVs alive within F.
-  DenseSet<GlobalVariable *> Alive = computeAliveCSVs(F);
+  DenseSet<const GlobalVariable *> Alive = computeAliveCSVs(F);
 
   for (CallInst *Call : ToWrap) {
     CSVsUsage &Usage = UsedCSVs.get(Call);
