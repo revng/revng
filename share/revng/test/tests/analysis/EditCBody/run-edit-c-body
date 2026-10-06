@@ -15,7 +15,7 @@ set -euo pipefail
 #                                                          + a comment;
 #   - `label_0`     the goto label                       -> RENAME + a comment;
 #   - `goto label_0;` a jump                             -> a comment;
-#   - `var_2 = 0`   a plain assignment statement          -> a statement comment.
+#   - `var_0 = 0`   a plain assignment statement          -> a statement comment.
 #
 # Where a comment lands depends on what it sits above. A declaration and a goto
 # label own a comment, so theirs go to the `LocalVariable` and the `GotoLabel`;
@@ -27,7 +27,7 @@ set -euo pipefail
 # The rest covers the annotations that cannot be applied. Those are dropped and
 # reported on the `edit-c-body` logger, one at a time, leaving every other
 # annotation in the same function alone: `RENAME:` only applies to a local
-# variable declaration, so the one placed on the `var_2` assignment is dropped,
+# variable declaration, so the one placed on the `var_0` assignment is dropped,
 # while the plain comment on that very same statement still lands.
 
 BINARY="$1"
@@ -124,8 +124,8 @@ insert_directives "$PROJECT/live.c" "$PROJECT/edited.c" \
   "label_0:" "RENAME: renamed_goto_label" \
   "label_0:" "$LABEL_COMMENT" \
   "goto label_0;" "$GOTO_COMMENT" \
-  "var_2 = 0" "RENAME: $DROPPED_RENAME" \
-  "var_2 = 0" "A plain comment on a statement."
+  "var_0 = 0" "RENAME: $DROPPED_RENAME" \
+  "var_0 = 0" "A plain comment on a statement."
 
 make_configuration "$FUNCTION" "$PROJECT/edited.c" "$PROJECT/edit.yml"
 

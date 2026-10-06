@@ -18,6 +18,7 @@
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/EmitAbort.h"
+#include "revng/Support/GlobalToLocalPromoter.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -70,7 +71,7 @@ private:
   const model::NamingConfiguration &Configuration;
 
   std::map<WrapperKey, llvm::Function *> Wrappers;
-  SetVector<GlobalVariable *> CSVs;
+  SetVector<const GlobalVariable *> CSVs;
 
 public:
   PromoteCSVs(const model::Binary &Binary, llvm::Function &LLVMFunction) :
@@ -122,9 +123,8 @@ void PromoteCSVs::run() {
   // Record existing initializers
   const auto &PCCSVs = PCH->pcCSVs();
   const auto &R = llvm::concat<GlobalVariable *const>(Globals.csvs(), PCCSVs);
-  SmallVector<GlobalVariable *> CSVsToSort{ R.begin(), R.end() };
-  llvm::sort(CSVsToSort, CompareByName);
-  for (GlobalVariable *CSV : CSVsToSort) {
+  SmallVector<GlobalVariable *> SortedCSVs = toSortedByName(R);
+  for (GlobalVariable *CSV : SortedCSVs) {
     if (Globals.isSPReg(CSV))
       continue;
 
@@ -358,12 +358,19 @@ void PromoteCSVs::promoteCSVs(Function *F) {
 
   // For each GlobalVariable representing a CSV, create a dedicated alloca,
   // initialize it, and replace with it the uses of the CSV in F.
-  for (GlobalVariable *CSV : CSVs) {
+  auto IsCSV = [&CSVs = CSVs](const GlobalVariable &CSV) {
+    return CSVs.contains(&CSV);
+  };
+  GlobalToLocalPromoter Promoter(IsCSV, *F);
+  for (GlobalVariable *CSV : Promoter.globals()) {
     // Create the alloca
     Type *CSVType = CSV->getValueType();
     auto *Alloca = Builder.CreateAlloca(CSVType, nullptr, CSV->getName());
+    Promoter.replaceWithAlloca(CSV, Alloca);
 
-    // Check if already have an initializer
+    // Check if already have an initializer. Only the CSVs that name an ABI
+    // register have one, so the others, the PC CSVs for instance, fall back to
+    // the value the global itself is initialized with.
     Value *Initializer = nullptr;
     auto It = InitializerForCSV.find(CSV);
     if (It != InitializerForCSV.end())
@@ -373,9 +380,6 @@ void PromoteCSVs::promoteCSVs(Function *F) {
 
     // Initialize the alloca
     Builder.CreateStore(Initializer, Alloca);
-
-    // Replace users
-    replaceAllUsesInFunctionWith(F, CSV, Alloca);
 
     // Reset insert point after the newly created alloca, ready for the next.
     Builder.SetInsertPoint(Alloca->getNextNode());
