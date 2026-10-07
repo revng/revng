@@ -90,6 +90,14 @@ private:
   /// nodes associated with the \p DependedOn type.
   void addDependenciesFrom(const AssociatedNodes Dependent,
                            mlir::Type DependedOn) const;
+
+  /// Add an edge from \p Dependent to the definition that makes \p DependedOn
+  /// complete, looking across the typedefs in between.
+  ///
+  /// A typedef is only as complete as the type it stands for, so whoever needs
+  /// the complete type needs that definition rather than the typedef.
+  void addCompleteTypeEdge(TypeDependencyNode *Dependent,
+                           clift::DefinedType DependedOn) const;
 };
 
 static void addAndLogSuccessor(TypeDependencyNode *From,
@@ -179,6 +187,31 @@ static TypeSpecifierResult unwrapType(mlir::Type T) {
 }
 
 template<bool ModelMode>
+void Builder<ModelMode>::addCompleteTypeEdge(TypeDependencyNode *Dependent,
+                                             clift::DefinedType DependedOn)
+  const {
+  if (not mlir::isa<clift::TypedefType>(DependedOn))
+    return;
+
+  using DefinedType = clift::DefinedType;
+  auto Underlying = clift::unwrapped_dyn_cast<DefinedType>(DependedOn);
+
+  // Nothing to add when the unwrapping lands on something with no separate
+  // declaration, an array or a pointer for instance, and nothing is lost by
+  // it: covering one layer per call is enough. The type a typedef stands for
+  // has its own dependencies computed the same way, and the `LastArray` case
+  // in `addDependenciesFrom` already makes an array depend on the complete
+  // type of its element, so a chain of array typedefs is covered one link at
+  // a time, by induction.
+  if (not Underlying or not isSeparateDeclarationAllowed(Underlying))
+    return;
+
+  auto TransitivelyDependedOn = Graph->TypeToNodes.at(Underlying);
+  revng_assert(TransitivelyDependedOn.Definition);
+  addAndLogSuccessor(Dependent, TransitivelyDependedOn.Definition);
+}
+
+template<bool ModelMode>
 void Builder<ModelMode>::addDependenciesFrom(const AssociatedNodes Dependent,
                                              mlir::Type DOn) const {
   const auto &[DefinitionDependedOn, FoundPointer, LastArray] = unwrapType(DOn);
@@ -214,6 +247,12 @@ void Builder<ModelMode>::addDependenciesFrom(const AssociatedNodes Dependent,
                                            NodesDependedOn.Declaration;
     revng_assert(NodeDependedOn);
     addAndLogSuccessor(DependentNode, NodeDependedOn);
+
+    // The element type of an array has to be complete. Unlike the case below
+    // this holds even when the dependent has no separate declaration:
+    // declaring an array typedef needs a complete element type just as much as
+    // defining a struct containing an array does.
+    addCompleteTypeEdge(DependentNode, DefinitionDependedOn);
     return;
   }
 
@@ -243,17 +282,8 @@ void Builder<ModelMode>::addDependenciesFrom(const AssociatedNodes Dependent,
   // In that case, if `DefinitionDependedOn` is a typedef, we also have to look
   // across all those typedefs and ensure the full definition of the dependent
   // also depends on the full definition of the depended-on, across typedefs.
-  if (ForwardDeclaration
-      and mlir::isa<clift::TypedefType>(DefinitionDependedOn)) {
-    using DefinedType = clift::DefinedType;
-    if (auto D = clift::unwrapped_dyn_cast<DefinedType>(DefinitionDependedOn)) {
-      if (isSeparateDeclarationAllowed(D)) {
-        auto TransitivelyDependedOn = Graph->TypeToNodes.at(D);
-        revng_assert(TransitivelyDependedOn.Definition);
-        addAndLogSuccessor(DependentNode, TransitivelyDependedOn.Definition);
-      }
-    }
-  }
+  if (ForwardDeclaration)
+    addCompleteTypeEdge(DependentNode, DefinitionDependedOn);
 }
 
 template<bool ModelMode>
