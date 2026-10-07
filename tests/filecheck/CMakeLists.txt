@@ -148,6 +148,7 @@ set(FILECHECK_TESTS
     clift/emit-field-accesses/struct-typedef-field-target.mlir
     clift/emit-field-accesses/struct-union-access.mlir
     clift/emit-field-accesses/union-array-stride-selection.mlir
+    clift/emit-header/array-typedef-of-array-typedef.mlir
     clift/expression-rewrites/addressof.mlir
     clift/expression-rewrites/assign-type-punned-discarded.mlir
     clift/expression-rewrites/assign-type-punned-read.mlir
