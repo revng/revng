@@ -60,31 +60,31 @@ BOOST_AUTO_TEST_CASE(GenericPrimitiveTypes) {
 
   testAlignment(model::PrimitiveType::makeVoid(),
                 Expected(model::ABI::AAPCS64, 0),
-                Expected(model::ABI::AAPCS, 0),
+                Expected(model::ABI::AAPCS_hardfloat, 0),
                 Expected(model::ABI::SystemZ_s390x, 0),
                 Expected(model::ABI::SystemV_x86, 0));
 
   testAlignment(model::PrimitiveType::makeGeneric(1),
                 Expected(model::ABI::AAPCS64, 1),
-                Expected(model::ABI::AAPCS, 1),
+                Expected(model::ABI::AAPCS_hardfloat, 1),
                 Expected(model::ABI::SystemZ_s390x, 1),
                 Expected(model::ABI::SystemV_x86, 1));
 
   testAlignment(model::PrimitiveType::makeGeneric(2),
                 Expected(model::ABI::AAPCS64, 2),
-                Expected(model::ABI::AAPCS, 2),
+                Expected(model::ABI::AAPCS_hardfloat, 2),
                 Expected(model::ABI::SystemZ_s390x, 2),
                 Expected(model::ABI::SystemV_x86, 2));
 
   testAlignment(model::PrimitiveType::makeGeneric(4),
                 Expected(model::ABI::AAPCS64, 4),
-                Expected(model::ABI::AAPCS, 4),
+                Expected(model::ABI::AAPCS_hardfloat, 4),
                 Expected(model::ABI::SystemZ_s390x, 4),
                 Expected(model::ABI::SystemV_x86, 4));
 
   testAlignment(model::PrimitiveType::makeGeneric(8),
                 Expected(model::ABI::AAPCS64, 8),
-                Expected(model::ABI::AAPCS, 8),
+                Expected(model::ABI::AAPCS_hardfloat, 8),
                 Expected(model::ABI::SystemZ_s390x, 8),
                 Expected(model::ABI::SystemV_x86, 4));
 
@@ -99,18 +99,18 @@ BOOST_AUTO_TEST_CASE(FloatingPointPrimitiveTypes) {
 
   testAlignment(model::PrimitiveType::makeFloat(2),
                 Expected(model::ABI::AAPCS64, 2),
-                Expected(model::ABI::AAPCS, 2),
+                Expected(model::ABI::AAPCS_hardfloat, 2),
                 Expected(model::ABI::SystemV_x86_64, 2));
 
   testAlignment(model::PrimitiveType::makeFloat(4),
                 Expected(model::ABI::AAPCS64, 4),
-                Expected(model::ABI::AAPCS, 4),
+                Expected(model::ABI::AAPCS_hardfloat, 4),
                 Expected(model::ABI::SystemZ_s390x, 4),
                 Expected(model::ABI::SystemV_x86, 4));
 
   testAlignment(model::PrimitiveType::makeFloat(8),
                 Expected(model::ABI::AAPCS64, 8),
-                Expected(model::ABI::AAPCS, 8),
+                Expected(model::ABI::AAPCS_hardfloat, 8),
                 Expected(model::ABI::SystemZ_s390x, 8),
                 Expected(model::ABI::SystemV_x86, 4));
 
@@ -122,7 +122,7 @@ BOOST_AUTO_TEST_CASE(FloatingPointPrimitiveTypes) {
 }
 
 constexpr std::array TestedABIs{ model::ABI::AAPCS64,
-                                 model::ABI::AAPCS,
+                                 model::ABI::AAPCS_hardfloat,
                                  model::ABI::SystemZ_s390x,
                                  model::ABI::SystemV_x86 };
 

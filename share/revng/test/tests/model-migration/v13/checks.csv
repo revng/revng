@@ -1,0 +1,9 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+.DefaultABI,"AAPCS_hardfloat"
+.TargetABI,"SystemV_MIPS_o32_hardfloat"
+
+.TypeDefinitions[0].ABI,"AAPCS_hardfloat"
+.TypeDefinitions[1].ABI,"SystemV_MIPS_o32_hardfloat"

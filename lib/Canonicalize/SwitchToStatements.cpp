@@ -46,7 +46,6 @@
 #include "llvm/Support/ModRef.h"
 #include "llvm/Support/TypeSize.h"
 
-#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/SmallMap.h"

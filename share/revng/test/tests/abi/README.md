@@ -123,6 +123,32 @@ The artifact provides information that can be used to verify whether a given arg
 
 `revng check-compatibility-with-abi` tool goes through every function present in both the artifact and the model it was passed and and checks the conformity of the data within the model. For example, if the function within the model was fiddled with (its type was changed, for example) and was changed in a non-backwards-compatible way, this could be a good way to detect the problem.
 
+It prints nothing while verifying, and then emits a single YAML document naming every test that failed, together with the reason:
+
+```yaml
+failed-tests:
+- test_union_then_structs: Argument 0 uses neither the expected stack part nor the expected registers.
+- test_double_return_value: The value was lost during the call - only 2 of 8 bytes match.
+```
+
+or `failed-tests: []` when everything passed. Note that this document is written to `stderr`, not stdout.
+
+### `verify-abi-compatibility.py`
+
+`verify-abi-test-binaries.sh` calls this script once per model instead of calling `revng check-compatibility-with-abi` directly. The script runs the verifier on that model, and decides whether those failures are the expected ones.
+
+The failures are compared against `expected-abi-failures.yml`, which declares per ABI the failures that are known and accepted:
+
+```yaml
+SystemV_x86_64:
+  - test_union_then_structs: Argument 0 uses neither the expected stack part nor the expected registers.
+  - another-name-.*: .*
+```
+
+An ABI may have any number of entries, and a failure is accepted if it matches any one of them; within a single entry, both halves are regular expressions and both must match. They are matched with `re.match`, so each is anchored at the start of the name and of the reason. **Any failure that matches no entry makes the entire test fail**, and so does an ABI that has an entry in the file but reports a failure. Only the unexpected failures are printed, so an accepted failure produces no output at all.
+
+It also treats "the verifier produced no document" as a failure rather than as success: `check-compatibility-with-abi` aborts, rather than printing a document, when it cannot read its input, and that must not be mistaken for a clean run.
+
 ### `revng ensure-rft-equivalence`
 
 This tool is used to compare `downgraded_reference_binary.yml` and `downgraded_upgraded_downgraded_reference_binary.yml`. If no information was lost during these conversions, the models are to be the same.
