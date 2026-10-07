@@ -37,7 +37,7 @@ from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedOb
 from .storage_provider import ObjectsToInvalidate, PipeDependencies, ProjectID, ProjectMetadata
 from .storage_provider import SetModelResult, StorageProvider, StorageProviderFactory
 from .util import _OBJECTID_MAXSIZE, check_kind_structure, check_object_id_supported_by_sql
-from .util import compute_hash
+from .util import compute_hash, string_is_filename
 
 # This is a binary mask that will be used for invalidation, thanks to the
 # binary structure of ObjectID, all children are guaranteed to have the parent
@@ -713,6 +713,8 @@ class LocalStorageProvider(StorageProvider):
     def put_files_in_storage(self, files: list[FileStorageEntry]) -> list[str]:
         result = []
         for file in files:
+            assert string_is_filename(file.name)
+
             if file.contents is not None:
                 file_path = self._model_directory / file.name
                 file_path.write_bytes(file.contents)

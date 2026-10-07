@@ -16,7 +16,7 @@ from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from websockets.frames import CloseCode
+from wsproto.frame_protocol import CloseReason
 
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.notification_broker import NotificationBroker, Stream
@@ -93,7 +93,7 @@ class NotificationWebsocket:
             pypeline_logger.log(f"Uncaught exception: {str(e)}")
             with suppress(RuntimeError):
                 await websocket.close(
-                    code=CloseCode.INTERNAL_ERROR,
+                    code=CloseReason.INTERNAL_ERROR,
                     reason=f"Internal server error: {str(e)}",
                 )
         finally:
@@ -177,7 +177,7 @@ class AuthMiddleware:
                 return await self.app(scope, receive, send)
             else:
                 websocket = WebSocket(scope, receive, send)
-                return await websocket.close(CloseCode.POLICY_VIOLATION, "Invalid Token")
+                return await websocket.close(CloseReason.POLICY_VIOLATION, "Invalid Token")
 
         else:
             # Any other middleware should be rejected

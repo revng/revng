@@ -47,6 +47,7 @@ class JsonTestServer(TestServer):
 
         # We have to change the path so the local provider can find
         # the model
+        self.original_cwd = os.getcwd()
         os.chdir(self.tmp_dir_path)
 
         self.cache_dir_tmp = TemporaryDirectory()
@@ -62,6 +63,9 @@ class JsonTestServer(TestServer):
         )
 
         self.websocket = WebsocketMock()
+
+    def stop(self):
+        os.chdir(self.original_cwd)
 
     @handle_exceptions
     def get_epoch(self) -> Response:

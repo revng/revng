@@ -3,6 +3,7 @@
 #
 
 import os
+import socket
 import sys
 import tempfile
 from collections.abc import Iterable as CIterable
@@ -110,3 +111,17 @@ def import_pipebox(libraries: Iterable[str | Path]) -> tuple[Any, list[Any]]:
     import revng.internal._pipebox as ext
 
     return (ext, handles)
+
+
+def check_unix_socket(path: Path):
+    """Check if a unix socket is present and there is a server listening"""
+    if not path.exists() or not path.is_socket():
+        return False
+
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+        sock.settimeout(1.0)
+        try:
+            sock.connect(str(path))
+            return True
+        except OSError:
+            return False

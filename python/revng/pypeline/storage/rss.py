@@ -17,13 +17,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
+from typing import IO
 from urllib.parse import ParseResult, parse_qsl, urlparse
 
-import requests
+import httpx2
 import yaml
-from aiohttp import ClientSession
-from aiohttp.client import ClientTimeout
-from aiohttp.client_exceptions import ClientError
+from httpx2 import AsyncClient
 
 from revng.pypeline import __version__ as version
 from revng.pypeline.model import Model, ModelPathSet
@@ -62,6 +61,7 @@ class _LockRenewalThread(threading.Thread):
         self.entries: dict[str, _LockEntry] = {}
         self.event = threading.Event()
         self.url = renew_url
+        self.client = httpx2.Client(http2=True, timeout=1.0)
         self.start()
 
     @contextmanager
@@ -117,8 +117,8 @@ class _LockRenewalThread(threading.Thread):
 
             pypeline_logger.debug_log(f"Refreshing lock {lock_id}")
             headers = {**entry.headers, "X-RSS-Lock-ID": lock_id}
-            response = requests.post(self.url, headers=headers, timeout=1.0)
-            if not response.ok:
+            response = self.client.post(self.url, headers=headers)
+            if not response.is_success:
                 pypeline_logger.debug_log(f"lock refresh failed for {lock_id}, removing lock")
                 locks_to_drop.add(lock_id)
             else:
@@ -164,42 +164,40 @@ class RSSStorageProviderFactory(StorageProviderFactory):
     def _join_url(self, path: str) -> str:
         return join_url(self._base_url, path)
 
-    async def _acquire_lock(
-        self, session: ClientSession, lock_type: str, pipeline_description: bytes
-    ):
+    async def _acquire_lock(self, client: AsyncClient, lock_type: str, pipeline_description: bytes):
         body = {
             "lock_type": lock_type,
             "version": version,
             "pipeline_description_hash": hashlib.sha256(pipeline_description).hexdigest(),
         }
 
-        async with session.post(self._join_url("/lock"), json=body) as response:
-            if response.status == 200:
-                return await response.json()
-            elif response.status != 412:
-                response.raise_for_status()
+        response = await client.post(self._join_url("/lock"), json=body)
+        if response.status_code == 200:
+            return response.json()
+        elif response.status_code != 412:
+            response.raise_for_status()
 
         # If here the pipeline description needs to be uploaded
-        async with session.put(
-            self._join_url("/metadata/pipeline-description"), data=pipeline_description
-        ) as response:
-            response.raise_for_status()
+        response = await client.put(
+            self._join_url("/metadata/pipeline-description"), content=pipeline_description
+        )
+        response.raise_for_status()
 
         # Re-acquire the lock
-        async with session.post(self._join_url("/lock"), json=body) as response:
-            response.raise_for_status()
-            return await response.json()
+        response = await client.post(self._join_url("/lock"), json=body)
+        response.raise_for_status()
+        return response.json()
 
     @asynccontextmanager
     async def _with_lock(
         self,
         lock_type: str,
         pipeline_description: bytes,
-        session: ClientSession,
+        client: AsyncClient,
         headers: dict[str, str],
     ):
         # Acquire the lock
-        lock_data = await self._acquire_lock(session, lock_type, pipeline_description)
+        lock_data = await self._acquire_lock(client, lock_type, pipeline_description)
         lock_id = lock_data["lock_id"]
         refresh_interval = lock_data["refresh_interval"]
 
@@ -213,13 +211,13 @@ class RSSStorageProviderFactory(StorageProviderFactory):
         finally:
             # Release the lock
             try:
-                async with session.post(
+                response = await client.post(
                     self._join_url("/release-lock"),
                     headers={"X-RSS-Lock-ID": lock_id},
-                    timeout=ClientTimeout(total=3.0),
-                ) as response:
-                    response.raise_for_status()
-            except ClientError as e:
+                    timeout=3.0,
+                )
+                response.raise_for_status()
+            except httpx2.HTTPError as e:
                 pypeline_logger.log(f"Exception while releasing the lock: {str(e)}")
 
     @asynccontextmanager
@@ -242,9 +240,9 @@ class RSSStorageProviderFactory(StorageProviderFactory):
         lock_type_str = "artifact" if lock_type == LockType.ARTIFACT else "analysis"
         pipeline_description = yaml.safe_dump(get_pipeline_description(pipeline)).encode()
 
-        async with ClientSession(headers=headers) as session:
+        async with AsyncClient(headers=headers, http2=True, timeout=None) as client:
             async with self._with_lock(
-                lock_type_str, pipeline_description, session, headers
+                lock_type_str, pipeline_description, client, headers
             ) as lock_id:
                 provider_headers = {**headers, "X-RSS-Lock-ID": lock_id}
                 provider = RSSStorageProvider(
@@ -255,8 +253,8 @@ class RSSStorageProviderFactory(StorageProviderFactory):
                 yield provider
 
     def get_notification_websocket(self) -> str:
-        req = requests.get(self._join_url("/websocket-url"))
-        return req.text
+        with httpx2.Client(http2=True, timeout=None) as client:
+            return client.get(self._join_url("/websocket-url")).text
 
 
 class SpooledTarWriter:
@@ -289,7 +287,7 @@ class SpooledTarWriter:
         content.seek(original_position, os.SEEK_SET)
         self._tar.addfile(info, content)
 
-    def get_file(self) -> io.IOBase:
+    def get_file(self) -> IO[bytes]:
         if self._tar is not None:
             self._tar.close()
             self._tar = None
@@ -299,15 +297,16 @@ class SpooledTarWriter:
 
 
 class RSSClientException(PypelineException):
-    def __init__(self, response: requests.Response):
+    def __init__(self, response: httpx2.Response):
         assert 400 <= response.status_code < 600
+        response.read()
         text = response.text
         super().__init__(f"RSS request failed with status {response.status_code}: {text}")
         self.status_code = response.status_code
         self.text = text
 
 
-_FilesType = Mapping[str, tuple[str, io.IOBase | str | bytes]]
+_FilesType = Mapping[str, tuple[str, IO[bytes] | str | bytes]]
 
 
 def _object_id_to_str(object_id: ObjectID):
@@ -337,15 +336,18 @@ class RSSStorageProvider(StorageProvider):
     ):
         self._base_url = base_url
 
-        self._session = requests.Session()
-        self._session.hooks["response"].append(self._response_hook)
-        self._session.headers.update(headers)
+        self._session = httpx2.Client(
+            headers=headers,
+            http2=True,
+            timeout=None,
+            event_hooks={"response": [self._response_hook]},
+        )
 
     def _join_url(self, path: str) -> str:
         return join_url(self._base_url, path)
 
     @staticmethod
-    def _response_hook(response: requests.Response, *args, **kwargs):
+    def _response_hook(response: httpx2.Response):
         if 400 <= response.status_code < 600:
             raise RSSClientException(response)
 
@@ -377,11 +379,12 @@ class RSSStorageProvider(StorageProvider):
             "configuration_id": location.configuration_id,
             "objects": [_object_id_to_str(obj) for obj in keys],
         }
-        response = self._session.post(self._join_url("/savepoint/get"), json=body, stream=True)
-
         obj_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
         result: dict[ObjectID, bytes] = {}
-        with tarfile.open(fileobj=BufferedReader(response.raw), mode="r") as tar:
+        with (
+            self._session.stream("POST", self._join_url("/savepoint/get"), json=body) as response,
+            tarfile.open(fileobj=BufferedReader(response), mode="r") as tar,
+        ):
             for member, file in tar_iterate_on_members(tar):
                 result[_object_id_from_str(obj_id_type, member.name)] = file.read()
 
@@ -521,7 +524,9 @@ class RSSStorageProvider(StorageProvider):
             else:
                 raise ValueError
 
-        response = self._session.post(self._join_url("/hashmap/put-file"), data=file_tar.get_file())
+        response = self._session.post(
+            self._join_url("/hashmap/put-file"), content=file_tar.get_file()
+        )
 
         data = response.json()
         name_to_hash: dict[str, str] = {item["name"]: item["hash"] for item in data}
@@ -529,10 +534,14 @@ class RSSStorageProvider(StorageProvider):
 
     def get_files_from_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
         hashes = [r.hash for r in requests]
-        response = self._session.post(self._join_url("/hashmap/get-file"), json=hashes, stream=True)
 
         result: dict[str, bytes] = {}
-        with tarfile.open(fileobj=BufferedReader(response.raw), mode="r") as tar:
+        with (
+            self._session.stream(
+                "POST", self._join_url("/hashmap/get-file"), json=hashes
+            ) as response,
+            tarfile.open(fileobj=BufferedReader(response), mode="r") as tar,
+        ):
             for member, file in tar_iterate_on_members(tar):
                 result[member.name] = file.read()
 
@@ -545,14 +554,15 @@ class RSSStorageProvider(StorageProvider):
             "pipe_id": pipe_id,
             "configuration_hash": configuration_hash,
         }
-        response = self._session.get(
-            self._join_url("/savepoint/get-custom-invalidation-data"), params=params, stream=True
-        )
-
         obj_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
 
         result_dict: defaultdict[int, list[tuple[ObjectID, bytes]]] = defaultdict(list)
-        with tarfile.open(fileobj=BufferedReader(response.raw), mode="r") as tar:
+        with (
+            self._session.stream(
+                "GET", self._join_url("/savepoint/get-custom-invalidation-data"), params=params
+            ) as response,
+            tarfile.open(fileobj=BufferedReader(response), mode="r") as tar,
+        ):
             for member, file in tar_iterate_on_members(tar):
                 # The path format is `${container_index}/${object_id}`
                 index_string, object_id_string = member.name.split("/", 1)
