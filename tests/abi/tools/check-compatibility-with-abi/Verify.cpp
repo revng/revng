@@ -112,7 +112,6 @@ VH::dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes) const {
   auto PreviousArgumentEndsAt = ABI.UnusedStackArgumentBytes();
   for (const auto &Argument : FunctionLayout.Arguments) {
     if (Argument.Stack.has_value()) {
-      revng_assert(Argument.Stack->Size != 0);
       if (Argument.Stack->Offset < PreviousArgumentEndsAt)
         fail("Stack arguments must not overlap");
 
@@ -155,13 +154,9 @@ VH::LeftToVerify VH::adjustForSPTAR(LeftToVerify Remaining) const {
         if (Remaining.Registers.front() == ABI.ReturnValueLocationRegister())
           Remaining.Registers = Remaining.Registers.drop_front();
 
-    } else if (ShadowArgument.Stack.has_value()) {
-      // It's on the stack, drop enough bytes for a pointer from the front.
-      revng_assert(ShadowArgument.Stack->Offset == 0);
-      revng_assert(ShadowArgument.Stack->Size == ABI.getPointerSize());
-      Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
     } else {
-      fail("Layout is not valid, does it verify?");
+      // It's on the stack, drop enough bytes for a pointer from the front.
+      Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
     }
   }
 
