@@ -50,6 +50,7 @@ class CppGenerator:
         self.environment.filters["docstring"] = self.render_docstring
         self.environment.filters["field_type"] = self.field_type
         self.environment.filters["get_default_value"] = self.get_default_value
+        self.environment.filters["has_serialization_default"] = self.has_serialization_default
         self.environment.filters["fullname"] = self.fullname
         self.environment.filters["user_fullname"] = self.user_fullname
         self.environment.filters["is_struct_field"] = self.is_struct_field
@@ -331,6 +332,10 @@ class CppGenerator:
         if not rendered_docstring.endswith("\n"):
             rendered_docstring = rendered_docstring + "\n"
         return rendered_docstring
+
+    @staticmethod
+    def has_serialization_default(field: StructField):
+        return isinstance(field, SimpleStructField) and field.default is not None
 
     def get_default_value(self, field: StructField):
         if isinstance(field.resolved_type, SequenceDefinition):

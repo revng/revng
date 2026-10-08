@@ -1,0 +1,20 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Version: 12
+Architecture: x86_64
+TypeDefinitions:
+  - ID: 0
+    Kind: TypedefDefinition
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Void
+  - ID: 1
+    Kind: TypedefDefinition
+    UnderlyingType:
+      Kind: PointerType
+      PointerSize: 8
+      PointeeType:
+        Kind: PrimitiveType
+        PrimitiveKind: Void

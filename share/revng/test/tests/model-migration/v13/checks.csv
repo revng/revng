@@ -1,0 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# An absent primitive size stands for zero.
+.TypeDefinitions[0].UnderlyingType.Size,0
+.TypeDefinitions[1].UnderlyingType.PointeeType.Size,0
