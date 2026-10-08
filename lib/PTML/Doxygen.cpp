@@ -335,8 +335,6 @@ gatherArgumentComments(const model::Binary &Binary,
                              model::Register::getRegisterName(Last).str());
           Line->emplace_back(DoxygenToken::Types::Untagged, ")");
         } else {
-          revng_assert(CurrentArgument.Stack
-                       && CurrentArgument.Stack->Size != 0);
           Line->emplace_back(DoxygenToken::Types::Untagged,
                              " (" + std::to_string(CurrentArgument.Stack->Size)
                                + " bytes at ");

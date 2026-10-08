@@ -683,7 +683,6 @@ void CallSite::processSPTAR(CallInst *InitLocalSPCall,
     // The SPTAR is on the stack, we need to try to fetch the only write for
     // that stack slot writing a constant offset from the initial value of the
     // stack pointer.
-    revng_assert(SPTARArgument.Registers.size() == 0);
     if (auto MaybeRange = stackArgumentRange(SPTARArgument)) {
       auto Writers = findAllWriters(State, StackUsage, { *MaybeRange });
 
@@ -701,7 +700,6 @@ void CallSite::processSPTAR(CallInst *InitLocalSPCall,
     }
   } else {
     revng_log(Log, "SPTAR is in a register");
-    revng_assert(SPTARArgument.Registers.size() > 0);
     revng_assert(OldCall->arg_size() > 0);
     SPTAR = OldCall->getArgOperand(0);
   }
@@ -1262,10 +1260,8 @@ void SegregateFunctionStack::prepareReturnValueStorage() {
   // the return value to our freshly created local variable.
   auto &ModelArgument = Layout.Arguments[0];
   if (ModelArgument.Stack) {
-    revng_assert(ModelArgument.Registers.size() == 0);
     recordFunctionStackArgument(*ModelArgument.Stack, ReturnValueIntAddress);
   } else {
-    revng_assert(ModelArgument.Registers.size() == 1);
     auto Register = ModelArgument.Registers[0].Register;
     Argument *OldArgument = ArgumentToRegister.at(Register);
     OldArgument->replaceAllUsesWith(ReturnValueIntAddress);
@@ -1304,11 +1300,9 @@ void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
       if (UsesStack) {
         // When loading from this stack slot, return the address of the
         // address of the new argument
-        revng_assert(ModelArgument.Registers.size() == 0);
         ToRecordSpan = AddressOfNewArgument;
       } else {
         // Replace the old argument with an address of the new argument
-        revng_assert(ModelArgument.Registers.size() == 1);
         auto Register = ModelArgument.Registers[0].Register;
         Argument *OldArgument = ArgumentToRegister.at(Register);
         OldArgument->replaceAllUsesWith(AddressOfNewArgument);
@@ -1747,7 +1741,6 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
         model::Architecture::Values Architecture = SSA.Binary.Architecture();
         auto PointerSize = model::Architecture::getPointerSize(Architecture);
         revng_assert(ModelArgument.Type->size() > PointerSize);
-        revng_assert(ModelArgument.Registers.size() == 0);
         revng_assert(ModelArgument.Stack->Size == PointerSize);
         revng_assert(MaybeStackOffsetAtCallSite);
 
@@ -1762,7 +1755,6 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
         // Load the alloca and record it as a pointer
         Pointer = B.CreateLoad(Alloca->getAllocatedType(), Alloca);
       } else {
-        revng_assert(ModelArgument.Registers.size() == 1);
         auto Register = ModelArgument.Registers[0].Register;
         Pointer = ArgumentToRegister.at(Register);
       }
