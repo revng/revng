@@ -262,7 +262,7 @@ static Value *loadCSVOrZero(revng::IRBuilder &Builder,
 /// shifted to its position within the register, and then OR'ed together with
 /// the others.
 ///
-/// It's important to note that the size is rounded to the nearest power of two.
+/// The result has the type \ref toLLVMType picks for \p Portion.
 static Value *loadRegisterFromCSVs(revng::IRBuilder &Builder,
                                    const model::Register::Portion &Portion) {
   if (model::Register::getCSVCount(Portion.Register) == 1) {
@@ -271,8 +271,8 @@ static Value *loadRegisterFromCSVs(revng::IRBuilder &Builder,
       return loadCSVOrUndef(Builder, CSV);
   }
 
-  uint64_t RealSize = llvm::PowerOf2Ceil(Portion.Size);
-  auto *WideType = IntegerType::get(Builder.getContext(), 8 * RealSize);
+  IntegerType *WideType = toLLVMType(Builder.getContext(), Portion);
+  uint64_t RealSize = WideType->getBitWidth() / 8;
   Value *Result = ConstantInt::get(WideType, 0);
   for (const auto &CSV : model::Register::getCSVs(Portion.Register)) {
     // Skip the CSVs that lie entirely above the model-described prefix.
