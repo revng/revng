@@ -113,17 +113,19 @@ inline llvm::IntegerType *toLLVMType(llvm::LLVMContext &Context,
                                      const model::Register::Portion &Portion) {
   uint64_t RegisterSize = model::Register::getSize(Portion.Register);
   uint64_t CSVCount = model::Register::getCSVCount(Portion.Register);
+  revng_assert(RegisterSize % CSVCount == 0);
+  uint64_t CSVSize = RegisterSize / CSVCount;
 
   // Ensure we always have at least one *full* CSV no matter what.
-  if (CSVCount == 1)
-    return llvm::IntegerType::getIntNTy(Context, 8 * RegisterSize);
+  uint64_t RealSize = std::max(Portion.Size, CSVSize);
 
   // For multi-CSV registers, also make sure it's in fact a power of two.
-  uint64_t RealSize = llvm::PowerOf2Ceil(Portion.Size);
+  if (CSVCount > 1) {
+    RealSize = llvm::PowerOf2Ceil(RealSize);
 
-  // And verify we have a whole number of CSVs.
-  uint64_t CSVSize = RegisterSize / CSVCount;
-  revng_check(RealSize % CSVSize == 0);
+    // And verify we have a whole number of CSVs.
+    revng_check(RealSize % CSVSize == 0);
+  }
 
   return llvm::IntegerType::getIntNTy(Context, 8 * RealSize);
 }
