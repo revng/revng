@@ -181,6 +181,15 @@ protected:
                            const FilePortion &Dynsym,
                            const FilePortion &Dynstr);
 
+  /// Register a relocation of type \p Type at the relocated \p Address,
+  /// referring to the symbol \p SymbolIndex in \p Symbols, if not empty
+  void registerRelocation(MetaAddress Address,
+                          uint32_t Type,
+                          uint32_t SymbolIndex,
+                          uint64_t Addend,
+                          llvm::ArrayRef<llvm::object::Elf_Sym_Impl<T>> Symbols,
+                          llvm::StringRef SymbolNames);
+
   /// Register an `R_*_RELATIVE` relocation of \p Size bytes at \p Address,
   /// which writes the load address plus \p Addend
   void registerRelativeRelocation(MetaAddress Address,

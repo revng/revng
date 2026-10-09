@@ -1324,89 +1324,98 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
   revng_log(ELFImporterLog, "Parsing relocations in " << Name.str());
   LoggerIndent Indent(ELFImporterLog);
 
-  for (auto [Index, Relocation] : llvm::enumerate(Relocations)) {
-    uint32_t Type = Relocation.getType(false);
-    uint64_t Addend = RelocationHelper<T, HasAddend>::getAddend(Relocation);
-    MetaAddress Address = relocate(fromGeneric(Relocation.r_offset));
+  for (const Elf_Rel &Relocation : Relocations) {
+    registerRelocation(relocate(fromGeneric(Relocation.r_offset)),
+                       Relocation.getType(false),
+                       Relocation.getSymbol(false),
+                       RelocationHelper<T, HasAddend>::getAddend(Relocation),
+                       Symbols,
+                       SymbolNames);
+  }
+}
 
-    StringRef SymbolName;
-    unsigned char SymbolType = llvm::ELF::STT_NOTYPE;
-    if (Dynsym.isAvailable() and Dynstr.isAvailable()) {
-      uint32_t SymbolIndex = Relocation.getSymbol(false);
-      if (not(SymbolIndex < Symbols.size())) {
-        revng_log(ELFImporterLog,
-                  "Invalid symbol index "
-                    << SymbolIndex << ". "
-                    << "Symbol count: " << Symbols.size());
-      }
-      const Elf_Sym &Symbol = Symbols[SymbolIndex];
-      auto MaybeName = Symbol.getName(SymbolNames);
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::registerRelocation(MetaAddress Address,
+                                                   uint32_t Type,
+                                                   uint32_t SymbolIndex,
+                                                   uint64_t Addend,
+                                                   ArrayRef<Elf_Sym_Impl<T>>
+                                                     Symbols,
+                                                   StringRef SymbolNames) {
+  StringRef SymbolName;
+  unsigned char SymbolType = llvm::ELF::STT_NOTYPE;
+  if (not Symbols.empty()) {
+    if (not(SymbolIndex < Symbols.size())) {
+      revng_log(ELFImporterLog,
+                "Invalid symbol index " << SymbolIndex << ". "
+                                        << "Symbol count: " << Symbols.size());
+    }
+    const auto &Symbol = Symbols[SymbolIndex];
+    auto MaybeName = Symbol.getName(SymbolNames);
 
-      if (auto Error = MaybeName.takeError()) {
-        revng_log(ELFImporterLog,
-                  "Cannot access symbol name for relocation #" << Index << ": "
-                                                               << Error);
-        consumeError(std::move(Error));
-      } else {
-        SymbolName = *MaybeName;
-      }
-
-      SymbolType = Symbol.getType();
+    if (auto Error = MaybeName.takeError()) {
+      std::string Message = toString(std::move(Error));
+      revng_log(ELFImporterLog,
+                "Cannot access symbol name for the relocation at "
+                  << Address.toString() << ": " << Message);
+    } else {
+      SymbolName = *MaybeName;
     }
 
-    using namespace model::RelocationType;
-    auto [RelocationType, Size] = fromELFRelocation(Model->Architecture(),
-                                                    Type);
+    SymbolType = Symbol.getType();
+  }
 
-    auto RelocationName = getELFRelocationTypeName(TheBinary.ObjectFile
-                                                     .getEMachine(),
-                                                   Type);
-    if (RelocationType == Invalid) {
-      revng_log(ELFImporterLog,
-                "Ignoring unknown relocation #" << Index << ": "
+  using namespace model::RelocationType;
+  auto [RelocationType, Size] = fromELFRelocation(Model->Architecture(), Type);
+
+  auto RelocationName = getELFRelocationTypeName(TheBinary.ObjectFile
+                                                   .getEMachine(),
+                                                 Type);
+  if (RelocationType == Invalid) {
+    revng_log(ELFImporterLog,
+              "Ignoring unknown relocation at " << Address.toString() << ": "
                                                 << RelocationName);
-      continue;
+    return;
+  }
+
+  model::Relocation NewRelocation(Address, RelocationType, Size, Addend);
+
+  bool HasName = SymbolName.size() != 0;
+  bool IsBaseRelative = isELFRelocationBaseRelative(Model->Architecture(),
+                                                    Type,
+                                                    HasName);
+
+  if (HasName and IsBaseRelative) {
+    revng_log(ELFImporterLog,
+              "We found a base-relative relocation at "
+                << Address.toString() << " (" << RelocationName
+                << ") associated to a symbol, ignoring.");
+  } else if (not HasName and not IsBaseRelative) {
+    if (ELFImporterLog.isEnabled()) {
+      ELFImporterLog << "We found a non-base-relative relocation at "
+                     << Address.toString() << " (" << RelocationName
+                     << ") not associated to a symbol, ignoring." << DoLog;
     }
-
-    model::Relocation NewRelocation(Address, RelocationType, Size, Addend);
-
-    bool HasName = SymbolName.size() != 0;
-    bool IsBaseRelative = isELFRelocationBaseRelative(Model->Architecture(),
-                                                      Type,
-                                                      HasName);
-
-    if (HasName and IsBaseRelative) {
-      revng_log(ELFImporterLog,
-                "We found a base-relative relocation #"
-                  << Index << " (" << RelocationName
-                  << ") associated to a symbol, ignoring.");
-    } else if (not HasName and not IsBaseRelative) {
-      if (ELFImporterLog.isEnabled()) {
-        ELFImporterLog << "We found a non-base-relative relocation #" << Index
-                       << " (" << RelocationName
-                       << ") not associated to a symbol, ignoring." << DoLog;
-      }
-    } else if (HasName) {
-      // Symbol-relative relocation
-      // TODO: `REL` relocations such as `R_386_32` keep their addend in place,
-      //       which is not imported
-      if (isCode(SymbolType)) {
-        auto It = Model->ImportedDynamicFunctions().find(SymbolName.str());
-        if (It != Model->ImportedDynamicFunctions().end()) {
-          auto &Relocations = It->Relocations();
-          NewRelocation.verify(true);
-          Relocations.insert(NewRelocation);
-        }
-      } else {
-        // TODO: register relocation for dynamic global variable
+  } else if (HasName) {
+    // Symbol-relative relocation
+    // TODO: `REL` relocations such as `R_386_32` keep their addend in place,
+    //       which is not imported
+    if (isCode(SymbolType)) {
+      auto It = Model->ImportedDynamicFunctions().find(SymbolName.str());
+      if (It != Model->ImportedDynamicFunctions().end()) {
+        auto &Relocations = It->Relocations();
+        NewRelocation.verify(true);
+        Relocations.insert(NewRelocation);
       }
     } else {
-      // Base-relative relocation
-      if constexpr (HasAddend)
-        registerRelativeRelocation(Address, Size, Addend);
-      else
-        registerInPlaceRelocation(Address, Size);
+      // TODO: register relocation for dynamic global variable
     }
+  } else {
+    // Base-relative relocation
+    if constexpr (HasAddend)
+      registerRelativeRelocation(Address, Size, Addend);
+    else
+      registerInPlaceRelocation(Address, Size);
   }
 }
 
