@@ -426,7 +426,7 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
        Model->ImportedDynamicFunctions()) {
     for (const model::Relocation &Relocation : Function.Relocations()) {
       uint64_t Addend = Relocation.Addend();
-      auto RelocationSize = model::RelocationType::getSize(Relocation.Type());
+      uint64_t RelocationSize = Relocation.Size();
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         revng_log(ReadFromPointerLog,
                   "Found a DynamicFunction relocation:\n"
@@ -445,7 +445,7 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
   for (const model::Segment &Segment : Model->Segments()) {
     for (const model::Relocation &Relocation : Segment.Relocations()) {
       uint64_t Addend = Relocation.Addend();
-      auto RelocationSize = model::RelocationType::getSize(Relocation.Type());
+      uint64_t RelocationSize = Relocation.Size();
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         MetaAddress Address = Segment.StartAddress() + Addend;
         if (Address.isValid()) {

@@ -1314,10 +1314,6 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
   using namespace llvm::object;
   using Elf_Sym = Elf_Sym_Impl<T>;
 
-  model::Segment *LowestSegment = nullptr;
-  if (auto It = Model->Segments().begin(); It != Model->Segments().end())
-    LowestSegment = &*It;
-
   ArrayRef<Elf_Sym> Symbols;
   if (Dynsym.isAvailable())
     Symbols = Dynsym.extractAs<Elf_Sym>();
@@ -1356,7 +1352,8 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
     }
 
     using namespace model::RelocationType;
-    auto RelocationType = fromELFRelocation(Model->Architecture(), Type);
+    auto [RelocationType, Size] = fromELFRelocation(Model->Architecture(),
+                                                    Type);
 
     auto RelocationName = getELFRelocationTypeName(TheBinary.ObjectFile
                                                      .getEMachine(),
@@ -1368,7 +1365,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
       continue;
     }
 
-    model::Relocation NewRelocation(Address, RelocationType, Addend);
+    model::Relocation NewRelocation(Address, RelocationType, Size, Addend);
 
     bool HasName = SymbolName.size() != 0;
     bool IsBaseRelative = isELFRelocationBaseRelative(Model->Architecture(),
@@ -1387,6 +1384,8 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
       }
     } else if (HasName) {
       // Symbol-relative relocation
+      // TODO: `REL` relocations such as `R_386_32` keep their addend in place,
+      //       which is not imported
       if (isCode(SymbolType)) {
         auto It = Model->ImportedDynamicFunctions().find(SymbolName.str());
         if (It != Model->ImportedDynamicFunctions().end()) {
@@ -1399,18 +1398,44 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
       }
     } else {
       // Base-relative relocation
-      if (LowestSegment != nullptr) {
-        NewRelocation.verify(true);
-        LowestSegment->Relocations().insert(NewRelocation);
-      } else {
-        revng_log(ELFImporterLog,
-                  "Found a base-relative relocation #" << Index
-                                                       << ", but no segment is "
-                                                          "available! "
-                                                          "Ignoring.");
-      }
+      if constexpr (HasAddend)
+        registerRelativeRelocation(Address, Size, Addend);
+      else
+        registerInPlaceRelocation(Address, Size);
     }
   }
+}
+
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::registerInPlaceRelocation(MetaAddress Address,
+                                                          uint64_t Size) {
+  if (auto Addend = File.readInteger(Address, Size)) {
+    registerRelativeRelocation(Address, Size, *Addend);
+  } else {
+    revng_log(ELFImporterLog,
+              "Cannot read the in-place addend of the relocation at "
+                << Address.toString() << ". Ignoring.");
+  }
+}
+
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::registerRelativeRelocation(MetaAddress Address,
+                                                           uint64_t Size,
+                                                           uint64_t Addend) {
+  // A binary that is not relocatable is loaded at the address it has been
+  // linked for, where base-relative relocations have no effect
+  if (TheBinary.ObjectFile.getEType() != ELF::ET_DYN)
+    return;
+
+  auto Relocated = OverflowSafeInt(Addend) + BaseAddress;
+  if (not Relocated) {
+    revng_log(ELFImporterLog,
+              "Cannot relocate the target of the relocation at "
+                << Address.toString() << ". Ignoring.");
+    return;
+  }
+
+  registerAbsoluteRelocation(Address, Size, *Relocated);
 }
 
 static std::unique_ptr<ELFImporterBase>

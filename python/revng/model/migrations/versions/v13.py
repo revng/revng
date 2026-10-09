@@ -4,6 +4,18 @@
 
 from revng.model.migrations import MigrationBase
 
+# The type and the size corresponding to each of the old relocation types
+_RELOCATION_TYPES = {
+    "WriteAbsoluteAddress32": ("Absolute", 4),
+    "WriteAbsoluteAddress64": ("Absolute", 8),
+    "AddAbsoluteAddress32": ("Absolute", 4),
+    "AddAbsoluteAddress64": ("Absolute", 8),
+    "WriteRelativeAddress32": ("PCRelative", 4),
+    "WriteRelativeAddress64": ("PCRelative", 8),
+    "AddRelativeAddress32": ("PCRelative", 4),
+    "AddRelativeAddress64": ("PCRelative", 8),
+}
+
 
 def _make_primitive_sizes_explicit(node):
     if isinstance(node, dict):
@@ -16,13 +28,43 @@ def _make_primitive_sizes_explicit(node):
             _make_primitive_sizes_explicit(value)
 
 
+def _migrate_relocations(relocations):
+    # TODO: `Add*` relocations also add the value in place, which can only be
+    #       read from the binary: a proper migration needs access to it.
+    # TODO: migrations have no way to report errors, such as the information
+    #       lost here.
+    migrated = []
+    keys = set()
+    for relocation in relocations:
+        if relocation.get("Type") in _RELOCATION_TYPES:
+            relocation["Type"], relocation["Size"] = _RELOCATION_TYPES[relocation["Type"]]
+
+        # Merging `Add*` into `Write*` might produce duplicate keys
+        key = (relocation.get("Address"), relocation.get("Type"))
+        if key not in keys:
+            keys.add(key)
+            migrated.append(relocation)
+
+    relocations[:] = migrated
+
+
 class Migration(MigrationBase):
-    """Make the size of primitive types explicit.
+    """Make primitive sizes explicit and move the size of relocations out of
+    their type.
 
     Absent fields take the default value declared in the schema, which, for
     `PrimitiveType.Size`, is -1. In previous versions, an absent `Size`
     (e.g., in `void`) stood for 0.
+
+    Relocation types no longer encode the size, which is now in
+    `Relocation.Size`. `Add*` types, which add to the value in place, are
+    merged into the corresponding `Write*` ones, losing that value.
     """
 
     def migrate(self, binary):
         _make_primitive_sizes_explicit(binary)
+
+        for segment in binary.get("Segments", []):
+            _migrate_relocations(segment.get("Relocations", []))
+        for function in binary.get("ImportedDynamicFunctions", []):
+            _migrate_relocations(function.get("Relocations", []))

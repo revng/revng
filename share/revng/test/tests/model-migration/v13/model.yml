@@ -4,6 +4,20 @@
 
 Version: 12
 Architecture: x86_64
+Segments:
+  - StartAddress: "0x400000:Generic64"
+    VirtualSize: 4096
+    StartOffset: 0
+    FileSize: 4096
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
+    Relocations:
+      - Address: "0x400010:Generic64"
+        Type: WriteAbsoluteAddress64
+        Addend: 16
+      - Address: "0x400018:Generic64"
+        Type: AddAbsoluteAddress32
 TypeDefinitions:
   - ID: 0
     Kind: TypedefDefinition

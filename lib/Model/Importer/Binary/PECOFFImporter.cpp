@@ -233,8 +233,11 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
 
     // Lets make a Relocation.
     using namespace model::RelocationType;
-    auto RelocationType = formCOFFRelocation(Model->Architecture());
-    model::Relocation NewRelocation(AddressOfImportEntry, RelocationType);
+    auto [RelocationType, Size] = formCOFFRelocation(Model->Architecture());
+    model::Relocation NewRelocation(AddressOfImportEntry,
+                                    RelocationType,
+                                    Size,
+                                    0);
 
     auto It = Model->ImportedDynamicFunctions().insert(Sym.str()).first;
     revng_assert(NewRelocation.verify(true));
@@ -359,8 +362,11 @@ void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
 
     // Lets make Relocation.
     using namespace model::RelocationType;
-    auto RelocationType = formCOFFRelocation(Model->Architecture());
-    model::Relocation NewRelocation(AddressOfDelayImportEntry, RelocationType);
+    auto [RelocationType, Size] = formCOFFRelocation(Model->Architecture());
+    model::Relocation NewRelocation(AddressOfDelayImportEntry,
+                                    RelocationType,
+                                    Size,
+                                    0);
     auto NewIt = Model->ImportedDynamicFunctions().insert(Sym.str()).first;
     revng_assert(NewRelocation.verify(true));
     NewIt->Relocations().insert(NewRelocation);

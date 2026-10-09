@@ -36,6 +36,10 @@ bool Relocation::verify(VerifyHelper &VH) const {
   if (not model::RelocationType::isValid(Type()))
     return VH.fail("Every relocation must have a valid type.", *this);
 
+  if (Size() != 1 and Size() != 2 and Size() != 4 and Size() != 8)
+    return VH.fail("Every relocation must have a size of 1, 2, 4 or 8 bytes.",
+                   *this);
+
   return true;
 }
 

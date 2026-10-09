@@ -361,26 +361,24 @@ void MachOImporter::registerBindEntry(const object::MachOBindEntry *Entry) {
   MetaAddress Target = fromGeneric(Entry->address());
   uint64_t Addend = static_cast<uint64_t>(Entry->addend());
   RelocationType::Values Type = RelocationType::Invalid;
+  uint64_t Size = 0;
   (void) Type;
-  uint64_t PointerSize = Architecture::getPointerSize(Model->Architecture());
+  (void) Size;
 
   switch (Entry->type()) {
   case BIND_TYPE_POINTER:
-    if (PointerSize == 4) {
-      Type = RelocationType::WriteAbsoluteAddress32;
-    } else if (PointerSize == 8) {
-      Type = RelocationType::WriteAbsoluteAddress64;
-    } else {
-      revng_abort();
-    }
+    Type = RelocationType::Absolute;
+    Size = Architecture::getPointerSize(Model->Architecture());
     break;
 
   case BIND_TYPE_TEXT_ABSOLUTE32:
-    Type = RelocationType::WriteAbsoluteAddress32;
+    Type = RelocationType::Absolute;
+    Size = 4;
     break;
 
   case BIND_TYPE_TEXT_PCREL32:
-    Type = RelocationType::WriteRelativeAddress32;
+    Type = RelocationType::PCRelative;
+    Size = 4;
     Addend = Addend - 4;
     break;
 

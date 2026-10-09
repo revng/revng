@@ -181,6 +181,16 @@ protected:
                            const FilePortion &Dynsym,
                            const FilePortion &Dynstr);
 
+  /// Register an `R_*_RELATIVE` relocation of \p Size bytes at \p Address,
+  /// which writes the load address plus \p Addend
+  void registerRelativeRelocation(MetaAddress Address,
+                                  uint64_t Size,
+                                  uint64_t Addend);
+
+  /// Register an `R_*_RELATIVE` relocation of \p Size bytes at \p Address,
+  /// whose addend is stored in place
+  void registerInPlaceRelocation(MetaAddress Address, uint64_t Size);
+
   void parseDynamicTag(uint64_t Tag,
                        uint64_t Val,
                        uint64_t Pointer,
