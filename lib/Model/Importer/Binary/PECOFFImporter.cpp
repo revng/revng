@@ -15,6 +15,7 @@
 #include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/PDBImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
+#include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/Error.h"
 #include "revng/Support/MetaAddress.h"
@@ -38,6 +39,7 @@ class PECOFFImporter : public BinaryImporterHelper {
 private:
   TupleTree<model::Binary> &Model;
   const COFFBinary &TheBinary;
+  RawBinaryView File;
   llvm::StringRef BinaryPath;
   MetaAddress ImageBase = MetaAddress::invalid();
 
@@ -47,7 +49,8 @@ public:
                  uint64_t BaseAddress) :
     BinaryImporterHelper(Model, BaseAddress, Log),
     Model(Model),
-    TheBinary(TheBinary) {
+    TheBinary(TheBinary),
+    File(*Model, toArrayRef(TheBinary.ObjectFile.getData())) {
     revng_log(Log, "Creating binary importer helper");
   }
 
@@ -69,6 +72,10 @@ private:
   using DelayDirectoryRef = const DelayImportDirectoryEntryRef;
   void recordDelayImportedFunctions(DelayDirectoryRef &I,
                                     ImportedSymbolRange Range);
+
+  /// Parse the base relocation table, which describes the absolute pointers
+  /// in the image
+  void parseBaseRelocations();
 };
 
 Error PECOFFImporter::parseSectionsHeaders() {
@@ -396,9 +403,65 @@ void PECOFFImporter::parseDelayImportedSymbols() {
   }
 }
 
+void PECOFFImporter::parseBaseRelocations() {
+  revng_log(Log, "Parsing base relocations");
+  LoggerIndent Indent(Log);
+
+  auto LogError = [](Error TheError) {
+    std::string Message = toString(std::move(TheError));
+    revng_log(Log, "Cannot read the base relocation table: " << Message);
+  };
+
+  for (const BaseRelocRef &Entry : TheBinary.ObjectFile.base_relocs()) {
+    uint8_t Type = 0;
+    if (Error E = Entry.getType(Type)) {
+      LogError(std::move(E));
+      return;
+    }
+
+    uint32_t RVA = 0;
+    if (Error E = Entry.getRVA(RVA)) {
+      LogError(std::move(E));
+      return;
+    }
+
+    uint64_t Size = 0;
+    switch (Type) {
+    case COFF::IMAGE_REL_BASED_ABSOLUTE:
+      // Padding
+      continue;
+
+    case COFF::IMAGE_REL_BASED_HIGHLOW:
+      Size = 4;
+      break;
+
+    case COFF::IMAGE_REL_BASED_DIR64:
+      Size = 8;
+      break;
+
+    default:
+      revng_log(Log,
+                "Ignoring base relocation of type "
+                  << static_cast<unsigned>(Type) << " at RVA " << RVA);
+      continue;
+    }
+
+    MetaAddress Address = ImageBase + u64(RVA);
+    if (auto Target = File.readInteger(Address, Size)) {
+      registerAbsoluteRelocation(Address, Size, *Target);
+    } else {
+      revng_log(Log,
+                "Cannot read the target of the base relocation at "
+                  << Address.toString() << ". Ignoring.");
+    }
+  }
+}
+
 Error PECOFFImporter::import(const ImporterOptions &Options) {
   if (Error E = parseSectionsHeaders())
     return E;
+
+  parseBaseRelocations();
 
   // Parse the symbol table.
   parseSymbols();
