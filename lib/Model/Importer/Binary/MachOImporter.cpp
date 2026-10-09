@@ -187,6 +187,9 @@ public:
   void parseMachOSegment(ArrayRef<uint8_t> RawDataRef, const T &SegmentCommand);
 
   void registerBindEntry(const object::MachOBindEntry *Entry);
+
+  /// Register the absolute pointer that dyld adjusts according to \p Entry
+  void registerRebaseEntry(const object::MachORebaseEntry &Entry);
 };
 
 Error MachOImporter::import() {
@@ -305,6 +308,23 @@ Error MachOImporter::import() {
     registerBindEntry(&U);
   LogTableError("weakBindTable", std::move(WeakBindError));
 
+  Error RebaseError = Error::success();
+  for (const MachORebaseEntry &Entry : MachO.rebaseTable(RebaseError))
+    registerRebaseEntry(Entry);
+  LogTableError("rebaseTable", std::move(RebaseError));
+
+  // Chained fixups store the target of a rebase in place of the pointer
+  uint64_t PointerSize = Architecture::getPointerSize(Model->Architecture());
+  Error FixupError = Error::success();
+  for (const MachOChainedFixupEntry &Entry : MachO.fixupTable(FixupError)) {
+    if (Entry.isRebase()) {
+      registerAbsoluteRelocation(fromGeneric(Entry.address()),
+                                 PointerSize,
+                                 Entry.pointerValue());
+    }
+  }
+  LogTableError("fixupTable", std::move(FixupError));
+
   model::flattenPrimitiveTypedefs(Model);
   model::deduplicateCollidingNames(Model);
   return Error::success();
@@ -390,6 +410,32 @@ void MachOImporter::registerBindEntry(const object::MachOBindEntry *Entry) {
   }
 
   // TODO: record relocation on symbol
+}
+
+void MachOImporter::registerRebaseEntry(const object::MachORebaseEntry &Entry) {
+  uint64_t Size = 0;
+  switch (Entry.type()) {
+  case REBASE_TYPE_POINTER:
+    Size = Architecture::getPointerSize(Model->Architecture());
+    break;
+
+  case REBASE_TYPE_TEXT_ABSOLUTE32:
+    Size = 4;
+    break;
+
+  default:
+    revng_log(Log, "Ignoring rebase entry of type " << Entry.typeName());
+    return;
+  }
+
+  MetaAddress Address = fromGeneric(Entry.address());
+  if (auto Target = File.readInteger(Address, Size)) {
+    registerAbsoluteRelocation(Address, Size, *Target);
+  } else {
+    revng_log(Log,
+              "Cannot read the target of the rebase entry at "
+                << Address.toString() << ". Ignoring.");
+  }
 }
 
 Error importMachO(TupleTree<model::Binary> &Model,
