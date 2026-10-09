@@ -1,0 +1,87 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Check the model of a program built from revng-qa's `relocations.c`. Its
+# layout is up to the toolchain, so no address appears below: relocations are
+# expected with their type and size, in order of address. Each comment names
+# the pointer being relocated.
+
+# Position-independent: every relocation depends on the load address, and is
+# therefore recorded in the lowest segment
+PIC-NOT:             AddressSpaces:
+PIC:               Segments:
+PIC-NEXT:            - Binary:
+PIC-NOT:             - Binary:
+PIC:                   Relocations:
+# PE, i386: the import thunk of `imported_function` jumps through an absolute
+# address, `jmp *__imp_imported_function`
+PE-I386-PIC:             - Address: "0x{{[0-9a-f]+}}:Generic32"
+PE-I386-PIC-NEXT:          Type: Absolute
+PE-I386-PIC-NEXT:          Size: 4
+# read_only_pointers.Code
+PIC:                     - Address: "0x{{[0-9a-f]+}}:Generic{{32|64}}"
+PIC-NEXT:                  Type: Absolute
+PIC-NEXT:                  Size: [[#POINTER_SIZE]]
+# writable_pointers.Code
+PIC:                     - Address: "0x{{[0-9a-f]+}}:Generic{{32|64}}"
+PIC-NEXT:                  Type: Absolute
+PIC-NEXT:                  Size: [[#POINTER_SIZE]]
+# writable_pointers.Object
+PIC:                     - Address: "0x{{[0-9a-f]+}}:Generic{{32|64}}"
+PIC-NEXT:                  Type: Absolute
+PIC-NEXT:                  Size: [[#POINTER_SIZE]]
+# writable_pointers.ObjectInterior
+PIC:                     - Address: "0x{{[0-9a-f]+}}:Generic{{32|64}}"
+PIC-NEXT:                  Type: Absolute
+PIC-NEXT:                  Size: [[#POINTER_SIZE]]
+# writable_pointers.Table[0]
+PIC:                     - Address: "0x{{[0-9a-f]+}}:Generic{{32|64}}"
+PIC-NEXT:                  Type: Absolute
+PIC-NEXT:                  Size: [[#POINTER_SIZE]]
+# writable_pointers.Table[1]
+PIC:                     - Address: "0x{{[0-9a-f]+}}:Generic{{32|64}}"
+PIC-NEXT:                  Type: Absolute
+PIC-NEXT:                  Size: [[#POINTER_SIZE]]
+# writable_pointers.Table[2]
+PIC:                     - Address: "0x{{[0-9a-f]+}}:Generic{{32|64}}"
+PIC-NEXT:                  Type: Absolute
+PIC-NEXT:                  Size: [[#POINTER_SIZE]]
+# writable_pointers.Table[3]
+PIC:                     - Address: "0x{{[0-9a-f]+}}:Generic{{32|64}}"
+PIC-NEXT:                  Type: Absolute
+PIC-NEXT:                  Size: [[#POINTER_SIZE]]
+# PE: writable_pointers.Imported, which points to the import thunk
+PE-PIC:                  - Address: "0x{{[0-9a-f]+}}:Generic{{32|64}}"
+PE-PIC-NEXT:               Type: Absolute
+PE-PIC-NEXT:               Size: [[#POINTER_SIZE]]
+# Nothing else is relocated
+PIC-NOT:                 - Address:
+PIC:                 - Binary:
+PIC-NOT:               Relocations:
+
+# Position-dependent: nothing is relocated
+NOPIC:             AddressSpaces:
+NOPIC-NEXT:          - Index: 0
+NOPIC-NEXT:            IsPositionIndependent: false
+NOPIC:             Segments:
+NOPIC-NOT:             Relocations:
+
+# The pointer to the imported function is relocated through its symbol: on
+# ELF, writable_pointers.Imported, possibly after an entry of the GOT, and, on
+# PE, the entry of the import address table
+IMPORT:            ImportedDynamicFunctions:
+IMPORT-NEXT:         - Name: imported_function
+IMPORT-NEXT:           Relocations:
+IMPORT-NEXT:             - Address: "0x{{[0-9a-f]+}}:Generic{{32|64}}"
+IMPORT-NEXT:               Type: Absolute
+IMPORT-NEXT:               Size: [[#POINTER_SIZE]]
+
+# The program is stripped: the targets are reachable only through relocations
+DISCOVERY:         Functions:
+# target_read_only, target_writable, target_even, target_odd and entry
+DISCOVERY-COUNT-5:   - Entry:
+# PE: the import thunk
+PE-PIC:              - Entry:
+DISCOVERY-NOT:       - Entry:
+DISCOVERY:         TypeDefinitions:
