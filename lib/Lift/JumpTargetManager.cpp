@@ -434,8 +434,13 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
 
         // TODO: add this to model verify
         revng_assert(not StringRef(Function.Name()).contains('\0'));
-        Result = MaterializedValue::fromSymbol(Function.Name(),
-                                               NewAPInt(Addend));
+        if (Relocation.Type() == model::RelocationType::Absolute) {
+          Result = MaterializedValue::fromSymbol(Function.Name(),
+                                                 NewAPInt(Addend));
+        } else {
+          // The distance from a symbol cannot be represented
+          Result = MaterializedValue::invalid();
+        }
         ++MatchCount;
       }
     }
@@ -452,7 +457,12 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
           revng_log(ReadFromPointerLog,
                     "Found a Segment relocation:\n"
                       << Relocation.toString());
-          auto Value = NewAPInt(Address.address());
+          APInt Value = NewAPInt(Address.address());
+
+          // A PC-relative relocation writes the distance from where it applies
+          if (Relocation.Type() == model::RelocationType::PCRelative)
+            Value -= NewAPInt(LoadAddress.address());
+
           if (BinaryView.isReadOnly(LoadAddress, LoadSize))
             Result = MaterializedValue::fromConstant(Value);
           else
