@@ -282,22 +282,28 @@ Error MachOImporter::import() {
 
   // TODO: emit following errors as diagnostic messages for the user.
 
-  Error TheError = Error::success();
-  for (const MachOBindEntry &U : MachO.bindTable(TheError))
-    registerBindEntry(&U);
-  if (TheError)
-    revng_log(Log, "Error while decoding bindTable: " << TheError);
+  auto LogTableError = [](llvm::StringRef Table, Error TheError) {
+    if (TheError) {
+      std::string Message = toString(std::move(TheError));
+      revng_log(Log, "Error while decoding " << Table << ": " << Message);
+    }
+  };
 
-  for (const MachOBindEntry &U : MachO.lazyBindTable(TheError))
+  Error BindError = Error::success();
+  for (const MachOBindEntry &U : MachO.bindTable(BindError))
     registerBindEntry(&U);
-  if (TheError)
-    revng_log(Log, "Error while decoding lazyBindTable: " << TheError);
+  LogTableError("bindTable", std::move(BindError));
+
+  Error LazyBindError = Error::success();
+  for (const MachOBindEntry &U : MachO.lazyBindTable(LazyBindError))
+    registerBindEntry(&U);
+  LogTableError("lazyBindTable", std::move(LazyBindError));
 
   // TODO: we should handle weak symbols
-  for (const MachOBindEntry &U : MachO.weakBindTable(TheError))
+  Error WeakBindError = Error::success();
+  for (const MachOBindEntry &U : MachO.weakBindTable(WeakBindError))
     registerBindEntry(&U);
-  if (TheError)
-    revng_log(Log, "Error while decoding weakBindTable: " << TheError);
+  LogTableError("weakBindTable", std::move(WeakBindError));
 
   model::flattenPrimitiveTypedefs(Model);
   model::deduplicateCollidingNames(Model);

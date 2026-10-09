@@ -107,8 +107,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
                                                             .getSection(Id);
     if (auto Error = MaybeSection.takeError()) {
       // TODO: emit a diagnostic message for the user.
-      revng_log(Log, "Error in section with ID " << Id << ": " << Error);
-      consumeError(std::move(Error));
+      std::string Message = toString(std::move(Error));
+      revng_log(Log, "Error in section with ID " << Id << ": " << Message);
       continue;
     }
     const object::coff_section *CoffRef = *MaybeSection;
@@ -181,8 +181,8 @@ void PECOFFImporter::parseSymbols() {
 
     Expected<StringRef> MaybeName = TheBinary.ObjectFile.getSymbolName(Symbol);
     if (auto Error = MaybeName.takeError()) {
-      revng_log(Log, "Found static symbol without a name.");
-      consumeError(std::move(Error));
+      std::string Message = toString(std::move(Error));
+      revng_log(Log, "Found static symbol without a name: " << Message);
       continue;
     }
 

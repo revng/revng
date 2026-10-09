@@ -64,8 +64,8 @@ getDynamicStringTable(const ELFT &ELFObjectFile,
   // Collect program headers
   auto MaybeProgramHeaders = ELFObjectFile.getELFFile().program_headers();
   if (auto Error = MaybeProgramHeaders.takeError()) {
-    revng_log(LDDTreeLog, "No valid program headers available: " << Error);
-    llvm::consumeError(std::move(Error));
+    std::string Message = toString(std::move(Error));
+    revng_log(LDDTreeLog, "No valid program headers available: " << Message);
     return {};
   }
 
@@ -131,8 +131,8 @@ public:
     auto MaybeDynamicEntries = TheELF.dynamicEntries();
 
     if (auto Error = MaybeDynamicEntries.takeError()) {
-      revng_log(LDDTreeLog, "Cannot access dynamic entries: " << Error);
-      consumeError(std::move(Error));
+      std::string Message = toString(std::move(Error));
+      revng_log(LDDTreeLog, "Cannot access dynamic entries: " << Message);
       return {};
     }
 
