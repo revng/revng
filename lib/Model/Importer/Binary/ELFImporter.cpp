@@ -227,6 +227,10 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
     return revng::createError("Only ELF executables and ELF dynamic libraries "
                               "are supported");
 
+  // Executables are loaded at the address they have been linked for
+  if (Type == ELF::ET_EXEC)
+    Model->AddressSpaces()[0].IsPositionIndependent() = false;
+
   // Look for static or dynamic symbols and relocations
   ConstElf_Shdr *SymtabShdr = nullptr;
   std::optional<MetaAddress> EHFrameAddress;

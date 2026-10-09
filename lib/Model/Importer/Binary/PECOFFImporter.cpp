@@ -463,6 +463,12 @@ Error PECOFFImporter::import(const ImporterOptions &Options) {
 
   parseBaseRelocations();
 
+  // Without base relocations, the image can only be loaded at its preferred
+  // base
+  auto Characteristics = TheBinary.ObjectFile.getCharacteristics();
+  if (Characteristics & COFF::IMAGE_FILE_RELOCS_STRIPPED)
+    Model->AddressSpaces()[0].IsPositionIndependent() = false;
+
   // Parse the symbol table.
   parseSymbols();
 

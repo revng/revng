@@ -214,6 +214,12 @@ Error MachOImporter::import() {
   auto &MachO = TheBinary.ObjectFile;
   revng_assert(Model->Architecture() != Architecture::Invalid);
 
+  // Executables not marked as PIE are loaded at the address they have been
+  // linked for
+  const mach_header &Header = MachO.getHeader();
+  if (Header.filetype == MH_EXECUTE and not(Header.flags & MH_PIE))
+    Model->AddressSpaces()[0].IsPositionIndependent() = false;
+
   if (Model->DefaultABI() == model::ABI::Invalid) {
     if (auto ABI = model::ABI::getDefaultForMachO(Model->Architecture())) {
       Model->DefaultABI() = ABI.value();
