@@ -1250,11 +1250,15 @@ Changes DetectABI::runAnalyses(MetaAddress EntryAddress,
       bool Changed = false;
       RUAResults &ToAdjust = Summary->ABIResults;
 
+      // Note the order of the operands: `or` short circuits, so writing
+      // `Changed or insert(...)` would stop inserting as soon as one register
+      // turned out to be new, and which ones made it in would depend on the
+      // order the set is iterated in.
       for (auto *CSV : CallSite.ArgumentsRegisters)
-        Changed = Changed or ToAdjust.ArgumentsRegisters.insert(CSV).second;
+        Changed = ToAdjust.ArgumentsRegisters.insert(CSV).second or Changed;
 
       for (auto *CSV : CallSite.ReturnValuesRegisters)
-        Changed = Changed or ToAdjust.ReturnValuesRegisters.insert(CSV).second;
+        Changed = ToAdjust.ReturnValuesRegisters.insert(CSV).second or Changed;
 
       if (Changed and Callee.isValid())
         Changes.Callees.insert(Callee);

@@ -31,6 +31,7 @@
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/Model/ABI/Definition.h"
 #include "revng/Support/FunctionCallMarker.h"
+#include "revng/Support/GlobalToLocalPromoter.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/NewPC.h"
@@ -604,26 +605,34 @@ RootAnalyzer::GlobalToAllocaTy
 RootAnalyzer::promoteCSVsToAlloca(Function *OptimizedFunction) {
   GlobalToAllocaTy CSVMap;
 
-  // Collect all the non-PC affecting CSVs
-  DenseSet<GlobalVariable *> CSVs;
-  for (GlobalVariable &CSV : FunctionTags::CSV.globals(&TheModule))
-    CSVs.insert(&CSV);
-
-  for (GlobalVariable *CSV : JTM.programCounterHandler()->pcCSVs())
-    CSVs.insert(CSV);
-
   // Create and initialize an alloca per CSV (except for the PC-affecting ones)
+  //
+  // The initializing stores go at the end of the entry block on purpose: the
+  // code already there has to keep reading the allocas before anything writes
+  // them, or the initial program counter becomes visible to the optimizer and
+  // the dispatcher gets constant-propagated away.
   BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
-  revng::IRBuilder AllocaBuilder(&*EntryBB->begin());
+  revng::IRBuilder AllocaBuilder(OptimizedFunction->getContext());
+  AllocaBuilder.SetInsertPointPastAllocas(OptimizedFunction);
   revng::IRBuilder InitBuilder(EntryBB->getTerminator());
 
-  for (GlobalVariable *CSV : toSortedByName(CSVs)) {
+  const auto &IsCSV =
+    [PCH = JTM.programCounterHandler()](const GlobalVariable &GV) {
+      return FunctionTags::CSV.isTagOf(&GV) or PCH->isPCCSV(GV);
+    };
+  GlobalToLocalPromoter Promoter(IsCSV, *OptimizedFunction);
+
+  // Only the CSVs the function already uses get an alloca. The helper call
+  // summaries built later look them up in the map this returns, and
+  // `SummaryCallsBuilder::csvToAlloca` falls back to the global itself for a
+  // CSV that is not in it.
+  for (GlobalVariable *CSV : Promoter.globals()) {
     Type *CSVType = CSV->getValueType();
     auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
     CSVMap[CSV] = Alloca;
 
     // Replace all uses of the CSV within OptimizedFunction with the alloca
-    replaceAllUsesInFunctionWith(OptimizedFunction, CSV, Alloca);
+    Promoter.replaceWithAlloca(CSV, Alloca);
 
     // Initialize the alloca
     InitBuilder.CreateStore(InitBuilder.createLoad(CSV), Alloca);

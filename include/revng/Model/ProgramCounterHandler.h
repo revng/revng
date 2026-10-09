@@ -79,6 +79,11 @@ public:
     return { EpochCSV, AddressSpaceCSV, TypeCSV, AddressCSV };
   }
 
+  bool isPCCSV(const llvm::GlobalVariable &GV) const {
+    return &GV == EpochCSV or &GV == AddressSpaceCSV or &GV == TypeCSV
+           or &GV == AddressCSV;
+  }
+
   /// Hook for the emission of a store to a CSV
   ///
   /// \param Builder Builder to employ in order to inject new instructions.

@@ -52,7 +52,7 @@ VB::LocalVarType *VB::createLocalVariable(const model::Type &VariableType) {
   revng_assert(VariableSize);
 
   revng::IRBuilder B(F->getContext());
-  B.setInsertPointToFirstNonAlloca(*F);
+  B.SetInsertPointPastAllocas(F);
 
   return B.CreateAlloca(llvm::ArrayType::get(Types.Int8Ty, VariableSize));
 }
@@ -60,7 +60,7 @@ VB::LocalVarType *VB::createLocalVariable(const model::Type &VariableType) {
 std::pair<VB::LocalVarType *, llvm::Instruction *>
 VB::createLocalVariableAndTakeIntAddress(const model::Type &VariableType) {
   revng::IRBuilder B(F->getContext());
-  B.setInsertPointToFirstNonAlloca(*F);
+  B.SetInsertPointPastAllocas(F);
   auto *Variable = createLocalVariable(VariableType);
   return {
     Variable,
