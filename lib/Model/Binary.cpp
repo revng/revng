@@ -339,7 +339,6 @@ fromELFRelocation(model::Architecture::Values Architecture,
   case model::Architecture::mips:
   case model::Architecture::mipsel:
     switch (ELFRelocation) {
-    case R_MIPS_IMPLICIT_RELATIVE:
     case R_MIPS_REL32:
       return { Absolute, 4 };
 
@@ -436,7 +435,6 @@ bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
   case model::Architecture::mips:
   case model::Architecture::mipsel:
     switch (ELFRelocation) {
-    case R_MIPS_IMPLICIT_RELATIVE:
     case R_MIPS_REL32:
       return not HasSymbol;
 

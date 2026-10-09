@@ -63,15 +63,17 @@ public:
     }
   }
 
-  using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
-  using Elf_Rel_Array = llvm::ArrayRef<Elf_Rel>;
-
   void registerMIPSRelocations() {
     using Elf_Addr = const typename llvm::object::ELFFile<T>::Elf_Addr;
-    using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
-    std::vector<Elf_Rel> MIPSImplicitRelocations;
+    using Elf_Sym = llvm::object::Elf_Sym_Impl<T>;
 
     auto &GOT = this->GotPortion;
+    if (not GOT->isAvailable())
+      return;
+
+    revng_log(ELFImporterLog, "Parsing relocations in MIPS .got");
+    LoggerIndent Indent(ELFImporterLog);
+
     uint32_t Index = 0;
 
     // Perform local relocations on GOT.
@@ -103,11 +105,7 @@ public:
           continue;
         }
 
-        Elf_Rel NewRelocation;
-        NewRelocation.r_offset = RelocationAddress.address();
-        NewRelocation.setSymbolAndType(0, R_MIPS_IMPLICIT_RELATIVE, false);
-
-        MIPSImplicitRelocations.push_back(NewRelocation);
+        this->registerInPlaceRelocation(RelocationAddress, sizeof(Elf_Addr));
       }
     }
 
@@ -115,25 +113,19 @@ public:
     if (MIPSFirstGotSymbol and this->SymbolsCount
         and this->DynstrPortion->isAvailable()
         and this->DynsymPortion->isAvailable()) {
+      auto Symbols = this->DynsymPortion->template extractAs<Elf_Sym>();
+      llvm::StringRef SymbolNames = this->DynstrPortion->extractString();
       for (uint32_t SymbolIndex = *MIPSFirstGotSymbol;
            SymbolIndex < *this->SymbolsCount;
            SymbolIndex++, Index++) {
         auto RelocationAddress = GOT->template addressAtIndex<Elf_Addr>(Index);
-
-        Elf_Rel NewRelocation;
-        NewRelocation.r_offset = RelocationAddress.address();
-        NewRelocation.setSymbolAndType(SymbolIndex,
-                                       llvm::ELF::R_MIPS_JUMP_SLOT,
-                                       false);
-        MIPSImplicitRelocations.push_back(NewRelocation);
+        this->registerRelocation(RelocationAddress,
+                                 llvm::ELF::R_MIPS_JUMP_SLOT,
+                                 SymbolIndex,
+                                 0,
+                                 Symbols,
+                                 SymbolNames);
       }
-    }
-
-    if (GOT->isAvailable()) {
-      this->registerRelocations("MIPS .got",
-                                MIPSImplicitRelocations,
-                                *this->DynsymPortion.get(),
-                                *this->DynstrPortion.get());
     }
   }
 

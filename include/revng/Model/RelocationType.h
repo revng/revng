@@ -10,8 +10,6 @@
 
 #include "revng/Model/Generated/Early/RelocationType.h"
 
-constexpr unsigned char R_MIPS_IMPLICIT_RELATIVE = 255;
-
 namespace model::RelocationType {
 
 /// \return the type and the size of the relocation corresponding to
