@@ -926,6 +926,28 @@ void DetectABI::propagatePrototypes() {
   }
 }
 
+/// Check if any of the CSVs holding \p Portions is in \p WrittenRegisters
+static bool isAnyWritten(llvm::Module &M,
+                         const CSVSet &WrittenRegisters,
+                         llvm::ArrayRef<model::Register::Portion> Portions) {
+  for (const model::Register::Portion &Portion : Portions) {
+    uint64_t PortionEnd = Portion.StartOffset + Portion.Size;
+    for (const model::Register::CSV &CSV :
+         model::Register::getCSVs(Portion.Register)) {
+      // Ignore the CSVs outside of the portion
+      if (CSV.StartOffset >= PortionEnd
+          or CSV.StartOffset + CSV.Size <= Portion.StartOffset)
+        continue;
+
+      auto *Variable = M.getGlobalVariable(CSV.Name, true);
+      if (Variable != nullptr and WrittenRegisters.contains(Variable))
+        return true;
+    }
+  }
+
+  return false;
+}
+
 // TODO: is this still necessary after the new EFA?
 void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
   const MetaAddress &Entry = Function.Entry();
@@ -977,14 +999,12 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
     const bool WritesSP = WrittenRegisters.contains(StackPointer);
 
     using std::ranges::count_if;
-    auto IsWrittenByCaller = [this, &WrittenRegisters](auto &Argument) {
-      auto *CSV = M.getGlobalVariable(model::Register::getName(Argument));
-      return WrittenRegisters.count(CSV);
-    };
     const auto &Arguments = CalleeLayout.argumentRegisters();
-    bool WritesCalleeArgs = any_of(Arguments, IsWrittenByCaller);
+    bool WritesCalleeArgs = isAnyWritten(M, WrittenRegisters, Arguments);
     const auto &ReturnValues = CalleeLayout.returnValueRegisters();
-    bool WritesCalleeReturnValues = any_of(ReturnValues, IsWrittenByCaller);
+    bool WritesCalleeReturnValues = isAnyWritten(M,
+                                                 WrittenRegisters,
+                                                 ReturnValues);
 
     bool WritesToMemory = count_if(*BB, isWritingToMemory) > 0;
     bool WritesOnlyRegisters = WritesToMemory == 0;

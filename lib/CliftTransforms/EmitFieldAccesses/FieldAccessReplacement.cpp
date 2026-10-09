@@ -268,16 +268,13 @@ bool Replacement::replace(mlir::PatternRewriter &Rewriter,
     switch (Access.TheKind) {
     case FieldAccessInfo::Kind::Class: {
       auto Index = Access.Index.Constant;
-      auto [Type, IsIndirect] = getAccessedTypeInfo<ClassType>(CurrentValue);
-      mlir::Type FieldType = Type.getFields()[Index].getType();
-      if (IsIndirect) {
+      // Infer the field type, including const inherited from its container.
+      if (unwrapped_isa<PointerType>(CurrentValue.getType())) {
         CurrentValue = Rewriter.create<IndirectAccessOp>(PointerToReplaceLoc,
-                                                         FieldType,
                                                          CurrentValue,
                                                          Index);
       } else {
         CurrentValue = Rewriter.create<DirectAccessOp>(PointerToReplaceLoc,
-                                                       FieldType,
                                                        CurrentValue,
                                                        Index);
       }
@@ -297,8 +294,11 @@ bool Replacement::replace(mlir::PatternRewriter &Rewriter,
           CurrentValue = Rewriter.create<IndirectionOp>(PointerToReplaceLoc,
                                                         CurrentValue);
         }
-        auto DecayType = PointerType::get(ArrayType.getElementType(),
-                                          PointerSize);
+        mlir::Type ElementType = ArrayType.getElementType();
+        if (isConst(CurrentValue.getType()))
+          ElementType = addConst(ElementType);
+
+        auto DecayType = PointerType::get(ElementType, PointerSize);
         CurrentValue = Rewriter.create<DecayOp>(PointerToReplaceLoc,
                                                 DecayType,
                                                 CurrentValue);

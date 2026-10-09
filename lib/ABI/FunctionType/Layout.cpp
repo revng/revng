@@ -388,7 +388,26 @@ convertToRaw(const model::CABIFunctionDefinition &FunctionType,
 
 static Logger LayoutLog("function-type-layout");
 
-Layout::Layout(const model::CABIFunctionDefinition &Function) {
+/// A value either takes a portion of a single register or one or more full
+/// registers
+static llvm::SmallVector<model::Register::Portion, 2>
+toPortions(const DistributedValue &Value) {
+  revng_assert(not Value.RepresentsPadding);
+
+  llvm::SmallVector<model::Register::Portion, 2> Result;
+
+  if (Value.Registers.size() == 1 and Value.SizeOnStack == 0) {
+    Result.emplace_back(Value.Registers[0], Value.Size);
+  } else {
+    for (model::Register::Values Register : Value.Registers)
+      Result.emplace_back(Register, model::Register::getSize(Register));
+  }
+
+  return Result;
+}
+
+Layout::Layout(const model::CABIFunctionDefinition &Function) :
+  Architecture(model::ABI::getArchitecture(Function.ABI())) {
   const abi::Definition &ABI = abi::Definition::get(Function.ABI());
   ToRawConverter Converter(ABI);
 
@@ -398,7 +417,6 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
 
   bool UsesSPTAR = false;
   if (!Function.ReturnType().isEmpty()) {
-    const auto Architecture = model::ABI::getArchitecture(Function.ABI());
     auto RV = Converter.distributeReturnValue(*Function.ReturnType());
     if (RV.SizeOnStack == 0) {
       if (Function.ReturnType().isEmpty()) {
@@ -406,7 +424,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
       } else {
         // Nothing on the stack, the return value fits into the registers.
         auto &NewRV = ReturnValues.emplace_back(Function.ReturnType().copy());
-        NewRV.Registers = std::move(RV.Registers);
+        NewRV.Registers = toPortions(RV);
       }
     } else {
       revng_assert(RV.Registers.empty(),
@@ -423,7 +441,8 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
       if (ABI.ReturnValueLocationRegister() != model::Register::Invalid) {
         // Return value is passed using the stack (with a pointer to the
         // location in the dedicated register).
-        RVLocationIn.Registers.emplace_back(ABI.ReturnValueLocationRegister());
+        RVLocationIn.Registers.emplace_back(ABI.ReturnValueLocationRegister(),
+                                            ABI.getPointerSize());
       } else if (ABI.ReturnValueLocationOnStack()) {
         // The location, where return value should be put in, is also
         // communicated using the stack.
@@ -442,7 +461,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
         revng_assert(RVOut.Size == model::ABI::getPointerSize(ABI.ABI()));
         revng_assert(RVOut.Registers.size() == 1);
         revng_assert(RVOut.SizeOnStack == 0);
-        LocationOut.Registers = std::move(RVOut.Registers);
+        LocationOut.Registers = toPortions(RVOut);
       }
     }
   }
@@ -471,7 +490,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
       else
         Current.Kind = ArgumentKind::ReferenceToAggregate;
 
-      Current.Registers = std::move(Distributed.Registers);
+      Current.Registers = toPortions(Distributed);
       if (Distributed.SizeOnStack != 0) {
         // The argument has a part (or is placed entirely) on the stack.
         Current.Stack = Layout::Argument::StackSpan{
@@ -498,22 +517,27 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
   revng_log(LayoutLog,
             "Layout of " + toString(Function.key()) + " is:\n"
               << toString(*this));
+
+  revng_assert(verify());
 }
 
-Layout::Layout(const model::RawFunctionDefinition &Function) {
+Layout::Layout(const model::RawFunctionDefinition &Function) :
+  Architecture(Function.Architecture()) {
   // Lay register arguments out.
   for (const model::NamedTypedRegister &Register : Function.Arguments()) {
     revng_assert(Register.Type()->isScalar());
 
     auto &Argument = Arguments.emplace_back(Register.Type().copy());
-    Argument.Registers = { Register.Location() };
+    Argument.Registers.emplace_back(Register.Location(),
+                                    *Register.Type()->size());
     Argument.Kind = ArgumentKind::Scalar;
   }
 
   // Lay the return value out.
   for (const model::NamedTypedRegister &Register : Function.ReturnValues()) {
     auto &ReturnValue = ReturnValues.emplace_back(Register.Type().copy());
-    ReturnValue.Registers = { Register.Location() };
+    ReturnValue.Registers.emplace_back(Register.Location(),
+                                       *Register.Type()->size());
   }
 
   // Lay stack arguments out.
@@ -538,35 +562,115 @@ Layout::Layout(const model::RawFunctionDefinition &Function) {
   revng_log(LayoutLog,
             "Layout of " + toString(Function.key()) + " is:\n"
               << toString(*this));
+
+  revng_assert(verify());
+}
+
+/// Verify that \p Registers and \p StackSize bytes of stack hold a value of
+/// \p Size bytes. A value either takes a portion of a single register or
+/// one or more full registers, possibly followed by the stack.
+static bool verifyValue(llvm::ArrayRef<model::Register::Portion> Registers,
+                        uint64_t StackSize,
+                        uint64_t Size) {
+  if (Registers.empty()) {
+    if (StackSize < Size) {
+      revng_log(LayoutLog,
+                "A value of " << Size << " bytes takes " << StackSize
+                              << " bytes of stack and no registers");
+      return false;
+    }
+
+    return true;
+  }
+
+  if (Registers.size() == 1 and StackSize == 0) {
+    const model::Register::Portion &Portion = Registers[0];
+    if (Portion.Size != Size) {
+      revng_log(LayoutLog,
+                "A value of " << Size << " bytes takes " << Portion.Size
+                              << " bytes of "
+                              << model::Register::getName(Portion.Register));
+      return false;
+    }
+
+    return true;
+  }
+
+  // TODO: some ABIs pass a value in portions of multiple registers. For
+  //       instance, on hard-float AAPCS, the second argument of
+  //       `void f(struct { float A, B; }, struct { float A, B, C; })` takes
+  //       s2, s3 and s4: the second half of q0 and a quarter of q1.
+  uint64_t RegistersSize = 0;
+  for (const model::Register::Portion &Portion : Registers) {
+    if (Portion.Size != model::Register::getSize(Portion.Register)) {
+      revng_log(LayoutLog,
+                "A value in multiple locations takes "
+                  << Portion.Size << " bytes of "
+                  << model::Register::getName(Portion.Register));
+      return false;
+    }
+
+    RegistersSize += Portion.Size;
+  }
+
+  if (StackSize == 0) {
+    // Every register but the last one is used in its entirety
+    uint64_t LastSize = Registers.back().Size;
+    if (RegistersSize < Size or RegistersSize - LastSize >= Size) {
+      revng_log(LayoutLog,
+                "A value of " << Size << " bytes takes " << RegistersSize
+                              << " bytes of registers");
+      return false;
+    }
+  } else {
+    // The registers hold the start of the value, the stack the rest
+    if (RegistersSize >= Size or RegistersSize + StackSize < Size) {
+      revng_log(LayoutLog,
+                "A value of " << Size << " bytes takes " << RegistersSize
+                              << " bytes of registers and " << StackSize
+                              << " bytes of stack");
+      return false;
+    }
+  }
+
+  return true;
 }
 
 bool Layout::verify() const {
-  model::Architecture::Values ExpectedA = model::Architecture::Invalid;
+  if (Architecture == model::Architecture::Invalid) {
+    revng_log(LayoutLog, "The architecture is invalid");
+    return false;
+  }
+
   std::unordered_set<model::Register::Values> LookupHelper;
   auto VerificationHelper = [&](model::Register::Values Register) -> bool {
     // Ensure each register is present only once
-    if (!LookupHelper.emplace(Register).second)
+    if (!LookupHelper.emplace(Register).second) {
+      revng_log(LayoutLog,
+                model::Register::getName(Register) << " is used twice");
       return false;
+    }
 
-    // Ensure all the registers belong to the same architecture
-    if (ExpectedA == model::Architecture::Invalid)
-      ExpectedA = model::Register::getReferenceArchitecture(Register);
-    else if (ExpectedA != model::Register::getReferenceArchitecture(Register))
+    // Ensure all the registers belong to the architecture
+    if (not model::Register::isUsedInArchitecture(Register, Architecture)) {
+      llvm::StringRef Name = model::Register::getName(Register);
+      revng_log(LayoutLog, Name << " belongs to another architecture");
       return false;
+    }
 
     return true;
   };
 
   // Verify arguments
   LookupHelper.clear();
-  for (model::Register::Values Register : argumentRegisters())
-    if (!VerificationHelper(Register))
+  for (const model::Register::Portion &Portion : argumentRegisters())
+    if (!VerificationHelper(Portion.Register))
       return false;
 
   // Verify return values
   LookupHelper.clear();
-  for (model::Register::Values Register : returnValueRegisters())
-    if (!VerificationHelper(Register))
+  for (const model::Register::Portion &Portion : returnValueRegisters())
+    if (!VerificationHelper(Portion.Register))
       return false;
 
   // Verify callee saved registers
@@ -576,18 +680,53 @@ bool Layout::verify() const {
       return false;
 
   using namespace abi::FunctionType::ArgumentKind;
+  uint64_t PointerSize = model::Architecture::getPointerSize(Architecture);
+  for (auto &&[Index, Argument] : llvm::enumerate(Arguments)) {
+    uint64_t Size = *Argument.Type->size();
+    if (Argument.Kind == PointerToCopy)
+      Size = PointerSize;
+
+    if (Argument.Stack and Argument.Stack->Size == 0) {
+      revng_log(LayoutLog, "Argument " << Index << " takes 0 bytes of stack");
+      return false;
+    }
+
+    uint64_t StackSize = Argument.Stack ? Argument.Stack->Size : 0;
+    if (not verifyValue(Argument.Registers, StackSize, Size)) {
+      revng_log(LayoutLog, "Argument " << Index << " is invalid");
+      return false;
+    }
+  }
+
+  for (auto &&[Index, ReturnValue] : llvm::enumerate(ReturnValues)) {
+    // The distributor drops floating point return values on ABIs without
+    // vector return value registers
+    if (ReturnValue.Registers.empty())
+      continue;
+
+    uint64_t Size = *ReturnValue.Type->size();
+    if (not verifyValue(ReturnValue.Registers, 0, Size)) {
+      revng_log(LayoutLog, "Return value " << Index << " is invalid");
+      return false;
+    }
+  }
+
   auto SPTAR = ShadowPointerToAggregateReturnValue;
   bool SPTARFound = false;
   bool IsFirst = true;
   for (const auto &Argument : Arguments) {
     if (Argument.Kind == SPTAR) {
       // SPTAR must be the first argument
-      if (!IsFirst)
+      if (!IsFirst) {
+        revng_log(LayoutLog, "The SPTAR is not the first argument");
         return false;
+      }
 
       // There can be only one SPTAR
-      if (SPTARFound)
+      if (SPTARFound) {
+        revng_log(LayoutLog, "There is more than one SPTAR");
         return false;
+      }
 
       if (Argument.Stack.has_value()) {
         // SPTAR can be on the stack if ABI allows that.
@@ -595,18 +734,20 @@ bool Layout::verify() const {
         // TODO: we should probably verify that, but such a verification would
         //       require access to the ABI in question.
 
-        revng_assert(ExpectedA != model::Architecture::Invalid,
-                     "Unable to figure out the architecture.");
-        auto PointerSize = model::Architecture::getPointerSize(ExpectedA);
-
         // The space SPTAR occupies on stack has to be that of a single pointer.
         // It also has to be the first argument (with offset equal to zero).
-        if (Argument.Stack->Size != PointerSize || Argument.Stack->Offset != 0)
+        if (Argument.Stack->Size != PointerSize
+            || Argument.Stack->Offset != 0) {
+          revng_log(LayoutLog,
+                    "The SPTAR on the stack is not a pointer at offset 0");
           return false;
+        }
       } else {
         // SPTAR is not on the stack, so it has to be a single register
-        if (Argument.Registers.size() != 1)
+        if (Argument.Registers.size() != 1) {
+          revng_log(LayoutLog, "The SPTAR is not in a single register");
           return false;
+        }
       }
     }
 
@@ -615,10 +756,15 @@ bool Layout::verify() const {
 
   // If we have more than one return value, each return value should take at
   // most a single register
-  if (ReturnValues.size() > 1)
-    for (const ReturnValue &ReturnValue : ReturnValues)
-      if (ReturnValue.Registers.size() > 1)
+  if (ReturnValues.size() > 1) {
+    for (const ReturnValue &ReturnValue : ReturnValues) {
+      if (ReturnValue.Registers.size() > 1) {
+        revng_log(LayoutLog,
+                  "One of multiple return values takes multiple registers");
         return false;
+      }
+    }
+  }
 
   return true;
 }
@@ -641,8 +787,8 @@ size_t Layout::returnValueRegisterCount() const {
   return Result;
 }
 
-llvm::SmallVector<model::Register::Values> Layout::argumentRegisters() const {
-  llvm::SmallVector<model::Register::Values> Result;
+llvm::SmallVector<model::Register::Portion> Layout::argumentRegisters() const {
+  llvm::SmallVector<model::Register::Portion> Result;
 
   for (const auto &Argument : Arguments)
     Result.append(Argument.Registers.begin(), Argument.Registers.end());
@@ -650,9 +796,9 @@ llvm::SmallVector<model::Register::Values> Layout::argumentRegisters() const {
   return Result;
 }
 
-llvm::SmallVector<model::Register::Values>
+llvm::SmallVector<model::Register::Portion>
 Layout::returnValueRegisters() const {
-  llvm::SmallVector<model::Register::Values> Result;
+  llvm::SmallVector<model::Register::Portion> Result;
 
   for (const ReturnValue &ReturnValue : ReturnValues)
     Result.append(ReturnValue.Registers.begin(), ReturnValue.Registers.end());
@@ -678,22 +824,7 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
   if (!Function.ReturnType().isEmpty())
     RV = ToRawConverter(ABI).distributeReturnValue(*Function.ReturnType());
 
-  auto SetMaximumPortionSize = std::views::transform([](model::Register::Values
-                                                          Register) {
-    // TODO: we can be a bit smarter when setting the sizes here, but it's
-    //       not trivial, requires extensive testing, and is not *that*
-    //       impactful (it only triggers for structs that a bigger than
-    //       a general purpose register while also not having a size that's
-    //       a multiple of the register size), so use a simple fallback for now.
-    return model::Register::Portion(Register,
-                                    model::Register::getSize(Register));
-  });
-
-  if (RV.Registers.size() == 1)
-    Result.ReturnValues.emplace_back(RV.Registers[0], RV.Size);
-  else
-    std::ranges::move(RV.Registers | SetMaximumPortionSize,
-                      std::back_inserter(Result.ReturnValues));
+  Result.ReturnValues = toPortions(RV);
 
   // Handle shadow pointer return value gracefully.
   ArgumentDistributor Distributor(ABI);
@@ -701,11 +832,13 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
     Distributor.addShadowPointerReturnValueLocationArgument();
 
     revng_assert(Result.ReturnValues.empty());
-    const auto &GPRs = ABI.GeneralPurposeReturnValueRegisters();
-    revng_assert(!GPRs.empty());
+    if (ABI.ReturnValueLocationIsReturned()) {
+      const auto &GPRs = ABI.GeneralPurposeReturnValueRegisters();
+      revng_assert(!GPRs.empty());
 
-    // SPTAR is guaranteed to be a pointer, so the size is set as such.
-    Result.ReturnValues.emplace_back(GPRs[0], ABI.getPointerSize());
+      // SPTAR is guaranteed to be a pointer, so the size is set as such.
+      Result.ReturnValues.emplace_back(GPRs[0], ABI.getPointerSize());
+    }
 
     if (ABI.ReturnValueLocationRegister() != model::Register::Invalid)
       Result.Arguments.emplace_back(ABI.ReturnValueLocationRegister(),
@@ -724,15 +857,8 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
   for (const model::Argument &Argument : Function.Arguments().asVector()) {
     auto Distributed = Distributor.nextArgument(*Argument.Type());
     for (DistributedValue SingleArg : Distributed) {
-      if (!SingleArg.RepresentsPadding) {
-        if (SingleArg.Registers.size() == 1) {
-          Result.Arguments.emplace_back(SingleArg.Registers[0], SingleArg.Size);
-
-        } else {
-          std::ranges::move(SingleArg.Registers | SetMaximumPortionSize,
-                            std::back_inserter(Result.Arguments));
-        }
-      }
+      if (!SingleArg.RepresentsPadding)
+        Result.Arguments.append(toPortions(SingleArg));
     }
 
     if (!Distributor.canNextArgumentUseRegisters())
