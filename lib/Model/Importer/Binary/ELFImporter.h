@@ -91,6 +91,8 @@ protected:
   std::unique_ptr<FilePortion> GotPortion;
   std::unique_ptr<FilePortion> HashHeaderPortion;
   std::unique_ptr<FilePortion> RelrPortion;
+  std::unique_ptr<FilePortion> AndroidRelPortion;
+  std::unique_ptr<FilePortion> AndroidRelrPortion;
 
 public:
   ELFImporter(TupleTree<model::Binary> &Model,
@@ -201,8 +203,13 @@ protected:
   /// whose addend is stored in place
   void registerInPlaceRelocation(MetaAddress Address, uint64_t Size);
 
-  /// Register the relocations in the DT_RELR table
-  void registerRelrRelocations(llvm::object::ELFFile<T> &TheELF);
+  /// Register the relocations in a DT_RELR-encoded table
+  void registerRelrRelocations(llvm::object::ELFFile<T> &TheELF,
+                               llvm::StringRef Name,
+                               const FilePortion &Relr);
+
+  /// Register the relocations in Android's packed relocation table
+  void registerAndroidRelocations(llvm::object::ELFFile<T> &TheELF);
 
   void parseDynamicTag(uint64_t Tag,
                        uint64_t Val,

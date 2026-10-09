@@ -427,6 +427,8 @@ void ELFImporter<T, HasAddend>::parseDynamicAndSymbols(object::ELFFile<T>
   GotPortion = std::make_unique<FilePortion>(File);
   HashHeaderPortion = std::make_unique<FilePortion>(File);
   RelrPortion = std::make_unique<FilePortion>(File);
+  AndroidRelPortion = std::make_unique<FilePortion>(File);
+  AndroidRelrPortion = std::make_unique<FilePortion>(File);
   bool IsX86 = Model->Architecture() == model::Architecture::x86;
   bool IsMIPS = (Model->Architecture() == model::Architecture::mips
                  or Model->Architecture() == model::Architecture::mipsel);
@@ -488,6 +490,9 @@ void ELFImporter<T, HasAddend>::parseDynamicAndSymbols(object::ELFFile<T>
                           *DynstrPortion.get());
     }
 
+    if (AndroidRelPortion->isAvailable())
+      registerAndroidRelocations(TheELF);
+
     auto SetCanonicalValue = [this](model::Register::Values Register,
                                     uint64_t Value) {
       for (model::Segment &Segment : Model->Segments())
@@ -514,23 +519,68 @@ void ELFImporter<T, HasAddend>::parseDynamicAndSymbols(object::ELFFile<T>
   }
 
   if (ParseRelocations and RelrPortion->isAvailable())
-    registerRelrRelocations(TheELF);
+    registerRelrRelocations(TheELF, ".relr.dyn", *RelrPortion);
+
+  if (ParseRelocations and AndroidRelrPortion->isAvailable())
+    registerRelrRelocations(TheELF, "Android RELR", *AndroidRelrPortion);
 }
 
 template<typename T, bool HasAddend>
-void ELFImporter<T, HasAddend>::registerRelrRelocations(object::ELFFile<T>
-                                                          &TheELF) {
+void ELFImporter<T,
+                 HasAddend>::registerRelrRelocations(object::ELFFile<T> &TheELF,
+                                                     StringRef Name,
+                                                     const FilePortion &Relr) {
   using Elf_Addr = typename object::ELFFile<T>::Elf_Addr;
   using Elf_Relr = typename object::ELFFile<T>::Elf_Relr;
 
-  revng_log(ELFImporterLog, "Parsing relocations in .relr.dyn");
+  revng_log(ELFImporterLog, "Parsing relocations in " << Name);
   LoggerIndent Indent(ELFImporterLog);
 
-  auto Relocations = TheELF.decode_relrs(RelrPortion->extractAs<Elf_Relr>());
+  auto Relocations = TheELF.decode_relrs(Relr.extractAs<Elf_Relr>());
   for (const auto &Relocation : Relocations) {
     registerInPlaceRelocation(relocate(fromGeneric(Relocation.r_offset)),
                               sizeof(Elf_Addr));
   }
+}
+
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::registerAndroidRelocations(object::ELFFile<T>
+                                                             &TheELF) {
+  using Elf_Shdr = typename object::ELFFile<T>::Elf_Shdr;
+
+  // The decoder reads a section: describe the table as one
+  ArrayRef<uint8_t> Data = AndroidRelPortion->extractData();
+  if (Data.empty()) {
+    revng_log(ELFImporterLog, "Cannot read packed relocations. Ignoring.");
+    return;
+  }
+
+  Elf_Shdr Section = {};
+  Section.sh_offset = Data.data() - TheELF.base();
+  Section.sh_size = Data.size();
+
+  auto MaybeRelocations = TheELF.android_relas(Section);
+  if (auto Error = MaybeRelocations.takeError()) {
+    std::string Message = toString(std::move(Error));
+    revng_log(ELFImporterLog, "Cannot decode packed relocations: " << Message);
+    return;
+  }
+
+  // Convert the decoded entries, which always carry an addend, to the
+  // relocation type of this binary
+  std::vector<Elf_Rel> Relocations;
+  for (const auto &Decoded : *MaybeRelocations) {
+    Elf_Rel &Relocation = Relocations.emplace_back();
+    Relocation.r_offset = Decoded.r_offset;
+    Relocation.r_info = Decoded.r_info;
+    if constexpr (HasAddend)
+      Relocation.r_addend = Decoded.r_addend;
+  }
+
+  registerRelocations("packed relocations",
+                      Relocations,
+                      *DynsymPortion.get(),
+                      *DynstrPortion.get());
 }
 
 template<typename T, bool HasAddend>
@@ -622,7 +672,28 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
     RelrPortion->setSize(Val);
     break;
 
-  case ELF::DT_RELRENT: {
+  case ELF::DT_ANDROID_RELR:
+    AndroidRelrPortion->setAddress(GenericAddress);
+    break;
+
+  case ELF::DT_ANDROID_RELRSZ:
+    AndroidRelrPortion->setSize(Val);
+    break;
+
+  case ELF::DT_ANDROID_REL:
+  case ELF::DT_ANDROID_RELA:
+    if (Tag != (HasAddend ? ELF::DT_ANDROID_RELA : ELF::DT_ANDROID_REL))
+      revng_log(ELFImporterLog, "Unexpected kind of packed relocations");
+    AndroidRelPortion->setAddress(GenericAddress);
+    break;
+
+  case ELF::DT_ANDROID_RELSZ:
+  case ELF::DT_ANDROID_RELASZ:
+    AndroidRelPortion->setSize(Val);
+    break;
+
+  case ELF::DT_RELRENT:
+  case ELF::DT_ANDROID_RELRENT: {
     using Elf_Relr = typename object::ELFFile<T>::Elf_Relr;
     if (Val != sizeof(Elf_Relr))
       revng_log(ELFImporterLog, "Unexpected DT_RELRENT: " << Val);
