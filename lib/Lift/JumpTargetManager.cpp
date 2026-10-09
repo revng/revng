@@ -453,10 +453,10 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
                     "Found a Segment relocation:\n"
                       << Relocation.toString());
           auto Value = NewAPInt(Address.address());
-          if (Segment.IsWriteable())
-            Result = MaterializedValue::fromMutable(Value);
-          else
+          if (BinaryView.isReadOnly(LoadAddress, LoadSize))
             Result = MaterializedValue::fromConstant(Value);
+          else
+            Result = MaterializedValue::fromMutable(Value);
           ++MatchCount;
         } else {
           // TODO: log message
