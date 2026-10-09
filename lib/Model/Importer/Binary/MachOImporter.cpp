@@ -314,6 +314,14 @@ template<typename T>
 void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
                                       const T &SegmentCommand) {
   MetaAddress Start = fromGeneric(SegmentCommand.vmaddr);
+
+  // Inaccessible segments, such as `__PAGEZERO`, only guard memory
+  auto Access = VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
+  if ((SegmentCommand.initprot & Access) == 0) {
+    revng_log(Log, "Ignoring inaccessible segment at " << Start.toString());
+    return;
+  }
+
   Segment Segment(Start);
 
   Segment.VirtualSize() = SegmentCommand.vmsize;
