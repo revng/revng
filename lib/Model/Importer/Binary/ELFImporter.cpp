@@ -1315,8 +1315,11 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
   using Elf_Sym = Elf_Sym_Impl<T>;
 
   ArrayRef<Elf_Sym> Symbols;
-  if (Dynsym.isAvailable())
+  StringRef SymbolNames;
+  if (Dynsym.isAvailable() and Dynstr.isAvailable()) {
     Symbols = Dynsym.extractAs<Elf_Sym>();
+    SymbolNames = Dynstr.extractString();
+  }
 
   revng_log(ELFImporterLog, "Parsing relocations in " << Name.str());
   LoggerIndent Indent(ELFImporterLog);
@@ -1337,7 +1340,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
                     << "Symbol count: " << Symbols.size());
       }
       const Elf_Sym &Symbol = Symbols[SymbolIndex];
-      auto MaybeName = Symbol.getName(Dynstr.extractString());
+      auto MaybeName = Symbol.getName(SymbolNames);
 
       if (auto Error = MaybeName.takeError()) {
         revng_log(ELFImporterLog,
