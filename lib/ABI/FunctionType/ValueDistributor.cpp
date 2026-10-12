@@ -96,10 +96,11 @@ ValueDistributor::distribute(uint64_t Size,
         Padding.Registers = { Registers[OccupiedRegisterCount++] };
         Padding.Size = PointerSize;
         Padding.RepresentsPadding = true;
+
+        // The padding register does not count towards the limit
+        ++LastRegister;
       }
 
-      revng_assert(SizeCounter >= PointerSize);
-      SizeCounter -= PointerSize;
       if (ConsideredRegisterCounter < LastRegister)
         ++ConsideredRegisterCounter;
     }
@@ -269,7 +270,12 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
     if (Current == Next)
       return true; // No registers were used for this argument.
 
-    if (Next >= Current && Next <= Current + RegisterLimit)
+    uint64_t PaddingByteCount = 0;
+    for (auto &Distributed : Result)
+      if (Distributed.RepresentsPadding)
+        PaddingByteCount += Distributed.Registers.size();
+
+    if (Next >= Current && Next - PaddingByteCount <= Current + RegisterLimit)
       return true; // It's within the expected boundaries.
 
     if (Next == RegisterList.size()) {
