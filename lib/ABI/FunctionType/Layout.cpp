@@ -712,7 +712,6 @@ bool Layout::verify() const {
   }
 
   auto SPTAR = ShadowPointerToAggregateReturnValue;
-  bool SPTARFound = false;
   bool IsFirst = true;
   for (const auto &Argument : Arguments) {
     if (Argument.Kind == SPTAR) {
@@ -721,10 +720,6 @@ bool Layout::verify() const {
         revng_log(LayoutLog, "The SPTAR is not the first argument");
         return false;
       }
-
-      // There can be only one SPTAR
-      if (SPTARFound)
-        return false;
 
       if (Argument.Stack.has_value()) {
         // SPTAR can be on the stack if ABI allows that.
