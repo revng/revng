@@ -683,7 +683,6 @@ void CallSite::processSPTAR(CallInst *InitLocalSPCall,
     // The SPTAR is on the stack, we need to try to fetch the only write for
     // that stack slot writing a constant offset from the initial value of the
     // stack pointer.
-    revng_assert(SPTARArgument.Registers.size() == 0);
     if (auto MaybeRange = stackArgumentRange(SPTARArgument)) {
       auto Writers = findAllWriters(State, StackUsage, { *MaybeRange });
 
@@ -701,7 +700,6 @@ void CallSite::processSPTAR(CallInst *InitLocalSPCall,
     }
   } else {
     revng_log(Log, "SPTAR is in a register");
-    revng_assert(SPTARArgument.Registers.size() > 0);
     revng_assert(OldCall->arg_size() > 0);
     SPTAR = OldCall->getArgOperand(0);
   }
@@ -977,9 +975,9 @@ private:
     auto Architecture = Binary.Architecture();
 
     Type *OldReturnType = OldFunction->getReturnType();
-    FunctionType &NewType = layoutToLLVMFunctionType<false>(Context,
-                                                            Architecture,
-                                                            Layout);
+    FunctionType &NewType = layoutToLLVMFunctionType(Context,
+                                                     Architecture,
+                                                     Layout);
 
     // NOTE: all the model *must* be read above this line!
     //       If we don't do this, we will break invalidation tracking
@@ -1118,9 +1116,12 @@ private:
     return llvm::ConstantInt::get(SSA.TargetPointerSizedInteger, Value);
   }
 
+  /// Shift of the piece at \p Offset of size \p OldSize in a value of size
+  /// \p NewSize
   unsigned
   shiftAmount(unsigned Offset, unsigned NewSize, unsigned OldSize) const {
-    if (NewSize >= OldSize)
+    // The value fits in a single piece
+    if (NewSize <= OldSize)
       return 0;
     if (model::Architecture::isLittleEndian(SSA.Binary.Architecture())) {
       return Offset * 8;
@@ -1183,9 +1184,9 @@ void SegregateFunctionStack::setupNewFunction() {
 
   // Map llvm::Argument * to model::Register
   auto ArgumentRegisters = Layout.argumentRegisters();
-  for (const auto &[Register, OldArgument] :
+  for (const auto &[Portion, OldArgument] :
        zip(ArgumentRegisters, OldFunction.args())) {
-    ArgumentToRegister[Register] = &OldArgument;
+    ArgumentToRegister[Portion.Register] = &OldArgument;
   }
 
   // Decide whether we need a redirector for the function's stack arguments
@@ -1259,11 +1260,10 @@ void SegregateFunctionStack::prepareReturnValueStorage() {
   // the return value to our freshly created local variable.
   auto &ModelArgument = Layout.Arguments[0];
   if (ModelArgument.Stack) {
-    revng_assert(ModelArgument.Registers.size() == 0);
     recordFunctionStackArgument(*ModelArgument.Stack, ReturnValueIntAddress);
   } else {
-    revng_assert(ModelArgument.Registers.size() == 1);
-    Argument *OldArgument = ArgumentToRegister.at(ModelArgument.Registers[0]);
+    auto Register = ModelArgument.Registers[0].Register;
+    Argument *OldArgument = ArgumentToRegister.at(Register);
     OldArgument->replaceAllUsesWith(ReturnValueIntAddress);
   }
 }
@@ -1300,23 +1300,22 @@ void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
       if (UsesStack) {
         // When loading from this stack slot, return the address of the
         // address of the new argument
-        revng_assert(ModelArgument.Registers.size() == 0);
         ToRecordSpan = AddressOfNewArgument;
       } else {
         // Replace the old argument with an address of the new argument
-        revng_assert(ModelArgument.Registers.size() == 1);
-        auto Register = ModelArgument.Registers[0];
+        auto Register = ModelArgument.Registers[0].Register;
         Argument *OldArgument = ArgumentToRegister.at(Register);
         OldArgument->replaceAllUsesWith(AddressOfNewArgument);
       }
 
     } else if (ModelArgument.Kind == Scalar) {
       revng_assert(ModelArgument.Type->isScalar());
-      for (model::Register::Values Register : ModelArgument.Registers) {
+      for (const model::Register::Portion &Portion : ModelArgument.Registers) {
+        model::Register::Values Register = Portion.Register;
         Argument *OldArgument = ArgumentToRegister.at(Register);
         Type *OldArgumentType = OldArgument->getType();
         auto OldArgumentSize = OldArgumentType->getIntegerBitWidth() / 8;
-        revng_assert(model::Register::getSize(Register) == OldArgumentSize);
+        revng_assert(OldArgumentType == toLLVMType(B.getContext(), Portion));
 
         unsigned ShiftAmount = shiftAmount(OffsetInNewArgument,
                                            NewArgumentSize,
@@ -1344,7 +1343,8 @@ void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
     } else if (ModelArgument.Kind == ReferenceToAggregate) {
       Value *AddressOfNewArgument = &NewArgument;
 
-      for (model::Register::Values Register : ModelArgument.Registers) {
+      for (const model::Register::Portion &Portion : ModelArgument.Registers) {
+        model::Register::Values Register = Portion.Register;
         Argument *OldArgument = ArgumentToRegister.at(Register);
 
         Value *ArgumentPointer = computeAddress(B,
@@ -1663,8 +1663,8 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
   // Map llvm::Argument * to model::Register
   std::map<model::Register::Values, llvm::Value *> ArgumentToRegister;
   auto ArgumentRegisters = Layout.argumentRegisters();
-  for (auto &&[Register, OldArg] : zip(ArgumentRegisters, OldCall->args()))
-    ArgumentToRegister[Register] = OldArg.get();
+  for (auto &&[Portion, OldArg] : zip(ArgumentRegisters, OldCall->args()))
+    ArgumentToRegister[Portion.Register] = OldArg.get();
 
   // Check if it's a direct call
   auto *Callee = dyn_cast<Function>(OldCall->getCalledOperand());
@@ -1680,9 +1680,7 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
   } else {
     LLVMContext &Context = OldCall->getContext();
     auto Architecture = SSA.Binary.Architecture();
-    CalleeType = &layoutToLLVMFunctionType<false>(Context,
-                                                  Architecture,
-                                                  Layout);
+    CalleeType = &layoutToLLVMFunctionType(Context, Architecture, Layout);
     CalledValue = B.CreateBitCast(OldCall->getCalledOperand(),
                                   CalleeType->getPointerTo());
   }
@@ -1743,7 +1741,6 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
         model::Architecture::Values Architecture = SSA.Binary.Architecture();
         auto PointerSize = model::Architecture::getPointerSize(Architecture);
         revng_assert(ModelArgument.Type->size() > PointerSize);
-        revng_assert(ModelArgument.Registers.size() == 0);
         revng_assert(ModelArgument.Stack->Size == PointerSize);
         revng_assert(MaybeStackOffsetAtCallSite);
 
@@ -1758,8 +1755,7 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
         // Load the alloca and record it as a pointer
         Pointer = B.CreateLoad(Alloca->getAllocatedType(), Alloca);
       } else {
-        revng_assert(ModelArgument.Registers.size() == 1);
-        auto Register = ModelArgument.Registers[0];
+        auto Register = ModelArgument.Registers[0].Register;
         Pointer = ArgumentToRegister.at(Register);
       }
 
@@ -1772,7 +1768,8 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
       revng_assert(ModelArgument.Type->isScalar());
       Value *Accumulator = ConstantInt::get(LLVMType, 0);
       unsigned OffsetInNewArgument = 0;
-      for (auto &Register : ModelArgument.Registers) {
+      for (const model::Register::Portion &Portion : ModelArgument.Registers) {
+        model::Register::Values Register = Portion.Register;
         Value *OldArgument = ArgumentToRegister.at(Register);
         unsigned OldSize = model::Register::getSize(Register);
 
@@ -1783,7 +1780,7 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
                                            OldSize);
         Value *Shifted = Extended;
         if (ShiftAmount != 0)
-          Shifted = B.CreateLShr(Extended, ShiftAmount);
+          Shifted = B.CreateShl(Extended, ShiftAmount);
 
         Accumulator = B.CreateOr(Accumulator, Shifted);
 
@@ -1857,7 +1854,8 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
       StackArgsAllocation->copyMetadata(*SSACSCall);
 
       unsigned OffsetInNewArgument = 0;
-      for (auto &Register : ModelArgument.Registers) {
+      for (const model::Register::Portion &Portion : ModelArgument.Registers) {
+        model::Register::Values Register = Portion.Register;
         Value *OldArgument = ArgumentToRegister.at(Register);
         unsigned OldSize = model::Register::getSize(Register);
 
@@ -1987,7 +1985,8 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
       }
 
       revng_assert(OldCall->use_empty());
-    } else {
+    } else if (not OldReturnType->isVoidTy()) {
+      // The old call is void if the ABI does not return the SPTAR
       OldCall->replaceAllUsesWith(ReturnValuePointer);
     }
 

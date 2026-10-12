@@ -940,6 +940,10 @@ def Clift_DecayOp
   let arguments = (ins Clift_AnyArrayOrFunctionType:$value);
   let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
 
+  let builders = [
+    OpBuilder<(ins "mlir::Value":$Operand, "uint64_t":$PointerSize)>
+  ];
+
   let assemblyFormat = [{
     $value attr-dict `:` type($value) `->` type($result)
   }];
@@ -1124,16 +1128,14 @@ def Clift_SubscriptOp
                        [Clift_PointeeTypeMatches<"pointer", "result">,
                         DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
                                                   ["isLvalueExpression"]>]> {
-  let arguments = (ins AnyType:$pointer,
+  let arguments = (ins Clift_AnyPointerType:$pointer,
                        Clift_AnyIntegerType:$index);
 
-  let results = (outs AnyType:$result);
+  let results = (outs Clift_AnyObjectType:$result);
 
   let assemblyFormat = [{
     $pointer `,` $index attr-dict `:` `(` type($pointer) `,` type($index) `)`
   }];
-
-  let hasVerifier = 1;
 }
 
 def Clift_CommaOp

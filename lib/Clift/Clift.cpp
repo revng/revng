@@ -1630,6 +1630,25 @@ DecayOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
   return LvalueToRvalueConversion::No;
 }
 
+void DecayOp::build(mlir::OpBuilder &Builder,
+                    mlir::OperationState &State,
+                    mlir::Value Operand,
+                    uint64_t PointerSize) {
+  mlir::Type OpType = Operand.getType();
+  mlir::Type Pointee;
+  if (auto Array = clift::unwrapped_dyn_cast<ArrayType>(OpType)) {
+    Pointee = Array.getElementType();
+    if (isConst(OpType))
+      Pointee = addConst(Pointee);
+  } else if (auto Function = clift::unwrapped_dyn_cast<FunctionType>(OpType)) {
+    Pointee = Function;
+  }
+
+  mlir::Type Type = PointerType::get(Pointee, PointerSize);
+
+  build(Builder, State, Type, Operand);
+}
+
 //===----------------------------- PtrResizeOp ----------------------------===//
 
 mlir::LogicalResult PtrResizeOp::verify() {
@@ -1785,26 +1804,6 @@ mlir::LogicalResult IndirectAccessOp::verify() {
 
 bool SubscriptOp::isLvalueExpression() {
   return true;
-}
-
-mlir::LogicalResult SubscriptOp::verify() {
-  auto PointerT = clift::unwrapped_dyn_cast<PointerType>(getPointer()
-                                                           .getType());
-
-  if (not PointerT)
-    return emitOpError() << getOperationName()
-                         << " operand must have pointer type.";
-
-  auto PointeeT = PointerT.getPointeeType();
-  if (not clift::unwrapped_isa<ObjectType>(PointeeT))
-    return emitOpError() << getOperationName()
-                         << " cannot dereference pointer to non-object type.";
-
-  if (getType() != PointeeT)
-    return emitOpError() << getOperationName()
-                         << " result type must match the pointer type.";
-
-  return mlir::success();
 }
 
 //===------------------------------- CommaOp ------------------------------===//
