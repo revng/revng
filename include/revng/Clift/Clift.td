@@ -1124,16 +1124,14 @@ def Clift_SubscriptOp
                        [Clift_PointeeTypeMatches<"pointer", "result">,
                         DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
                                                   ["isLvalueExpression"]>]> {
-  let arguments = (ins AnyType:$pointer,
+  let arguments = (ins Clift_AnyPointerType:$pointer,
                        Clift_AnyIntegerType:$index);
 
-  let results = (outs AnyType:$result);
+  let results = (outs Clift_AnyObjectType:$result);
 
   let assemblyFormat = [{
     $pointer `,` $index attr-dict `:` `(` type($pointer) `,` type($index) `)`
   }];
-
-  let hasVerifier = 1;
 }
 
 def Clift_CommaOp

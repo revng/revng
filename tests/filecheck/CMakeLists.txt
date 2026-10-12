@@ -368,6 +368,13 @@ set(FILECHECK_TESTS
     clift/operations/return-with-valid-type.mlir
     clift/operations/return-with-void.mlir
     clift/operations/return-without-value.mlir
+    clift/operations/subscript-index-not-integer.mlir
+    clift/operations/subscript-pointer-not-a-pointer.mlir
+    clift/operations/subscript-pointer-to-function.mlir
+    clift/operations/subscript-result-adds-const.mlir
+    clift/operations/subscript-result-drops-const.mlir
+    clift/operations/subscript-result-type-mismatch.mlir
+    clift/operations/subscript-valid.mlir
     clift/operations/switch-with-cases.mlir
     clift/operations/switch-with-duplicate-cases.mlir
     clift/operations/switch-with-float-condition.mlir

@@ -1787,26 +1787,6 @@ bool SubscriptOp::isLvalueExpression() {
   return true;
 }
 
-mlir::LogicalResult SubscriptOp::verify() {
-  auto PointerT = clift::unwrapped_dyn_cast<PointerType>(getPointer()
-                                                           .getType());
-
-  if (not PointerT)
-    return emitOpError() << getOperationName()
-                         << " operand must have pointer type.";
-
-  auto PointeeT = PointerT.getPointeeType();
-  if (not clift::unwrapped_isa<ObjectType>(PointeeT))
-    return emitOpError() << getOperationName()
-                         << " cannot dereference pointer to non-object type.";
-
-  if (getType() != PointeeT)
-    return emitOpError() << getOperationName()
-                         << " result type must match the pointer type.";
-
-  return mlir::success();
-}
-
 //===------------------------------- CommaOp ------------------------------===//
 
 bool CommaOp::isLvalueExpression() {
