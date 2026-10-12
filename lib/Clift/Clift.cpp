@@ -1630,6 +1630,25 @@ DecayOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
   return LvalueToRvalueConversion::No;
 }
 
+void DecayOp::build(mlir::OpBuilder &Builder,
+                    mlir::OperationState &State,
+                    mlir::Value Operand,
+                    uint64_t PointerSize) {
+  mlir::Type OpType = Operand.getType();
+  mlir::Type Pointee;
+  if (auto Array = clift::unwrapped_dyn_cast<ArrayType>(OpType)) {
+    Pointee = Array.getElementType();
+    if (isConst(OpType))
+      Pointee = addConst(Pointee);
+  } else if (auto Function = clift::unwrapped_dyn_cast<FunctionType>(OpType)) {
+    Pointee = Function;
+  }
+
+  mlir::Type Type = PointerType::get(Pointee, PointerSize);
+
+  build(Builder, State, Type, Operand);
+}
+
 //===----------------------------- PtrResizeOp ----------------------------===//
 
 mlir::LogicalResult PtrResizeOp::verify() {

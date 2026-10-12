@@ -940,6 +940,10 @@ def Clift_DecayOp
   let arguments = (ins Clift_AnyArrayOrFunctionType:$value);
   let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
 
+  let builders = [
+    OpBuilder<(ins "mlir::Value":$Operand, "uint64_t":$PointerSize)>
+  ];
+
   let assemblyFormat = [{
     $value attr-dict `:` type($value) `->` type($result)
   }];
