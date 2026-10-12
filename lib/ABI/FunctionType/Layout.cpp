@@ -735,6 +735,8 @@ bool Layout::verify() const {
                     "The SPTAR on the stack is not a pointer at offset 0");
           return false;
         }
+
+        revng_assert(Argument.Registers.size() == 0);
       } else {
         // SPTAR is not on the stack, so it has to be a single register
         if (Argument.Registers.size() != 1) {
