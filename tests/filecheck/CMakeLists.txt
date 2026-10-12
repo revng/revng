@@ -348,6 +348,11 @@ set(FILECHECK_TESTS
     clift/operations/goto-targets-nesting-loop-continue-label.mlir
     clift/operations/goto.mlir
     clift/operations/if-without-condition.mlir
+    clift/operations/indirection-result-adds-const.mlir
+    clift/operations/indirection-result-drops-const.mlir
+    clift/operations/indirection-result-type-mismatch.mlir
+    clift/operations/indirection-result-unwraps-pointee-typedef.mlir
+    clift/operations/indirection-valid.mlir
     clift/operations/label-without-assignment.mlir
     clift/operations/local-variable-self-assignment.mlir
     clift/operations/local-variable-with-mistyped-initializer.mlir
