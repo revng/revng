@@ -82,7 +82,19 @@ public:
         *MIPSLocalGotEntries = 0;
       }
 
+      // GOT[0] is reserved for the lazy resolver and, if its most significant
+      // bit is set, GOT[1] for a pointer to the module (a GNU extension):
+      // neither holds an address within the binary
+      uint64_t ReservedEntries = 1;
+      auto Entries = GOT->template extractAs<Elf_Addr>();
+      constexpr uint64_t ModuleMask = uint64_t(1) << (8 * sizeof(Elf_Addr) - 1);
+      if (Entries.size() > 1 and (Entries[1] & ModuleMask) != 0)
+        ReservedEntries = 2;
+
       for (; Index < *MIPSLocalGotEntries; Index++) {
+        if (Index < ReservedEntries)
+          continue;
+
         auto RelocationAddress = GOT->template addressAtIndex<Elf_Addr>(Index);
 
         if (not RelocationAddress.isValid()) {
