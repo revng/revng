@@ -25,6 +25,7 @@
 #include "revng/Support/InitRevng.h"
 
 #include "ABIRuntimeTestResultParser.h"
+#include "ExpectedFailures.h"
 #include "Verify.h"
 
 namespace Options {
@@ -58,6 +59,11 @@ static opt<std::string> Artifact(Positional,
                                  Required,
                                  desc("<runtime abi artifact name>"),
                                  cat(ThisToolCategory));
+
+static list<std::string> ExpectedFailures("expected-failures",
+                                          Required,
+                                          desc("<expected failure list>"),
+                                          cat(ThisToolCategory));
 
 } // namespace Options
 
@@ -98,5 +104,15 @@ int main(int argc, char *argv[]) {
     revng_abort(Error.c_str());
   }
 
-  verifyABI(*Deserialized, Artifact, Options::TargetABI);
+  auto Failures = verifyABI(*Deserialized, Artifact, Options::TargetABI);
+
+  llvm::StringRef ABIName = model::ABI::getName(Options::TargetABI);
+  const std::vector<std::string> &ExpectedFailures = Options::ExpectedFailures;
+  auto Expectations = loadExpectedFailures(ExpectedFailures, ABIName);
+
+  auto Filtered = filterFailures(Failures, Expectations);
+  for (const Failure &Failure : Filtered)
+    dbg << "- " << Failure.Test << ": " << Failure.Reason << "\n";
+
+  return static_cast<int>(Filtered.size());
 }
