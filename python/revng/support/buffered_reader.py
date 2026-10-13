@@ -6,18 +6,19 @@ import os
 from io import IOBase
 from tempfile import SpooledTemporaryFile
 
-from urllib3.response import HTTPResponse
+from httpx2 import Response
 
 
 class BufferedReader(IOBase):
     """
-    Adapter class that buffers an urllib3 HTTPResponse content in a spooled file
+    Adapter class that buffers an httpx2 Response content in a spooled file
     """
 
     CHUNK_SIZE = 1 * 1024 * 1024
 
-    def __init__(self, response: HTTPResponse):
+    def __init__(self, response: Response):
         self.response = response
+        self.chunks = response.iter_raw(self.__class__.CHUNK_SIZE)
         self.file = SpooledTemporaryFile(max_size=2 * 1024 * 1024)
         self.max_offset = 0
         self.position = 0
@@ -58,24 +59,16 @@ class BufferedReader(IOBase):
         return result
 
     def _read_internal(self, size: int):
-        chunk_size = self.__class__.CHUNK_SIZE
         self.file.seek(self.max_offset)
-        if size == -1:
-            while (buffer := self.response.read(chunk_size)) != b"":
-                self.file.write(buffer)
-                self.max_offset += len(buffer)
-            self.end = True
-        else:
-            while size > 0:
-                size_to_read = chunk_size if size > chunk_size else size
-                buffer = self.response.read(size_to_read)
-                if buffer == b"":
-                    self.end = True
-                    break
-
-                self.file.write(buffer)
-                self.max_offset += len(buffer)
+        # Chunks are consumed whole, so this buffers *at least* `size` bytes
+        for buffer in self.chunks:
+            self.file.write(buffer)
+            self.max_offset += len(buffer)
+            if size != -1:
                 size -= len(buffer)
+                if size <= 0:
+                    return
+        self.end = True
 
     def seek(self, offset: int, whence=os.SEEK_SET):
         if whence == os.SEEK_SET:

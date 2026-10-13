@@ -1,0 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+claude: [claude]
+codex: [codex, --no-daemon, --sandbox, danger-full-access]
+opencode: [opencode, --prompt]
