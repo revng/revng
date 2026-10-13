@@ -79,7 +79,9 @@ struct Layout {
 public:
   struct ReturnValue {
     model::UpcastableType Type;
-    llvm::SmallVector<model::Register::Values, 2> Registers;
+
+    /// Either a portion of a single register or one or more full registers
+    llvm::SmallVector<model::Register::Portion, 2> Registers;
 
     ReturnValue() = default;
     ReturnValue(model::UpcastableType &&Type) : Type(std::move(Type)) {}
@@ -103,6 +105,7 @@ public:
   };
 
 public:
+  model::Architecture::Values Architecture = model::Architecture::Invalid;
   llvm::SmallVector<Argument, 4> Arguments;
   llvm::SmallVector<ReturnValue, 2> ReturnValues;
   llvm::SmallVector<model::Register::Values, 24> CalleeSavedRegisters;
@@ -132,8 +135,8 @@ public:
 
   size_t argumentRegisterCount() const;
   size_t returnValueRegisterCount() const;
-  llvm::SmallVector<model::Register::Values> argumentRegisters() const;
-  llvm::SmallVector<model::Register::Values> returnValueRegisters() const;
+  llvm::SmallVector<model::Register::Portion> argumentRegisters() const;
+  llvm::SmallVector<model::Register::Portion> returnValueRegisters() const;
 
   auto returnValueTypes() {
     return ReturnValues
@@ -266,8 +269,10 @@ struct UsedRegisters {
   llvm::SmallVector<model::Register::Portion> Arguments;
   llvm::SmallVector<model::Register::Portion> ReturnValues;
 };
+/// \note this must be coherent with the registers of \ref Layout
 UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Prototype);
 
+/// \note this must be coherent with the registers of \ref Layout
 inline UsedRegisters
 usedRegisters(const model::RawFunctionDefinition &Prototype) {
   UsedRegisters Result;
@@ -335,6 +340,7 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(FTL::Argument)
 template<>
 struct llvm::yaml::MappingTraits<FTL> {
   static void mapping(IO &IO, FTL &L) {
+    IO.mapRequired("Architecture", L.Architecture);
     IO.mapRequired("Arguments", L.Arguments);
     IO.mapRequired("ReturnValues", L.ReturnValues);
     IO.mapRequired("CalleeSavedRegisters", L.CalleeSavedRegisters);

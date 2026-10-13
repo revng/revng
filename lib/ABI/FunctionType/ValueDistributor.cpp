@@ -78,7 +78,7 @@ ValueDistributor::distribute(uint64_t Size,
     bool MultiAligned = (Size >= PointerSize && Alignment > PointerSize)
                         || (Size > PointerSize
                             && ABI.BigArgumentsUsePointersToCopy());
-    bool LastRegisterUsed = ConsideredRegisterCounter == OccupiedRegisterCount;
+    bool LastRegisterUsed = ConsideredRegisterCounter == Registers.size();
     bool FirstRegisterOdd = (OccupiedRegisterCount & 1) != 0;
     if (MultiAligned && !LastRegisterUsed && FirstRegisterOdd) {
       LoggerIndent Indentation(Log);
@@ -91,15 +91,18 @@ ValueDistributor::distribute(uint64_t Size,
         // Omit marking the very last register as padding since the argument
         // is going to end up on the stack anyway.
       } else {
+        revng_assert(OccupiedRegisterCount < Registers.size());
+
         // Add an extra "padding" argument to represent this.
         DistributedValue &Padding = Result.emplace_back();
         Padding.Registers = { Registers[OccupiedRegisterCount++] };
         Padding.Size = PointerSize;
         Padding.RepresentsPadding = true;
+
+        // The padding register does not count towards the limit
+        ++LastRegister;
       }
 
-      revng_assert(SizeCounter >= PointerSize);
-      SizeCounter -= PointerSize;
       if (ConsideredRegisterCounter < LastRegister)
         ++ConsideredRegisterCounter;
     }
@@ -111,6 +114,7 @@ ValueDistributor::distribute(uint64_t Size,
   bool AllowSplitting = CanUseRegisters
                         && !ForbidSplittingBetweenRegistersAndStack
                         && ABI.ArgumentsCanBeSplitBetweenRegistersAndStack();
+  revng_assert(ConsideredRegisterCounter <= Registers.size());
   bool AllTheRegistersAreInUse = ConsideredRegisterCounter == LastRegister;
   if (SizeCounter >= Size && CanUseRegisters) {
     // This a register-only argument, add the registers.
@@ -216,6 +220,7 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
       // TODO: find reproducers and handle the cases where multiple vector
       //       registers are used together.
       DistributedValue Result;
+      Result.Size = Size;
       Result.Registers.emplace_back(RegisterList[(*RegisterCounter)++]);
       return { Result };
     } else {
@@ -269,7 +274,12 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
     if (Current == Next)
       return true; // No registers were used for this argument.
 
-    if (Next >= Current && Next <= Current + RegisterLimit)
+    uint64_t PaddingByteCount = 0;
+    for (auto &Distributed : Result)
+      if (Distributed.RepresentsPadding)
+        PaddingByteCount += Distributed.Registers.size();
+
+    if (Next >= Current && Next - PaddingByteCount <= Current + RegisterLimit)
       return true; // It's within the expected boundaries.
 
     if (Next == RegisterList.size()) {

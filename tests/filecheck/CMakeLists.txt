@@ -125,6 +125,7 @@ set(FILECHECK_TESTS
     clift/emit-field-accesses/array-struct-stride-mul.mlir
     clift/emit-field-accesses/array-struct-stride-shl.mlir
     clift/emit-field-accesses/common-strides-selection.mlir
+    clift/emit-field-accesses/inherited-const.mlir
     clift/emit-field-accesses/negative-stride-and-offset-no-rewrite.mlir
     clift/emit-field-accesses/struct-array-field-no-traverse.mlir
     clift/emit-field-accesses/struct-array-field-target.mlir
@@ -348,6 +349,11 @@ set(FILECHECK_TESTS
     clift/operations/goto-targets-nesting-loop-continue-label.mlir
     clift/operations/goto.mlir
     clift/operations/if-without-condition.mlir
+    clift/operations/indirection-result-adds-const.mlir
+    clift/operations/indirection-result-drops-const.mlir
+    clift/operations/indirection-result-type-mismatch.mlir
+    clift/operations/indirection-result-unwraps-pointee-typedef.mlir
+    clift/operations/indirection-valid.mlir
     clift/operations/label-without-assignment.mlir
     clift/operations/local-variable-self-assignment.mlir
     clift/operations/local-variable-with-mistyped-initializer.mlir
@@ -363,6 +369,13 @@ set(FILECHECK_TESTS
     clift/operations/return-with-valid-type.mlir
     clift/operations/return-with-void.mlir
     clift/operations/return-without-value.mlir
+    clift/operations/subscript-index-not-integer.mlir
+    clift/operations/subscript-pointer-not-a-pointer.mlir
+    clift/operations/subscript-pointer-to-function.mlir
+    clift/operations/subscript-result-adds-const.mlir
+    clift/operations/subscript-result-drops-const.mlir
+    clift/operations/subscript-result-type-mismatch.mlir
+    clift/operations/subscript-valid.mlir
     clift/operations/switch-with-cases.mlir
     clift/operations/switch-with-duplicate-cases.mlir
     clift/operations/switch-with-float-condition.mlir

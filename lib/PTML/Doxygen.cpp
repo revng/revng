@@ -325,18 +325,16 @@ gatherArgumentComments(const model::Binary &Binary,
         const auto CurrentArgument = Layout.Arguments[Index + IndOffset];
         if (!CurrentArgument.Registers.empty()) {
           Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
-          for (auto R : skip_back(CurrentArgument.Registers)) {
-            Line->emplace_back(DoxygenToken::Types::Identifier,
-                               model::Register::getRegisterName(R).str());
+          for (const auto &Portion : skip_back(CurrentArgument.Registers)) {
+            auto Name = model::Register::getRegisterName(Portion.Register);
+            Line->emplace_back(DoxygenToken::Types::Identifier, Name.str());
             Line->emplace_back(DoxygenToken::Types::Untagged, ", ");
           }
-          auto Last = CurrentArgument.Registers.back();
+          auto Last = CurrentArgument.Registers.back().Register;
           Line->emplace_back(DoxygenToken::Types::Identifier,
                              model::Register::getRegisterName(Last).str());
           Line->emplace_back(DoxygenToken::Types::Untagged, ")");
         } else {
-          revng_assert(CurrentArgument.Stack
-                       && CurrentArgument.Stack->Size != 0);
           Line->emplace_back(DoxygenToken::Types::Untagged,
                              " (" + std::to_string(CurrentArgument.Stack->Size)
                                + " bytes at ");

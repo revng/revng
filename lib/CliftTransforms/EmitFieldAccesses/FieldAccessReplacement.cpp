@@ -16,17 +16,6 @@ using namespace clift;
 
 namespace {
 
-/// Helper to unwrap a `clift` `Type` from a potential `PointerType` wrapper,
-/// returning the unwrapped `Type` and whether indirection was needed
-template<typename CliftType>
-static std::pair<CliftType, bool>
-getAccessedTypeInfo(mlir::Value CurrentValue) {
-  if (auto P = clift::unwrapped_dyn_cast<PointerType>(CurrentValue.getType())) {
-    return { clift::unwrapped_cast<CliftType>(P.getPointeeType()), true };
-  }
-  return { clift::unwrapped_cast<CliftType>(CurrentValue.getType()), false };
-}
-
 // =============================================================================
 // `Replacement` struct definition
 // =============================================================================
@@ -268,16 +257,12 @@ bool Replacement::replace(mlir::PatternRewriter &Rewriter,
     switch (Access.TheKind) {
     case FieldAccessInfo::Kind::Class: {
       auto Index = Access.Index.Constant;
-      auto [Type, IsIndirect] = getAccessedTypeInfo<ClassType>(CurrentValue);
-      mlir::Type FieldType = Type.getFields()[Index].getType();
-      if (IsIndirect) {
+      if (unwrapped_isa<PointerType>(CurrentValue.getType())) {
         CurrentValue = Rewriter.create<IndirectAccessOp>(PointerToReplaceLoc,
-                                                         FieldType,
                                                          CurrentValue,
                                                          Index);
       } else {
         CurrentValue = Rewriter.create<DirectAccessOp>(PointerToReplaceLoc,
-                                                       FieldType,
                                                        CurrentValue,
                                                        Index);
       }
@@ -288,20 +273,20 @@ bool Replacement::replace(mlir::PatternRewriter &Rewriter,
       // We need to explicitly handle the `pointer as array` case, where
       // `CurrentValue` is not a `ptr<T>` of `ArrayType` (we virtually wrap it
       // ourselves), so the `indirection` and `cast<decay>` is not needed.
-      auto P = unwrapped_dyn_cast<PointerType>(CurrentValue.getType());
-      if (not P or unwrapped_isa<ArrayType>(P.getPointeeType())) {
-        // Standard path emitting `indirection` and `cast<decay>` as needed
-        auto [ArrayType,
-              IsIndirect] = getAccessedTypeInfo<clift::ArrayType>(CurrentValue);
-        if (IsIndirect) {
+      if (auto P = unwrapped_dyn_cast<PointerType>(CurrentValue.getType())) {
+        if (unwrapped_isa<ArrayType>(P.getPointeeType())) {
+
           CurrentValue = Rewriter.create<IndirectionOp>(PointerToReplaceLoc,
                                                         CurrentValue);
+          CurrentValue = Rewriter.create<DecayOp>(PointerToReplaceLoc,
+                                                  CurrentValue,
+                                                  PointerSize);
         }
-        auto DecayType = PointerType::get(ArrayType.getElementType(),
-                                          PointerSize);
+      } else if (auto A = unwrapped_dyn_cast<ArrayType>(CurrentValue
+                                                          .getType())) {
         CurrentValue = Rewriter.create<DecayOp>(PointerToReplaceLoc,
-                                                DecayType,
-                                                CurrentValue);
+                                                CurrentValue,
+                                                PointerSize);
       }
 
       // Emit the array index as the linear combination
