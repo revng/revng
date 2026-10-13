@@ -550,8 +550,10 @@ inline uint64_t getSize(Values V) {
   case f15_systemz:
     return 16;
 
-  default:
-    revng_abort("Unsupported register!");
+  default: {
+    std::string Error = "Unsupported register: '" + getName(V).str() + "'.";
+    revng_abort(Error.c_str());
+  }
   }
 
   revng_abort("Unreachable!");
