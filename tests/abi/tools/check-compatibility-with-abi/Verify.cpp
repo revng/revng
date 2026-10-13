@@ -67,6 +67,7 @@ private:
                         llvm::ArrayRef<std::byte> ExpectedBytes) const;
   uint64_t valueFromBytes(llvm::ArrayRef<std::byte> Input) const;
 
+public:
   void fail(std::string &&Message) const;
 };
 
@@ -622,9 +623,11 @@ VH::getPrototypeLayout(const model::Function &Function) const {
   }
 }
 
-std::vector<Failure> verifyABI(const TupleTree<model::Binary> &Binary,
-                               llvm::StringRef RuntimeArtifact,
-                               model::ABI::Values ABI) {
+std::vector<Failure>
+verifyABI(const TupleTree<model::Binary> &Binary,
+          llvm::StringRef RuntimeArtifact,
+          model::ABI::Values ABI,
+          std::optional<model::TypeDefinitionKind::Values> VerifyType) {
   model::Architecture::Values Architecture = model::ABI::getArchitecture(ABI);
   auto Parsed = abi::runtime_test::parse(RuntimeArtifact, Architecture);
 
@@ -641,6 +644,20 @@ std::vector<Failure> verifyABI(const TupleTree<model::Binary> &Binary,
 
     if (auto Test = Parsed.ArgumentTests.find(Helper.FunctionName);
         Test != Parsed.ArgumentTests.end()) {
+      ++ArgumentTestCount;
+
+      const model::TypeDefinition *Prototype = Function.prototype();
+      if (not Prototype) {
+        Helper.fail("Function is missing a prototype.");
+        continue;
+      }
+
+      if (VerifyType.has_value() and VerifyType.value() != Prototype->Kind()) {
+        Helper.fail("'" + toString(Prototype->Kind())
+                    + "' is found instead of the expected '"
+                    + toString(VerifyType.value()) + "'");
+        continue;
+      }
 
       std::optional MaybeLayout = Helper.getPrototypeLayout(Function);
       if (not MaybeLayout) {
@@ -652,10 +669,23 @@ std::vector<Failure> verifyABI(const TupleTree<model::Binary> &Binary,
       Helper.FunctionLayout = std::move(*MaybeLayout);
       for (const abi::runtime_test::ArgumentTest &Iteration : Test->second)
         Helper.arguments(Iteration);
-      ++ArgumentTestCount;
 
     } else if (auto Test = Parsed.ReturnValueTests.find(Helper.FunctionName);
                Test != Parsed.ReturnValueTests.end()) {
+      ++ReturnValueTestCount;
+
+      const model::TypeDefinition *Prototype = Function.prototype();
+      if (not Prototype) {
+        Helper.fail("Function is missing a prototype.");
+        continue;
+      }
+
+      if (VerifyType.has_value() and VerifyType.value() != Prototype->Kind()) {
+        Helper.fail("'" + toString(Prototype->Kind())
+                    + "' is found instead of the expected '"
+                    + toString(VerifyType.value()) + "'");
+        continue;
+      }
 
       std::optional MaybeLayout = Helper.getPrototypeLayout(Function);
       if (not MaybeLayout) {
@@ -667,7 +697,6 @@ std::vector<Failure> verifyABI(const TupleTree<model::Binary> &Binary,
       Helper.FunctionLayout = std::move(*MaybeLayout);
       for (const abi::runtime_test::ReturnValueTest &Iteration : Test->second)
         Helper.returnValue(Iteration);
-      ++ReturnValueTestCount;
 
     } else {
       // Ignore types from the model, that are not mentioned in
