@@ -72,6 +72,7 @@ mkdir -p "${UNFILTERED_FAILURES}"
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    CABIFunctionDefinition \
     "${OUTPUT_DIRECTORY}/reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
     > "${UNFILTERED_FAILURES}/reference_binary.yml"
@@ -79,6 +80,7 @@ revng \
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    RawFunctionDefinition \
     "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
     > "${UNFILTERED_FAILURES}/downgraded_reference_binary.yml"
@@ -86,6 +88,7 @@ revng \
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    CABIFunctionDefinition \
     "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
     > "${UNFILTERED_FAILURES}/upgraded_downgraded_reference_binary.yml"
@@ -93,6 +96,7 @@ revng \
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    RawFunctionDefinition \
     "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
     > "${UNFILTERED_FAILURES}/downgraded_upgraded_downgraded_reference_binary.yml"
