@@ -24,6 +24,8 @@ namespace model::Register {
 
 constexpr inline model::Architecture::Values
 getReferenceArchitecture(Values V) {
+  revng_assert(isValid(V));
+
   switch (V) {
   case eax_x86:
   case ebx_x86:
@@ -263,6 +265,8 @@ getReferenceArchitecture(Values V) {
 constexpr inline bool
 isUsedInArchitecture(model::Register::Values Register,
                      model::Architecture::Values Architecture) {
+  revng_assert(isValid(Register));
+
   auto ReferenceArchitecture = getReferenceArchitecture(Register);
   revng_assert(Architecture != model::Architecture::Invalid);
   if (Architecture == ReferenceArchitecture)
@@ -277,6 +281,8 @@ isUsedInArchitecture(model::Register::Values Register,
 }
 
 inline llvm::StringRef getRegisterName(Values V) {
+  revng_assert(isValid(V));
+
   llvm::StringRef FullName = getName(V);
   auto Architecture = getReferenceArchitecture(V);
   revng_assert(Architecture != model::Architecture::Invalid);
@@ -287,6 +293,8 @@ inline llvm::StringRef getRegisterName(Values V) {
 
 /// Return the size of the register in bytes
 inline uint64_t getSize(Values V) {
+  revng_assert(isValid(V));
+
   switch (V) {
   case eax_x86:
   case ebx_x86:
@@ -645,6 +653,8 @@ inline Values fromRegisterName(llvm::StringRef Name,
 }
 
 inline std::optional<unsigned> getMContextIndex(Values V) {
+  revng_assert(isValid(V));
+
   switch (V) {
   case rax_x86_64:
     return 0xD;
@@ -759,6 +769,8 @@ public:
 };
 
 constexpr inline model::PrimitiveKind::Values getPrimitiveKind(Values V) {
+  revng_assert(isValid(V));
+
   switch (V) {
   case eax_x86:
   case ebx_x86:
@@ -1015,6 +1027,8 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(model::Register::Portion)
 namespace model::Architecture {
 
 constexpr inline model::Register::Values getStackPointer(Values V) {
+  revng_assert(isValid(V));
+
   using namespace model::Register;
 
   switch (V) {
@@ -1043,6 +1057,8 @@ constexpr inline model::Register::Values getStackPointer(Values V) {
 }
 
 constexpr inline model::Register::Values getSyscallNumberRegister(Values V) {
+  revng_assert(isValid(V));
+
   using namespace model::Register;
 
   switch (V) {
@@ -1071,6 +1087,8 @@ constexpr inline model::Register::Values getSyscallNumberRegister(Values V) {
 }
 
 constexpr inline model::Register::Values getReturnAddressRegister(Values V) {
+  revng_assert(isValid(V));
+
   using namespace model::Register;
 
   switch (V) {
@@ -1111,6 +1129,8 @@ getPCMContextIndex(model::Architecture::Values V) {
 }
 
 inline cppcoro::generator<model::Register::Values> registers(Values V) {
+  revng_assert(isValid(V));
+
   using namespace model::Register;
   auto Next = [](model::Register::Values &V) {
     V = static_cast<model::Register::Values>(static_cast<unsigned long>(V) + 1);
