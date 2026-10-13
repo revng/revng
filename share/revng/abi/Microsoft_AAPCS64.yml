@@ -6,7 +6,7 @@ ABI: Microsoft_AAPCS64
 
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: true
-ArgumentsCanBeSplitBetweenRegistersAndStack: true
+ArgumentsCanBeSplitBetweenRegistersAndStack: false
 BigArgumentsUsePointersToCopy: true
 NoRegisterArgumentsCanComeAfterStackOnes: false
 AllowPackedTypesInRegisters: true
