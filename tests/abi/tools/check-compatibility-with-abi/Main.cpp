@@ -12,6 +12,7 @@
 //
 
 #include <fstream>
+#include <optional>
 #include <streambuf>
 #include <string>
 
@@ -21,6 +22,7 @@
 #include "llvm/Support/Signals.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/TypeDefinitionKind.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/InitRevng.h"
 
@@ -49,6 +51,30 @@ static opt<model::ABI::Values> TargetABI("abi",
                                          packValues(ABIList),
                                          desc(Description),
                                          cat(ThisToolCategory));
+
+constexpr const char *VerifyTypeDescription = "Require every `test_` function "
+                                              "of the binary to use a "
+                                              "prototype "
+                                              "of this kind.";
+namespace TDK = model::TypeDefinitionKind;
+static constexpr auto CABIFunctionDefinition = TDK::CABIFunctionDefinition;
+static constexpr auto RawFunctionDefinition = TDK::RawFunctionDefinition;
+static opt<model::TypeDefinitionKind::Values> // formatting
+  VerifyType("verify-type",
+             desc(VerifyTypeDescription),
+             values(clEnumVal(CABIFunctionDefinition,
+                              "Verify that every test function is a cabi "
+                              "function."),
+                    clEnumVal(RawFunctionDefinition,
+                              "Verify that every test function is a raw "
+                              "function.")),
+             cat(ThisToolCategory));
+static std::optional<model::TypeDefinitionKind::Values> readVerifyType() {
+  if (VerifyType.getNumOccurrences() == 0)
+    return std::nullopt;
+
+  return VerifyType;
+}
 
 static opt<std::string> Filename(Positional,
                                  Required,
@@ -104,7 +130,10 @@ int main(int argc, char *argv[]) {
     revng_abort(Error.c_str());
   }
 
-  auto Failures = verifyABI(*Deserialized, Artifact, Options::TargetABI);
+  auto Failures = verifyABI(*Deserialized,
+                            Artifact,
+                            Options::TargetABI,
+                            Options::readVerifyType());
 
   llvm::StringRef ABIName = model::ABI::getName(Options::TargetABI);
   const std::vector<std::string> &ExpectedFailures = Options::ExpectedFailures;
