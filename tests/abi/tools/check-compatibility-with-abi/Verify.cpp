@@ -29,11 +29,7 @@ private:
   mutable uint64_t PotentialPadding = 0;
 
 public:
-  struct Error {
-    std::string FunctionName;
-    std::string Reason;
-  };
-  mutable std::vector<Error> Errors;
+  mutable std::vector<Failure> Failures;
 
   VerificationHelper(model::Architecture::Values Architecture,
                      const abi::Definition &ABI,
@@ -43,7 +39,7 @@ public:
   void arguments(const abi::runtime_test::ArgumentTest &Test) const;
   void returnValue(const abi::runtime_test::ReturnValueTest &Test) const;
 
-  void printResults() const;
+  llvm::ArrayRef<Failure> getFailures() const { return Failures; }
 
   std::optional<abi::FunctionType::Layout>
   getPrototypeLayout(const model::Function &Function) const;
@@ -59,7 +55,7 @@ private:
   struct LeftToVerify {
     llvm::ArrayRef<model::Register::Values> Registers;
     llvm::ArrayRef<std::byte> Stack;
-    bool HasError = false;
+    bool HadFailed = false;
   };
   LeftToVerify adjustForSPTAR(LeftToVerify Remaining) const;
   LeftToVerify verifyAnArgument(const abi::runtime_test::State &State,
@@ -83,23 +79,11 @@ void VH::fail(std::string &&Message) const {
 
   // Each test runs several iterations and every one of them can fail.
   // To de-noise the output, let's only report each function once.
-  if (not Errors.empty() and Errors.back().FunctionName == FunctionName)
+  if (not Failures.empty() and Failures.back().Test == FunctionName)
     return;
 
-  Errors.push_back(Error{ .FunctionName = FunctionName.str(),
-                          .Reason = std::move(Message) });
-}
-
-void VH::printResults() const {
-  dbg << "failed-tests:";
-  if (Errors.empty()) {
-    dbg << " []";
-    return;
-  }
-
-  dbg << "\n";
-  for (const Error &E : Errors)
-    dbg << "- " << E.FunctionName << ": " << E.Reason << "\n";
+  Failures.push_back(Failure{ .Test = FunctionName.str(),
+                              .Reason = std::move(Message) });
 }
 
 void VH::verifyValuePreservation(llvm::ArrayRef<std::byte> ExpectedBytes,
@@ -267,7 +251,7 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
     if (Iterator == State.Registers.end()) {
       fail("Register `" + model::Register::getName(Remaining.Registers[0]).str()
            + "` is not known.");
-      return LeftToVerify{ .HasError = true };
+      return LeftToVerify{ .HadFailed = true };
     }
 
     llvm::ArrayRef Bytes = Iterator->second.Bytes;
@@ -287,7 +271,7 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
         fail("Register `"
              + model::Register::getName(Remaining.Registers[0]).str()
              + "` is not known.");
-        return LeftToVerify{ .HasError = true };
+        return LeftToVerify{ .HadFailed = true };
       }
 
       llvm::ArrayRef Bytes = Iterator->second.Bytes;
@@ -308,7 +292,7 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
         fail("Argument " + std::to_string(Index)
              + " was only partially consumed from the registers before the "
                "stack had to be consulted.");
-        Remaining.HasError = true;
+        Remaining.HadFailed = true;
         return Remaining;
       }
 
@@ -353,7 +337,7 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
     fail("Argument " + std::to_string(Index)
          + " uses neither the expected stack part nor the expected "
            "registers.");
-    return LeftToVerify{ .HasError = true };
+    return LeftToVerify{ .HadFailed = true };
   }
 
   return Remaining;
@@ -386,7 +370,7 @@ void VH::arguments(const abi::runtime_test::ArgumentTest &Test) const {
                                  Test.Arguments[Index],
                                  Remaining,
                                  Index);
-    if (Remaining.HasError)
+    if (Remaining.HadFailed)
       return;
   }
 
@@ -638,9 +622,9 @@ VH::getPrototypeLayout(const model::Function &Function) const {
   }
 }
 
-void verifyABI(const TupleTree<model::Binary> &Binary,
-               llvm::StringRef RuntimeArtifact,
-               model::ABI::Values ABI) {
+std::vector<Failure> verifyABI(const TupleTree<model::Binary> &Binary,
+                               llvm::StringRef RuntimeArtifact,
+                               model::ABI::Values ABI) {
   model::Architecture::Values Architecture = model::ABI::getArchitecture(ABI);
   auto Parsed = abi::runtime_test::parse(RuntimeArtifact, Architecture);
 
@@ -712,5 +696,5 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
     revng_abort(Error.c_str());
   }
 
-  Helper.printResults();
+  return Helper.getFailures();
 }
