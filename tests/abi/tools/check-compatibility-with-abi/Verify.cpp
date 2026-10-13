@@ -323,7 +323,11 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
 
     if (ABI.PackStackArguments()) {
       if (PotentialPadding) {
-        Remaining.Stack = Remaining.Stack.drop_front(PotentialPadding);
+        if (Remaining.Stack.size() < PotentialPadding)
+          Remaining.Stack = {};
+        else
+          Remaining.Stack = Remaining.Stack.drop_front(PotentialPadding);
+
         if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
           // Stack matches after accounting for extra padding.
           break;
