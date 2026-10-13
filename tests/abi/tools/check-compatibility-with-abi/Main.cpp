@@ -4,6 +4,11 @@
 /// intended ABI no matter what kind of work was done on top of it. It works
 /// with both `RawFunctionDefinition` and `CABIFunctionDefinition`.
 ///
+/// The first positional argument is the expected type kind (either
+/// `CABIFunctionDefinition` or `RawFunctionDefinition`): an error is generated
+/// if *any* `test_` function has a prototype that does not match this
+/// expectation.
+///
 /// \note: This tool requires a runtime abi artifact. It can be obtained using
 /// revng-qa. For more information see the corresponding repository.
 
@@ -21,6 +26,7 @@
 #include "llvm/Support/Signals.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/TypeDefinitionKind.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/InitRevng.h"
 
@@ -49,6 +55,11 @@ static opt<model::ABI::Values> TargetABI("abi",
                                          desc(Description),
                                          cat(ThisToolCategory));
 
+static opt<std::string> ExpectedPrototypeKind(Positional,
+                                              Required,
+                                              desc("<verify type>"),
+                                              cat(ThisToolCategory));
+
 static opt<std::string> Filename(Positional,
                                  Required,
                                  desc("<input file name>"),
@@ -63,6 +74,11 @@ static opt<std::string> Artifact(Positional,
 
 int main(int argc, char *argv[]) {
   revng::InitRevng X(argc, argv, "", { &Options::ThisToolCategory });
+
+  namespace TDK = model::TypeDefinitionKind;
+  auto ExpectedPrototypeKind = TDK::fromName(Options::ExpectedPrototypeKind);
+  revng_assert(ExpectedPrototypeKind == TDK::CABIFunctionDefinition
+               or ExpectedPrototypeKind == TDK::RawFunctionDefinition);
 
   auto InputOrError = llvm::MemoryBuffer::getFileOrSTDIN(Options::Filename);
   if (!InputOrError) {
@@ -98,5 +114,5 @@ int main(int argc, char *argv[]) {
     revng_abort(Error.c_str());
   }
 
-  verifyABI(*Deserialized, Artifact, Options::TargetABI);
+  verifyABI(*Deserialized, Artifact, Options::TargetABI, ExpectedPrototypeKind);
 }
