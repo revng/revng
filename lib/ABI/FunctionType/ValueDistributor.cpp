@@ -78,7 +78,7 @@ ValueDistributor::distribute(uint64_t Size,
     bool MultiAligned = (Size >= PointerSize && Alignment > PointerSize)
                         || (Size > PointerSize
                             && ABI.BigArgumentsUsePointersToCopy());
-    bool LastRegisterUsed = ConsideredRegisterCounter == OccupiedRegisterCount;
+    bool LastRegisterUsed = ConsideredRegisterCounter == Registers.size();
     bool FirstRegisterOdd = (OccupiedRegisterCount & 1) != 0;
     if (MultiAligned && !LastRegisterUsed && FirstRegisterOdd) {
       LoggerIndent Indentation(Log);
@@ -91,6 +91,8 @@ ValueDistributor::distribute(uint64_t Size,
         // Omit marking the very last register as padding since the argument
         // is going to end up on the stack anyway.
       } else {
+        revng_assert(OccupiedRegisterCount < Registers.size());
+
         // Add an extra "padding" argument to represent this.
         DistributedValue &Padding = Result.emplace_back();
         Padding.Registers = { Registers[OccupiedRegisterCount++] };
@@ -112,6 +114,7 @@ ValueDistributor::distribute(uint64_t Size,
   bool AllowSplitting = CanUseRegisters
                         && !ForbidSplittingBetweenRegistersAndStack
                         && ABI.ArgumentsCanBeSplitBetweenRegistersAndStack();
+  revng_assert(ConsideredRegisterCounter <= Registers.size());
   bool AllTheRegistersAreInUse = ConsideredRegisterCounter == LastRegister;
   if (SizeCounter >= Size && CanUseRegisters) {
     // This a register-only argument, add the registers.
