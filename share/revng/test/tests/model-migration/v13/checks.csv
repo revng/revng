@@ -1,0 +1,32 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Every `Float` that was not 4 or 8 bytes wide has become a `Generic` of the
+# same size, wherever it was spelled: struct fields, a typedef's underlying
+# type, an array's element type, a pointer's pointee and a prototype argument.
+.TypeDefinitions[0].Fields[0].Type.PrimitiveKind,"Float"
+.TypeDefinitions[0].Fields[0].Type.Size,4
+.TypeDefinitions[1].Fields[0].Type.PrimitiveKind,"Generic"
+.TypeDefinitions[1].Fields[0].Type.Size,2
+.TypeDefinitions[1].Fields[1].Type.PrimitiveKind,"Generic"
+.TypeDefinitions[1].Fields[1].Type.Size,10
+.TypeDefinitions[1].Fields[2].Type.PrimitiveKind,"Generic"
+.TypeDefinitions[1].Fields[2].Type.Size,16
+
+# A `Generic` is not a float, so this one is untouched by the migration.
+.TypeDefinitions[2].Fields[0].Type.PrimitiveKind,"Generic"
+.TypeDefinitions[2].Fields[0].Type.Size,10
+
+.TypeDefinitions[3].UnderlyingType.PrimitiveKind,"Generic"
+.TypeDefinitions[3].UnderlyingType.Size,16
+.TypeDefinitions[4].Fields[0].Type.ElementType.PrimitiveKind,"Generic"
+.TypeDefinitions[4].Fields[0].Type.ElementType.Size,12
+.TypeDefinitions[5].UnderlyingType.PointeeType.PrimitiveKind,"Generic"
+.TypeDefinitions[5].UnderlyingType.PointeeType.Size,10
+.TypeDefinitions[6].Arguments[0].Type.PrimitiveKind,"Generic"
+.TypeDefinitions[6].Arguments[0].Type.Size,16
+
+# The prototype's `double` return value is still a float.
+.TypeDefinitions[6].ReturnType.PrimitiveKind,"Float"
+.TypeDefinitions[6].ReturnType.Size,8

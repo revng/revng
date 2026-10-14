@@ -34,7 +34,7 @@ GeneralPurposeArgumentRegisters:
 GeneralPurposeReturnValueRegisters:
   - rax_x86_64
   - rdx_x86_64
-VectorArgumentRegisters:
+FloatArgumentRegisters:
   - zmm0_x86_64
   - zmm1_x86_64
   - zmm2_x86_64
@@ -43,7 +43,7 @@ VectorArgumentRegisters:
   - zmm5_x86_64
   - zmm6_x86_64
   - zmm7_x86_64
-VectorReturnValueRegisters:
+FloatReturnValueRegisters:
   - zmm0_x86_64
   - zmm1_x86_64
 CalleeSavedRegisters:
@@ -69,16 +69,9 @@ ScalarTypes:
   - Kind: Integer
     Size: 16
   - Kind: FloatingPoint
-    Size: 2 # IEEE Binary16
-  - Kind: FloatingPoint
     Size: 4 # IEEE Binary32
   - Kind: FloatingPoint
     Size: 8 # IEEE Binary64
-  - Kind: FloatingPoint
-    Size: 16 # x87 Extended
-    CTypes:
-      - LongDouble
-
 PrimitiveAliases:
   - Name: size_t
     Kind: Unsigned

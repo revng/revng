@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 12
+version: 13
 root_type: Binary
 
 definitions:
@@ -568,14 +568,17 @@ definitions:
           { 1, 2, 4, 8, 16 }
           ```
 
-          Note that *only* floating point primitives (and `Generic` primitives,
-          whose kind is not known, so they are assumed to be floating point
-          compatible) can also have additional sizes:
+          Floating point primitives are further restricted to the widths C's
+          `float` and `double` actually have:
           ```
-          { 10, 12 }
+          { 4, 8 }
           ```
 
-          Note that 1-byte floating point primitives are not allowed.
+          `Generic` primitives, whose kind is not known, keep accepting every
+          size any other kind accepts:
+          ```
+          { 1, 2, 4, 8, 10, 12, 16, 32, 64 }
+          ```
 
           Note that `Void` *must* have size of 0.
         type: uint64_t

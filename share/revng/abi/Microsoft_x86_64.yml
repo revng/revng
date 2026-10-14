@@ -31,12 +31,12 @@ GeneralPurposeArgumentRegisters:
   - r9_x86_64
 GeneralPurposeReturnValueRegisters:
   - rax_x86_64
-VectorArgumentRegisters:
+FloatArgumentRegisters:
   - zmm0_x86_64
   - zmm1_x86_64
   - zmm2_x86_64
   - zmm3_x86_64
-VectorReturnValueRegisters:
+FloatReturnValueRegisters:
   - zmm0_x86_64
 CalleeSavedRegisters:
   - r12_x86_64
@@ -66,8 +66,6 @@ ScalarTypes:
     Size: 8
   - Kind: Integer
     Size: 16
-  - Kind: FloatingPoint
-    Size: 2 # IEEE Binary16
   - Kind: FloatingPoint
     Size: 4 # IEEE Binary32
   - Kind: FloatingPoint

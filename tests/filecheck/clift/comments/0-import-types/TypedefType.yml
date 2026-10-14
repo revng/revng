@@ -10,7 +10,7 @@
 
 TypeDefinitions:
   # CHECK: !_type_definition_0_TypedefDefinition = !clift.typedef<
-  # CHECK:   "/type-definition/0-TypedefDefinition" : !float96_t
+  # CHECK:   "/type-definition/0-TypedefDefinition" : !float64_t
   # CHECK: >
   - ID: 0
     Comment: |-
@@ -23,6 +23,6 @@ TypeDefinitions:
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Float
-      Size: 12
+      Size: 8
 
 Architecture: x86_64

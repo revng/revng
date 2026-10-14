@@ -700,7 +700,7 @@ bool Layout::verify() const {
 
   for (auto &&[Index, ReturnValue] : llvm::enumerate(ReturnValues)) {
     // The distributor drops floating point return values on ABIs without
-    // vector return value registers
+    // float return value registers
     if (ReturnValue.Registers.empty())
       continue;
 
@@ -841,7 +841,7 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
   }
 
   if (ABI.GeneralPurposeArgumentRegisters().empty()
-      && ABI.VectorArgumentRegisters().empty()) {
+      && ABI.FloatArgumentRegisters().empty()) {
     // Do not even look at the arguments if an ABI explicitly states that it
     // never uses any registers in the first place.
     return Result;
