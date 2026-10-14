@@ -1,0 +1,129 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# A model from before `Float` primitives were restricted to 4 and 8 bytes.
+#
+# Every `Float` primitive below that is not 4 or 8 bytes wide must become a
+# `Generic` primitive of the *same size* after migrating to version 13, so that
+# the layout is preserved. `Generic` primitives are left untouched, and so are
+# the 4 and 8 byte `Float` ones.
+
+Version: 12
+
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+
+Segments:
+  - StartAddress: "0x1000:Generic64"
+    VirtualSize: 4096
+    StartOffset: 0
+    FileSize: 4096
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
+    Type:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/7-StructDefinition"
+
+TypeDefinitions:
+  # A float that stays a float.
+  - ID: 0
+    Kind: StructDefinition
+    Size: 8
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 4
+
+  # Invalid sizes, directly as struct fields. `Float` 2 and 16 both have a
+  # `Generic` of the same size to be demoted to.
+  - ID: 1
+    Kind: StructDefinition
+    Size: 32
+    Fields:
+      - Offset: 0
+        Name: half
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 2
+      - Offset: 16
+        Name: sixteen
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 16
+
+  # A `Generic` that is already a valid size must be left alone.
+  - ID: 2
+    Kind: StructDefinition
+    Size: 16
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 16
+
+  # Invalid sizes reached through a typedef,
+  - ID: 3
+    Kind: TypedefDefinition
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Float
+      Size: 16
+
+  # and through an array,
+  - ID: 4
+    Kind: StructDefinition
+    Size: 32
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: ArrayType
+          ElementType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 16
+          ElementCount: 2
+
+  # and through a pointer.
+  - ID: 5
+    Kind: TypedefDefinition
+    UnderlyingType:
+      Kind: PointerType
+      PointeeType:
+        Kind: PrimitiveType
+        PrimitiveKind: Float
+        Size: 16
+      PointerSize: 8
+
+  # A prototype argument and return value.
+  - ID: 6
+    Kind: CABIFunctionDefinition
+    ABI: SystemV_x86_64
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 16
+    ReturnType:
+      Kind: PrimitiveType
+      PrimitiveKind: Float
+      Size: 8
+
+  - ID: 7
+    Kind: StructDefinition
+    Size: 4096
+    CanContainCode: true
+    IsSingleton: true
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 16

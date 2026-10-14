@@ -356,13 +356,9 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
 //
 
 static constexpr std::array ValidNumericPrimitives{ 1, 2, 4, 8, 16, 32, 64 };
-static constexpr std::array ValidFloatPrimitives{ 2, 4, 8, 10, 12, 16 };
-// NOTE: We are supporting floats that are 10 bytes long, since we found such
-//       cases in some PDB files by using VS on Windows platforms. The source
-//       code of those cases could be written in some language other than
-//       C/C++ (probably Swift). We faced some struct fields by using this
-//       (10b long float) type, so by ignoring it we would not have accurate
-//       layout for the structs.
+
+// Only C's `float` and `double` are supported as of now.
+static constexpr std::array ValidFloatPrimitives{ 4, 8 };
 
 uint64_t
 model::PrimitiveType::maximumValidSize(model::PrimitiveKind::Values Kind) {
@@ -380,7 +376,8 @@ model::PrimitiveType::maximumValidSize(model::PrimitiveKind::Values Kind) {
     return ValidFloatPrimitives.back();
 
   case PrimitiveKind::Generic:
-    return std::max(ValidNumericPrimitives.back(), ValidFloatPrimitives.back());
+    return std::max({ ValidNumericPrimitives.back(),
+                      ValidFloatPrimitives.back() });
 
   default:
     revng_abort("Unsupported primitive kind");

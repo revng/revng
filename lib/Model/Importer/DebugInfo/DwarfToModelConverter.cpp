@@ -298,8 +298,10 @@ void DwarfToModelConverter::createType(const DWARFDie &Die) {
       return;
     }
 
-    if (Kind == model::PrimitiveKind::Float and Size > 8) {
-      reportIgnoredDie(Die, "Ignoring floating-point primitives larger than 8");
+    if (not model::PrimitiveType::isSizeValid(Kind, Size)) {
+      reportIgnoredDie(Die,
+                       "Warning: " + std::to_string(Size) + "-byte '"
+                         + toString(Kind) + "'s are not currently supported.");
       createInvalidPrimitivePlaceholder(Die);
       return;
     }

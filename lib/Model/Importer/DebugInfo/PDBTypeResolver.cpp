@@ -80,7 +80,8 @@ static std::optional<uint64_t> getSizeInBytes(TypeIndex TI) {
   case SimpleTypeKind::Float64:
     return 8;
   case SimpleTypeKind::Float80:
-    return 10;
+    // TODO: add support.
+    return std::nullopt;
   case SimpleTypeKind::Float128:
     return 16;
   case SimpleTypeKind::Boolean8:
@@ -141,9 +142,9 @@ codeviewSimpleTypeEncodingToModel(TypeIndex TI) {
   case SimpleTypeKind::Float16:
   case SimpleTypeKind::Float32:
   case SimpleTypeKind::Float64:
-  case SimpleTypeKind::Float80:
   case SimpleTypeKind::Float128:
     return model::PrimitiveKind::Float;
+  case SimpleTypeKind::Float80:
   default:
     return model::PrimitiveKind::Invalid;
   }
@@ -242,6 +243,14 @@ const model::UpcastableType *TypeResolver::handleSimpleType(TypeIndex Index) {
                 "Warning: invalid simple type "
                   << toString(Index) << " with simple kind "
                   << static_cast<uint32_t>(Index.getSimpleKind()));
+      return fail(Index);
+    }
+
+    if (not PrimitiveType::isSizeValid(PrimitiveKind, *PrimitiveSize)) {
+      revng_log(Log,
+                "Warning: " << std::to_string(*PrimitiveSize) << "-byte '"
+                            << toString(PrimitiveKind)
+                            << "'s are not currently supported.");
       return fail(Index);
     }
 

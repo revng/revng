@@ -87,12 +87,6 @@ ScalarTypes:
     Size: 4 # IEEE Binary32
   - Kind: FloatingPoint
     Size: 8 # IEEE Binary16
-  - Kind: FloatingPoint
-    Size: 16 # IEEE Binary128
-    AlignedAt: 8
-    CTypes:
-      - LongDouble
-
 PrimitiveAliases:
   - Name: size_t
     Kind: Unsigned

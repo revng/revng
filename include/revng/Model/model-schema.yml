@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 13
+version: 14
 root_type: Binary
 
 definitions:
@@ -576,14 +576,11 @@ definitions:
           { 1, 2, 4, 8, 16 }
           ```
 
-          Note that *only* floating point primitives (and `Generic` primitives,
-          whose kind is not known, so they are assumed to be floating point
-          compatible) can also have additional sizes:
+          Floating point primitives are further restricted to just C's
+          `float` and `double`:
           ```
-          { 10, 12 }
+          { 4, 8 }
           ```
-
-          Note that 1-byte floating point primitives are not allowed.
 
           Note that `Void` *must* have size of 0.
         type: uint64_t
@@ -610,7 +607,7 @@ definitions:
           kinds, except for `Void`.
 
           Written in C as `generic8_t`, `generic16_t`, `generic32_t`,
-          `generic64_t`, `generic80_t`, `generic96_t`, `generic128_t`.
+          `generic64_t`, `generic128_t`, `generic256_t`, `generic512_t`.
 
       - name: PointerOrNumber
         doc: |-
@@ -645,9 +642,7 @@ definitions:
         doc: |-
           A IEEE 754 floating point number.
 
-          Written in C as `float16_t`, `float32_t`, `float64_t`, `float80_t`,
-          `float96_t`, `float128_t` -- so C's `float` is `float32_t` and
-          `double` is `float64_t`. There is no `float8_t`.
+          Written in C as `float32_t` (for `float`) and `float64_t` (for `double`).
 
   - name: PointerType
     inherits: Type
