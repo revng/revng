@@ -64,6 +64,7 @@
     - mixed_int_union_pointer_arguments
     - apple_padded_eight_byte_aligned_primitive_on_stack
   errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
     - Argument 0 uses neither the expected stack part nor the expected registers.
     - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 2 uses neither the expected stack part nor the expected registers.
@@ -94,6 +95,7 @@
     - apple_reverse_four_byte_aligned_primitive_on_stack
     - apple_padded_four_byte_aligned_primitive_on_stack
   errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
     - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 2 uses neither the expected stack part nor the expected registers.
     - Argument 3 uses neither the expected stack part nor the expected registers.
@@ -150,6 +152,7 @@
     - single_big_union_return_value
     - single_huge_union_return_value
   errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
     - A piece of the return value found in the `v0_mips` register doesn't match the expected value.
     - The return value doesn't match the one that was expected.
     - Verification of the return value location register (`v0_mips`) failed.

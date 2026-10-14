@@ -48,3 +48,9 @@ These tests are RFT-specific. That is to say, something about the difference bet
 ##### `floating-point.yml`
 
 These tests blanked-disable everything related to floating point. This file will serve as a progress bar of the floating point support, with ABIs leaving it one by one.
+
+##### `non-cft.yml`
+
+These are the test functions that failed to get converted from a `CABIFunctionDefinition` back into one after the `CFT -> RFT -> CFT` roundtrip.
+
+Technically, this is not the end of the world (as we get to keep the RFT if CFT is not produced), but it is still a problem, as it's a sign that something in these RFTs cannot be expressed as a CFT (despite the fact that they *were* CFTs before being 'downgraded'!).
