@@ -134,6 +134,11 @@ bool Definition::verify() const {
   if (!verifyRegisters(CalleeSavedRegisters(), Architecture))
     return false;
 
+  if (!abi::FloatingPointStrategy::isValid(FloatingPointArgumentStrategy()))
+    return false;
+  if (!abi::FloatingPointStrategy::isValid(FloatingPointReturnValueStrategy()))
+    return false;
+
   if (!verifyReturnValueLocation(*this))
     return false;
 
