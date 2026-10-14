@@ -17,6 +17,7 @@
     - mixed_struct_32_int_64_arguments
     - padded_eight_byte_scalar_in_registers
   errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
     - Argument 1 uses neither the expected stack part nor the expected registers.
 
 - ABIs:

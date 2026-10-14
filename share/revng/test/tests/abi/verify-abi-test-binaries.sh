@@ -88,6 +88,7 @@ revng \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/non-cft.yml" \
     --verify-type=CABIFunctionDefinition \
     "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"

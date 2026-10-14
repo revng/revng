@@ -77,6 +77,7 @@
     - unnaturally_aligned_union_32_in_registers
     - unnaturally_aligned_union_64_in_registers
   errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
     - Argument 0 uses neither the expected stack part nor the expected registers.
     - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 2 uses neither the expected stack part nor the expected registers.
@@ -116,6 +117,7 @@
     - single_primitive_on_the_stack
     - two_primitives_on_the_stack
   errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
     - Argument 8 uses neither the expected stack part nor the expected registers.
     - Argument 9 uses neither the expected stack part nor the expected registers.
 
@@ -193,6 +195,7 @@
     - single_unnaturally_sized_three_byte_union_with_a_smaller_scalar_return_value
     - single_void_pointer_return_value
   errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
     - A piece of the return value found in the `v0_mips` register doesn't match the expected value.
     - The return value doesn't match the one that was expected.
     - Verification of the return value location register (`v0_mips`) failed.
