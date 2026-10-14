@@ -1,0 +1,35 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# This file contains the test functions that did not pass `RFT->CFT` conversion
+# (despite starting from a valid CFT). Meaning they couldn't survive
+# the roundtrip.
+#
+# Technically, this is not a big deal, as we get to keep the RFT if CFT is not
+# produced, but it still indicates that something about these RFTs cannot be
+# expressed as a CFT - which might be useful to know when debugging
+# RFT->CFT conversion in cases where we *do* care about.
+
+# Specifically, all the current cases are dedicated to SPTAR handling by ARM64.
+# Since this includes ALL the SPTAR cases, it's a clear sign that, either,
+# SPTAR detection itself is broken OR that something about the way
+# the testing suite handles SPTAR is not correct.
+
+- ABIs:
+    - AAPCS64
+    - Apple_AAPCS64
+    - Microsoft_AAPCS64
+  tests:
+    - single_big_struct_return_value
+    - single_big_union_return_value
+    - single_huge_struct_return_value
+    - single_huge_union_return_value
+    - single_struct_with_a_sixteen_byte_field_at_the_end_return_value
+    - single_struct_with_a_sixteen_byte_field_at_the_start_return_value
+    - single_union_with_a_sixteen_byte_field_at_the_end_return_value
+    - single_union_with_a_sixteen_byte_field_at_the_start_return_value
+    - single_unnaturally_aligned_struct_128_return_value
+    - single_unnaturally_aligned_union_128_return_value
+  errors:
+    - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
