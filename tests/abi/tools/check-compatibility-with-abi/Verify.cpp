@@ -477,6 +477,13 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
       // Check if SPTAR is where we expect to be.
       const auto &Registers = Test.StateBeforeTheCall.Registers;
       model::Register::Values SPTARRegister = SPTAR.Registers[0].Register;
+      if (not Registers.contains(SPTARRegister)) {
+        fail("Returned register (`"
+             + model::Register::getName(SPTARRegister).str()
+             + "`) is not present in the tested artifact.");
+        return;
+      }
+
       llvm::ArrayRef RegisterBytes = Registers.at(SPTARRegister).Bytes;
       if (RegisterBytes != llvm::ArrayRef(Test.ReturnValue.AddressBytes)) {
         fail("Verification of the return value location register (`"
@@ -517,6 +524,12 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
       }
 
       auto RVReg = FunctionLayout.ReturnValues[0].Registers[0].Register;
+      if (not Test.StateAfterTheReturn.Registers.contains(RVReg)) {
+        fail("Returned register (`" + model::Register::getName(RVReg).str()
+             + "`) is not present in the tested artifact.");
+        return;
+      }
+
       llvm::ArrayRef Bytes = Test.StateAfterTheReturn.Registers.at(RVReg).Bytes;
       if (ReturnValueLocationBytes != Bytes) {
         fail("Returned pointer (`" + model::Register::getName(RVReg).str()
@@ -527,10 +540,25 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
 
     // The only thing that's left is to verify that the return value is
     // actually present at the location the pointer points to.
+
     auto StackPointer = model::Architecture::getStackPointer(Architecture);
+    if (not Test.StateAfterTheReturn.Registers.contains(StackPointer)) {
+      fail("Stack pointer register (`"
+           + model::Register::getName(StackPointer).str()
+           + "`) is not present in the tested artifact.");
+      return;
+    }
+
     auto SPValue = Test.StateAfterTheReturn.Registers.at(StackPointer).Value;
     std::ptrdiff_t StackOffset = ReturnValueLocationValue - SPValue;
-    revng_assert(StackOffset >= 0);
+    if (StackOffset < 0) {
+      fail("Unexpected ReturnValueLocationValue ('"
+           + std::to_string(ReturnValueLocationValue)
+           + "') - it's smaller than the stack pointer value ('"
+           + std::to_string(SPValue) + "').");
+      return;
+    }
+
     llvm::ArrayRef OnStack = Test.StateAfterTheReturn.Stack;
     OnStack = OnStack.slice(StackOffset, Test.ReturnValue.FoundBytes.size());
     if (OnStack != llvm::ArrayRef(Test.ReturnValue.FoundBytes)) {
@@ -545,11 +573,19 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
     for (const auto &ReturnValue : FunctionLayout.ReturnValues) {
       for (const model::Register::Portion &Portion : ReturnValue.Registers) {
         model::Register::Values Register = Portion.Register;
+        if (not Test.StateAfterTheReturn.Registers.contains(Register)) {
+          fail("Register (`" + model::Register::getName(Register).str()
+               + "`) is not present in the tested artifact.");
+          return;
+        }
+
         const auto &RegState = Test.StateAfterTheReturn.Registers.at(Register);
         llvm::ArrayRef Bytes = RegState.Bytes;
-        revng_assert(Bytes.size() <= PointerSize);
-        Bytes = Bytes.take_front(ReturnValueBytes.size());
-        if (!ReturnValueBytes.take_front(Bytes.size()).equals(Bytes)) {
+
+        uint64_t CheckedByteCount = std::min(Bytes.size(),
+                                             ReturnValueBytes.size());
+        Bytes = Bytes.take_front(CheckedByteCount);
+        if (!ReturnValueBytes.take_front(CheckedByteCount).equals(Bytes)) {
           fail("A piece of the return value found in the `"
                + model::Register::getName(Register).str()
                + "` register doesn't match the expected value.");
