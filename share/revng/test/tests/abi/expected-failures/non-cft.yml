@@ -1,0 +1,131 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# See the readme for more information.
+
+- ABIs:
+    - AAPCS64
+    - Apple_AAPCS64
+    - Microsoft_AAPCS64
+  tests:
+    - single_big_struct_return_value
+    - single_big_union_return_value
+    - single_huge_struct_return_value
+    - single_huge_union_return_value
+    - single_unnaturally_aligned_struct_128_return_value
+    - single_unnaturally_aligned_union_128_return_value
+  errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
+
+- ABIs:
+    - Apple_AAPCS64
+  tests:
+    - misaligned_struct_of_structs_on_stack
+    - small_struct_of_structs_on_stack
+    - small_union_of_unions_on_stack
+    - two_byte_aligned_struct_on_stack
+    - two_byte_aligned_union_on_stack
+  errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
+
+- ABIs:
+    - Microsoft_x86_64
+    - Microsoft_x86_64_vectorcall
+  tests:
+    - apple_eight_byte_aligned_primitive_on_stack
+    - apple_four_byte_aligned_primitive_on_stack
+    - apple_padded_eight_byte_aligned_primitive_on_stack
+    - apple_padded_four_byte_aligned_primitive_on_stack
+    - apple_padded_two_byte_aligned_primitive_on_stack
+    - apple_reverse_eight_byte_aligned_primitive_on_stack
+    - apple_reverse_four_byte_aligned_primitive_on_stack
+    - apple_reverse_two_byte_aligned_primitive_on_stack
+    - apple_two_byte_aligned_primitive_on_stack
+    - eight_byte_aligned_scalar_on_stack
+    - eight_byte_aligned_struct_on_stack
+    - eight_byte_aligned_union_on_stack
+    - five_integer_arguments
+    - forced_stack
+    - four_byte_aligned_scalar_on_stack
+    - four_byte_aligned_struct_on_stack
+    - four_byte_aligned_union_on_stack
+    - lots_of_eight_byte_arguments
+    - lots_of_four_byte_arguments
+    - lots_of_one_byte_arguments
+    - lots_of_sixteen_byte_arguments
+    - lots_of_two_byte_arguments
+    - misaligned_struct_of_structs_on_stack
+    - misaligned_union_of_unions_on_stack
+    - mixed_int_struct_arguments
+    - mixed_int_struct_pointer_arguments
+    - mixed_int_union_arguments
+    - mixed_int_union_pointer_arguments
+    - mixed_integer_arguments
+    - padded_struct_of_structs_on_stack
+    - padded_struct_of_structs_with_a_sixteen_byte_field_on_stack
+    - sixteen_byte_scalar_after_seven_gprs
+    - small_struct_of_structs_on_stack
+    - small_union_of_unions_on_stack
+    - struct_of_structs_on_stack
+    - two_byte_aligned_struct_on_stack
+    - two_byte_aligned_union_on_stack
+    - union_of_unions_on_stack
+    - unnaturally_aligned_struct_128_on_stack
+    - unnaturally_aligned_struct_16_on_stack
+    - unnaturally_aligned_struct_32_on_stack
+    - unnaturally_aligned_struct_64_on_stack
+    - unnaturally_aligned_union_128_on_stack
+    - unnaturally_aligned_union_16_on_stack
+    - unnaturally_aligned_union_32_on_stack
+    - unnaturally_aligned_union_64_on_stack
+  errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
+
+- ABIs:
+    - SystemV_MIPSEL_o32_hardfloat
+    - SystemV_MIPSEL_o32_softfloat
+    - SystemV_MIPS_o32_hardfloat
+    - SystemV_MIPS_o32_softfloat
+  tests:
+    - equivalence_test_1_64_bit
+    - five_integer_arguments
+    - mixed_int_struct_arguments
+    - mixed_int_struct_pointer_arguments
+    - multiple_stack_arguments
+    - multiple_stack_unions
+    - single_big_struct_argument
+    - single_big_union_argument
+    - single_huge_struct_argument
+    - single_huge_union_argument
+    - single_padded_struct_of_structs_with_a_sixteen_byte_field_argument
+    - single_struct_with_a_sixteen_byte_field_argument
+    - single_union_with_a_sixteen_byte_field_argument
+    - six_register_test
+    - six_register_test_with_unions
+    - sixteen_byte_scalar_after_seven_gprs
+    - struct_of_structs_in_registers
+    - struct_of_structs_on_stack
+    - union_of_unions_on_stack
+  errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
+
+- ABIs:
+    - SystemV_MIPSEL_o32_hardfloat
+    - SystemV_MIPSEL_o32_softfloat
+  tests:
+    - apple_padded_four_byte_aligned_primitive_on_stack
+    - apple_reverse_four_byte_aligned_primitive_on_stack
+    - eight_byte_scalar_after_a_big_struct
+    - equivalence_test_2_32_bit
+    - equivalence_test_2_64_bit
+    - forced_stack
+    - misaligned_union_of_unions_on_stack
+    - padded_sixteen_byte_scalar_after_a_big_struct
+    - struct_of_structs_on_stack
+    - two_byte_aligned_struct_on_stack
+    - two_byte_aligned_union_on_stack
+    - unnaturally_aligned_struct_16_on_stack
+    - unnaturally_aligned_union_16_on_stack
+  errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"

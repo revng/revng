@@ -1,0 +1,77 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+ABI: AAPCS_softfloat
+
+ArgumentsArePositionBased: false
+OnlyStartDoubleArgumentsFromAnEvenRegister: true
+ArgumentsCanBeSplitBetweenRegistersAndStack: true
+BigArgumentsUsePointersToCopy: false
+NoRegisterArgumentsCanComeAfterStackOnes: true
+AllowPackedTypesInRegisters: true
+CalleeIsResponsibleForStackCleanup: false
+FloatsUseGPRs: true
+PackStackArguments: false
+TreatAllAggregatesAsPacked: false
+
+StackAlignment: 8
+MinimumStackArgumentSize: 4
+
+MaximumGPRsPerAggregateArgument: 4
+MaximumGPRsPerAggregateReturnValue: 1
+MaximumGPRsPerScalarArgument: 4
+MaximumGPRsPerScalarReturnValue: 4
+
+GeneralPurposeArgumentRegisters:
+  - r0_arm
+  - r1_arm
+  - r2_arm
+  - r3_arm
+GeneralPurposeReturnValueRegisters:
+  - r0_arm
+  - r1_arm
+  - r2_arm
+  - r3_arm
+VectorArgumentRegisters: []
+VectorReturnValueRegisters: []
+CalleeSavedRegisters:
+  - r4_arm
+  - r5_arm
+  - r6_arm
+  - r7_arm
+  - r8_arm
+  - r10_arm
+  - r11_arm
+  - r14_arm
+  - q4_arm
+  - q5_arm
+  - q6_arm
+  - q7_arm
+
+ReturnValueLocationRegister: r0_arm
+ReturnValueLocationIsReturned: true
+
+ScalarTypes:
+  - Kind: Integer
+    Size: 1
+  - Kind: Integer
+    Size: 2
+  - Kind: Integer
+    Size: 4
+  - Kind: Integer
+    Size: 8
+  - Kind: FloatingPoint
+    Size: 2 # IEEE Binary16
+  - Kind: FloatingPoint
+    Size: 4 # IEEE Binary32
+  - Kind: FloatingPoint
+    Size: 8 # IEEE Binary64
+
+PrimitiveAliases:
+  - Name: size_t
+    Kind: Unsigned
+    Size: 4
+  - Name: ptrdiff_t
+    Kind: Signed
+    Size: 4

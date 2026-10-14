@@ -1,0 +1,84 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+ABI: SystemV_MIPSEL_o32_softfloat
+
+ArgumentsArePositionBased: false
+OnlyStartDoubleArgumentsFromAnEvenRegister: true
+ArgumentsCanBeSplitBetweenRegistersAndStack: true
+BigArgumentsUsePointersToCopy: false
+NoRegisterArgumentsCanComeAfterStackOnes: false
+AllowPackedTypesInRegisters: false
+CalleeIsResponsibleForStackCleanup: false
+FloatsUseGPRs: true
+PackStackArguments: false
+TreatAllAggregatesAsPacked: false
+
+StackAlignment: 4
+MinimumStackArgumentSize: 4
+UnusedStackArgumentBytes: 16
+
+MaximumGPRsPerAggregateArgument: 4
+MaximumGPRsPerAggregateReturnValue: 1
+MaximumGPRsPerScalarArgument: 4
+MaximumGPRsPerScalarReturnValue: 4
+
+GeneralPurposeArgumentRegisters:
+  - a0_mips
+  - a1_mips
+  - a2_mips
+  - a3_mips
+GeneralPurposeReturnValueRegisters:
+  - v0_mips
+  - v1_mips
+VectorArgumentRegisters: []
+VectorReturnValueRegisters: []
+CalleeSavedRegisters:
+  - s0_mips
+  - s1_mips
+  - s2_mips
+  - s3_mips
+  - s4_mips
+  - s5_mips
+  - s6_mips
+  - s7_mips
+  - gp_mips
+  - fp_mips
+  - f20_mips
+  - f21_mips
+  - f22_mips
+  - f23_mips
+  - f24_mips
+  - f25_mips
+  - f26_mips
+  - f27_mips
+  - f28_mips
+  - f29_mips
+  - f30_mips
+  - f31_mips
+
+ReturnValueLocationRegister: v0_mips
+ReturnValueLocationIsReturned: true
+
+ScalarTypes:
+  - Kind: Integer
+    Size: 1
+  - Kind: Integer
+    Size: 2
+  - Kind: Integer
+    Size: 4
+  - Kind: Integer
+    Size: 8
+  - Kind: FloatingPoint
+    Size: 4 # IEEE Binary32
+  - Kind: FloatingPoint
+    Size: 8 # IEEE Binary64
+
+PrimitiveAliases:
+  - Name: size_t
+    Kind: Unsigned
+    Size: 4
+  - Name: ptrdiff_t
+    Kind: Signed
+    Size: 4
