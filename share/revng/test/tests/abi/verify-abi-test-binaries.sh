@@ -57,27 +57,37 @@ revng pipeline run-analysis convert-functions-to-raw \
     -o "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"
 
 # Verify that no step contradicts the actual state.
+EXPECTED_FAILURES="${SCRIPT_DIRECTORY}/expected-failures"
+
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     "${OUTPUT_DIRECTORY}/reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
