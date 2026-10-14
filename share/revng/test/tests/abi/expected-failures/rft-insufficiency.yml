@@ -1,0 +1,35 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# See the readme for more information.
+
+- ABIs:
+    - AAPCS_hardfloat
+    - AAPCS_softfloat
+    - SystemV_MIPSEL_o32_hardfloat
+    - SystemV_MIPSEL_o32_softfloat
+    - SystemV_MIPS_o32_hardfloat
+    - SystemV_MIPS_o32_softfloat
+  tests:
+    - nested_float_struct_union_argument_in_registers
+    - mixed_int_union_pointer_arguments
+    - padded_eight_byte_scalar_in_registers
+  errors:
+    - Argument 1 uses neither the expected stack part nor the expected registers.
+
+- ABIs:
+    - AAPCS64
+  tests:
+    - padded_sixteen_byte_scalar_in_registers
+  errors:
+    - Argument 1 uses neither the expected stack part nor the expected registers.
+
+- ABIs:
+    - AAPCS_softfloat
+    - SystemV_MIPSEL_o32_softfloat
+    - SystemV_MIPS_o32_softfloat
+  tests:
+    - integer_double_pair
+  errors:
+    - Argument 1 uses neither the expected stack part nor the expected registers.

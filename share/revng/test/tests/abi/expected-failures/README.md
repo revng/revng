@@ -40,3 +40,7 @@ Note that since these issues are visible in the output of the test binaries, the
 These are failures specific to ARM, and they are relatively new (uncovered in a recent iteration of the testing suite). There might be easy fixes in there.
 
 These are definitely issues with the `revngABI`, testing binary output looks correct.
+
+##### `rft-insufficiency.yml`
+
+These tests are RFT-specific. That is to say, something about the difference between the `CFT->RFT` path and the `CFT->Layout` path breaks these.
