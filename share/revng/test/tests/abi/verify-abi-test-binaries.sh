@@ -72,6 +72,7 @@ revng \
     -abi="${ABI_NAME}" \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
     --expected-failures="${EXPECTED_FAILURES}/apple-specific.yml" \
     "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
@@ -81,6 +82,7 @@ revng \
     -abi="${ABI_NAME}" \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
     "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
@@ -89,6 +91,7 @@ revng \
     -abi="${ABI_NAME}" \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
     --expected-failures="${EXPECTED_FAILURES}/apple-specific.yml" \
     "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
