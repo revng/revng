@@ -32,12 +32,12 @@ GeneralPurposeArgumentRegisters:
 GeneralPurposeReturnValueRegisters:
   - v0_mips
   - v1_mips
-VectorArgumentRegisters:
+FloatArgumentRegisters:
   - f12_mips
   - f13_mips
   - f14_mips
   - f15_mips
-VectorReturnValueRegisters:
+FloatReturnValueRegisters:
   - f0_mips
   - f1_mips
   - f2_mips

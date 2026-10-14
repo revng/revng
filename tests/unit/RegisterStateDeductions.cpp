@@ -24,26 +24,26 @@ BOOST_AUTO_TEST_CASE(OneGPRegister) {
   auto ABI = abi::Definition::get(model::ABI::SystemZ_s390x);
   const auto &GPRArguments = ABI.GeneralPurposeArgumentRegisters();
   const auto &GPRRetValues = ABI.GeneralPurposeReturnValueRegisters();
-  const auto &VRArguments = ABI.VectorArgumentRegisters();
-  const auto &VRRetValues = ABI.VectorReturnValueRegisters();
+  const auto &FRArguments = ABI.FloatArgumentRegisters();
+  const auto &FRRetValues = ABI.FloatReturnValueRegisters();
 
   abi::Definition::RegisterSet Arguments{ GPRArguments[0] };
   Arguments = ABI.enforceArgumentRegisterState(std::move(Arguments));
   revng_check(Arguments.contains(GPRArguments[0]));
-  revng_check(not Arguments.contains(VRArguments[0]));
+  revng_check(not Arguments.contains(FRArguments[0]));
 
   abi::Definition::RegisterSet RValues{ GPRRetValues[0] };
   RValues = ABI.enforceReturnValueRegisterState(std::move(RValues));
   revng_check(Arguments.contains(GPRRetValues[0]));
-  revng_check(not Arguments.contains(VRRetValues[0]));
+  revng_check(not Arguments.contains(FRRetValues[0]));
 }
 
-BOOST_AUTO_TEST_CASE(GPRArgumentsAndVRReturnValue) {
+BOOST_AUTO_TEST_CASE(GPRArgumentsAndFRReturnValue) {
   auto ABI = abi::Definition::get(model::ABI::Microsoft_x86_64);
   const auto &GPRArguments = ABI.GeneralPurposeArgumentRegisters();
   const auto &GPRRetValues = ABI.GeneralPurposeReturnValueRegisters();
-  const auto &VRArguments = ABI.VectorArgumentRegisters();
-  const auto &VRRetValues = ABI.VectorReturnValueRegisters();
+  const auto &FRArguments = ABI.FloatArgumentRegisters();
+  const auto &FRRetValues = ABI.FloatReturnValueRegisters();
 
   abi::Definition::RegisterSet Arguments{ GPRArguments[2] };
   Arguments = ABI.enforceArgumentRegisterState(std::move(Arguments));
@@ -51,40 +51,40 @@ BOOST_AUTO_TEST_CASE(GPRArgumentsAndVRReturnValue) {
   revng_check(Arguments.contains(GPRArguments[1]));
   revng_check(Arguments.contains(GPRArguments[2]));
   revng_check(not Arguments.contains(GPRArguments[3]));
-  revng_check(not Arguments.contains(VRArguments[0]));
-  revng_check(not Arguments.contains(VRArguments[1]));
-  revng_check(not Arguments.contains(VRArguments[2]));
-  revng_check(not Arguments.contains(VRArguments[3]));
+  revng_check(not Arguments.contains(FRArguments[0]));
+  revng_check(not Arguments.contains(FRArguments[1]));
+  revng_check(not Arguments.contains(FRArguments[2]));
+  revng_check(not Arguments.contains(FRArguments[3]));
 
-  abi::Definition::RegisterSet RValues{ VRRetValues[0] };
+  abi::Definition::RegisterSet RValues{ FRRetValues[0] };
   RValues = ABI.enforceReturnValueRegisterState(std::move(RValues));
-  revng_check(RValues.contains(VRRetValues[0]));
+  revng_check(RValues.contains(FRRetValues[0]));
   revng_check(not RValues.contains(GPRRetValues[0]));
 }
 
 BOOST_AUTO_TEST_CASE(DeduceFirstArgument) {
   auto ABI = abi::Definition::get(model::ABI::SystemZ_s390x);
   const auto &GPRArguments = ABI.GeneralPurposeArgumentRegisters();
-  const auto &VRArguments = ABI.VectorArgumentRegisters();
+  const auto &FRArguments = ABI.FloatArgumentRegisters();
 
-  abi::Definition::RegisterSet Arguments{ VRArguments[1] };
+  abi::Definition::RegisterSet Arguments{ FRArguments[1] };
   Arguments = ABI.enforceArgumentRegisterState(std::move(Arguments));
   revng_check(Arguments.contains(GPRArguments[0]));
   revng_check(not Arguments.contains(GPRArguments[1]));
   revng_check(not Arguments.contains(GPRArguments[2]));
   revng_check(not Arguments.contains(GPRArguments[3]));
-  revng_check(not Arguments.contains(VRArguments[0]));
-  revng_check(Arguments.contains(VRArguments[1]));
-  revng_check(not Arguments.contains(VRArguments[2]));
-  revng_check(not Arguments.contains(VRArguments[3]));
+  revng_check(not Arguments.contains(FRArguments[0]));
+  revng_check(Arguments.contains(FRArguments[1]));
+  revng_check(not Arguments.contains(FRArguments[2]));
+  revng_check(not Arguments.contains(FRArguments[3]));
 }
 
 BOOST_AUTO_TEST_CASE(DisambiguationFail) {
   auto ABI = abi::Definition::get(model::ABI::SystemZ_s390x);
   const auto &GPRArguments = ABI.GeneralPurposeArgumentRegisters();
-  const auto &VRArguments = ABI.VectorArgumentRegisters();
+  const auto &FRArguments = ABI.FloatArgumentRegisters();
 
-  abi::Definition::RegisterSet Arguments{ GPRArguments[0], VRArguments[0] };
+  abi::Definition::RegisterSet Arguments{ GPRArguments[0], FRArguments[0] };
   auto Result = ABI.tryDeducingArgumentRegisterState(std::move(Arguments));
   revng_check(!Result.has_value());
 }
@@ -92,9 +92,9 @@ BOOST_AUTO_TEST_CASE(DisambiguationFail) {
 BOOST_AUTO_TEST_CASE(UndetectableFail) {
   auto ABI = abi::Definition::get(model::ABI::SystemZ_s390x);
   const auto &GPRArguments = ABI.GeneralPurposeArgumentRegisters();
-  const auto &VRArguments = ABI.VectorArgumentRegisters();
+  const auto &FRArguments = ABI.FloatArgumentRegisters();
 
-  abi::Definition::RegisterSet Arguments{ VRArguments[1] };
+  abi::Definition::RegisterSet Arguments{ FRArguments[1] };
   auto Result = ABI.tryDeducingArgumentRegisterState(std::move(Arguments));
   revng_check(!Result.has_value());
 }
@@ -102,31 +102,31 @@ BOOST_AUTO_TEST_CASE(UndetectableFail) {
 BOOST_AUTO_TEST_CASE(UndetectableCornerCase) {
   auto ABI = abi::Definition::get(model::ABI::SystemZ_s390x);
   const auto &GPRArguments = ABI.GeneralPurposeArgumentRegisters();
-  const auto &VRArguments = ABI.VectorArgumentRegisters();
+  const auto &FRArguments = ABI.FloatArgumentRegisters();
 
-  abi::Definition::RegisterSet Arguments{ VRArguments[1] };
+  abi::Definition::RegisterSet Arguments{ FRArguments[1] };
   auto Result = ABI.enforceArgumentRegisterState(std::move(Arguments));
   revng_assert(Result.contains(GPRArguments[0]));
   revng_assert(not Result.contains(GPRArguments[1]));
-  revng_assert(not Result.contains(VRArguments[0]));
-  revng_assert(Result.contains(VRArguments[1]));
+  revng_assert(not Result.contains(FRArguments[0]));
+  revng_assert(Result.contains(FRArguments[1]));
 }
 
 BOOST_AUTO_TEST_CASE(MixedRegisters) {
   auto ABI = abi::Definition::get(model::ABI::SystemV_x86_64);
   const auto &GPRArguments = ABI.GeneralPurposeArgumentRegisters();
-  const auto &VRArguments = ABI.VectorArgumentRegisters();
+  const auto &FRArguments = ABI.FloatArgumentRegisters();
 
-  abi::Definition::RegisterSet Arguments{ GPRArguments[2], VRArguments[2] };
+  abi::Definition::RegisterSet Arguments{ GPRArguments[2], FRArguments[2] };
   Arguments = ABI.enforceArgumentRegisterState(std::move(Arguments));
   revng_check(Arguments.contains(GPRArguments[0]));
   revng_check(Arguments.contains(GPRArguments[1]));
   revng_check(Arguments.contains(GPRArguments[2]));
   revng_check(not Arguments.contains(GPRArguments[3]));
-  revng_check(Arguments.contains(VRArguments[0]));
-  revng_check(Arguments.contains(VRArguments[1]));
-  revng_check(Arguments.contains(VRArguments[2]));
-  revng_check(not Arguments.contains(VRArguments[3]));
+  revng_check(Arguments.contains(FRArguments[0]));
+  revng_check(Arguments.contains(FRArguments[1]));
+  revng_check(Arguments.contains(FRArguments[2]));
+  revng_check(not Arguments.contains(FRArguments[3]));
 }
 
 BOOST_AUTO_TEST_CASE(AllTheRegisters) {

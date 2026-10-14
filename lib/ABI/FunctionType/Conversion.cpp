@@ -66,7 +66,7 @@ public:
       if (Kind == model::PrimitiveKind::Values::PointerOrNumber)
         ++Distributor.UsedGeneralPurposeRegisterCount;
       else if (Kind == model::PrimitiveKind::Float)
-        ++Distributor.UsedVectorRegisterCount;
+        ++Distributor.UsedFloatRegisterCount;
       else
         revng_abort(("Register ("
                      + model::Register::getName(NTRegister.Location()).str()
@@ -362,8 +362,8 @@ bool canBeNext(ArgumentDistributor &Distributor,
             "Checking whether the argument #"
               << Distributor.ArgumentIndex << " can be slotted right in.\n"
               << "Currently " << Distributor.UsedGeneralPurposeRegisterCount
-              << " general purpose and " << Distributor.UsedVectorRegisterCount
-              << " vector registers are in use.");
+              << " general purpose and " << Distributor.UsedFloatRegisterCount
+              << " float registers are in use.");
 
   if (!verifyAlignment(ABI, Current, Previous))
     return false;
