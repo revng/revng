@@ -264,7 +264,7 @@ const Definition &Definition::get(model::ABI::Values ABI) {
     revng_abort(Error.c_str());
   }
 
-  if (!Parsed->verify()) {
+  if (!(*Parsed)->verify()) {
     std::string Error = "Deserialized ABI definition is not valid: "
                         + ::toString(ABI);
     revng_abort(Error.c_str());
