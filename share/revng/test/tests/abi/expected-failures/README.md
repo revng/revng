@@ -44,3 +44,7 @@ These are definitely issues with the `revngABI`, testing binary output looks cor
 ##### `rft-insufficiency.yml`
 
 These tests are RFT-specific. That is to say, something about the difference between the `CFT->RFT` path and the `CFT->Layout` path breaks these.
+
+##### `floating-point.yml`
+
+These tests blanked-disable everything related to floating point. This file will serve as a progress bar of the floating point support, with ABIs leaving it one by one.
