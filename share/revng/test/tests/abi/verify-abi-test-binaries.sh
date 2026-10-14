@@ -101,13 +101,31 @@ revng \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
     > "${UNFILTERED_FAILURES}/downgraded_upgraded_downgraded_reference_binary.yml"
 
+# All the failure lists are recorded, now check whether tests should pass or not
+# by talking the expected failure lists into account.
+#
+# For the explanation on the specific lists, see the comments inside the
+# corresponding files.
+EXPECTED_FAILURES="${SCRIPT_DIRECTORY}/expected-failures"
+
 # Notice that different stages use different sets of expected failures.
 #
 # To improve the readability of this script, let's group the entries based on
 # which stages they apply to.
-UNIVERSAL_FAILURES=()
-RFT_STAGE_FAILURES=()
-CFT_STAGE_FAILURES=()
+UNIVERSAL_FAILURES=(
+    "${EXPECTED_FAILURES}/floating-point.yml"
+    "${EXPECTED_FAILURES}/arm.yml"
+    "${EXPECTED_FAILURES}/microsoft.yml"
+    "${EXPECTED_FAILURES}/mips.yml"
+)
+RFT_STAGE_FAILURES=(
+    "${EXPECTED_FAILURES}/RFTs.yml"
+    "${EXPECTED_FAILURES}/apple.yml"
+)
+CFT_STAGE_FAILURES=(
+    "${EXPECTED_FAILURES}/RFTs.yml"
+    "${EXPECTED_FAILURES}/non-CFT.yml"
+)
 
 FILTERED_FAILURES="${OUTPUT_DIRECTORY}/filtered"
 mkdir -p "${FILTERED_FAILURES}"

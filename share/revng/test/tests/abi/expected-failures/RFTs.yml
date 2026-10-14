@@ -1,0 +1,41 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# These tests are due to a limitation of `model::RawFunctionDefinition`. Namely,
+# it's inability to transparently handle padding registers (which we have to
+# inject to ensure the following argument does not get mis-placed).
+#
+# Specifically, in order to get these to work, an RFT would have to allow,
+# either:
+# - representing a multi-register arguments explicitly, or
+# - explicitly marking registers as padding (that is, not attaching a type to it)
+#
+# It's important to note that this is not a bug in revng-qa, nor does it have
+# any negative consequences on either the RFT->CFT path nor Layout production
+# for either RFTs or CFTs. It's a pure test-logic-related issue and the only
+# potential problem with keeping it as is is the inability to test these
+# specific cases.
+
+- ABIs:
+    - AAPCS_hardfloat
+    - AAPCS_softfloat
+    - SystemV_MIPSEL_o32_hardfloat
+    - SystemV_MIPSEL_o32_softfloat
+    - SystemV_MIPS_o32_hardfloat
+    - SystemV_MIPS_o32_softfloat
+  tests:
+    - mixed_32_64_bit_integer_arguments
+    - mixed_int_32_struct_64_arguments
+    - mixed_struct_32_int_64_arguments
+    - padded_eight_byte_scalar_in_registers
+  errors:
+    - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
+    - Argument 1 uses neither the expected stack part nor the expected registers.
+
+- ABIs:
+    - AAPCS64
+  tests:
+    - padded_sixteen_byte_scalar_in_registers
+  errors:
+    - Argument 1 uses neither the expected stack part nor the expected registers.

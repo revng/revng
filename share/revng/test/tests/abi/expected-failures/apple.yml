@@ -1,0 +1,31 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# IMPORTANT: these are not *all* the apple-specific failures.
+#
+# There is another set in `arm.yml`. The reason to split this in two is because
+# the failures in `arm.yml` apply to *all* the models, no matter if
+# the functions are CFTs or RFTs, while these failures are only present in
+# the *RFTs.*
+#
+# This most likely means that we somehow introduce a problem when doing
+# the `CFT->RFT` conversion which is then silently fixed when going back to
+# a CFT. This definitely deserves a more through investigation, as it looks like
+# an issue with the alignment computation and might be an indication of a deeper
+# problem.
+#
+# NOTE that this is explicitly different from the issues contained in `RFTs.yml`
+
+- ABIs:
+    - Apple_AAPCS64
+  tests:
+    - apple_padded_eight_byte_aligned_primitive_on_stack
+    - apple_padded_four_byte_aligned_primitive_on_stack
+    - apple_padded_two_byte_aligned_primitive_on_stack
+    - padded_four_byte_scalar_on_stack
+    - padded_two_byte_primitive_on_stack
+  errors:
+    - Argument 9 uses neither the expected stack part nor the expected registers.
+    - Argument 11 uses neither the expected stack part nor the expected registers.
+    - Argument 15 uses neither the expected stack part nor the expected registers.
