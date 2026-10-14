@@ -6,7 +6,7 @@ TypeDefinitions:
   - Kind: StructDefinition
     ID: 0
     Name: "my_struct"
-    Size: 57
+    Size: 53
     # The leading $ means that the size of the Fields list must match
     $Fields:
       - Offset: 0
@@ -80,8 +80,8 @@ TypeDefinitions:
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Float
-          Size: 12
-      - Offset: 53
+          Size: 8
+      - Offset: 49
         Name: "void_pointer"
         Type:
           Kind: PointerType

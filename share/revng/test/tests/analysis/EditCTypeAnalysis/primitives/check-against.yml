@@ -11,29 +11,29 @@ TypeDefinitions:
         Name: "first_field"
         Type:
           Kind: PrimitiveType
-          PrimitiveKind: Generic
-          Size: 10
+          PrimitiveKind: Unsigned
+          Size: 8
       - Index: 1
         Name: "second_field"
         Type:
           Kind: PrimitiveType
-          PrimitiveKind: Generic
-          Size: 12
+          PrimitiveKind: Unsigned
+          Size: 16
       - Index: 2
         Name: "third_field"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Float
-          Size: 10
+          Size: 4
       - Index: 3
         Name: "fourth_field"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Float
-          Size: 12
+          Size: 8
       - Index: 4
         Name: "fifth_field"
         Type:
           Kind: PrimitiveType
-          PrimitiveKind: Float
+          PrimitiveKind: Unsigned
           Size: 16

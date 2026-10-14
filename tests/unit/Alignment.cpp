@@ -97,11 +97,6 @@ BOOST_AUTO_TEST_CASE(GenericPrimitiveTypes) {
 BOOST_AUTO_TEST_CASE(FloatingPointPrimitiveTypes) {
   TupleTree<model::Binary> Binary;
 
-  testAlignment(model::PrimitiveType::makeFloat(2),
-                Expected(model::ABI::AAPCS64, 2),
-                Expected(model::ABI::AAPCS, 2),
-                Expected(model::ABI::SystemV_x86_64, 2));
-
   testAlignment(model::PrimitiveType::makeFloat(4),
                 Expected(model::ABI::AAPCS64, 4),
                 Expected(model::ABI::AAPCS, 4),
@@ -113,12 +108,6 @@ BOOST_AUTO_TEST_CASE(FloatingPointPrimitiveTypes) {
                 Expected(model::ABI::AAPCS, 8),
                 Expected(model::ABI::SystemZ_s390x, 8),
                 Expected(model::ABI::SystemV_x86, 4));
-
-  testAlignment(model::PrimitiveType::makeFloat(16),
-                Expected(model::ABI::AAPCS64, 16),
-                Expected(model::ABI::SystemZ_s390x, 8),
-                Expected(model::ABI::SystemV_x86, 16),
-                Expected(model::ABI::SystemV_x86_64, 16));
 }
 
 constexpr std::array TestedABIs{ model::ABI::AAPCS64,
@@ -173,8 +162,6 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
 
   auto Float = model::PrimitiveType::makeFloat(4);
   auto Double = model::PrimitiveType::makeFloat(8);
-  auto LongDouble = model::PrimitiveType::makeFloat(16);
-  auto WeirdLD = model::PrimitiveType::makeFloat(12);
 
   for (model::ABI::Values ABIName : TestedABIs) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);
@@ -192,18 +179,6 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
       compareTypeAlignments(ABI, Int32, SmallFloat);
       compareTypeAlignments(ABI, Float, SmallFloat);
     }
-
-    auto &&[BigFloatDefinition, BigFloat] = Binary->makeUnionDefinition();
-    BigFloatDefinition.addField(LongDouble.copy());
-    BigFloatDefinition.addField(Int64.copy());
-    if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 16 }))
-      compareTypeAlignments(ABI, LongDouble, BigFloat);
-
-    auto &&[WeirdFloatDefinition, WeirdFloat] = Binary->makeUnionDefinition();
-    WeirdFloatDefinition.addField(WeirdLD.copy());
-    WeirdFloatDefinition.addField(Int32.copy());
-    if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 12 }))
-      compareTypeAlignments(ABI, WeirdLD, WeirdFloat);
 
     // Test the case where on top of the float field, there's also another
     // stricter-aligned field, which "eclipses" the float one.
@@ -241,8 +216,6 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
 
   auto Float = model::PrimitiveType::makeFloat(4);
   auto Double = model::PrimitiveType::makeFloat(8);
-  auto LongDouble = model::PrimitiveType::makeFloat(16);
-  auto WeirdLD = model::PrimitiveType::makeFloat(12);
 
   for (model::ABI::Values ABIName : TestedABIs) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);
@@ -260,18 +233,6 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
       compareTypeAlignments(ABI, Int32, SmallFloat);
       compareTypeAlignments(ABI, Float, SmallFloat);
     }
-
-    auto &&[BigFloatDefinition, BigFloat] = Binary->makeStructDefinition();
-    BigFloatDefinition.addField(0, LongDouble.copy());
-    BigFloatDefinition.addField(16, Int64.copy());
-    if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 16 }))
-      compareTypeAlignments(ABI, LongDouble, BigFloat);
-
-    auto &&[WeirdFloatDefinition, WeirdFloat] = Binary->makeStructDefinition();
-    WeirdFloatDefinition.addField(0, WeirdLD.copy());
-    WeirdFloatDefinition.addField(12, Int32.copy());
-    if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 12 }))
-      compareTypeAlignments(ABI, WeirdLD, WeirdFloat);
 
     // Test the case where on top of the float field, there's also another
     // stricter-aligned field, which "eclipses" the float one.

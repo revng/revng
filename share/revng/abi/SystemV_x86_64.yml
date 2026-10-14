@@ -69,16 +69,9 @@ ScalarTypes:
   - Kind: Integer
     Size: 16
   - Kind: FloatingPoint
-    Size: 2 # IEEE Binary16
-  - Kind: FloatingPoint
     Size: 4 # IEEE Binary32
   - Kind: FloatingPoint
     Size: 8 # IEEE Binary64
-  - Kind: FloatingPoint
-    Size: 16 # x87 Extended
-    CTypes:
-      - LongDouble
-
 PrimitiveAliases:
   - Name: size_t
     Kind: Unsigned
