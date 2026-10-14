@@ -31,7 +31,7 @@ bool verifyRegisters(const RegisterContainer &Registers,
   return true;
 }
 
-bool isVectorRegister(model::Register::Values Register) {
+bool isFloatRegister(model::Register::Values Register) {
   using model::Register::getPrimitiveKind;
   return getPrimitiveKind(Register) == model::PrimitiveKind::Float;
 }
@@ -56,8 +56,8 @@ bool verifyReturnValueLocation(const abi::Definition &D) {
   if (!model::Register::isUsedInArchitecture(RVLR, Architecture))
     return false;
 
-  if (isVectorRegister(D.ReturnValueLocationRegister())) {
-    // Vector register used as the return value locations are not supported.
+  if (isFloatRegister(D.ReturnValueLocationRegister())) {
+    // Float register used as the return value locations are not supported.
     return false;
   } else if (llvm::is_contained(D.CalleeSavedRegisters(),
                                 D.ReturnValueLocationRegister())) {
@@ -127,9 +127,9 @@ bool Definition::verify() const {
     return false;
   if (!verifyRegisters(GeneralPurposeReturnValueRegisters(), Architecture))
     return false;
-  if (!verifyRegisters(VectorArgumentRegisters(), Architecture))
+  if (!verifyRegisters(FloatArgumentRegisters(), Architecture))
     return false;
-  if (!verifyRegisters(VectorReturnValueRegisters(), Architecture))
+  if (!verifyRegisters(FloatReturnValueRegisters(), Architecture))
     return false;
   if (!verifyRegisters(CalleeSavedRegisters(), Architecture))
     return false;
@@ -195,7 +195,7 @@ bool Definition::isPreliminarilyCompatibleWith(const RFT &Function) const {
     auto I = AllowedArguments.batch_insert_or_assign();
     for (model::Register::Values R : GeneralPurposeArgumentRegisters())
       I.emplace_or_assign(R);
-    for (model::Register::Values R : VectorArgumentRegisters())
+    for (model::Register::Values R : FloatArgumentRegisters())
       I.emplace_or_assign(R);
   }
 
@@ -219,7 +219,7 @@ bool Definition::isPreliminarilyCompatibleWith(const RFT &Function) const {
     auto I = AllowedReturnValues.batch_insert_or_assign();
     for (model::Register::Values R : GeneralPurposeReturnValueRegisters())
       I.emplace_or_assign(R);
-    for (model::Register::Values R : VectorReturnValueRegisters())
+    for (model::Register::Values R : FloatReturnValueRegisters())
       I.emplace_or_assign(R);
   }
 

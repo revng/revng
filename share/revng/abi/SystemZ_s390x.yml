@@ -31,7 +31,7 @@ GeneralPurposeArgumentRegisters:
   - r6_systemz
 GeneralPurposeReturnValueRegisters:
   - r2_systemz
-VectorArgumentRegisters:
+FloatArgumentRegisters:
   - f0_systemz
   - f1_systemz
   - f2_systemz
@@ -48,7 +48,7 @@ VectorArgumentRegisters:
 # - v27_systemz
 # - v29_systemz
 # - v31_systemz
-VectorReturnValueRegisters:
+FloatReturnValueRegisters:
   - f0_systemz
 # - v24_systemz
 CalleeSavedRegisters:

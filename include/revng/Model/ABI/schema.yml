@@ -132,14 +132,14 @@ definitions:
           type: std::vector
           elementType: model::Register::Values
 
-      - name: VectorArgumentRegisters
+      - name: FloatArgumentRegisters
         doc: |
           See `revng/share/doc/revng/references/abi-definition.md` for details.
         sequence:
           type: std::vector
           elementType: model::Register::Values
 
-      - name: VectorReturnValueRegisters
+      - name: FloatReturnValueRegisters
         doc: |
           See `revng/share/doc/revng/references/abi-definition.md` for details.
         sequence:

@@ -26,7 +26,7 @@ MaximumGPRsPerScalarReturnValue: 2
 GeneralPurposeReturnValueRegisters:
   - eax_x86
   - edx_x86
-VectorReturnValueRegisters:
+FloatReturnValueRegisters:
   - st0_x86
 CalleeSavedRegisters:
   - ebx_x86

@@ -45,13 +45,13 @@ void function(Big, signed, float, unsigned);
 If the ABI is position based, the arguments would be passed in:
 - memory for the `Big` argument (and a pointer to it in the _first_ GPR).
 - the _second_ GPR register for the `signed` argument.
-- the _third_ vector register for the `float` argument.
+- the _third_ float register for the `float` argument.
 - the _forth_ GPR register for the `unsigned` argument.
 
 If the ABI is NOT position based, the arguments would be passed in:
 - memory for the `Big` argument.
 - the _first_ GPR register for the `signed` argument.
-- the _first_ vector register for the `float` argument.
+- the _first_ float register for the `float` argument.
 - the _second_ GPR register for the `unsigned` argument.
 
 A typical example of a position-based ABI is `Microsoft_x86_64`, a non-position-based one - `SystemV_x86_64`.
@@ -117,7 +117,7 @@ Specifies who is responsible for cleaning the stack after the function call. If 
 
 ## `FloatsUseGPRs` (`bool`)
 
-Setting this to true disables usage of vector registers entirely, think "soft" float architectures.
+Setting this to true disables usage of float registers entirely, think "soft" float architectures.
 
 ## `PackStackArguments` (`bool`)
 
@@ -195,13 +195,13 @@ Specifies the list of general purpose registers allowed to be used for passing a
 
 Specifies the list of general purpose registers allowed to be used for returning values and the order they are to be used in.
 
-## `VectorArgumentRegisters` (`list of registers`)
+## `FloatArgumentRegisters` (`list of registers`)
 
-Specifies the list of vector registers allowed to be used for passing arguments and the order they are to be used in.
+Specifies the list of float registers allowed to be used for passing arguments and the order they are to be used in.
 
-## `VectorReturnValueRegisters` (`list of registers`)
+## `FloatReturnValueRegisters` (`list of registers`)
 
-Specifies the list of vector registers allowed to be used for returning values and the order they are to be used in.
+Specifies the list of float registers allowed to be used for returning values and the order they are to be used in.
 
 ## `CalleeSavedRegisters` (`list of registers`)
 
