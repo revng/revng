@@ -1439,6 +1439,27 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
   }
 }
 
+/// Check if \p Type is an `R_*_IRELATIVE` relocation, which writes the value
+/// returned by an IFUNC resolver
+static bool isIRelativeRelocation(model::Architecture::Values Architecture,
+                                  uint32_t Type) {
+  using namespace llvm::ELF;
+  switch (Architecture) {
+  case model::Architecture::x86:
+    return Type == R_386_IRELATIVE;
+  case model::Architecture::x86_64:
+    return Type == R_X86_64_IRELATIVE;
+  case model::Architecture::arm:
+    return Type == R_ARM_IRELATIVE;
+  case model::Architecture::aarch64:
+    return Type == R_AARCH64_IRELATIVE;
+  case model::Architecture::systemz:
+    return Type == R_390_IRELATIVE;
+  default:
+    return false;
+  }
+}
+
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::registerRelocation(MetaAddress Address,
                                                    uint32_t Type,
@@ -1447,6 +1468,11 @@ void ELFImporter<T, HasAddend>::registerRelocation(MetaAddress Address,
                                                    ArrayRef<Elf_Sym_Impl<T>>
                                                      Symbols,
                                                    StringRef SymbolNames) {
+  if (isIRelativeRelocation(Model->Architecture(), Type)) {
+    registerIfuncResolver(Address, Addend);
+    return;
+  }
+
   StringRef SymbolName;
   unsigned char SymbolType = llvm::ELF::STT_NOTYPE;
   if (not Symbols.empty()) {
@@ -1554,6 +1580,34 @@ void ELFImporter<T, HasAddend>::registerRelativeRelocation(MetaAddress Address,
   }
 
   registerAbsoluteRelocation(Address, Size, *Relocated);
+}
+
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::registerIfuncResolver(MetaAddress Address,
+                                                      uint64_t Addend) {
+  // `REL` relocations keep the addend in place
+  if constexpr (not HasAddend) {
+    using namespace model::Architecture;
+    uint64_t PointerSize = getPointerSize(Model->Architecture());
+    if (auto InPlace = File.readInteger(Address, PointerSize)) {
+      Addend = *InPlace;
+    } else {
+      revng_log(ELFImporterLog,
+                "Cannot read the in-place addend of the relocation at "
+                  << Address.toString() << ". Ignoring.");
+      return;
+    }
+  }
+
+  MetaAddress Resolver = relocate(fromPC(Addend));
+  if (Resolver.isInvalid()) {
+    revng_log(ELFImporterLog,
+              "The IFUNC resolver of the relocation at "
+                << Address.toString() << " is not a valid address. Ignoring.");
+    return;
+  }
+
+  registerFunctionEntry(Resolver);
 }
 
 static std::unique_ptr<ELFImporterBase>

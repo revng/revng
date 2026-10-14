@@ -203,6 +203,10 @@ protected:
   /// whose addend is stored in place
   void registerInPlaceRelocation(MetaAddress Address, uint64_t Size);
 
+  /// Register the IFUNC resolver of the `R_*_IRELATIVE` relocation at
+  /// \p Address, which the loader calls at the load address plus the addend
+  void registerIfuncResolver(MetaAddress Address, uint64_t Addend);
+
   /// Register the relocations in a DT_RELR-encoded table
   void registerRelrRelocations(llvm::object::ELFFile<T> &TheELF,
                                llvm::StringRef Name,
