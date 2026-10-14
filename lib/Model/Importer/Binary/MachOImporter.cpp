@@ -4,6 +4,7 @@
 
 #include "llvm/Object/MachO.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Error.h"
 
 #include "revng/Model/Binary.h"
@@ -190,6 +191,21 @@ public:
 
   /// Register the absolute pointer that dyld adjusts according to \p Entry
   void registerRebaseEntry(const object::MachORebaseEntry &Entry);
+
+  /// Register the functions listed by an `LC_FUNCTION_STARTS` \p Command, as
+  /// offsets from \p HeaderAddress
+  void registerFunctionStarts(const linkedit_data_command &Command,
+                              MetaAddress HeaderAddress);
+
+  /// Register the function exported by \p Entry, if any, as an offset from
+  /// \p HeaderAddress, provided it belongs to one of \p CodeSections
+  void registerExport(const object::ExportEntry &Entry,
+                      MetaAddress HeaderAddress,
+                      const MetaAddressRangeSet &CodeSections);
+
+private:
+  /// Collect the address ranges of the sections made of instructions
+  MetaAddressRangeSet collectCodeSections() const;
 };
 
 Error MachOImporter::import() {
@@ -230,6 +246,9 @@ Error MachOImporter::import() {
 
   processSegments();
 
+  // Function starts and exports are offsets from the Mach-O header
+  MetaAddress HeaderAddress = File.offsetToAddress(0);
+
   // Identify EntryPoint
   bool EntryPointFound = false;
   std::optional<uint64_t> EntryPointOffset;
@@ -269,6 +288,10 @@ Error MachOImporter::import() {
       break;
 
     case LC_FUNCTION_STARTS:
+      registerFunctionStarts(MachO.getLinkeditDataLoadCommand(LCI),
+                             HeaderAddress);
+      break;
+
     case LC_DATA_IN_CODE:
     case LC_SYMTAB:
     case LC_DYSYMTAB:
@@ -324,6 +347,12 @@ Error MachOImporter::import() {
     }
   }
   LogTableError("fixupTable", std::move(FixupError));
+
+  MetaAddressRangeSet CodeSections = collectCodeSections();
+  Error ExportError = Error::success();
+  for (const ExportEntry &Entry : MachO.exports(ExportError))
+    registerExport(Entry, HeaderAddress, CodeSections);
+  LogTableError("exports", std::move(ExportError));
 
   model::flattenPrimitiveTypedefs(Model);
   model::deduplicateCollidingNames(Model);
@@ -436,6 +465,102 @@ void MachOImporter::registerRebaseEntry(const object::MachORebaseEntry &Entry) {
               "Cannot read the target of the rebase entry at "
                 << Address.toString() << ". Ignoring.");
   }
+}
+
+void MachOImporter::registerFunctionStarts(const linkedit_data_command &Command,
+                                           MetaAddress HeaderAddress) {
+  auto Table = File.getByOffset(Command.dataoff, Command.datasize);
+  if (not Table) {
+    revng_log(Log, "Cannot read the function starts. Ignoring.");
+    return;
+  }
+
+  // The table is a sequence of ULEB128 deltas from the previous function
+  // start, ending with zero
+  DataExtractor Extractor(*Table,
+                          /* IsLittleEndian */ true,
+                          /* AddressSize */ 0);
+  DataExtractor::Cursor Cursor(0);
+  MetaAddress Address = HeaderAddress;
+  while (not Extractor.eof(Cursor)) {
+    uint64_t Delta = Extractor.getULEB128(Cursor);
+    if (Delta == 0)
+      break;
+
+    Address += Delta;
+    if (Address.isInvalid()) {
+      revng_log(Log,
+                "Cannot compute the address of a function start. Ignoring "
+                "the others.");
+      break;
+    }
+
+    MetaAddress PC = Address.toPC(Model->Architecture());
+    if (PC.isValid()) {
+      registerFunctionEntry(PC);
+    } else {
+      revng_log(Log,
+                "The function start " << Address.toString()
+                                      << " is not a valid code address. "
+                                         "Ignoring.");
+    }
+  }
+
+  if (Error TheError = Cursor.takeError()) {
+    std::string Message = toString(std::move(TheError));
+    revng_log(Log, "Error while decoding the function starts: " << Message);
+  }
+}
+
+void MachOImporter::registerExport(const ExportEntry &Entry,
+                                   MetaAddress HeaderAddress,
+                                   const MetaAddressRangeSet &CodeSections) {
+  // Re-exports have no address in this binary, and only regular exports can
+  // be code
+  uint64_t Flags = Entry.flags();
+  uint64_t Kind = Flags & EXPORT_SYMBOL_FLAGS_KIND_MASK;
+  if ((Flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0
+      or Kind != EXPORT_SYMBOL_FLAGS_KIND_REGULAR)
+    return;
+
+  MetaAddress Address = HeaderAddress + Entry.address();
+  if (Address.isInvalid() or not CodeSections.contains(Address))
+    return;
+
+  MetaAddress PC = Address.toPC(Model->Architecture());
+  if (PC.isInvalid()) {
+    revng_log(Log,
+              "The export " << Entry.name()
+                            << " is not a valid code address. Ignoring.");
+    return;
+  }
+
+  if (model::Function *Function = registerFunctionEntry(PC)) {
+    std::string Name = Entry.name().str();
+    if (Function->Name().empty())
+      Function->Name() = Name;
+    Function->ExportedNames().insert(Name);
+  }
+}
+
+MetaAddressRangeSet MachOImporter::collectCodeSections() const {
+  MetaAddressRangeSet Result;
+  for (const SectionRef &Section : TheBinary.ObjectFile.sections()) {
+    if (not Section.isText())
+      continue;
+
+    MetaAddress Start = fromGeneric(Section.getAddress());
+    MetaAddress End = Start + Section.getSize();
+    if (End.isInvalid()) {
+      revng_log(Log,
+                "Ignoring a code section whose end is not a valid address");
+      continue;
+    }
+
+    Result.add(Start, End);
+  }
+
+  return Result;
 }
 
 Error importMachO(TupleTree<model::Binary> &Model,
