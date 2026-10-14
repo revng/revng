@@ -79,7 +79,7 @@ class ValueDistributor {
 public:
   const abi::Definition &ABI;
   uint64_t UsedGeneralPurposeRegisterCount = 0;
-  uint64_t UsedVectorRegisterCount = 0;
+  uint64_t UsedFloatRegisterCount = 0;
   uint64_t UsedStackOffset = 0;
   uint64_t CurrentStackAlignment = 0;
   uint64_t LastAddedStackPadding = 0;
@@ -91,7 +91,7 @@ public:
   ValueDistributor &operator=(const ValueDistributor &Another) {
     revng_assert(&ABI == &Another.ABI);
     UsedGeneralPurposeRegisterCount = Another.UsedGeneralPurposeRegisterCount;
-    UsedVectorRegisterCount = Another.UsedVectorRegisterCount;
+    UsedFloatRegisterCount = Another.UsedFloatRegisterCount;
     UsedStackOffset = Another.UsedStackOffset;
     CurrentStackAlignment = Another.CurrentStackAlignment;
     LastAddedStackPadding = Another.LastAddedStackPadding;
@@ -193,13 +193,13 @@ public:
 
   bool canNextArgumentUseRegisters() const {
     size_t GPRCount = ABI.GeneralPurposeArgumentRegisters().size();
-    size_t VectorCount = ABI.VectorArgumentRegisters().size();
+    size_t FloatCount = ABI.FloatArgumentRegisters().size();
 
     if (ABI.ArgumentsArePositionBased()) {
-      return nextPositionBasedIndex() < std::max(GPRCount, VectorCount);
+      return nextPositionBasedIndex() < std::max(GPRCount, FloatCount);
     } else {
       if (UsedGeneralPurposeRegisterCount == GPRCount
-          && UsedVectorRegisterCount == VectorCount)
+          && UsedFloatRegisterCount == FloatCount)
         return false;
 
       if (ABI.NoRegisterArgumentsCanComeAfterStackOnes() && UsedStackOffset)
@@ -220,7 +220,7 @@ private:
 private:
   size_t nextPositionBasedIndex() const {
     size_t MaxRegister = std::max(UsedGeneralPurposeRegisterCount,
-                                  UsedVectorRegisterCount);
+                                  UsedFloatRegisterCount);
     return std::max(MaxRegister, ArgumentIndex);
   }
 };

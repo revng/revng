@@ -33,12 +33,12 @@ GeneralPurposeReturnValueRegisters:
   - r1_arm
   - r2_arm
   - r3_arm
-VectorArgumentRegisters:
+FloatArgumentRegisters:
   - q0_arm
   - q1_arm
   - q2_arm
   - q3_arm
-VectorReturnValueRegisters:
+FloatReturnValueRegisters:
   - q0_arm
   - q1_arm
   - q2_arm

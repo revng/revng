@@ -30,7 +30,7 @@ GeneralPurposeArgumentRegisters:
 GeneralPurposeReturnValueRegisters:
   - eax_x86
   - edx_x86
-VectorArgumentRegisters:
+FloatArgumentRegisters:
   - zmm0_x86
   - zmm1_x86
   - zmm2_x86

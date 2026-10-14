@@ -150,7 +150,7 @@ private:
     for (auto Register : GPRs)
       if (!llvm::is_contained(Result, Register))
         Result.emplace_back(Register);
-    for (auto Register : VectorArgumentRegisters())
+    for (auto Register : FloatArgumentRegisters())
       if (!llvm::is_contained(Result, Register))
         Result.emplace_back(Register);
 
@@ -163,7 +163,7 @@ private:
     for (auto Register : GeneralPurposeReturnValueRegisters())
       if (!llvm::is_contained(Result, Register))
         Result.emplace_back(Register);
-    for (auto Register : VectorReturnValueRegisters())
+    for (auto Register : FloatReturnValueRegisters())
       if (!llvm::is_contained(Result, Register))
         Result.emplace_back(Register);
 
