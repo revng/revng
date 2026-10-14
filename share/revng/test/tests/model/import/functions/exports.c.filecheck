@@ -1,0 +1,18 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Check the model of a library built from revng-qa's `exports.c`. The library
+# is stripped and its code refers to no function. Functions are listed in order
+# of address.
+
+# exported, named after its export
+CHECK:            Functions:
+CHECK-NEXT:         - Entry: "0x{{[0-9a-f]+}}:Code_{{x86_64|aarch64}}"
+CHECK-NEXT:           Name: _exported
+CHECK:                ExportedNames:
+CHECK-NEXT:             - _exported
+# unexported, which only the function starts reach
+FUNCTION-STARTS:    - Entry: "0x{{[0-9a-f]+}}:Code_{{x86_64|aarch64}}"
+CHECK-NOT:          - Entry:
+CHECK:            TypeDefinitions:
