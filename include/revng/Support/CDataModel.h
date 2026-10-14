@@ -21,6 +21,11 @@ enum class CStandardType : uint8_t {
 
   Float,
   Double,
+
+  // Because we do not have support for any floating point types except for 4-
+  // and 8-byte ones, this is equivalent to `Double`.
+  //
+  // Note that this will likely change in the future.
   LongDouble,
 
   Count

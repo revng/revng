@@ -245,6 +245,15 @@ const model::UpcastableType *TypeResolver::handleSimpleType(TypeIndex Index) {
       return fail(Index);
     }
 
+    if (PrimitiveKind == PrimitiveKind::Float
+        and not PrimitiveType::isSizeValid(PrimitiveKind, *PrimitiveSize)) {
+      // TODO: should we create a generic instead?
+      revng_log(Log,
+                "Warning: unsupported floating point type of size "
+                  << *PrimitiveSize);
+      return fail(Index);
+    }
+
     auto Primitive = PrimitiveType::make(PrimitiveKind, *PrimitiveSize);
 
     if (isPointer(Index)) {

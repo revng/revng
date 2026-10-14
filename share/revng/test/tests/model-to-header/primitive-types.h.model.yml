@@ -388,7 +388,7 @@ TypeDefinitions:
           PointerSize: 8
           PointeeType:
             Kind: PrimitiveType
-            PrimitiveKind: Float
+            PrimitiveKind: Generic
             Size: 2
         Name: arg4
       - Index: 4
@@ -415,7 +415,7 @@ TypeDefinitions:
           PointerSize: 8
           PointeeType:
             Kind: PrimitiveType
-            PrimitiveKind: Float
+            PrimitiveKind: Generic
             Size: 10
         Name: arg7
       - Index: 7
@@ -424,7 +424,7 @@ TypeDefinitions:
           PointerSize: 8
           PointeeType:
             Kind: PrimitiveType
-            PrimitiveKind: Float
+            PrimitiveKind: Generic
             Size: 12
         Name: arg8
       - Index: 8
@@ -433,7 +433,7 @@ TypeDefinitions:
           PointerSize: 8
           PointeeType:
             Kind: PrimitiveType
-            PrimitiveKind: Float
+            PrimitiveKind: Generic
             Size: 16
         Name: arg9
   - Kind: StructDefinition
