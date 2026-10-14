@@ -62,6 +62,7 @@ EXPECTED_FAILURES="${SCRIPT_DIRECTORY}/expected-failures"
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    --expected-failures="${EXPECTED_FAILURES}/floating-point.yml" \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     "${OUTPUT_DIRECTORY}/reference_binary.yml" \
@@ -70,6 +71,7 @@ revng \
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    --expected-failures="${EXPECTED_FAILURES}/floating-point.yml" \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
@@ -80,6 +82,7 @@ revng \
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    --expected-failures="${EXPECTED_FAILURES}/floating-point.yml" \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
@@ -89,6 +92,7 @@ revng \
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    --expected-failures="${EXPECTED_FAILURES}/floating-point.yml" \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
