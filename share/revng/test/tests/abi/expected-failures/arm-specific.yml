@@ -1,0 +1,15 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# See the readme for more information.
+
+- ABIs:
+    - AAPCS_softfloat
+    - AAPCS_hardfloat
+  tests:
+    - padded_sixteen_byte_scalar_in_registers
+    - sixteen_byte_scalar_after_three_gprs
+  errors:
+    - Argument 1 uses neither the expected stack part nor the expected registers.
+    - Argument 3 uses neither the expected stack part nor the expected registers.
