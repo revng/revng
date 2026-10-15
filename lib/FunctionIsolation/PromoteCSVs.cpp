@@ -18,6 +18,7 @@
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/EmitAbort.h"
+#include "revng/Support/GlobalToLocalPromoter.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -70,7 +71,7 @@ private:
   const model::NamingConfiguration &Configuration;
 
   std::map<WrapperKey, llvm::Function *> Wrappers;
-  SetVector<GlobalVariable *> CSVs;
+  SetVector<const GlobalVariable *> CSVs;
 
 public:
   PromoteCSVs(const model::Binary &Binary, llvm::Function &LLVMFunction) :
@@ -87,7 +88,7 @@ public:
 
 private:
   void wrap(CallInst *Call,
-            const DenseSet<GlobalVariable *> &Alive,
+            const DenseSet<const GlobalVariable *> &Alive,
             const std::vector<GlobalVariable *> &Read,
             const std::vector<GlobalVariable *> &Written);
 
@@ -102,11 +103,12 @@ private:
   /// CSVs accessed by an instruction of \p F or of a function whose body is
   /// reachable (and thus inlinable) from \p F, ignoring other isolated
   /// functions.
-  DenseSet<GlobalVariable *> computeAliveCSVs(Function *F);
+  DenseSet<const GlobalVariable *> computeAliveCSVs(const Function *F);
 
   /// A CSV that is neither an ABI register nor alive within \p F can only ever
   /// hold its opaque default value, so it needs no alloca/load/store.
-  bool isDeadCSV(GlobalVariable *CSV, const DenseSet<GlobalVariable *> &Alive) {
+  bool isDeadCSV(GlobalVariable *CSV,
+                 const DenseSet<const GlobalVariable *> &Alive) {
     return CSVs.contains(CSV) and not Globals.isABIRegister(CSV)
            and not Alive.contains(CSV);
   }
@@ -121,9 +123,8 @@ void PromoteCSVs::run() {
   // Record existing initializers
   const auto &PCCSVs = PCH->pcCSVs();
   const auto &R = llvm::concat<GlobalVariable *const>(Globals.csvs(), PCCSVs);
-  SmallVector<GlobalVariable *> CSVsToSort{ R.begin(), R.end() };
-  llvm::sort(CSVsToSort, CompareByName);
-  for (GlobalVariable *CSV : CSVsToSort) {
+  SmallVector<GlobalVariable *> SortedCSVs = toSortedByName(R);
+  for (GlobalVariable *CSV : SortedCSVs) {
     if (Globals.isSPReg(CSV))
       continue;
 
@@ -257,7 +258,7 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
 // but dead CSVs get no per-call alloca/load/store: we pass `undef` for reads
 // and a null out-argument for writes, and skip the restore store.
 void PromoteCSVs::wrap(CallInst *Call,
-                       const DenseSet<GlobalVariable *> &Alive,
+                       const DenseSet<const GlobalVariable *> &Alive,
                        const std::vector<GlobalVariable *> &Read,
                        const std::vector<GlobalVariable *> &Written) {
 
@@ -322,23 +323,13 @@ void PromoteCSVs::wrap(CallInst *Call,
   eraseFromParent(Call);
 }
 
-static Instruction *findFirstNonAlloca(BasicBlock *BB) {
-  for (Instruction &I : *BB)
-    if (not isa<AllocaInst>(&I))
-      return &I;
-  return nullptr;
-}
-
 void PromoteCSVs::promoteCSVs(Function *F) {
-  // Create an alloca for each CSV and replace all uses of CSVs with the
-  // corresponding allocas
-  BasicBlock &Entry = F->getEntryBlock();
-  QuickMetadata QMD(F->getParent()->getContext());
+  llvm::LLVMContext &Context = F->getContext();
+  QuickMetadata QMD(Context);
 
   // Get/create initializers
-  std::map<Function *, GlobalVariable *> CSVForInitializer;
-  std::map<GlobalVariable *, Function *> InitializerForCSV;
-  for (GlobalVariable *CSV : CSVs) {
+  std::map<const GlobalVariable *, Function *> InitializerForCSV;
+  for (const GlobalVariable *CSV : CSVs) {
     // Initialize all allocas with opaque, CSV-specific values
     Type *CSVType = CSV->getValueType();
     llvm::StringRef CSVName = CSV->getName();
@@ -356,60 +347,43 @@ void PromoteCSVs::promoteCSVs(Function *F) {
                                  QMD.tuple(getName(Register)));
       }
 
-      CSVForInitializer[Initializer] = CSV;
       InitializerForCSV[CSV] = Initializer;
     }
   }
 
-  // Collect existing CSV allocas
+  // Create an alloca for each CSV and replace all uses of CSVs with the
+  // corresponding allocas
+  revng::IRBuilder Builder(Context);
+  Builder.SetInsertPointPastAllocas(F);
 
-  Instruction *NonAlloca = findFirstNonAlloca(&Entry);
-  revng_assert(NonAlloca != nullptr);
+  // For each GlobalVariable representing a CSV, create a dedicated alloca,
+  // initialize it, and replace with it the uses of the CSV in F.
+  auto IsCSV = [&CSVs = CSVs](const GlobalVariable &CSV) {
+    return CSVs.contains(&CSV);
+  };
+  GlobalToLocalPromoter Promoter(IsCSV, *F);
+  for (GlobalVariable *CSV : Promoter.globals()) {
+    // Create the alloca
+    Type *CSVType = CSV->getValueType();
+    auto *Alloca = Builder.CreateAlloca(CSVType, nullptr, CSV->getName());
+    Promoter.replaceWithAlloca(CSV, Alloca);
 
-  revng::IRBuilder InitializersBuilder(NonAlloca);
-  auto *Separator = InitializersBuilder.CreateUnreachable();
-  revng::IRBuilder AllocaBuilder(&Entry, Entry.begin());
+    // Check if already have an initializer. Only the CSVs that name an ABI
+    // register have one, so the others, the PC CSVs for instance, fall back to
+    // the value the global itself is initialized with.
+    Value *Initializer = nullptr;
+    auto It = InitializerForCSV.find(CSV);
+    if (It != InitializerForCSV.end())
+      Initializer = Builder.CreateCall(It->second);
+    else
+      Initializer = CSV->getInitializer();
 
-  // For each GlobalVariable representing a CSV used in F, create a dedicated
-  // alloca and save it in CSVMaps.
-  std::map<GlobalVariable *, AllocaInst *> CSVAllocas;
-  for (GlobalVariable *CSV : CSVs) {
-    AllocaInst *Alloca = nullptr;
+    // Initialize the alloca
+    Builder.CreateStore(Initializer, Alloca);
 
-    auto It = CSVAllocas.find(CSV);
-    if (It != CSVAllocas.end()) {
-      Alloca = It->second;
-    } else {
-      // Create the alloca
-      Type *CSVType = CSV->getValueType();
-      Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
-
-      // Check if already have an initializer
-      Value *Initializer = nullptr;
-      auto It = InitializerForCSV.find(CSV);
-      if (It != InitializerForCSV.end()) {
-        Function *InitializerFunction = InitializerForCSV.at(CSV);
-        Initializer = InitializersBuilder.CreateCall(InitializerFunction);
-      } else {
-        Initializer = CSV->getInitializer();
-      }
-
-      // Initialize the alloca
-      InitializersBuilder.CreateStore(Initializer, Alloca);
-    }
-
-    // Replace users
-    replaceAllUsesInFunctionWith(F, CSV, Alloca);
+    // Reset insert point after the newly created alloca, ready for the next.
+    Builder.SetInsertPoint(Alloca->getNextNode());
   }
-
-  // Drop separators
-  eraseFromParent(Separator);
-
-#ifndef NDEBUG
-  auto It = findFirstNonAlloca(&Entry)->getIterator();
-  for (Instruction &I : make_range(It, Entry.end()))
-    revng_assert(not isa<AllocaInst>(&I));
-#endif
 }
 
 struct FunctionNodeData {
@@ -600,38 +574,39 @@ ArrayRef<T> oneElement(T &Element) {
   return ArrayRef(&Element, 1);
 }
 
-DenseSet<GlobalVariable *> PromoteCSVs::computeAliveCSVs(Function *F) {
+DenseSet<const GlobalVariable *>
+PromoteCSVs::computeAliveCSVs(const Function *F) {
   // Functions whose body is reachable from F, stopping at declarations and at
   // other isolated functions (which are not inlined into F).
-  OnceQueue<Function *> Queue;
+  OnceQueue<const Function *> Queue;
   Queue.insert(F);
   while (not Queue.empty()) {
-    for (Instruction &I : instructions(Queue.pop())) {
-      Function *Callee = getCallee(&I);
+    for (const Instruction &I : instructions(Queue.pop())) {
+      const Function *Callee = getCallee(&I);
       if (Callee != nullptr and not Callee->isDeclaration()
           and not FunctionTags::Isolated.isTagOf(Callee))
         Queue.insert(Callee);
     }
   }
-  std::set<Function *> Reachable = Queue.visited();
+  std::set<const Function *> Reachable = Queue.visited();
 
   // A CSV is alive if one of its users, followed through constant expressions,
   // is an instruction living in a reachable function.
-  DenseSet<GlobalVariable *> Alive;
-  for (GlobalVariable *CSV : CSVs) {
-    OnceQueue<User *> Users;
-    for (User *U : CSV->users())
+  DenseSet<const GlobalVariable *> Alive;
+  for (const GlobalVariable *CSV : CSVs) {
+    OnceQueue<const User *> Users;
+    for (const User *U : CSV->users())
       Users.insert(U);
 
     while (not Users.empty()) {
-      User *U = Users.pop();
+      const User *U = Users.pop();
       if (auto *I = dyn_cast<Instruction>(U)) {
         if (Reachable.contains(I->getFunction())) {
           Alive.insert(CSV);
           break;
         }
       } else if (isa<Constant>(U)) {
-        for (User *TransitiveUser : U->users())
+        for (const User *TransitiveUser : U->users())
           Users.insert(TransitiveUser);
       }
     }
@@ -668,7 +643,7 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
 
   // Compute this before wrapping: wrap() introduces new CSV loads/stores that
   // would otherwise pollute the set of CSVs alive within F.
-  DenseSet<GlobalVariable *> Alive = computeAliveCSVs(F);
+  DenseSet<const GlobalVariable *> Alive = computeAliveCSVs(F);
 
   for (CallInst *Call : ToWrap) {
     CSVsUsage &Usage = UsedCSVs.get(Call);
