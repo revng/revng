@@ -1,0 +1,13 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Check the model of a program built from revng-qa's `ifunc.c`. The program is
+# stripped: the resolver is reachable only through its `R_*_IRELATIVE`
+# relocation, and the implementation only through the resolver.
+
+CHECK:         Functions:
+# The PLT entry of the IFUNC, the implementation, the resolver and entry
+CHECK-COUNT-4:   - Entry:
+CHECK-NOT:       - Entry:
+CHECK:         TypeDefinitions:

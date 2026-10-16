@@ -117,8 +117,8 @@ resolve(const revng::RootEntry &Root, QueueEntry<T> &Entry) {
     // Parse the binary
     auto MaybeBinary = object::createBinary(*MaybeFullPath);
     if (auto Error = MaybeBinary.takeError()) {
-      revng_log(LDDTreeLog, "Can't create binary: " << Error);
-      llvm::consumeError(std::move(Error));
+      std::string Message = toString(std::move(Error));
+      revng_log(LDDTreeLog, "Can't create binary: " << Message);
       continue;
     }
 

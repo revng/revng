@@ -264,90 +264,116 @@ MetaAddressRangeSet Binary::executableRanges() const {
   return ExecutableRanges;
 }
 
+const model::AddressSpace &
+Binary::getAddressSpaceFor(const MetaAddress &Address) const {
+  static const model::AddressSpace Default;
+  if (const auto *Result = AddressSpaces().tryGet(Address.addressSpace()))
+    return *Result;
+  return Default;
+}
+
 namespace RelocationType {
 
-Values fromELFRelocation(model::Architecture::Values Architecture,
-                         unsigned char ELFRelocation) {
+std::pair<Values, uint64_t>
+fromELFRelocation(model::Architecture::Values Architecture,
+                  uint32_t ELFRelocation) {
   using namespace llvm::ELF;
   switch (Architecture) {
   case model::Architecture::x86:
     switch (ELFRelocation) {
     case R_386_RELATIVE:
     case R_386_32:
-      return AddAbsoluteAddress32;
+      return { Absolute, 4 };
 
     case R_386_JUMP_SLOT:
     case R_386_GLOB_DAT:
-      return WriteAbsoluteAddress32;
+      return { Absolute, 4 };
 
     case R_386_COPY:
       // TODO: use
     default:
-      return Invalid;
+      return { Invalid, 0 };
     }
 
   case model::Architecture::x86_64:
     switch (ELFRelocation) {
     case R_X86_64_RELATIVE:
-      return AddAbsoluteAddress64;
+      return { Absolute, 8 };
 
     case R_X86_64_JUMP_SLOT:
     case R_X86_64_GLOB_DAT:
     case R_X86_64_64:
-      return WriteAbsoluteAddress64;
+      return { Absolute, 8 };
 
     case R_X86_64_32:
-      return WriteAbsoluteAddress32;
+      return { Absolute, 4 };
 
     case R_X86_64_COPY:
       // TODO: use
     default:
-      return Invalid;
+      return { Invalid, 0 };
     }
 
   case model::Architecture::arm:
     switch (ELFRelocation) {
     case R_ARM_RELATIVE:
-      return AddAbsoluteAddress32;
+      return { Absolute, 4 };
 
     case R_ARM_JUMP_SLOT:
     case R_ARM_GLOB_DAT:
-      return WriteAbsoluteAddress32;
+    case R_ARM_ABS32:
+      return { Absolute, 4 };
 
     case R_ARM_COPY:
       // TODO: use
     default:
-      return Invalid;
+      return { Invalid, 0 };
     }
 
   case model::Architecture::aarch64:
-    return Invalid;
+    switch (ELFRelocation) {
+    case R_AARCH64_RELATIVE:
+      return { Absolute, 8 };
+
+    case R_AARCH64_JUMP_SLOT:
+    case R_AARCH64_GLOB_DAT:
+    case R_AARCH64_ABS64:
+      return { Absolute, 8 };
+
+    default:
+      return { Invalid, 0 };
+    }
 
   case model::Architecture::mips:
   case model::Architecture::mipsel:
     switch (ELFRelocation) {
-    case R_MIPS_IMPLICIT_RELATIVE:
-      return AddAbsoluteAddress32;
+    case R_MIPS_REL32:
+      return { Absolute, 4 };
 
     case R_MIPS_JUMP_SLOT:
     case R_MIPS_GLOB_DAT:
-      return WriteAbsoluteAddress32;
+      return { Absolute, 4 };
 
     case R_MIPS_COPY:
       // TODO: use
     default:
-      return Invalid;
+      return { Invalid, 0 };
     }
 
   case model::Architecture::systemz:
     switch (ELFRelocation) {
+    case R_390_RELATIVE:
+      return { Absolute, 8 };
+
+    case R_390_JMP_SLOT:
     case R_390_GLOB_DAT:
-      return WriteAbsoluteAddress64;
+    case R_390_64:
+      return { Absolute, 8 };
 
     case R_390_COPY:
       // TODO: use
     default:
-      return Invalid;
+      return { Invalid, 0 };
     }
 
   default:
@@ -356,7 +382,8 @@ Values fromELFRelocation(model::Architecture::Values Architecture,
 }
 
 bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
-                                 unsigned char ELFRelocation) {
+                                 uint32_t ELFRelocation,
+                                 bool HasSymbol) {
   using namespace llvm::ELF;
   switch (Architecture) {
   case model::Architecture::x86:
@@ -401,6 +428,7 @@ bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
 
     case R_ARM_JUMP_SLOT:
     case R_ARM_GLOB_DAT:
+    case R_ARM_ABS32:
       return false;
 
     case R_ARM_COPY:
@@ -410,13 +438,13 @@ bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
     }
 
   case model::Architecture::aarch64:
-    return Invalid;
+    return ELFRelocation == R_AARCH64_RELATIVE;
 
   case model::Architecture::mips:
   case model::Architecture::mipsel:
     switch (ELFRelocation) {
-    case R_MIPS_IMPLICIT_RELATIVE:
-      return true;
+    case R_MIPS_REL32:
+      return not HasSymbol;
 
     case R_MIPS_JUMP_SLOT:
     case R_MIPS_GLOB_DAT:
@@ -430,7 +458,12 @@ bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
 
   case model::Architecture::systemz:
     switch (ELFRelocation) {
+    case R_390_RELATIVE:
+      return true;
+
+    case R_390_JMP_SLOT:
     case R_390_GLOB_DAT:
+    case R_390_64:
       return false;
 
     case R_390_COPY:
@@ -444,18 +477,19 @@ bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
   }
 }
 
-Values formCOFFRelocation(model::Architecture::Values Architecture) {
+std::pair<Values, uint64_t>
+formCOFFRelocation(model::Architecture::Values Architecture) {
   switch (Architecture) {
   case model::Architecture::x86:
   case model::Architecture::arm:
   case model::Architecture::mips:
   case model::Architecture::mipsel:
-    return WriteAbsoluteAddress32;
+    return { Absolute, 4 };
 
   case model::Architecture::x86_64:
   case model::Architecture::aarch64:
   case model::Architecture::systemz:
-    return WriteAbsoluteAddress64;
+    return { Absolute, 8 };
   default:
     revng_abort();
   }

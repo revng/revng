@@ -1,0 +1,23 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Check that the functions of the programs tagged `for-import-functions`, which
+# are reachable only through information for the loader, are found. See
+# `share/revng/test/tests/model/import/functions/`.
+
+commands:
+  - type: revng.test-import-functions
+    from:
+      - type: revng-qa.functions
+        filter: functions-ifunc or functions-no-function-starts
+    command: |-
+      revng quick analyze "${INPUT}" | FileCheck "${SOURCE}.filecheck"
+
+  - type: revng.test-import-functions
+    from:
+      - type: revng-qa.functions
+        filter: functions-function-starts
+    command: |-
+      revng quick analyze "${INPUT}" |
+        FileCheck "${SOURCE}.filecheck" --check-prefixes=CHECK,FUNCTION-STARTS

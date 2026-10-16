@@ -61,6 +61,23 @@ template <> struct TupleLikeTraits</*=- struct | user_fullname =*/> {
     /*=- field.name =*/ = /*=- loop.index0 =*/,
     /**- endfor **/
   };
+
+  /// The value a field takes when it's absent from the serialized form
+  template<size_t I>
+  static const auto &defaultValue() {
+    using Type = std::tuple_element_t<I, tuple>;
+    /**- for field in struct.all_fields **/
+    /**- if field | has_serialization_default **/
+    if constexpr (I == /*= loop.index0 =*/) {
+      static const Type Result = /*= field | get_default_value =*/;
+      return Result;
+    } else
+    /**- endif **/
+    /**- endfor **/ {
+      static const Type Result{};
+      return Result;
+    }
+  }
 };
 
 namespace /*= base_namespace =*/ {

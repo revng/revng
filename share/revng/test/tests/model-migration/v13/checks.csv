@@ -1,0 +1,19 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# An absent primitive size stands for zero.
+.TypeDefinitions[0].UnderlyingType.Size,0
+.TypeDefinitions[1].UnderlyingType.PointeeType.Size,0
+
+# Address space 0 keeps looking for pointers in raw segment content.
+.AddressSpaces | length,1
+.AddressSpaces[0].Index,0
+.AddressSpaces[0].IsPositionIndependent,false
+
+# Relocation types no longer encode the size.
+.Segments[0].Relocations[0].Type,Absolute
+.Segments[0].Relocations[0].Size,8
+.Segments[0].Relocations[0].Addend,16
+.Segments[0].Relocations[1].Type,Absolute
+.Segments[0].Relocations[1].Size,4

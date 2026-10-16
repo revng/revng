@@ -15,6 +15,7 @@
 #include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/PDBImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
+#include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/Error.h"
 #include "revng/Support/MetaAddress.h"
@@ -38,6 +39,7 @@ class PECOFFImporter : public BinaryImporterHelper {
 private:
   TupleTree<model::Binary> &Model;
   const COFFBinary &TheBinary;
+  RawBinaryView File;
   llvm::StringRef BinaryPath;
   MetaAddress ImageBase = MetaAddress::invalid();
 
@@ -47,7 +49,8 @@ public:
                  uint64_t BaseAddress) :
     BinaryImporterHelper(Model, BaseAddress, Log),
     Model(Model),
-    TheBinary(TheBinary) {
+    TheBinary(TheBinary),
+    File(*Model, toArrayRef(TheBinary.ObjectFile.getData())) {
     revng_log(Log, "Creating binary importer helper");
   }
 
@@ -69,6 +72,10 @@ private:
   using DelayDirectoryRef = const DelayImportDirectoryEntryRef;
   void recordDelayImportedFunctions(DelayDirectoryRef &I,
                                     ImportedSymbolRange Range);
+
+  /// Parse the base relocation table, which describes the absolute pointers
+  /// in the image
+  void parseBaseRelocations();
 };
 
 Error PECOFFImporter::parseSectionsHeaders() {
@@ -107,8 +114,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
                                                             .getSection(Id);
     if (auto Error = MaybeSection.takeError()) {
       // TODO: emit a diagnostic message for the user.
-      revng_log(Log, "Error in section with ID " << Id << ": " << Error);
-      consumeError(std::move(Error));
+      std::string Message = toString(std::move(Error));
+      revng_log(Log, "Error in section with ID " << Id << ": " << Message);
       continue;
     }
     const object::coff_section *CoffRef = *MaybeSection;
@@ -181,8 +188,8 @@ void PECOFFImporter::parseSymbols() {
 
     Expected<StringRef> MaybeName = TheBinary.ObjectFile.getSymbolName(Symbol);
     if (auto Error = MaybeName.takeError()) {
-      revng_log(Log, "Found static symbol without a name.");
-      consumeError(std::move(Error));
+      std::string Message = toString(std::move(Error));
+      revng_log(Log, "Found static symbol without a name: " << Message);
       continue;
     }
 
@@ -233,8 +240,11 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
 
     // Lets make a Relocation.
     using namespace model::RelocationType;
-    auto RelocationType = formCOFFRelocation(Model->Architecture());
-    model::Relocation NewRelocation(AddressOfImportEntry, RelocationType);
+    auto [RelocationType, Size] = formCOFFRelocation(Model->Architecture());
+    model::Relocation NewRelocation(AddressOfImportEntry,
+                                    RelocationType,
+                                    Size,
+                                    0);
 
     auto It = Model->ImportedDynamicFunctions().insert(Sym.str()).first;
     revng_assert(NewRelocation.verify(true));
@@ -359,8 +369,11 @@ void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
 
     // Lets make Relocation.
     using namespace model::RelocationType;
-    auto RelocationType = formCOFFRelocation(Model->Architecture());
-    model::Relocation NewRelocation(AddressOfDelayImportEntry, RelocationType);
+    auto [RelocationType, Size] = formCOFFRelocation(Model->Architecture());
+    model::Relocation NewRelocation(AddressOfDelayImportEntry,
+                                    RelocationType,
+                                    Size,
+                                    0);
     auto NewIt = Model->ImportedDynamicFunctions().insert(Sym.str()).first;
     revng_assert(NewRelocation.verify(true));
     NewIt->Relocations().insert(NewRelocation);
@@ -390,9 +403,71 @@ void PECOFFImporter::parseDelayImportedSymbols() {
   }
 }
 
+void PECOFFImporter::parseBaseRelocations() {
+  revng_log(Log, "Parsing base relocations");
+  LoggerIndent Indent(Log);
+
+  auto LogError = [](Error TheError) {
+    std::string Message = toString(std::move(TheError));
+    revng_log(Log, "Cannot read the base relocation table: " << Message);
+  };
+
+  for (const BaseRelocRef &Entry : TheBinary.ObjectFile.base_relocs()) {
+    uint8_t Type = 0;
+    if (Error E = Entry.getType(Type)) {
+      LogError(std::move(E));
+      return;
+    }
+
+    uint32_t RVA = 0;
+    if (Error E = Entry.getRVA(RVA)) {
+      LogError(std::move(E));
+      return;
+    }
+
+    uint64_t Size = 0;
+    switch (Type) {
+    case COFF::IMAGE_REL_BASED_ABSOLUTE:
+      // Padding
+      continue;
+
+    case COFF::IMAGE_REL_BASED_HIGHLOW:
+      Size = 4;
+      break;
+
+    case COFF::IMAGE_REL_BASED_DIR64:
+      Size = 8;
+      break;
+
+    default:
+      revng_log(Log,
+                "Ignoring base relocation of type "
+                  << static_cast<unsigned>(Type) << " at RVA " << RVA);
+      continue;
+    }
+
+    MetaAddress Address = ImageBase + u64(RVA);
+    if (auto Target = File.readInteger(Address, Size)) {
+      registerAbsoluteRelocation(Address, Size, *Target);
+    } else {
+      revng_log(Log,
+                "Cannot read the target of the base relocation at "
+                  << Address.toString() << ". Ignoring.");
+    }
+  }
+}
+
 Error PECOFFImporter::import(const ImporterOptions &Options) {
   if (Error E = parseSectionsHeaders())
     return E;
+
+  parseBaseRelocations();
+
+  // Without base relocations, the image can only be loaded at its preferred
+  // base
+  auto Characteristics = TheBinary.ObjectFile.getCharacteristics();
+  if (Characteristics & COFF::IMAGE_FILE_RELOCS_STRIPPED)
+    Model->AddressSpaces()[0].IsPositionIndependent() = false;
 
   // Parse the symbol table.
   parseSymbols();

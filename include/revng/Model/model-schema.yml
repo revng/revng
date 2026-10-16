@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 12
+version: 13
 root_type: Binary
 
 definitions:
@@ -73,6 +73,14 @@ definitions:
         sequence:
           type: SortedVector
           elementType: BinaryIdentifier
+
+      - name: AddressSpaces
+        doc: |-
+          Properties of the address spaces in use, see `AddressSpace`.
+          An address space without an entry here has the default properties.
+        sequence:
+          type: SortedVector
+          elementType: AddressSpace
 
       - name: Segments
         doc: |-
@@ -729,6 +737,31 @@ definitions:
           /Windows for C:\Windows).
         type: string
 
+  - name: AddressSpace
+    type: struct
+
+    doc: |-
+      Properties of an address space, i.e., the `AddressSpace` component of a
+      `MetaAddress`.
+
+    key:
+      - Index
+
+    fields:
+      - name: Index
+        doc: The address space these properties apply to.
+        type: uint64_t
+
+      - name: IsPositionIndependent
+        doc: |-
+          Whether the content of the segments in this address space can be
+          loaded at an arbitrary address.
+          If `true`, every absolute pointer they contain is described by a
+          `Relocation`, so analyses do not look for pointers in their raw
+          content.
+        type: bool
+        default: true
+
   - name: Segment
     type: struct
 
@@ -1048,10 +1081,12 @@ definitions:
         type: MetaAddress
 
       - name: Type
-        doc: |-
-          How to write the address of the object (e.g., 32-bit vs 64-bit
-          integer).
+        doc: How to write the address of the object (e.g., absolute or relative).
         type: RelocationType
+
+      - name: Size
+        doc: Size, in bytes, of the integer written by the relocation.
+        type: uint64_t
 
       - name: Addend
         doc: Fixed offset to add when writing the address of the object.
@@ -1065,41 +1100,13 @@ definitions:
       address.
 
     members:
-      - name: WriteAbsoluteAddress32
-        doc: Write the absolute address of the object as a 32-bit integer.
+      - name: Absolute
+        doc: Write the absolute address of the object.
 
-      - name: WriteAbsoluteAddress64
-        doc: Write the absolute address of the object as a 64-bit integer.
-
-      - name: AddAbsoluteAddress32
+      - name: PCRelative
         doc: |-
-          Add to the 32-bit integer present at the target location the absolute
-          address of the object.
-
-      - name: AddAbsoluteAddress64
-        doc: |-
-          Add to the 64-bit integer present at the target location the absolute
-          address of the object.
-
-      - name: WriteRelativeAddress32
-        doc: |-
-          Write the address of the object as a 32-bit integer, expressed as a
-          relative from the target of the relocation.
-
-      - name: WriteRelativeAddress64
-        doc: |-
-          Write the address of the object as a 64-bit integer, expressed as a
-          relative from the target of the relocation.
-
-      - name: AddRelativeAddress32
-        doc: |-
-          Add to the 32-bit integer present at the target location the address of
-          the object, expressed as a relative from the target of the relocation.
-
-      - name: AddRelativeAddress64
-        doc: |-
-          Add to the 64-bit integer present at the target location the address of
-          the object, expressed as a relative from the target of the relocation.
+          Write the address of the object minus the address the relocation is
+          applied to (`Address`).
 
   - name: CallSitePrototype
     type: struct

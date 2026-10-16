@@ -227,6 +227,10 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
     return revng::createError("Only ELF executables and ELF dynamic libraries "
                               "are supported");
 
+  // Executables are loaded at the address they have been linked for
+  if (Type == ELF::ET_EXEC)
+    Model->AddressSpaces()[0].IsPositionIndependent() = false;
+
   // Look for static or dynamic symbols and relocations
   ConstElf_Shdr *SymtabShdr = nullptr;
   std::optional<MetaAddress> EHFrameAddress;
@@ -238,8 +242,8 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   auto ELFSections = TheELF.sections();
   if (auto Error = ELFSections.takeError()) {
     // TODO: emit a diagnostic message for the user.
-    revng_log(ELFImporterLog, "Sections unavailable: " << Error);
-    llvm::consumeError(std::move(Error));
+    std::string Message = toString(std::move(Error));
+    revng_log(ELFImporterLog, "Sections unavailable: " << Message);
   } else {
     for (ConstElf_Shdr &SectionHeader : *ELFSections) {
       // Obtain the section name
@@ -247,8 +251,8 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
 
       auto MaybeSectionName = TheELF.getSectionName(SectionHeader);
       if (auto Error = MaybeSectionName.takeError()) {
-        revng_log(ELFImporterLog, "Cannot access section name: " << Error);
-        consumeError(std::move(Error));
+        std::string Message = toString(std::move(Error));
+        revng_log(ELFImporterLog, "Cannot access section name: " << Message);
       } else {
         SectionName = *MaybeSectionName;
       }
@@ -409,8 +413,8 @@ void ELFImporter<T, HasAddend>::parseDynamicAndSymbols(object::ELFFile<T>
                                                        bool ParseRelocations) {
   auto DynamicEntries = TheELF.dynamicEntries();
   if (auto Error = DynamicEntries.takeError()) {
-    revng_log(ELFImporterLog, "Cannot access dynamic entries: " << Error);
-    consumeError(std::move(Error));
+    std::string Message = toString(std::move(Error));
+    revng_log(ELFImporterLog, "Cannot access dynamic entries: " << Message);
     return;
   }
 
@@ -426,6 +430,9 @@ void ELFImporter<T, HasAddend>::parseDynamicAndSymbols(object::ELFFile<T>
   RelpltPortion = std::make_unique<FilePortion>(File);
   GotPortion = std::make_unique<FilePortion>(File);
   HashHeaderPortion = std::make_unique<FilePortion>(File);
+  RelrPortion = std::make_unique<FilePortion>(File);
+  AndroidRelPortion = std::make_unique<FilePortion>(File);
+  AndroidRelrPortion = std::make_unique<FilePortion>(File);
   bool IsX86 = Model->Architecture() == model::Architecture::x86;
   bool IsMIPS = (Model->Architecture() == model::Architecture::mips
                  or Model->Architecture() == model::Architecture::mipsel);
@@ -487,6 +494,9 @@ void ELFImporter<T, HasAddend>::parseDynamicAndSymbols(object::ELFFile<T>
                           *DynstrPortion.get());
     }
 
+    if (AndroidRelPortion->isAvailable())
+      registerAndroidRelocations(TheELF);
+
     auto SetCanonicalValue = [this](model::Register::Values Register,
                                     uint64_t Value) {
       for (model::Segment &Segment : Model->Segments())
@@ -511,6 +521,70 @@ void ELFImporter<T, HasAddend>::parseDynamicAndSymbols(object::ELFFile<T>
                           *DynstrPortion.get());
     }
   }
+
+  if (ParseRelocations and RelrPortion->isAvailable())
+    registerRelrRelocations(TheELF, ".relr.dyn", *RelrPortion);
+
+  if (ParseRelocations and AndroidRelrPortion->isAvailable())
+    registerRelrRelocations(TheELF, "Android RELR", *AndroidRelrPortion);
+}
+
+template<typename T, bool HasAddend>
+void ELFImporter<T,
+                 HasAddend>::registerRelrRelocations(object::ELFFile<T> &TheELF,
+                                                     StringRef Name,
+                                                     const FilePortion &Relr) {
+  using Elf_Addr = typename object::ELFFile<T>::Elf_Addr;
+  using Elf_Relr = typename object::ELFFile<T>::Elf_Relr;
+
+  revng_log(ELFImporterLog, "Parsing relocations in " << Name);
+  LoggerIndent Indent(ELFImporterLog);
+
+  auto Relocations = TheELF.decode_relrs(Relr.extractAs<Elf_Relr>());
+  for (const auto &Relocation : Relocations) {
+    registerInPlaceRelocation(relocate(fromGeneric(Relocation.r_offset)),
+                              sizeof(Elf_Addr));
+  }
+}
+
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::registerAndroidRelocations(object::ELFFile<T>
+                                                             &TheELF) {
+  using Elf_Shdr = typename object::ELFFile<T>::Elf_Shdr;
+
+  // The decoder reads a section: describe the table as one
+  ArrayRef<uint8_t> Data = AndroidRelPortion->extractData();
+  if (Data.empty()) {
+    revng_log(ELFImporterLog, "Cannot read packed relocations. Ignoring.");
+    return;
+  }
+
+  Elf_Shdr Section = {};
+  Section.sh_offset = Data.data() - TheELF.base();
+  Section.sh_size = Data.size();
+
+  auto MaybeRelocations = TheELF.android_relas(Section);
+  if (auto Error = MaybeRelocations.takeError()) {
+    std::string Message = toString(std::move(Error));
+    revng_log(ELFImporterLog, "Cannot decode packed relocations: " << Message);
+    return;
+  }
+
+  // Convert the decoded entries, which always carry an addend, to the
+  // relocation type of this binary
+  std::vector<Elf_Rel> Relocations;
+  for (const auto &Decoded : *MaybeRelocations) {
+    Elf_Rel &Relocation = Relocations.emplace_back();
+    Relocation.r_offset = Decoded.r_offset;
+    Relocation.r_info = Decoded.r_info;
+    if constexpr (HasAddend)
+      Relocation.r_addend = Decoded.r_addend;
+  }
+
+  registerRelocations("packed relocations",
+                      Relocations,
+                      *DynsymPortion.get(),
+                      *DynstrPortion.get());
 }
 
 template<typename T, bool HasAddend>
@@ -593,6 +667,41 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
   case ELF::DT_PLTGOT:
     GotPortion->setAddress(GenericAddress);
     break;
+
+  case ELF::DT_RELR:
+    RelrPortion->setAddress(GenericAddress);
+    break;
+
+  case ELF::DT_RELRSZ:
+    RelrPortion->setSize(Val);
+    break;
+
+  case ELF::DT_ANDROID_RELR:
+    AndroidRelrPortion->setAddress(GenericAddress);
+    break;
+
+  case ELF::DT_ANDROID_RELRSZ:
+    AndroidRelrPortion->setSize(Val);
+    break;
+
+  case ELF::DT_ANDROID_REL:
+  case ELF::DT_ANDROID_RELA:
+    if (Tag != (HasAddend ? ELF::DT_ANDROID_RELA : ELF::DT_ANDROID_REL))
+      revng_log(ELFImporterLog, "Unexpected kind of packed relocations");
+    AndroidRelPortion->setAddress(GenericAddress);
+    break;
+
+  case ELF::DT_ANDROID_RELSZ:
+  case ELF::DT_ANDROID_RELASZ:
+    AndroidRelPortion->setSize(Val);
+    break;
+
+  case ELF::DT_RELRENT:
+  case ELF::DT_ANDROID_RELRENT: {
+    using Elf_Relr = typename object::ELFFile<T>::Elf_Relr;
+    if (Val != sizeof(Elf_Relr))
+      revng_log(ELFImporterLog, "Unexpected DT_RELRENT: " << Val);
+  } break;
 
   case ELF::DT_HASH:
     HashHeaderPortion->setAddress(GenericAddress);
@@ -744,15 +853,15 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
   // Obtain a reference to the string table
   auto Strtab = TheELF.getSection(SymtabShdr->sh_link);
   if (auto Error = Strtab.takeError()) {
-    revng_log(ELFImporterLog, "Cannot find .strtab: " << Error);
-    consumeError(std::move(Error));
+    std::string Message = toString(std::move(Error));
+    revng_log(ELFImporterLog, "Cannot find .strtab: " << Message);
     return;
   }
 
   auto StrtabArray = TheELF.getSectionContents(**Strtab);
   if (auto Error = StrtabArray.takeError()) {
-    revng_log(ELFImporterLog, "Cannot access .strtab: " << Error);
-    consumeError(std::move(Error));
+    std::string Message = toString(std::move(Error));
+    revng_log(ELFImporterLog, "Cannot access .strtab: " << Message);
     return;
   }
 
@@ -762,8 +871,8 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
   // Collect symbol names
   auto ELFSymbols = TheELF.symbols(SymtabShdr);
   if (auto Error = ELFSymbols.takeError()) {
-    revng_log(ELFImporterLog, "Cannot get symbols: " << Error);
-    consumeError(std::move(Error));
+    std::string Message = toString(std::move(Error));
+    revng_log(ELFImporterLog, "Cannot get symbols: " << Message);
     return;
   }
 
@@ -808,8 +917,8 @@ template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseSegments(ELFFile<T> &TheELF) {
   auto ProgHeaders = TheELF.program_headers();
   if (auto Error = ProgHeaders.takeError()) {
-    revng_log(ELFImporterLog, "Cannot access program headers: " << Error);
-    consumeError(std::move(Error));
+    std::string Message = toString(std::move(Error));
+    revng_log(ELFImporterLog, "Cannot access program headers: " << Message);
     return;
   }
 
@@ -871,8 +980,8 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
 
   auto ProgHeaders = TheELF.program_headers();
   if (auto Error = ProgHeaders.takeError()) {
-    revng_log(ELFImporterLog, "Cannot access program headers: " << Error);
-    consumeError(std::move(Error));
+    std::string Message = toString(std::move(Error));
+    revng_log(ELFImporterLog, "Cannot access program headers: " << Message);
     return;
   }
 
@@ -924,8 +1033,8 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
                                                    StringRef Dynstr) {
   Expected<llvm::StringRef> MaybeName = Symbol.getName(Dynstr);
   if (auto TheError = MaybeName.takeError()) {
-    revng_log(ELFImporterLog, "Cannot access symbol name: " << TheError);
-    consumeError(std::move(TheError));
+    std::string Message = toString(std::move(TheError));
+    revng_log(ELFImporterLog, "Cannot access symbol name: " << Message);
     return;
   }
 
@@ -1314,103 +1423,195 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
   using namespace llvm::object;
   using Elf_Sym = Elf_Sym_Impl<T>;
 
-  model::Segment *LowestSegment = nullptr;
-  if (auto It = Model->Segments().begin(); It != Model->Segments().end())
-    LowestSegment = &*It;
-
   ArrayRef<Elf_Sym> Symbols;
-  if (Dynsym.isAvailable())
+  StringRef SymbolNames;
+  if (Dynsym.isAvailable() and Dynstr.isAvailable()) {
     Symbols = Dynsym.extractAs<Elf_Sym>();
+    SymbolNames = Dynstr.extractString();
+  }
 
   revng_log(ELFImporterLog, "Parsing relocations in " << Name.str());
   LoggerIndent Indent(ELFImporterLog);
 
-  for (auto [Index, Relocation] : llvm::enumerate(Relocations)) {
-    auto Type = static_cast<unsigned char>(Relocation.getType(false));
-    uint64_t Addend = RelocationHelper<T, HasAddend>::getAddend(Relocation);
-    MetaAddress Address = relocate(fromGeneric(Relocation.r_offset));
+  for (const Elf_Rel &Relocation : Relocations) {
+    registerRelocation(relocate(fromGeneric(Relocation.r_offset)),
+                       Relocation.getType(false),
+                       Relocation.getSymbol(false),
+                       RelocationHelper<T, HasAddend>::getAddend(Relocation),
+                       Symbols,
+                       SymbolNames);
+  }
+}
 
-    StringRef SymbolName;
-    unsigned char SymbolType = llvm::ELF::STT_NOTYPE;
-    if (Dynsym.isAvailable() and Dynstr.isAvailable()) {
-      uint32_t SymbolIndex = Relocation.getSymbol(false);
-      if (not(SymbolIndex < Symbols.size())) {
-        revng_log(ELFImporterLog,
-                  "Invalid symbol index "
-                    << SymbolIndex << ". "
-                    << "Symbol count: " << Symbols.size());
-      }
-      const Elf_Sym &Symbol = Symbols[SymbolIndex];
-      auto MaybeName = Symbol.getName(Dynstr.extractString());
+/// Check if \p Type is an `R_*_IRELATIVE` relocation, which writes the value
+/// returned by an IFUNC resolver
+static bool isIRelativeRelocation(model::Architecture::Values Architecture,
+                                  uint32_t Type) {
+  using namespace llvm::ELF;
+  switch (Architecture) {
+  case model::Architecture::x86:
+    return Type == R_386_IRELATIVE;
+  case model::Architecture::x86_64:
+    return Type == R_X86_64_IRELATIVE;
+  case model::Architecture::arm:
+    return Type == R_ARM_IRELATIVE;
+  case model::Architecture::aarch64:
+    return Type == R_AARCH64_IRELATIVE;
+  case model::Architecture::systemz:
+    return Type == R_390_IRELATIVE;
+  default:
+    return false;
+  }
+}
 
-      if (auto Error = MaybeName.takeError()) {
-        revng_log(ELFImporterLog,
-                  "Cannot access symbol name for relocation #" << Index << ": "
-                                                               << Error);
-        consumeError(std::move(Error));
-      } else {
-        SymbolName = *MaybeName;
-      }
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::registerRelocation(MetaAddress Address,
+                                                   uint32_t Type,
+                                                   uint32_t SymbolIndex,
+                                                   uint64_t Addend,
+                                                   ArrayRef<Elf_Sym_Impl<T>>
+                                                     Symbols,
+                                                   StringRef SymbolNames) {
+  if (isIRelativeRelocation(Model->Architecture(), Type)) {
+    registerIfuncResolver(Address, Addend);
+    return;
+  }
 
-      SymbolType = Symbol.getType();
+  StringRef SymbolName;
+  unsigned char SymbolType = llvm::ELF::STT_NOTYPE;
+  if (not Symbols.empty()) {
+    if (not(SymbolIndex < Symbols.size())) {
+      revng_log(ELFImporterLog,
+                "Invalid symbol index " << SymbolIndex << ". "
+                                        << "Symbol count: " << Symbols.size());
+    }
+    const auto &Symbol = Symbols[SymbolIndex];
+    auto MaybeName = Symbol.getName(SymbolNames);
+
+    if (auto Error = MaybeName.takeError()) {
+      std::string Message = toString(std::move(Error));
+      revng_log(ELFImporterLog,
+                "Cannot access symbol name for the relocation at "
+                  << Address.toString() << ": " << Message);
+    } else {
+      SymbolName = *MaybeName;
     }
 
-    using namespace model::RelocationType;
-    auto RelocationType = fromELFRelocation(Model->Architecture(), Type);
+    SymbolType = Symbol.getType();
+  }
 
-    auto RelocationName = getELFRelocationTypeName(TheBinary.ObjectFile
-                                                     .getEMachine(),
-                                                   Type);
-    if (RelocationType == Invalid) {
-      revng_log(ELFImporterLog,
-                "Ignoring unknown relocation #" << Index << ": "
+  using namespace model::RelocationType;
+  auto [RelocationType, Size] = fromELFRelocation(Model->Architecture(), Type);
+
+  auto RelocationName = getELFRelocationTypeName(TheBinary.ObjectFile
+                                                   .getEMachine(),
+                                                 Type);
+  if (RelocationType == Invalid) {
+    revng_log(ELFImporterLog,
+              "Ignoring unknown relocation at " << Address.toString() << ": "
                                                 << RelocationName);
-      continue;
+    return;
+  }
+
+  model::Relocation NewRelocation(Address, RelocationType, Size, Addend);
+
+  bool HasName = SymbolName.size() != 0;
+  bool IsBaseRelative = isELFRelocationBaseRelative(Model->Architecture(),
+                                                    Type,
+                                                    HasName);
+
+  if (HasName and IsBaseRelative) {
+    revng_log(ELFImporterLog,
+              "We found a base-relative relocation at "
+                << Address.toString() << " (" << RelocationName
+                << ") associated to a symbol, ignoring.");
+  } else if (not HasName and not IsBaseRelative) {
+    if (ELFImporterLog.isEnabled()) {
+      ELFImporterLog << "We found a non-base-relative relocation at "
+                     << Address.toString() << " (" << RelocationName
+                     << ") not associated to a symbol, ignoring." << DoLog;
     }
-
-    model::Relocation NewRelocation(Address, RelocationType, Addend);
-
-    bool HasName = SymbolName.size() != 0;
-    bool IsBaseRelative = isELFRelocationBaseRelative(Model->Architecture(),
-                                                      Type);
-
-    if (HasName and IsBaseRelative) {
-      revng_log(ELFImporterLog,
-                "We found a base-relative relocation #"
-                  << Index << " (" << RelocationName
-                  << ") associated to a symbol, ignoring.");
-    } else if (not HasName and not IsBaseRelative) {
-      if (ELFImporterLog.isEnabled()) {
-        ELFImporterLog << "We found a non-base-relative relocation #" << Index
-                       << " (" << RelocationName
-                       << ") not associated to a symbol, ignoring." << DoLog;
-      }
-    } else if (HasName) {
-      // Symbol-relative relocation
-      if (isCode(SymbolType)) {
-        auto It = Model->ImportedDynamicFunctions().find(SymbolName.str());
-        if (It != Model->ImportedDynamicFunctions().end()) {
-          auto &Relocations = It->Relocations();
-          NewRelocation.verify(true);
-          Relocations.insert(NewRelocation);
-        }
-      } else {
-        // TODO: register relocation for dynamic global variable
+  } else if (HasName) {
+    // Symbol-relative relocation
+    // TODO: `REL` relocations such as `R_386_32` keep their addend in place,
+    //       which is not imported
+    if (isCode(SymbolType)) {
+      auto It = Model->ImportedDynamicFunctions().find(SymbolName.str());
+      if (It != Model->ImportedDynamicFunctions().end()) {
+        auto &Relocations = It->Relocations();
+        NewRelocation.verify(true);
+        Relocations.insert(NewRelocation);
       }
     } else {
-      // Base-relative relocation
-      if (LowestSegment != nullptr) {
-        NewRelocation.verify(true);
-        LowestSegment->Relocations().insert(NewRelocation);
-      } else {
-        revng_log(ELFImporterLog,
-                  "Found a base-relative relocation #" << Index
-                                                       << ", but no segment is "
-                                                          "available! "
-                                                          "Ignoring.");
-      }
+      // TODO: register relocation for dynamic global variable
+    }
+  } else {
+    // Base-relative relocation
+    if constexpr (HasAddend)
+      registerRelativeRelocation(Address, Size, Addend);
+    else
+      registerInPlaceRelocation(Address, Size);
+  }
+}
+
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::registerInPlaceRelocation(MetaAddress Address,
+                                                          uint64_t Size) {
+  if (auto Addend = File.readInteger(Address, Size)) {
+    registerRelativeRelocation(Address, Size, *Addend);
+  } else {
+    revng_log(ELFImporterLog,
+              "Cannot read the in-place addend of the relocation at "
+                << Address.toString() << ". Ignoring.");
+  }
+}
+
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::registerRelativeRelocation(MetaAddress Address,
+                                                           uint64_t Size,
+                                                           uint64_t Addend) {
+  // A binary that is not relocatable is loaded at the address it has been
+  // linked for, where base-relative relocations have no effect
+  if (TheBinary.ObjectFile.getEType() != ELF::ET_DYN)
+    return;
+
+  auto Relocated = OverflowSafeInt(Addend) + BaseAddress;
+  if (not Relocated) {
+    revng_log(ELFImporterLog,
+              "Cannot relocate the target of the relocation at "
+                << Address.toString() << ". Ignoring.");
+    return;
+  }
+
+  registerAbsoluteRelocation(Address, Size, *Relocated);
+}
+
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::registerIfuncResolver(MetaAddress Address,
+                                                      uint64_t Addend) {
+  // `REL` relocations keep the addend in place
+  if constexpr (not HasAddend) {
+    using namespace model::Architecture;
+    uint64_t PointerSize = getPointerSize(Model->Architecture());
+    if (auto InPlace = File.readInteger(Address, PointerSize)) {
+      Addend = *InPlace;
+    } else {
+      revng_log(ELFImporterLog,
+                "Cannot read the in-place addend of the relocation at "
+                  << Address.toString() << ". Ignoring.");
+      return;
     }
   }
+
+  MetaAddress Resolver = relocate(fromPC(Addend));
+  if (Resolver.isInvalid()) {
+    revng_log(ELFImporterLog,
+              "The IFUNC resolver of the relocation at "
+                << Address.toString() << " is not a valid address. Ignoring.");
+    return;
+  }
+
+  registerFunctionEntry(Resolver);
 }
 
 static std::unique_ptr<ELFImporterBase>
@@ -1503,8 +1704,8 @@ elfExportedSymbols(const llvm::object::ELFObjectFileBase &ObjectFile) {
                                     /*BaseAddress=*/0);
 
   if (auto Error = Importer->parseDynamicSymbolsOnly()) {
-    revng_log(ELFImporterLog, "parseDynamicSymbolsOnly failed: " << Error);
-    consumeError(std::move(Error));
+    std::string Message = toString(std::move(Error));
+    revng_log(ELFImporterLog, "parseDynamicSymbolsOnly failed: " << Message);
     return {};
   }
 

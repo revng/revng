@@ -88,3 +88,4 @@ TypeDefinitions:
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Void
+      Size: 0

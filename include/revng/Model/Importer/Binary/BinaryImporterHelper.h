@@ -5,8 +5,10 @@
 //
 
 #include <cstdint>
+#include <optional>
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/Support/MathExtras.h"
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/Importer/Binary/BinaryDescriptor.h"
@@ -24,6 +26,9 @@ protected:
   Logger &Logger;
   MetaAddressRangeSet ExecutableRanges;
   bool SegmentsInitialized = false;
+
+  /// The lowest segment, which records base-relative relocations
+  model::Segment *LowestSegment = nullptr;
 
 public:
   BinaryImporterHelper(TupleTree<model::Binary> &Binary,
@@ -66,6 +71,8 @@ public:
   void processSegments() {
     ExecutableRanges = Binary->executableRanges();
     SegmentsInitialized = true;
+    if (not Binary->Segments().empty())
+      LowestSegment = &*Binary->Segments().begin();
   }
 
 public:
@@ -170,6 +177,65 @@ private:
   ///       ExtraCodeAddress and new Functions registration.
   bool isExecutable(const MetaAddress &Address) const {
     return ExecutableRanges.contains(Address);
+  }
+
+protected:
+  /// Register a relocation writing the absolute address \p Target, of \p Size
+  /// bytes, at \p Address. \p Target is interpreted in the address space of
+  /// the lowest segment, which holds the relocation.
+  void registerAbsoluteRelocation(MetaAddress Address,
+                                  uint64_t Size,
+                                  uint64_t Target) {
+    using namespace model::RelocationType;
+    revng_assert(Size == 4 or Size == 8);
+
+    if (Address.isInvalid()) {
+      revng_log(Logger, "Found a relocation at an invalid address. Ignoring.");
+      return;
+    }
+
+    if (LowestSegment == nullptr) {
+      revng_log(Logger,
+                "Found a relocation at " << Address.toString()
+                                         << ", but no segment is available! "
+                                            "Ignoring.");
+      return;
+    }
+
+    if (not llvm::isUIntN(8 * Size, Target)) {
+      revng_log(Logger,
+                "The target of the relocation at "
+                  << Address.toString() << " does not fit in " << Size
+                  << " bytes. Ignoring.");
+      return;
+    }
+
+    MetaAddress Start = LowestSegment->StartAddress();
+    auto TargetAddress = MetaAddress::fromGeneric(Binary->Architecture(),
+                                                  Target,
+                                                  Start.epoch(),
+                                                  Start.addressSpace());
+    if (TargetAddress.isInvalid()) {
+      revng_log(Logger,
+                "The target of the relocation at "
+                  << Address.toString() << " is not a valid address. "
+                  << "Ignoring.");
+      return;
+    }
+
+    // Express the target as an offset from the start of the lowest segment
+    std::optional<uint64_t> Offset = TargetAddress - Start;
+    if (not Offset) {
+      revng_log(Logger,
+                "The relocation at " << Address.toString()
+                                     << " targets an address lower than any "
+                                        "segment. Ignoring.");
+      return;
+    }
+
+    model::Relocation NewRelocation(Address, Absolute, Size, *Offset);
+    NewRelocation.verify(true);
+    LowestSegment->Relocations().insert(NewRelocation);
   }
 
 protected:

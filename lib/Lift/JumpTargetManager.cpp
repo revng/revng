@@ -426,7 +426,7 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
        Model->ImportedDynamicFunctions()) {
     for (const model::Relocation &Relocation : Function.Relocations()) {
       uint64_t Addend = Relocation.Addend();
-      auto RelocationSize = model::RelocationType::getSize(Relocation.Type());
+      uint64_t RelocationSize = Relocation.Size();
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         revng_log(ReadFromPointerLog,
                   "Found a DynamicFunction relocation:\n"
@@ -434,8 +434,13 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
 
         // TODO: add this to model verify
         revng_assert(not StringRef(Function.Name()).contains('\0'));
-        Result = MaterializedValue::fromSymbol(Function.Name(),
-                                               NewAPInt(Addend));
+        if (Relocation.Type() == model::RelocationType::Absolute) {
+          Result = MaterializedValue::fromSymbol(Function.Name(),
+                                                 NewAPInt(Addend));
+        } else {
+          // The distance from a symbol cannot be represented
+          Result = MaterializedValue::invalid();
+        }
         ++MatchCount;
       }
     }
@@ -445,18 +450,23 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
   for (const model::Segment &Segment : Model->Segments()) {
     for (const model::Relocation &Relocation : Segment.Relocations()) {
       uint64_t Addend = Relocation.Addend();
-      auto RelocationSize = model::RelocationType::getSize(Relocation.Type());
+      uint64_t RelocationSize = Relocation.Size();
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         MetaAddress Address = Segment.StartAddress() + Addend;
         if (Address.isValid()) {
           revng_log(ReadFromPointerLog,
                     "Found a Segment relocation:\n"
                       << Relocation.toString());
-          auto Value = NewAPInt(Address.address());
-          if (Segment.IsWriteable())
-            Result = MaterializedValue::fromMutable(Value);
-          else
+          APInt Value = NewAPInt(Address.address());
+
+          // A PC-relative relocation writes the distance from where it applies
+          if (Relocation.Type() == model::RelocationType::PCRelative)
+            Value -= NewAPInt(LoadAddress.address());
+
+          if (BinaryView.isReadOnly(LoadAddress, LoadSize))
             Result = MaterializedValue::fromConstant(Value);
+          else
+            Result = MaterializedValue::fromMutable(Value);
           ++MatchCount;
         } else {
           // TODO: log message
@@ -551,6 +561,13 @@ void JumpTargetManager::harvestGlobalData() {
     registerJT(Address, JumpTargetReason::GlobalData);
 
   for (auto &[Segment, Data] : BinaryView.segments()) {
+    // Harvesting pointers in global data only makes sense for non-PIC code.
+    // However, for PIC-code we exploit relocations (see
+    // `findRelocatedCodePointers`)
+    auto &AddressSpace = Model->getAddressSpaceFor(Segment.StartAddress());
+    if (AddressSpace.IsPositionIndependent())
+      continue;
+
     MetaAddress StartVirtualAddress = Segment.StartAddress();
     const unsigned char *DataStart = Data.begin();
     const unsigned char *DataEnd = Data.end();
@@ -580,9 +597,31 @@ void JumpTargetManager::harvestGlobalData() {
     }
   }
 
+  findRelocatedCodePointers();
+
   revng_log(JTCountLog,
             "JumpTargets found in global data: " << std::dec
                                                  << Unexplored.size());
+}
+
+void JumpTargetManager::findRelocatedCodePointers() {
+  for (const model::Segment &Segment : Model->Segments()) {
+    for (const model::Relocation &Relocation : Segment.Relocations()) {
+      MetaAddress Target = Segment.StartAddress() + Relocation.Addend();
+      if (Target.isValid())
+        registerCodePointer(Relocation.Address(),
+                            Target.toPC(Model->Architecture()));
+    }
+  }
+}
+
+void JumpTargetManager::registerCodePointer(MetaAddress Location,
+                                            MetaAddress PC) {
+  if (PC.isInvalid())
+    return;
+
+  if (registerJT(PC, JumpTargetReason::GlobalData) != nullptr)
+    UnusedCodePointers[Location] = PC;
 }
 
 template<typename value_type, unsigned endian>
@@ -593,26 +632,24 @@ void JumpTargetManager::findCodePointers(MetaAddress StartVirtualAddress,
   using support::endian::read;
 
   constexpr auto Step = sizeof(value_type);
-
-  auto Cursor = Start;
+  uint64_t Size = End - Start;
 
   // Align the starting address: we want to scan one step at a time starting
   // from an aligned size
+  uint64_t Offset = 0;
   auto Misalignment = StartVirtualAddress.address() % Step;
   if (Misalignment != 0)
-    Cursor += Step - Misalignment;
+    Offset = Step - Misalignment;
 
-  for (; Cursor < End - Step; Cursor += Step) {
+  for (; Offset + Step <= Size; Offset += Step) {
     auto Read = read<value_type, static_cast<endianness>(endian), 1>;
-    uint64_t RawValue = Read(Cursor);
-    MetaAddress Value = fromPC(RawValue);
-    if (Value.isInvalid())
-      continue;
 
-    BasicBlock *Result = registerJT(Value, JumpTargetReason::GlobalData);
-
-    if (Result != nullptr)
-      UnusedCodePointers.insert(StartVirtualAddress + (Cursor - Start));
+    // Assume the pointer targets the address space of the segment
+    MetaAddress PC = MetaAddress::fromPC(Model->Architecture(),
+                                         Read(Start + Offset),
+                                         StartVirtualAddress.epoch(),
+                                         StartVirtualAddress.addressSpace());
+    registerCodePointer(StartVirtualAddress + Offset, PC);
   }
 }
 

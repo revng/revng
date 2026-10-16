@@ -90,6 +90,9 @@ protected:
   std::unique_ptr<FilePortion> RelpltPortion;
   std::unique_ptr<FilePortion> GotPortion;
   std::unique_ptr<FilePortion> HashHeaderPortion;
+  std::unique_ptr<FilePortion> RelrPortion;
+  std::unique_ptr<FilePortion> AndroidRelPortion;
+  std::unique_ptr<FilePortion> AndroidRelrPortion;
 
 public:
   ELFImporter(TupleTree<model::Binary> &Model,
@@ -180,6 +183,37 @@ protected:
                            Elf_Rel_Array Relocations,
                            const FilePortion &Dynsym,
                            const FilePortion &Dynstr);
+
+  /// Register a relocation of type \p Type at the relocated \p Address,
+  /// referring to the symbol \p SymbolIndex in \p Symbols, if not empty
+  void registerRelocation(MetaAddress Address,
+                          uint32_t Type,
+                          uint32_t SymbolIndex,
+                          uint64_t Addend,
+                          llvm::ArrayRef<llvm::object::Elf_Sym_Impl<T>> Symbols,
+                          llvm::StringRef SymbolNames);
+
+  /// Register an `R_*_RELATIVE` relocation of \p Size bytes at \p Address,
+  /// which writes the load address plus \p Addend
+  void registerRelativeRelocation(MetaAddress Address,
+                                  uint64_t Size,
+                                  uint64_t Addend);
+
+  /// Register an `R_*_RELATIVE` relocation of \p Size bytes at \p Address,
+  /// whose addend is stored in place
+  void registerInPlaceRelocation(MetaAddress Address, uint64_t Size);
+
+  /// Register the IFUNC resolver of the `R_*_IRELATIVE` relocation at
+  /// \p Address, which the loader calls at the load address plus the addend
+  void registerIfuncResolver(MetaAddress Address, uint64_t Addend);
+
+  /// Register the relocations in a DT_RELR-encoded table
+  void registerRelrRelocations(llvm::object::ELFFile<T> &TheELF,
+                               llvm::StringRef Name,
+                               const FilePortion &Relr);
+
+  /// Register the relocations in Android's packed relocation table
+  void registerAndroidRelocations(llvm::object::ELFFile<T> &TheELF);
 
   void parseDynamicTag(uint64_t Tag,
                        uint64_t Val,

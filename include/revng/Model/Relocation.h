@@ -19,10 +19,8 @@ public:
   using generated::Relocation::Relocation;
 
 public:
-  uint64_t size() const { return model::RelocationType::getSize(Type()); }
-
   /// \return a valid end address.
-  MetaAddress endAddress() const { return Address() + size(); }
+  MetaAddress endAddress() const { return Address() + Size(); }
 
 public:
   bool verify() const debug_function;

@@ -4,40 +4,31 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <utility>
+
 #include "revng/Model/Architecture.h"
 
 #include "revng/Model/Generated/Early/RelocationType.h"
 
-constexpr unsigned char R_MIPS_IMPLICIT_RELATIVE = 255;
-
 namespace model::RelocationType {
 
-inline uint64_t getSize(Values V) {
-  switch (V) {
-  case WriteAbsoluteAddress32:
-  case AddAbsoluteAddress32:
-  case WriteRelativeAddress32:
-  case AddRelativeAddress32:
-    return 4;
+/// \return the type and the size of the relocation corresponding to
+///         \p ELFRelocation, or `Invalid` if it's not supported
+std::pair<Values, uint64_t>
+fromELFRelocation(model::Architecture::Values Architecture,
+                  uint32_t ELFRelocation);
 
-  case WriteAbsoluteAddress64:
-  case AddAbsoluteAddress64:
-  case WriteRelativeAddress64:
-  case AddRelativeAddress64:
-    return 8;
+/// \return the type and the size of the relocation of an entry of the import
+///         address table
+std::pair<Values, uint64_t>
+formCOFFRelocation(model::Architecture::Values Architecture);
 
-  default:
-    revng_abort();
-  }
-}
-
-Values fromELFRelocation(model::Architecture::Values Architecture,
-                         unsigned char ELFRelocation);
-
-Values formCOFFRelocation(model::Architecture::Values Architecture);
-
+/// \return true if \p ELFRelocation writes the load address plus an addend,
+///         false if it refers to a symbol. `R_MIPS_REL32` is base-relative
+///         only if not associated to a symbol (\p HasSymbol).
 bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
-                                 unsigned char ELFRelocation);
+                                 uint32_t ELFRelocation,
+                                 bool HasSymbol);
 
 } // namespace model::RelocationType
 

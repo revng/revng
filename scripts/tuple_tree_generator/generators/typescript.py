@@ -146,7 +146,7 @@ class TypeScriptGenerator:
     def gen_assignment(self, field: StructField) -> str:
         if self._is_simple_type(field):
             result = f"this.{field.name} = rawObject.{field.name}"
-            opt = "" if field.is_key else f"|| {self.get_default_value(field)}"
+            opt = "" if field.is_key else f" ?? {self.get_default_value(field)}"
             return f"{result}{opt};"
         if isinstance(field.resolved_type, ReferenceDefinition):
             pointee_type = field.resolved_type.pointee.name

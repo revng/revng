@@ -1,0 +1,52 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Check the relocations imported from the programs tagged
+# `for-import-relocations` and, in position-independent ones, that the code
+# reachable only through them is found. See
+# `share/revng/test/tests/model/import/relocations/relocations.c.filecheck`.
+
+# The checks that apply to each kind of program
+tags:
+  - name: relocations-elf-pie
+    variables:
+      CHECK_PREFIXES: PIC,IMPORT,DISCOVERY
+  - name: relocations-elf-exec
+    variables:
+      CHECK_PREFIXES: NOPIC,IMPORT
+  - name: relocations-macho-pie
+    variables:
+      CHECK_PREFIXES: PIC,DISCOVERY
+  - name: relocations-macho-exec
+    variables:
+      CHECK_PREFIXES: NOPIC
+  - name: relocations-pe-pie
+    variables:
+      CHECK_PREFIXES: PIC,PE-PIC,IMPORT,DISCOVERY
+  - name: relocations-pe-fixed
+    variables:
+      CHECK_PREFIXES: NOPIC,IMPORT
+
+commands:
+  - type: revng.test-import-relocations
+    from:
+      - type: revng-qa.relocations
+        filter: "!relocations-pe-pie or !relocations-windows-i386"
+    command: |-
+      revng quick analyze "${INPUT}" |
+        FileCheck "${SOURCE}.filecheck"
+          --check-prefixes=${CHECK_PREFIXES}
+          -D#POINTER_SIZE=$$((${POINTER_SIZE} / 8))
+
+  # On i386, the import thunk also refers to the import address table through
+  # an absolute address
+  - type: revng.test-import-relocations
+    from:
+      - type: revng-qa.relocations
+        filter: relocations-pe-pie and relocations-windows-i386
+    command: |-
+      revng quick analyze "${INPUT}" |
+        FileCheck "${SOURCE}.filecheck"
+          --check-prefixes=${CHECK_PREFIXES},PE-I386-PIC
+          -D#POINTER_SIZE=$$((${POINTER_SIZE} / 8))
