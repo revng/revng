@@ -328,7 +328,7 @@ void DwarfToModelConverter::createType(const DWARFDie &Die) {
         MaybeByteSize and not Die.hasChildren()) {
       // Handle small empty unions, usually due to transparent unions
       auto Size = *MaybeByteSize->getAsUnsignedConstant();
-      record(Die, model::PrimitiveType::makeGeneric(Size));
+      record(Die, Model->makeStructDefinition(Size).second);
     } else {
       // Handle regular unions
       recordPlaceholder(Die, std::move(Model->makeUnionDefinition().second));
