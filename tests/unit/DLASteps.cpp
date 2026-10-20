@@ -1338,3 +1338,109 @@ BOOST_AUTO_TEST_CASE(MergePointeesOfPointerUnion_smallerFromModel) {
   revng_check(Instances.size() == 1);
   revng_check(Instances.front() == ModelType);
 }
+
+/// Test that a pointer union whose pointees are not pointers has them merged.
+BOOST_AUTO_TEST_CASE(MergePointeesOfPointerUnion_scalarPointees) {
+  dla::LayoutTypeSystem TS;
+  constexpr size_t PointerSize = 4;
+
+  // Two pointers hanging off the same node at the same offset, each pointing
+  // to a scalar that is not a pointer, so both chains have length 0.
+  LTSN *Root = createRoot(TS);
+  LTSN *PointerA = addInstanceAtOffset(TS, Root, 0, PointerSize);
+  LTSN *PointerB = addInstanceAtOffset(TS, Root, 0, PointerSize);
+  LTSN *PointeeA = TS.createArtificialLayoutType();
+  PointeeA->Size = PointerSize;
+  LTSN *PointeeB = TS.createArtificialLayoutType();
+  PointeeB->Size = PointerSize;
+  TS.addPointerLink(PointerA, PointeeA);
+  TS.addPointerLink(PointerB, PointeeB);
+
+  runMergePointeesOfPointerUnion(TS, PointerSize);
+
+  revng_check(TS.verifyPointerDAG());
+
+  // The pointees have been merged, so both pointers reach the same node.
+  revng_check(getOnlyPointee(PointerA) == getOnlyPointee(PointerB));
+}
+
+/// Test that the pointees are left alone when the deeper of the two reaches
+/// the other one through pointer edges. Merging them would make the merged
+/// node reachable from itself, and the backend follows pointer edges
+/// recursively while building model types.
+BOOST_AUTO_TEST_CASE(MergePointeesOfPointerUnion_deeperClassReachesPointee) {
+  dla::LayoutTypeSystem TS;
+  constexpr size_t PointerSize = 4;
+
+  // PointerToChain reaches Scalar through Middle, and PointerToScalar points
+  // at Scalar directly.
+  LTSN *Root = createRoot(TS);
+  LTSN *PointerToChain = addInstanceAtOffset(TS, Root, 0, PointerSize);
+  LTSN *PointerToScalar = addInstanceAtOffset(TS, Root, 0, PointerSize);
+
+  LTSN *Scalar = TS.createArtificialLayoutType();
+  Scalar->Size = PointerSize;
+  LTSN *Middle = TS.createArtificialLayoutType();
+  Middle->Size = PointerSize;
+  LTSN *ChainHead = TS.createArtificialLayoutType();
+  ChainHead->Size = PointerSize;
+
+  TS.addPointerLink(PointerToChain, ChainHead);
+  TS.addPointerLink(ChainHead, Middle);
+  TS.addPointerLink(Middle, Scalar);
+  TS.addPointerLink(PointerToScalar, Scalar);
+
+  runMergePointeesOfPointerUnion(TS, PointerSize);
+
+  revng_check(TS.verifyPointerDAG());
+
+  // Nothing has been merged, so the two pointers still reach different nodes.
+  const LTSN *ChainPointee = getOnlyPointee(PointerToChain);
+  revng_check(ChainPointee != getOnlyPointee(PointerToScalar));
+}
+
+/// Test that a pointee that is not a pointer is merged into the shallowest
+/// class that does not reach it, skipping the ones that do.
+BOOST_AUTO_TEST_CASE(MergePointeesOfPointerUnion_skipsReachingClass) {
+  dla::LayoutTypeSystem TS;
+  constexpr size_t PointerSize = 4;
+
+  // Three pointers at the same offset. The first points to a scalar, so its
+  // chain has length 0. The second reaches that scalar, so its class cannot
+  // take it. The third is deeper but reaches nothing in common, so it can.
+  LTSN *Root = createRoot(TS);
+  LTSN *PointerToScalar = addInstanceAtOffset(TS, Root, 0, PointerSize);
+  LTSN *PointerToReaching = addInstanceAtOffset(TS, Root, 0, PointerSize);
+  LTSN *PointerToDeeper = addInstanceAtOffset(TS, Root, 0, PointerSize);
+
+  LTSN *Scalar = TS.createArtificialLayoutType();
+  Scalar->Size = PointerSize;
+  TS.addPointerLink(PointerToScalar, Scalar);
+
+  // Chain of length 1 whose pointee reaches Scalar.
+  LTSN *Reaching = TS.createArtificialLayoutType();
+  Reaching->Size = PointerSize;
+  TS.addPointerLink(PointerToReaching, Reaching);
+  TS.addPointerLink(Reaching, Scalar);
+
+  // Chain of length 2 that stays clear of Scalar.
+  LTSN *DeeperHead = TS.createArtificialLayoutType();
+  DeeperHead->Size = PointerSize;
+  LTSN *DeeperMiddle = TS.createArtificialLayoutType();
+  DeeperMiddle->Size = PointerSize;
+  LTSN *DeeperTail = TS.createArtificialLayoutType();
+  DeeperTail->Size = PointerSize;
+  TS.addPointerLink(PointerToDeeper, DeeperHead);
+  TS.addPointerLink(DeeperHead, DeeperMiddle);
+  TS.addPointerLink(DeeperMiddle, DeeperTail);
+
+  runMergePointeesOfPointerUnion(TS, PointerSize);
+
+  revng_check(TS.verifyPointerDAG());
+
+  // The scalar was merged with the head of the deeper chain, and not with the
+  // pointee that reaches it.
+  const LTSN *ScalarPointee = getOnlyPointee(PointerToScalar);
+  revng_check(ScalarPointee == getOnlyPointee(PointerToDeeper));
+  revng_check(ScalarPointee != getOnlyPointee(PointerToReaching));
+}
