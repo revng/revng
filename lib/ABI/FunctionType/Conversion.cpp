@@ -392,19 +392,13 @@ bool canBeNext(ArgumentDistributor &Distributor,
       return false;
     }
 
-    // Compute the next stack offset
-    auto NextStackOffset = llvm::alignToPowerOf2(LocalDistributor
-                                                   .UsedStackOffset,
-                                                 *ABI.alignment(CurrentType));
-    NextStackOffset += ABI.paddedSizeOnStack(Current.Size);
-    auto SizeWithPadding = NextStackOffset - LocalDistributor.UsedStackOffset;
-    if (Distributed.SizeOnStack != SizeWithPadding) {
+    if (Distributed.OffsetOnStack != Current.Offset) {
       revng_log(Log,
                 "Because the stack position wouldn't match due to holes in "
                 "the stack, an argument cannot just be added as is - resulting "
-                "CFT would not be compatible. Expected size is "
-                  << SizeWithPadding << " but distributor reports "
-                  << Distributed.SizeOnStack << " instead.");
+                "CFT would not be compatible. Expected offset is "
+                  << Current.Offset << " but distributor reports "
+                  << Distributed.OffsetOnStack << " instead.");
       return false;
     }
 
