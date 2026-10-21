@@ -1,0 +1,40 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# See the readme for more information.
+
+- ABIs:
+    - Microsoft_x86_64
+    - Microsoft_x86_64_vectorcall
+  tests:
+    - padded_unnaturally_sized_six_byte_struct_on_stack
+    - padded_unnaturally_sized_six_byte_union_on_stack
+    - padded_unnaturally_sized_three_byte_struct_on_stack
+    - padded_unnaturally_sized_three_byte_union_on_stack
+    - single_unnaturally_sized_seven_byte_struct_argument
+    - single_unnaturally_sized_seven_byte_union_with_a_smaller_scalar_argument
+    - single_unnaturally_sized_six_byte_struct_argument
+    - single_unnaturally_sized_three_byte_struct_argument
+    - single_unnaturally_sized_three_byte_union_with_a_smaller_scalar_argument
+  errors:
+    - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
+    - Argument 0 uses neither the expected stack part nor the expected registers.
+    - Argument 9 uses neither the expected stack part nor the expected registers.
+
+- ABIs:
+    - Microsoft_x86_64
+    - Microsoft_x86_64_vectorcall
+    - Microsoft_x86_cdecl
+    - Microsoft_x86_fastcall
+    - Microsoft_x86_stdcall
+    - Microsoft_x86_vectorcall
+  tests:
+    - single_unnaturally_sized_seven_byte_struct_return_value
+    - single_unnaturally_sized_seven_byte_union_with_a_smaller_scalar_return_value
+    - single_unnaturally_sized_six_byte_struct_return_value
+    - single_unnaturally_sized_three_byte_struct_return_value
+    - single_unnaturally_sized_three_byte_union_with_a_smaller_scalar_return_value
+  errors:
+    - A piece of the return value found in the `eax_x86` register doesn't match the expected value.
+    - A piece of the return value found in the `rax_x86_64` register doesn't match the expected value.

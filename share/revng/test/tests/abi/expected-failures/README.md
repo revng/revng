@@ -41,6 +41,12 @@ These are failures specific to ARM, and they are relatively new (uncovered in a 
 
 These are definitely issues with the `revngABI`, testing binary output looks correct.
 
+##### `microsoft-specific.yml`
+
+Similarly, these are newly discovered failures specific to Microsoft ABIs.
+
+These are issues with the `revngABI`, as the testing binary output looks correct.
+
 ##### `rft-insufficiency.yml`
 
 These tests are RFT-specific. That is to say, something about the difference between the `CFT->RFT` path and the `CFT->Layout` path breaks these.

@@ -64,6 +64,7 @@ revng \
     -abi="${ABI_NAME}" \
     --expected-failures="${EXPECTED_FAILURES}/floating-point.yml" \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/microsoft-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     --verify-type=CABIFunctionDefinition \
     "${OUTPUT_DIRECTORY}/reference_binary.yml" \
@@ -74,6 +75,7 @@ revng \
     -abi="${ABI_NAME}" \
     --expected-failures="${EXPECTED_FAILURES}/floating-point.yml" \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/microsoft-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
     --expected-failures="${EXPECTED_FAILURES}/apple-specific.yml" \
@@ -86,6 +88,7 @@ revng \
     -abi="${ABI_NAME}" \
     --expected-failures="${EXPECTED_FAILURES}/floating-point.yml" \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/microsoft-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
     --expected-failures="${EXPECTED_FAILURES}/non-cft.yml" \
@@ -98,6 +101,7 @@ revng \
     -abi="${ABI_NAME}" \
     --expected-failures="${EXPECTED_FAILURES}/floating-point.yml" \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/microsoft-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
     --expected-failures="${EXPECTED_FAILURES}/apple-specific.yml" \
