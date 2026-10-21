@@ -31,10 +31,6 @@ void mergeExpressionInto(mlir::PatternRewriter &Rewriter,
                          llvm::function_ref<mlir::Value(mlir::Value,
                                                         mlir::Value)> Merge);
 
-/// Returns true if the condition described the specified region is a non-zero
-/// ImmediateOp.
-bool isTriviallyTrue(mlir::Region &Condition);
-
 /// Inverts the condition expression in the specified region.
 void invertBooleanExpression(mlir::PatternRewriter &Rewriter,
                              mlir::Location Loc,

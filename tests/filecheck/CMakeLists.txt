@@ -431,10 +431,12 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/while-conversion-with-empty-then.mlir
     clift/statement-rewrites/while-conversion-with-hoisted-else.mlir
     clift/statement-rewrites/while-conversion-with-hoisted-then.mlir
+    clift/terminal-branch-hoisting/hoist-infinite-loop-else-over-jumping-then.mlir
     clift/terminal-branch-hoisting/hoist-large-else-over-small-then.mlir
     clift/terminal-branch-hoisting/hoist-large-then-over-small-else.mlir
     clift/terminal-branch-hoisting/hoist-loop-breaking-case-over-larger-default.mlir
     clift/terminal-branch-hoisting/hoist-noreturn-else-over-jumping-then.mlir
+    clift/terminal-branch-hoisting/skip-hoist-of-breaking-loop-else.mlir
     clift/terminal-branch-hoisting/skip-hoist-over-unreachable-statement.mlir
     clift/type-refinement/backward-add-refinement.mlir
     clift/type-refinement/backward-neg-refinement.mlir
