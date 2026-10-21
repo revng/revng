@@ -140,9 +140,11 @@ static void createLoop(FunctionOp Function,
 
     // The last looping-goto has been erased and is no longer needed:
     Gotos = Gotos.drop_back(1);
-  } else {
-    // If the last looping-goto is conditional, a break must be inserted at the
-    // end of the loop body.
+  } else if (isIndirectlyFallthrough(Loop.getBody())) {
+    // If the last looping-goto is conditional, a break is needed at the end of
+    // the loop body, to turn falling out of the body into a loop exit. Not so
+    // if the end of the body cannot be reached: such a break is unreachable,
+    // and no later pass removes it.
 
     mlir::Value BreakLabel = createLabel(Builder, Function, LoopLoc);
     Loop.setBreakLabel(BreakLabel);

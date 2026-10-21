@@ -416,6 +416,7 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/loop-detection-consecutive.mlir
     clift/statement-rewrites/loop-detection-nested.mlir
     clift/statement-rewrites/loop-detection-overlapping.mlir
+    clift/statement-rewrites/loop-detection-unreachable-body-end.mlir
     clift/statement-rewrites/promote-break-continue-nested-loop.mlir
     clift/statement-rewrites/promote-break-continue-switch.mlir
     clift/statement-rewrites/promote-break-continue.mlir
