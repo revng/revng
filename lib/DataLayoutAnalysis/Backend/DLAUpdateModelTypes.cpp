@@ -244,6 +244,7 @@ static bool updateArgumentTypes(model::Binary &Model,
   auto LLVMArgs = getArgs(CallOrFunction);
 
   uint64_t EffectiveLLVMArgSize = arg_size(CallOrFunction);
+  // WIP! We can no longer assert this because of `Ignored` mips arguments.
   revng_assert(ModelArgs.size() == EffectiveLLVMArgSize
                or (ModelArgs.size() == 1 and EffectiveLLVMArgSize == 0
                    and ModelArgs.begin()->Type()->isVoidPrimitive()));
