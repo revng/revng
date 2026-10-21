@@ -42,11 +42,15 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
   revng_check(verify(*PrimitiveType::makeUnsigned(4), *T, true));
   revng_check(verify(*PrimitiveType::makeUnsigned(8), *T, true));
   revng_check(verify(*PrimitiveType::makeUnsigned(16), *T, true));
+  revng_check(verify(*PrimitiveType::makeUnsigned(32), *T, true));
+  revng_check(verify(*PrimitiveType::makeUnsigned(64), *T, true));
   revng_check(verify(*PrimitiveType::makeSigned(1), *T, true));
   revng_check(verify(*PrimitiveType::makeSigned(2), *T, true));
   revng_check(verify(*PrimitiveType::makeSigned(4), *T, true));
   revng_check(verify(*PrimitiveType::makeSigned(8), *T, true));
   revng_check(verify(*PrimitiveType::makeSigned(16), *T, true));
+  revng_check(verify(*PrimitiveType::makeSigned(32), *T, true));
+  revng_check(verify(*PrimitiveType::makeSigned(64), *T, true));
   revng_check(verify(*PrimitiveType::makeFloat(4), *T, true));
   revng_check(verify(*PrimitiveType::makeFloat(8), *T, true));
   revng_check(verify(*PrimitiveType::makeGeneric(1), *T, true));
@@ -54,16 +58,22 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
   revng_check(verify(*PrimitiveType::makeGeneric(4), *T, true));
   revng_check(verify(*PrimitiveType::makeGeneric(8), *T, true));
   revng_check(verify(*PrimitiveType::makeGeneric(16), *T, true));
+  revng_check(verify(*PrimitiveType::makeGeneric(32), *T, true));
+  revng_check(verify(*PrimitiveType::makeGeneric(64), *T, true));
   revng_check(verify(*PrimitiveType::makeNumber(1), *T, true));
   revng_check(verify(*PrimitiveType::makeNumber(2), *T, true));
   revng_check(verify(*PrimitiveType::makeNumber(4), *T, true));
   revng_check(verify(*PrimitiveType::makeNumber(8), *T, true));
   revng_check(verify(*PrimitiveType::makeNumber(16), *T, true));
+  revng_check(verify(*PrimitiveType::makeNumber(16), *T, true));
+  revng_check(verify(*PrimitiveType::makeNumber(32), *T, true));
   revng_check(verify(*PrimitiveType::makePointerOrNumber(1), *T, true));
   revng_check(verify(*PrimitiveType::makePointerOrNumber(2), *T, true));
   revng_check(verify(*PrimitiveType::makePointerOrNumber(4), *T, true));
   revng_check(verify(*PrimitiveType::makePointerOrNumber(8), *T, true));
   revng_check(verify(*PrimitiveType::makePointerOrNumber(16), *T, true));
+  revng_check(verify(*PrimitiveType::makePointerOrNumber(32), *T, true));
+  revng_check(verify(*PrimitiveType::makePointerOrNumber(64), *T, true));
 
   // Explicit checks for the types we *used to* support.
   revng_check(not verify(*PrimitiveType::makeFloat(2), *T, false));
