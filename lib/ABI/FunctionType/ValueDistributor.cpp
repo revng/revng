@@ -220,6 +220,8 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
       DistributedValue Result;
       Result.Size = Size;
       Result.Registers.emplace_back(RegisterList[(*RegisterCounter)++]);
+
+      ++ArgumentIndex;
       return { Result };
     } else {
       // If there are no free registers left, explicitly set the limit to 0,
