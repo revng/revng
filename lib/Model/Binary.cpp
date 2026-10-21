@@ -499,10 +499,9 @@ formCOFFRelocation(model::Architecture::Values Architecture) {
 } // namespace model
 
 std::set<uint64_t> model::Binary::collectAllTypeSizes() const {
-  // TODO: don't hardcode this set here. Share it with the other users!
-  //       Important: this should already contain all the primitive sizes we
-  //       support (which includes all the pointers sizes).
-  std::set<uint64_t> ByteSizes = { 1, 2, 4, 8, 10, 12, 16 };
+  std::set<uint64_t> ByteSizes = {};
+  for (uint64_t ValidPrimitive : model::PrimitiveType::validSizes())
+    ByteSizes.emplace(ValidPrimitive);
 
   VerifyHelper SizeCache;
   for (const model::UpcastableTypeDefinition &Type : this->TypeDefinitions()) {
