@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Set, Union
 from urllib.parse import urlparse
 
-import requests
+import httpx2
 
 from revng.project.common import ALL_OBJECTS, AllObjects, HTTPError, ProjectError
 from revng.project.model import Binary  # type: ignore[attr-defined]
@@ -25,13 +25,13 @@ class DaemonProject(Project):
 
     def __init__(self, url: str, project_id: str | None = None, token: str | None = None):
         self._base_url = urlparse(url)
-        self._session = requests.Session()
+        self._session = httpx2.Client(
+            http2=True, timeout=None, event_hooks={"response": [self._response_hook]}
+        )
         if project_id is not None:
             self._session.headers["x-project-id"] = project_id
         if token is not None:
             self._session.headers["authorization"] = f"Bearer {token}"
-
-        self._session.hooks["response"].append(self._response_hook)
 
         # The constructor calls `_get_pipeline_description`, so we need to
         # initialize our variables first
@@ -39,10 +39,10 @@ class DaemonProject(Project):
         self._set_model(self._get_model())
 
     @staticmethod
-    def _response_hook(response: requests.Response, *args, **kwargs):
+    def _response_hook(response: httpx2.Response):
         try:
             response.raise_for_status()
-        except requests.RequestException as e:
+        except httpx2.HTTPStatusError as e:
             raise HTTPError from e
 
     def upload_binary(self, binary_path: Union[str, Path]) -> str:
@@ -69,11 +69,11 @@ class DaemonProject(Project):
         if len(configuration) > 0:
             body["configuration"] = configuration
 
-        response = self._session.post(self._join_url("/api/artifact"), json=body, stream=True)
-        # TODO: right now we return the response as a dict, with BufferedReader
-        #       we could return things more lazily and leverage pipelining
-        #       (e.g. parsing input while the rest of the request is incoming)
-        return dict(TarDictionary(BufferedReader(response.raw)))
+        with self._session.stream("POST", self._join_url("/api/artifact"), json=body) as response:
+            # TODO: right now we return the response as a dict, with BufferedReader
+            #       we could return things more lazily and leverage pipelining
+            #       (e.g. parsing input while the rest of the request is incoming)
+            return dict(TarDictionary(BufferedReader(response)))
 
     def _analyze_impl(
         self,

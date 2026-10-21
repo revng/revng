@@ -11,8 +11,8 @@ dependencies = [
   # Used in `revng.internal.support`
   "xdg",
   # CLI: revng model fetch-debuginfo
-  "requests",
-  "requests-toolbelt",
+  "httpx2[http2]",
+  "httpx-retries",
   "pefile",
   # CLI: revng model import idb
   "python-idb",
@@ -37,6 +37,7 @@ revng = [
   "internal/daemon/schema.graphql",
   "internal/cli/_commands/generate_migrations/migration.py.tpl",
   "internal/cli/_commands/llm_rename/prompt.tpl",
+  "internal/cli/_commands/project_agent/prompt.tpl",
 ]
 
 [tool.setuptools]

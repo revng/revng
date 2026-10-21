@@ -1830,7 +1830,7 @@ definitions:
                      This part
           ```
         type: bool
-        default: false
+        default: true
 
       - name: UseX86ATTSyntax
         doc: |-

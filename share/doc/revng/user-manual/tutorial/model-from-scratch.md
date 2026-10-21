@@ -98,9 +98,9 @@ Let's produce the [`disassemble` artifact](../../references/artifacts.md#disasse
 ```bash
 $ revng project artifact disassemble | revng ptml
 function_0x400000_Code_x86_64:
-  400000:    48 01 f7    add rdi, rsi
-  400003:    48 89 f8    mov rax, rdi
-  400006:    c3          ret
+  400000:    add rdi, rsi
+  400003:    mov rax, rdi
+  400006:    ret
 ```
 
 The `revng project artifact disassemble` command emits, for each function, an assembly listing decorated using [PTML](../../references/ptml.md).
