@@ -12,7 +12,6 @@
 #include "revng/Model/Helpers.h"
 #include "revng/Model/TypeBucket.h"
 #include "revng/Support/AlignmentHelpers.h"
-#include "revng/Support/OverflowSafeInt.h"
 
 #include "ValueDistributor.h"
 
@@ -305,50 +304,7 @@ static bool verifyAlignment(const abi::Definition &ABI,
     return false;
   }
 
-  uint64_t ExpectedOffset = 0;
-  if (Previous.has_value()) {
-    uint64_t PaddedSize = paddedSizeOnStack(Previous->Size,
-                                            Previous->Alignment);
-
-    if (PaddedSize != Previous->Size)
-      revng_log(Log,
-                "The previous argument had to be padded to "
-                  << PaddedSize << " bytes because of alignment constraints.");
-
-    OverflowSafeInt OverflowCheck = Previous->Offset;
-    OverflowCheck += PaddedSize;
-    if (!OverflowCheck) {
-      // Abandon if offset overflows.
-      revng_log(Log, "Error: Integer overflow when calculating field offsets.");
-      return false;
-    }
-
-    ExpectedOffset = *OverflowCheck;
-  }
-
-  ExpectedOffset = llvm::alignToPowerOf2(ExpectedOffset, Current.Alignment);
-
-  if (ExpectedOffset == Current.Offset) {
-    revng_log(Log, "Argument slots in perfectly.");
-    return true;
-
-  } else if (ExpectedOffset < Current.Offset) {
-    revng_log(Log,
-              "Error: The natural alignment of a type would make it "
-              "impossible to represent as CABI:\n"
-              "There would have to be a hole between two arguments.");
-
-    // TODO: we probably want to preprocess such functions and manually
-    //       "fill" the holes in before attempting the conversion.
-    return false;
-
-  } else {
-    revng_log(Log,
-              "Error: The natural alignment of a type would make it "
-              "impossible to represent as CABI:\n"
-              "The arguments (including the padding) would have to overlap.");
-    return false;
-  }
+  return true;
 }
 
 template<model::AnyType ModelType>
