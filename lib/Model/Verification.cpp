@@ -355,10 +355,11 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
 // Types
 //
 
-static constexpr std::array ValidNumericPrimitives{ 1, 2, 4, 8, 16, 32, 64 };
+static constexpr std::array<uint64_t, 7> ValidNumericPrimitives{ 1,  2,  4, 8,
+                                                                 16, 32, 64 };
 
 // Only C's `float` and `double` are supported as of now.
-static constexpr std::array ValidFloatPrimitives{ 4, 8 };
+static constexpr std::array<uint64_t, 2> ValidFloatPrimitives{ 4, 8 };
 
 uint64_t
 model::PrimitiveType::maximumValidSize(model::PrimitiveKind::Values Kind) {
@@ -382,6 +383,10 @@ model::PrimitiveType::maximumValidSize(model::PrimitiveKind::Values Kind) {
   default:
     revng_abort("Unsupported primitive kind");
   }
+}
+
+std::span<const uint64_t> model::PrimitiveType::validSizes() {
+  return { ValidNumericPrimitives.begin(), ValidNumericPrimitives.end() };
 }
 
 bool model::PrimitiveType::isSizeValid(PrimitiveKind::Values Kind,
