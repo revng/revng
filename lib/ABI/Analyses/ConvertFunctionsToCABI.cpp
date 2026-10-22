@@ -190,7 +190,7 @@ static void convertFunctionsToCABI(TupleTree<model::Binary> &Model,
   // This reuses the verification map within the `model::VerifyHelper` in
   // an incompatible manner. DO NOT pass this object into a normal
   // verification routine or things are going to break down.
-  model::VerifyHelper VectorVH;
+  model::VerifyHelper FloatVH;
 
   // Choose functions for the conversion, but leave DefaultPrototype alone
   // (in order to avoid invalidation),
@@ -234,10 +234,10 @@ static void convertFunctionsToCABI(TupleTree<model::Binary> &Model,
   for (model::RawFunctionDefinition *Old : ToConvert) {
     LogFunctionName(Old->key());
 
-    if (!usesFloat(VectorVH, *Old)) {
-      // TODO: remove this check after `abi::FunctionType` supports vectors.
+    if (!usesFloat(FloatVH, *Old)) {
+      // TODO: remove this check after `abi::FunctionType` supports floats.
       revng_log(Log,
-                "Do not touch this function because it requires vector "
+                "Do not touch this function because it requires float "
                 "register support.");
       continue;
     }

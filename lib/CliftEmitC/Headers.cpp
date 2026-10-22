@@ -30,9 +30,9 @@ private:
 
 public:
   OpaqueTypeSizeCollector(std::set<uint64_t> &Result) : Result(Result) {
-    // TODO: do not hard-code this list here. Instead, share it with the model
-    //       verification logic (the only other current user of this).
-    Result = { 1, 2, 4, 8, 10, 12, 16 };
+    Result = {};
+    for (uint64_t ValidPrimitive : model::PrimitiveType::validSizes())
+      Result.emplace(ValidPrimitive);
   }
 
   mlir::LogicalResult visitType(mlir::Type Type) {

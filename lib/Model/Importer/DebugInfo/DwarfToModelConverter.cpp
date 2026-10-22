@@ -298,8 +298,10 @@ void DwarfToModelConverter::createType(const DWARFDie &Die) {
       return;
     }
 
-    if (Kind == model::PrimitiveKind::Float and Size > 8) {
-      reportIgnoredDie(Die, "Ignoring floating-point primitives larger than 8");
+    if (not model::PrimitiveType::isSizeValid(Kind, Size)) {
+      reportIgnoredDie(Die,
+                       "Warning: " + std::to_string(Size) + "-byte '"
+                         + toString(Kind) + "'s are not currently supported.");
       createInvalidPrimitivePlaceholder(Die);
       return;
     }
@@ -326,7 +328,7 @@ void DwarfToModelConverter::createType(const DWARFDie &Die) {
         MaybeByteSize and not Die.hasChildren()) {
       // Handle small empty unions, usually due to transparent unions
       auto Size = *MaybeByteSize->getAsUnsignedConstant();
-      record(Die, model::PrimitiveType::makeGeneric(Size));
+      record(Die, Model->makeStructDefinition(Size).second);
     } else {
       // Handle regular unions
       recordPlaceholder(Die, std::move(Model->makeUnionDefinition().second));

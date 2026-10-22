@@ -63,11 +63,11 @@ private:
   using CRegister = const model::Register::Values;
   auto allowedArgumentRegisters() const {
     return llvm::concat<CRegister>(ABI.GeneralPurposeArgumentRegisters(),
-                                   ABI.VectorArgumentRegisters());
+                                   ABI.FloatArgumentRegisters());
   }
   auto allowedReturnValueRegisters() const {
     return llvm::concat<CRegister>(ABI.GeneralPurposeReturnValueRegisters(),
-                                   ABI.VectorReturnValueRegisters());
+                                   ABI.FloatReturnValueRegisters());
   }
 
   template<RangeOf<CRegister> Registers>
@@ -102,45 +102,45 @@ private:
 
   bool deducePositionBasedArguments(Def::RegisterSet &State) {
     llvm::ArrayRef GPAR = ABI.GeneralPurposeArgumentRegisters();
-    llvm::ArrayRef VAR = ABI.VectorArgumentRegisters();
+    llvm::ArrayRef FAR = ABI.FloatArgumentRegisters();
 
     bool IsRequired = false;
-    if (GPAR.size() > VAR.size()) {
-      for (auto Register : llvm::reverse(GPAR.drop_front(VAR.size()))) {
+    if (GPAR.size() > FAR.size()) {
+      for (auto Register : llvm::reverse(GPAR.drop_front(FAR.size()))) {
         if (State.contains(Register))
           IsRequired = true;
         else if (IsRequired)
           State.emplace(Register);
       }
-      GPAR = GPAR.take_front(VAR.size());
-    } else if (VAR.size() > GPAR.size()) {
-      for (auto Register : llvm::reverse(VAR.drop_front(GPAR.size()))) {
+      GPAR = GPAR.take_front(FAR.size());
+    } else if (FAR.size() > GPAR.size()) {
+      for (auto Register : llvm::reverse(FAR.drop_front(GPAR.size()))) {
         if (State.contains(Register))
           IsRequired = true;
         else if (IsRequired)
           State.emplace(Register);
       }
-      VAR = VAR.take_front(GPAR.size());
+      FAR = FAR.take_front(GPAR.size());
     }
 
-    auto ArgumentRange = llvm::zip(llvm::reverse(GPAR), llvm::reverse(VAR));
-    for (auto &&[GPR, VR] : ArgumentRange)
-      if (!singlePositionBasedDeduction(GPR, VR, State, IsRequired))
+    auto ArgumentRange = llvm::zip(llvm::reverse(GPAR), llvm::reverse(FAR));
+    for (auto &&[GPR, FR] : ArgumentRange)
+      if (!singlePositionBasedDeduction(GPR, FR, State, IsRequired))
         return false;
 
     return true;
   }
 
   bool singlePositionBasedDeduction(model::Register::Values GPRegister,
-                                    model::Register::Values VRegister,
+                                    model::Register::Values FRegister,
                                     Def::RegisterSet &State,
                                     bool &IsRequired) {
     if (State.contains(GPRegister)) {
-      if (State.contains(VRegister)) {
+      if (State.contains(FRegister)) {
         // Both are set - there's no way to tell which one is actually used.
         if constexpr (EnforceABIConformance == true) {
           // Pick one arbitrarily because most likely both of them are `Dead`.
-          State.erase(VRegister);
+          State.erase(FRegister);
         } else {
           // Report the problem and abort.
           revng_log(Log,
@@ -148,7 +148,7 @@ private:
                     "registers (`model::Register::"
                       << model::Register::getName(GPRegister).data()
                       << "` and `model::Register::"
-                      << model::Register::getName(VRegister).data()
+                      << model::Register::getName(FRegister).data()
                       << "`) should be used: both are `YesOrDead`. The ABI is "
                       << ABIName << ".");
           return false;
@@ -158,8 +158,8 @@ private:
         IsRequired = true;
       }
     } else {
-      if (State.contains(VRegister)) {
-        // Only vector one is set: we're happy.
+      if (State.contains(FRegister)) {
+        // Only float one is set: we're happy.
         IsRequired = true;
       } else {
         // Neither one is set.
@@ -174,7 +174,7 @@ private:
                       "registers (`model::Register::"
                         << model::Register::getName(GPRegister).data()
                         << "` and `model::Register::"
-                        << model::Register::getName(VRegister).data()
+                        << model::Register::getName(FRegister).data()
                         << "`) should be used: neither is `YesOrDead`. "
                         << "The ABI is " << ABIName << ".");
             return false;
@@ -195,10 +195,10 @@ private:
   bool deduceNonPositionBasedArguments(Def::RegisterSet &State) {
     llvm::ArrayRef GPs = ABI.GeneralPurposeArgumentRegisters();
     llvm::ArrayRef RequiredGPRs = GPs.take_front(findLastUsedIndex(GPs, State));
-    llvm::ArrayRef VRs = ABI.VectorArgumentRegisters();
-    llvm::ArrayRef RequiredVRs = VRs.take_front(findLastUsedIndex(VRs, State));
+    llvm::ArrayRef FRs = ABI.FloatArgumentRegisters();
+    llvm::ArrayRef RequiredFRs = FRs.take_front(findLastUsedIndex(FRs, State));
 
-    fillState(State, llvm::concat<CRegister>(RequiredGPRs, RequiredVRs));
+    fillState(State, llvm::concat<CRegister>(RequiredGPRs, RequiredFRs));
 
     return true;
   }
@@ -206,18 +206,18 @@ private:
   bool deduceReturnValues(Def::RegisterSet &State) {
     llvm::ArrayRef GPs = ABI.GeneralPurposeReturnValueRegisters();
     llvm::ArrayRef RequiredGPRs = GPs.take_front(findLastUsedIndex(GPs, State));
-    llvm::ArrayRef VRs = ABI.VectorReturnValueRegisters();
-    llvm::ArrayRef RequiredVRs = VRs.take_front(findLastUsedIndex(VRs, State));
+    llvm::ArrayRef FRs = ABI.FloatReturnValueRegisters();
+    llvm::ArrayRef RequiredFRs = FRs.take_front(findLastUsedIndex(FRs, State));
 
     if (!RequiredGPRs.empty()) {
-      if (!RequiredVRs.empty()) {
+      if (!RequiredFRs.empty()) {
         if constexpr (EnforceABIConformance == true) {
           // Even though we shouldn't let both through, we have no way
           // to differentiate between the two. So just keep them as is.
         } else {
           revng_log(Log,
                     "Impossible to differentiate whether the return value uses "
-                    "general purpose registers or in vector ones: it cannot be "
+                    "general purpose registers or in float ones: it cannot be "
                     "both. The ABI is "
                       << ABIName << ".");
           return false;
@@ -227,9 +227,9 @@ private:
         fillState(State, RequiredGPRs);
       }
     } else {
-      if (!RequiredVRs.empty()) {
-        // Only vector registers are used: we're happy.
-        fillState(State, RequiredVRs);
+      if (!RequiredFRs.empty()) {
+        // Only float registers are used: we're happy.
+        fillState(State, RequiredFRs);
       } else {
         // No return value (???)
         // Since there's no way to confirm, do nothing.

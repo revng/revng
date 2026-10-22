@@ -14,6 +14,6 @@ CHECK-NEXT: void fn4(number8_t *arg1, number16_t *arg2, number32_t *arg3, number
 CHECK: _ABI(SystemV_x86_64)
 CHECK-NEXT: void fn5(uint16_t *arg1, uint32_t *arg2, uint64_t *arg3, uint128_t *arg4, int8_t *arg5, int16_t *arg6);
 CHECK: _ABI(SystemV_x86_64)
-CHECK-NEXT: void fn6(int32_t *arg1, int64_t *arg2, int128_t *arg3, float16_t *arg4, float32_t *arg5, float64_t *arg6, float80_t *arg7, float96_t *arg8, float128_t *arg9);
+CHECK-NEXT: void fn6(int32_t *arg1, int64_t *arg2, int128_t *arg3, generic16_t *arg4, float32_t *arg5, float64_t *arg6, generic64_t *arg7, generic16_t *arg8, generic128_t *arg9);
 CHECK: _ABI(SystemV_x86_64)
-CHECK-NEXT: void fn7(generic80_t *arg5, generic96_t *arg6);
+CHECK-NEXT: void fn7(generic64_t *arg5, generic128_t *arg6);

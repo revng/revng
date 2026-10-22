@@ -8,7 +8,7 @@ Architecture: x86_64
 TypeDefinitions:
   # CHECK: !_type_definition_0_TypedefDefinition = !clift.typedef<
   # CHECK:   "/type-definition/0-TypedefDefinition"
-  # CHECK:   : !float96_t
+  # CHECK:   : !float64_t
   # CHECK: >
   - ID: 0
     Kind: TypedefDefinition
@@ -16,7 +16,7 @@ TypeDefinitions:
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Float
-      Size: 12
+      Size: 8
 
   # CHECK: !_type_definition_1_TypedefDefinition = !clift.typedef<
   # CHECK:   "/type-definition/1-TypedefDefinition"
