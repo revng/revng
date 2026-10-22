@@ -147,12 +147,14 @@ private:
     if (RVL != Invalid && !llvm::is_contained(GPRs, RVL))
       Result.emplace_back(RVL);
 
-    for (auto Register : GPRs)
-      if (!llvm::is_contained(Result, Register))
-        Result.emplace_back(Register);
-    for (auto Register : VectorArgumentRegisters())
-      if (!llvm::is_contained(Result, Register))
-        Result.emplace_back(Register);
+    for (auto Register : GPRs) {
+      revng_assert(!llvm::is_contained(Result, Register));
+      Result.emplace_back(Register);
+    }
+    for (auto Register : VectorArgumentRegisters()) {
+      revng_assert(!llvm::is_contained(Result, Register));
+      Result.emplace_back(Register);
+    }
 
     return Result;
   }
