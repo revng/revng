@@ -13,3 +13,13 @@ commands:
     suffix: /
     command: |-
       "${SOURCES_ROOT}/share/revng/test/tests/analysis/GlobalReferences/run-global-references" "${INPUT}" "${OUTPUT}"
+
+  - type: revng.emit-and-check-string-literal
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-global-references
+    suffix: /
+    command: |-
+      mkdir -p "$OUTPUT";
+      revng -C "$OUTPUT" project init --overwrite "$INPUT";
+      revng -C "$OUTPUT" project artifact emit-c reads_string | revng ptml | grep '"hello glorious world"' > /dev/null;
