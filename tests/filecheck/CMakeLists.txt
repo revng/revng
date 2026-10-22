@@ -303,6 +303,8 @@ set(FILECHECK_TESTS
     clift/model-verify/raw-function-arguments/stack-with-arguments.mlir
     clift/model-verify/raw-function-arguments/stackless-stack.mlir
     clift/model-verify/raw-function-arguments/valid.mlir
+    clift/model-verify/stack-frame-variable/multiple.mlir
+    clift/model-verify/stack-frame-variable/valid.mlir
     clift/model-verify/type-attributes/argumentless-abi.mlir
     clift/model-verify/type-attributes/cft-with-raw-abi.mlir
     clift/model-verify/type-attributes/code-with-arguments.mlir
@@ -332,9 +334,13 @@ set(FILECHECK_TESTS
     clift/name-import/header/known-primitive-aliases.mlir
     clift/name-import/header/struct.mlir
     clift/name-import/header/union.mlir
+    clift/operations/break-continue-no-label-valid.mlir
+    clift/operations/break-to-no-label-in-switch.mlir
+    clift/operations/break-to-no-label-outside-loop.mlir
     clift/operations/break-to-targets-continue-label.mlir
     clift/operations/break-to-targets-non-loop-label.mlir
     clift/operations/break-to-targets-non-nesting-loop-label.mlir
+    clift/operations/continue-to-no-label-outside-loop.mlir
     clift/operations/continue-to-targets-break-label.mlir
     clift/operations/continue-to-targets-non-loop-label.mlir
     clift/operations/continue-to-targets-non-nesting-loop-label.mlir
@@ -410,6 +416,10 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/loop-detection-consecutive.mlir
     clift/statement-rewrites/loop-detection-nested.mlir
     clift/statement-rewrites/loop-detection-overlapping.mlir
+    clift/statement-rewrites/loop-detection-unreachable-body-end.mlir
+    clift/statement-rewrites/promote-break-continue-nested-loop.mlir
+    clift/statement-rewrites/promote-break-continue-switch.mlir
+    clift/statement-rewrites/promote-break-continue.mlir
     clift/statement-rewrites/trivial-jump-elimination.mlir
     clift/statement-rewrites/trivial-return-elimination-double.mlir
     clift/statement-rewrites/trivial-return-elimination-early.mlir
@@ -421,10 +431,13 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/while-conversion-with-empty-then.mlir
     clift/statement-rewrites/while-conversion-with-hoisted-else.mlir
     clift/statement-rewrites/while-conversion-with-hoisted-then.mlir
+    clift/terminal-branch-hoisting/hoist-infinite-loop-else-over-jumping-then.mlir
     clift/terminal-branch-hoisting/hoist-large-else-over-small-then.mlir
     clift/terminal-branch-hoisting/hoist-large-then-over-small-else.mlir
     clift/terminal-branch-hoisting/hoist-loop-breaking-case-over-larger-default.mlir
     clift/terminal-branch-hoisting/hoist-noreturn-else-over-jumping-then.mlir
+    clift/terminal-branch-hoisting/skip-hoist-of-breaking-loop-else.mlir
+    clift/terminal-branch-hoisting/skip-hoist-over-unreachable-statement.mlir
     clift/type-refinement/backward-add-refinement.mlir
     clift/type-refinement/backward-neg-refinement.mlir
     clift/type-refinement/backward-ternary-refinement.mlir

@@ -156,6 +156,13 @@ struct TerminalBranchHoistingPattern
   matchAndRewrite(BranchOpInterface Branch,
                   mlir::PatternRewriter &Rewriter) const override {
 
+    // Hoisting only happens when no branch region falls through, which makes
+    // any statement following the branch unreachable. Moving a region in front
+    // of it would leave a jump followed by something that is not a label.
+    if (mlir::Operation *Next = Branch->getNextNode())
+      if (not mlir::isa<AssignLabelOp>(Next))
+        return mlir::failure();
+
     llvm::SmallVector<RegionWeight> Weights;
     for (mlir::Region &R : Branch.getBranchRegions()) {
       if (isIndirectlyFallthrough(R))

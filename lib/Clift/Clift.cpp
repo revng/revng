@@ -503,6 +503,29 @@ static mlir::IntegerAttr makeLoopLabelMask(mlir::MLIRContext *Context,
   return mlir::IntegerAttr::get(Context, llvm::APSInt(llvm::APInt(2, Mask)));
 }
 
+/// \return true if control can leave \p Loop by breaking out of it
+static bool hasEarlyBreak(LoopOpInterface Loop) {
+  // A break naming the loop's own break label is the explicit form. Anything
+  // else naming that label would leave the loop just the same, so no jump
+  // statement nested in the loop may name it.
+  if (mlir::Value Label = Loop.getBreakLabel()) {
+    for (mlir::Operation *User : Label.getUsers()) {
+      if (mlir::isa<JumpStatementOpInterface>(User) and Loop->isAncestor(User))
+        return true;
+    }
+  }
+
+  // A relative break names no label and means the innermost enclosing loop,
+  // which is context-sensitive information. Only promote-break-continue
+  // introduces one, in the context-sensitive phase, so no caller of this
+  // predicate may ever see one.
+  Loop.getBody().walk([](BreakToOp Break) {
+    revng_assert(Break.getLabel(), "unexpected relative break statement");
+  });
+
+  return false;
+}
+
 /// If \p OtherLoop is non-null, assigned label operands are copied from it.
 /// This is useful for any transforms which change the type of a loop, and must
 /// preserve the assigned labels.
@@ -698,6 +721,10 @@ void DoWhileOp::build(mlir::OpBuilder &Builder,
                       mlir::OperationState &State,
                       LoopOpInterface OtherLoop) {
   buildLoop(Builder, State, 2, OtherLoop);
+}
+
+bool DoWhileOp::isIndirectlyNoFallthrough() {
+  return isTriviallyTrue(getCondition()) and not hasEarlyBreak(*this);
 }
 
 //===------------------------ ExpressionStatementOp -----------------------===//
@@ -962,6 +989,16 @@ mlir::LogicalResult ForOp::verify() {
     return mlir::failure();
 
   return mlir::success();
+}
+
+bool ForOp::isIndirectlyNoFallthrough() {
+  // A for-statement may omit its condition, and one that does never ends by
+  // failing it.
+  mlir::Region &Condition = getCondition();
+  if (not Condition.empty() and not isTriviallyTrue(Condition))
+    return false;
+
+  return not hasEarlyBreak(*this);
 }
 
 //===------------------------------- GotoOp -------------------------------===//
@@ -1389,6 +1426,10 @@ void WhileOp::build(mlir::OpBuilder &Builder,
                     mlir::OperationState &State,
                     LoopOpInterface OtherLoop) {
   buildLoop(Builder, State, 2, OtherLoop);
+}
+
+bool WhileOp::isIndirectlyNoFallthrough() {
+  return isTriviallyTrue(getCondition()) and not hasEarlyBreak(*this);
 }
 
 //===----------------------------- Expressions ----------------------------===//

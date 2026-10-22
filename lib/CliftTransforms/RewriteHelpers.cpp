@@ -53,13 +53,6 @@ void clift::mergeExpressionInto(mlir::PatternRewriter &Rewriter,
   });
 }
 
-bool clift::isTriviallyTrue(mlir::Region &Condition) {
-  if (auto Yield = clift::getYieldOp(Condition))
-    return Yield.getValue().getDefiningOp<TrueOp>() != nullptr;
-
-  return false;
-}
-
 void clift::invertBooleanExpression(mlir::PatternRewriter &Rewriter,
                                     mlir::Location Loc,
                                     mlir::Region &Region) {

@@ -294,6 +294,13 @@ inline ExpressionOpInterface getRootExpression(mlir::Region &R) {
   return {};
 }
 
+/// Returns true if \p Condition always evaluates to true.
+inline bool isTriviallyTrue(mlir::Region &Condition) {
+  if (auto Yield = getYieldOp(Condition))
+    return Yield.getValue().getDefiningOp<TrueOp>() != nullptr;
+  return false;
+}
+
 inline mlir::OpOperand *getOnlyUse(mlir::Value Value) {
   auto Begin = Value.use_begin();
   auto End = Value.use_end();

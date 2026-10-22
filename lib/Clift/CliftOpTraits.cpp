@@ -14,8 +14,8 @@ traits_impl::verifyNoFallthroughTrait(mlir::Operation *const Op) {
   if (mlir::Block *const B = Op->getBlock()) {
     mlir::Operation *const NextOp = B->getOperations().getNextNode(*Op);
     if (NextOp != nullptr and not mlir::isa<AssignLabelOp>(NextOp))
-      return Op->emitOpError() << "Operation may not be followed by a non-label"
-                                  "operation";
+      return Op->emitOpError() << "Operation may not be followed by a "
+                                  "non-label operation";
   }
   return mlir::success();
 }

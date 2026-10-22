@@ -409,7 +409,9 @@ def Clift_DoWhileOp
   : Clift_LoopStatementOp<"do_while",
                           [NoRegionArguments,
                            DeclareOpInterfaceMethods<Clift_StatementRegionOpInterface>,
-                           DeclareOpInterfaceMethods<Clift_ExpressionRegionOpInterface>]> {
+                           DeclareOpInterfaceMethods<Clift_ExpressionRegionOpInterface>,
+                           DeclareOpInterfaceMethods<Clift_StatementOpInterface,
+                                                     ["isIndirectlyNoFallthrough"]>]> {
 
   let regions = (region Clift_StatementRegion:$body,
                         Clift_ConditionRegion:$condition);
@@ -443,7 +445,8 @@ def Clift_ForOp
                            DeclareOpInterfaceMethods<Clift_StatementOpInterface,
                                                      ["isDeclaratorRegion",
                                                       "getBlockArgumentVariable",
-                                                      "isDiscardedExpression"]>]> {
+                                                      "isDiscardedExpression",
+                                                      "isIndirectlyNoFallthrough"]>]> {
 
   let regions = (region Clift_StatementRegion:$initializer,
                         Clift_OptionalRegion<Clift_ConditionRegion>:$condition,
@@ -600,7 +603,9 @@ def Clift_WhileOp
   : Clift_LoopStatementOp<"while",
                           [NoRegionArguments,
                            DeclareOpInterfaceMethods<Clift_StatementRegionOpInterface>,
-                           DeclareOpInterfaceMethods<Clift_ExpressionRegionOpInterface>]> {
+                           DeclareOpInterfaceMethods<Clift_ExpressionRegionOpInterface>,
+                           DeclareOpInterfaceMethods<Clift_StatementOpInterface,
+                                                     ["isIndirectlyNoFallthrough"]>]> {
 
   let regions = (region Clift_ConditionRegion:$condition,
                         Clift_StatementRegion:$body);
