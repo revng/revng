@@ -88,6 +88,51 @@
     - Argument 9 uses neither the expected stack part nor the expected registers.
 
 - ABIs:
+    - SystemV_MIPS_o32_softfloat
+    - SystemV_MIPSEL_o32_softfloat
+  tests:
+    - deeply_nested_float_struct_argument_on_stack
+    - deeply_nested_float_struct_union_argument_on_stack
+    - lots_of_eight_byte_float_arguments
+    - lots_of_four_byte_float_arguments
+    - mixed_double_float_arguments
+    - mixed_double_float_struct_arguments
+    - mixed_double_int_32_arguments
+    - mixed_double_struct_32_arguments
+    - mixed_double_struct_float_arguments
+    - mixed_int_64_float_arguments
+    - mixed_struct_64_float_arguments
+    - needle_in_a_haystack_float_struct_argument_on_stack
+    - needle_in_a_haystack_float_struct_union_argument_on_stack
+    - nested_float_struct_argument_on_stack
+    - nested_float_struct_union_argument_on_stack
+    - padded_double_on_stack
+    - padded_double_struct_on_stack
+    - padded_float_on_stack
+    - padded_float_struct_on_stack
+    - padded_four_double_struct_on_stack
+    - padded_four_float_struct_on_stack
+    - single_deeply_nested_float_struct_union_argument
+    - single_five_double_struct_argument
+    - single_nine_float_struct_argument
+    - single_unnaturally_aligned_double_struct_argument
+    - single_unnaturally_aligned_double_union_argument
+    - single_unnaturally_aligned_float_struct_argument
+    - single_unnaturally_aligned_float_union_argument
+    - unnaturally_aligned_double_struct_in_registers
+    - unnaturally_aligned_double_union_in_registers
+    - unnaturally_aligned_float_struct_in_registers
+    - unnaturally_aligned_float_union_in_registers
+  errors:
+    - Argument 0 uses neither the expected stack part nor the expected registers.
+    - Argument 1 uses neither the expected stack part nor the expected registers.
+    - Argument 2 uses neither the expected stack part nor the expected registers.
+    - Argument 4 uses neither the expected stack part nor the expected registers.
+    - Argument 6 uses neither the expected stack part nor the expected registers.
+    - Argument 10 uses neither the expected stack part nor the expected registers.
+    - Argument 11 uses neither the expected stack part nor the expected registers.
+
+- ABIs:
     - SystemV_MIPS_o32_hardfloat
     - SystemV_MIPS_o32_softfloat
   tests:
@@ -95,6 +140,8 @@
     - apple_padded_four_byte_aligned_primitive_on_stack
     - apple_reverse_four_byte_aligned_aggregate_on_stack
     - apple_reverse_four_byte_aligned_primitive_on_stack
+    - mixed_int_32_double_arguments
+    - mixed_struct_32_double_arguments
     - padded_eight_byte_scalar_on_stack
     - padded_eight_byte_struct_on_stack
     - padded_eight_byte_union_on_stack
@@ -118,6 +165,7 @@
     - two_primitives_on_the_stack
   errors:
     - "'RawFunctionDefinition' is found instead of the expected 'CABIFunctionDefinition'"
+    - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 8 uses neither the expected stack part nor the expected registers.
     - Argument 9 uses neither the expected stack part nor the expected registers.
 
@@ -199,3 +247,92 @@
     - A piece of the return value found in the `v0_mips` register doesn't match the expected value.
     - The return value doesn't match the one that was expected.
     - Verification of the return value location register (`v0_mips`) failed.
+
+- ABIs:
+    - SystemV_MIPS_o32_softfloat
+    - SystemV_MIPSEL_o32_softfloat
+  tests:
+    - single_32_bit_return_value
+    - single_64_bit_return_value
+    - single_big_double_struct_return_value
+    - single_big_float_struct_return_value
+    - single_deeply_nested_float_struct_return_value
+    - single_deeply_nested_float_struct_union_return_value
+    - single_double_array_struct_return_value
+    - single_double_array_union_return_value
+    - single_double_float_double_struct_return_value
+    - single_double_float_float_struct_return_value
+    - single_double_float_struct_return_value
+    - single_double_int_double_struct_return_value
+    - single_double_int_int_struct_return_value
+    - single_double_int_struct_return_value
+    - single_double_or_bigger_int_union_return_value
+    - single_double_or_double_struct_union_return_value
+    - single_double_or_float_struct_union_return_value
+    - single_double_or_int_union_return_value
+    - single_double_or_smaller_int_union_return_value
+    - single_double_or_two_float_struct_union_return_value
+    - single_double_return_value
+    - single_double_struct_return_value
+    - single_double_struct_with_a_sixteen_byte_field_at_the_end_return_value
+    - single_double_struct_with_a_sixteen_byte_field_at_the_start_return_value
+    - single_double_union_with_a_sixteen_byte_field_at_the_end_return_value
+    - single_double_union_with_a_sixteen_byte_field_at_the_start_return_value
+    - single_eight_float_struct_return_value
+    - single_five_double_struct_return_value
+    - single_five_float_struct_return_value
+    - single_float_array_struct_return_value
+    - single_float_array_union_return_value
+    - single_float_double_double_struct_return_value
+    - single_float_double_float_struct_return_value
+    - single_float_double_struct_return_value
+    - single_float_int_float_struct_return_value
+    - single_float_int_int_struct_return_value
+    - single_float_int_struct_return_value
+    - single_float_or_bigger_int_union_return_value
+    - single_float_or_double_struct_union_return_value
+    - single_float_or_double_union_return_value
+    - single_float_or_float_struct_union_return_value
+    - single_float_or_int_union_return_value
+    - single_float_or_smaller_int_union_return_value
+    - single_float_or_two_float_struct_union_return_value
+    - single_float_return_value
+    - single_float_struct_return_value
+    - single_float_struct_with_a_sixteen_byte_field_at_the_end_return_value
+    - single_float_struct_with_a_sixteen_byte_field_at_the_start_return_value
+    - single_float_union_with_a_sixteen_byte_field_at_the_end_return_value
+    - single_float_union_with_a_sixteen_byte_field_at_the_start_return_value
+    - single_four_double_struct_return_value
+    - single_four_double_struct_union_return_value
+    - single_four_float_struct_return_value
+    - single_gpr_return_value
+    - single_huge_double_struct_return_value
+    - single_huge_float_struct_return_value
+    - single_int_double_double_struct_return_value
+    - single_int_double_int_struct_return_value
+    - single_int_double_struct_return_value
+    - single_int_float_float_struct_return_value
+    - single_int_float_int_struct_return_value
+    - single_int_float_struct_return_value
+    - single_needle_in_a_haystack_float_struct_return_value
+    - single_needle_in_a_haystack_float_struct_union_return_value
+    - single_nested_float_struct_return_value
+    - single_nested_float_struct_union_return_value
+    - single_nine_float_struct_return_value
+    - single_padded_double_struct_return_value
+    - single_padded_float_struct_return_value
+    - single_seven_float_struct_return_value
+    - single_six_float_struct_return_value
+    - single_struct_pointer_return_value
+    - single_three_double_struct_return_value
+    - single_three_float_struct_return_value
+    - single_two_double_struct_return_value
+    - single_two_float_struct_return_value
+    - single_unnaturally_aligned_double_struct_return_value
+    - single_unnaturally_aligned_double_union_return_value
+    - single_unnaturally_aligned_float_struct_return_value
+    - single_unnaturally_aligned_float_union_return_value
+    - single_void_pointer_return_value
+  errors:
+    - Verification of the return value location register (`v0_mips`) failed.
+    - A piece of the return value found in the `v0_mips` register doesn't match the expected value.
