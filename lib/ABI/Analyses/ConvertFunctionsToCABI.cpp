@@ -26,9 +26,8 @@ static void convertFunctionsToCABI(TupleTree<model::Binary> &Model,
   // Minimize the negative impact on binaries with ABI that is not fully
   // supported by disabling the conversion by default.
   //
-  // Use `--convert-functions-to-cabi-mode=unsafe` to force conversion even
-  // when ABI is not considered fully tested.
-  if (Mode == "safe") {
+  // Pass `Mode: unsafe` as a pipe configuration option to run on any ABI.
+  if (Mode != "unsafe") {
     // TODO: extend this list.
     static constexpr std::array ABIsTheConversionIsEnabledFor = {
       model::ABI::SystemV_x86_64,
