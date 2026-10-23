@@ -85,6 +85,25 @@ read_passes:
       - Doxyfile.in
     include_pathnames:
       - CMakeLists.txt
+  - type: FileListPass
+    directory: tests/filecheck
+    list_path: tests/filecheck/tests.txt
+    # Some FileCheck tests have out-of-line support files (such as `model.yml`).
+    # These support files are not `lit` tests. Executing them is not harmless:
+    # lit reports `Test has no 'RUN:' line`, marks it UNRESOLVED and exits 1, so
+    # the test fails. For this reason we only match files that contain `RUN:`.
+    # Those are the only files that are actually meant to be run by `lit`.
+    # This keeps support files out of the list, while still catching a file that
+    # is meant to be a test, executed by `lit`, but is not added to the list.
+    #
+    # If we ever decide to arrange the directory structure differently, and have
+    # a directory that only contains test files and not support files, we can
+    # get rid of this `match_files_containing` completely.
+    #
+    # For the time being, to see the files excluded because they don't contain
+    # any `RUN:` line, run:
+    #     grep -L RUN: $(find tests/filecheck -type f)
+    match_files_containing: "RUN:"
   - type: BashPass
   - # This is hardcoded to act on file tagged as "c"
     type: CPPCheckPass
