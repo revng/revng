@@ -67,6 +67,7 @@ revng pipeline run-analysis convert-functions-to-raw \
 # Verify that no step contradicts the actual state.
 EXPECTED_FAILURES="${SCRIPT_DIRECTORY}/expected-failures"
 
+mkdir -p "${OUTPUT_DIRECTORY}/layouts"
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
@@ -75,6 +76,7 @@ revng \
     --expected-failures="${EXPECTED_FAILURES}/microsoft-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
     --verify-type=CABIFunctionDefinition \
+    --save-layouts="${OUTPUT_DIRECTORY}/layouts/1-reference-binary.yml" \
     "${OUTPUT_DIRECTORY}/models/1-reference-binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
@@ -88,6 +90,7 @@ revng \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
     --expected-failures="${EXPECTED_FAILURES}/apple-specific.yml" \
     --verify-type=RawFunctionDefinition \
+    --save-layouts="${OUTPUT_DIRECTORY}/layouts/2-downgraded-reference-binary.yml" \
     "${OUTPUT_DIRECTORY}/models/2-downgraded-reference-binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
@@ -101,6 +104,7 @@ revng \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
     --expected-failures="${EXPECTED_FAILURES}/non-cft.yml" \
     --verify-type=CABIFunctionDefinition \
+    --save-layouts="${OUTPUT_DIRECTORY}/layouts/3-upgraded-downgraded-reference-binary.yml" \
     "${OUTPUT_DIRECTORY}/models/3-upgraded-downgraded-reference-binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
@@ -114,6 +118,7 @@ revng \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
     --expected-failures="${EXPECTED_FAILURES}/apple-specific.yml" \
     --verify-type=RawFunctionDefinition \
+    --save-layouts="${OUTPUT_DIRECTORY}/layouts/4-downgraded-upgraded-downgraded-reference-binary.yml" \
     "${OUTPUT_DIRECTORY}/models/4-downgraded-upgraded-downgraded-reference-binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
