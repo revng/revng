@@ -456,6 +456,45 @@ class LicenseCheckPass(TaggedPass):
         )
 
 
+class FilecheckTestListPass(TaggedPass):
+    """Checks that each file given to it that carries a RUN line is listed in
+    the list file CMake reads to decide which tests to register. A test missing
+    from that file is never run by anything. Invoked with no arguments, as the
+    CI does, this sees every file tracked by git."""
+
+    def __init__(self, directory: str, list_path: str):
+        super().__init__("filecheck-test-list", "all")
+        self.directory = Path(directory)
+        self.list_path = Path(list_path)
+
+    def listed_tests(self) -> Set[str]:
+        result = set()
+        for line in read_file(str(self.list_path)).splitlines():
+            stripped = line.strip()
+            if stripped != "" and not stripped.startswith("#"):
+                result.add(stripped)
+        return result
+
+    async def process(self, files: Dict[Path, str], args: Dict[str, str | bool]) -> PassResult:
+        # There is nothing to check when the list is absent, which is the case
+        # whenever check-conventions runs outside this repository.
+        if not self.list_path.is_file():
+            return PassResult("", True)
+
+        listed = self.listed_tests()
+        unlisted = [
+            path
+            for path, content in files.items()
+            if path.is_relative_to(self.directory)
+            and "RUN:" in content
+            and str(path.relative_to(self.directory)) not in listed
+        ]
+
+        return PassResult.make_from(
+            files={f"These tests are not listed in {self.list_path}, so they never run:": unlisted}
+        )
+
+
 class BashPass(SingleCommandPass):
     def __init__(self):
         super().__init__("bash-check", "bash", ("shellcheck",))
