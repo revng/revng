@@ -7,5 +7,5 @@
 !char$const = !clift.const<!clift.int<number 1>>
 !char$const$ptr$const = !clift.const<!clift.ptr<8 to !char$const>>
 
-// CHECK: result must have number8_t element type
+// CHECK: result element type must be an 8-bit wide primitive integer type
 clift.str "hello" : !clift.array<6 x !char$const$ptr$const>

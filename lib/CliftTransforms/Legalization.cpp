@@ -631,6 +631,26 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     // introduction of casts by the other rewrites.
     populateWithImmediateCanonicalizations(Set);
 
+    // TODO: Currently string literals are not legalized in any way. Because of
+    //       this, the typing of legalized IR does not match the typing of the
+    //       emitted C code. This has various unpredictable cascading effects.
+    //
+    //       To solve this problem, the typing of the IR should be legalized to
+    //       match the emitted C code. However, in order to do so, either the C
+    //       output itself must be changed, or a means of representing `char` in
+    //       some limited form must be introduced in the Clift dialect.
+    //
+    //       The simplest problematic example is when a string literal
+    //       expression is converted to a pointer. The Clift IR says the type of
+    //       the string literal is `const uint8_t[N]`, but in C it is
+    //       `const char[N]`. Because of this, a conversion to `const uint8_t *`
+    //       is implicit (being unnecessary, the IR might not contain any cast),
+    //       and so no cast is emitted. This discrepancy then leads to the
+    //       issuance of `-Wpointer-sign` or an equivalent diagnostic.
+    //
+    //       In other cases other errors or warnings may be emitted, or a silent
+    //       change in program semantics may be introduced.
+
     auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
     if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
       return mlir::failure();
