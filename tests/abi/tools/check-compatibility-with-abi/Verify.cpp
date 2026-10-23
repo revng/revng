@@ -663,7 +663,8 @@ std::vector<Failure>
 verifyABI(const TupleTree<model::Binary> &Binary,
           llvm::StringRef RuntimeArtifact,
           model::ABI::Values ABI,
-          std::optional<model::TypeDefinitionKind::Values> VerifyType) {
+          std::optional<model::TypeDefinitionKind::Values> VerifyType,
+          std::optional<std::vector<FunctionLayoutEntry>> &Layouts) {
   model::Architecture::Values Architecture = model::ABI::getArchitecture(ABI);
   auto Parsed = abi::runtime_test::parse(RuntimeArtifact, Architecture);
 
@@ -672,6 +673,19 @@ verifyABI(const TupleTree<model::Binary> &Binary,
 
   const abi::Definition &Def = abi::Definition::get(ABI);
   VerificationHelper Helper{ Architecture, Def, Parsed.IsLittleEndian };
+
+  // The layouts are only collected when the caller asked for them.
+  const auto recordLayout = [&Layouts](llvm::StringRef Name,
+                                       const model::TypeDefinition &Prototype,
+                                       const abi::FunctionType::Layout &Layout) {
+    if (not Layouts.has_value())
+      return;
+
+    Layouts->push_back(FunctionLayoutEntry{ .Name = Name.str(),
+                                            .Prototype = Prototype,
+                                            .Layout = Layout });
+  };
+
   size_t ArgumentTestCount = 0, ReturnValueTestCount = 0;
   for (auto &Function : Binary->Functions()) {
     Helper.FunctionName = Function.Name();
@@ -703,6 +717,8 @@ verifyABI(const TupleTree<model::Binary> &Binary,
       }
 
       Helper.FunctionLayout = std::move(*MaybeLayout);
+      recordLayout(Helper.FunctionName, *Prototype, Helper.FunctionLayout);
+
       for (const abi::runtime_test::ArgumentTest &Iteration : Test->second)
         Helper.arguments(Iteration);
 
@@ -731,6 +747,8 @@ verifyABI(const TupleTree<model::Binary> &Binary,
       }
 
       Helper.FunctionLayout = std::move(*MaybeLayout);
+      recordLayout(Helper.FunctionName, *Prototype, Helper.FunctionLayout);
+
       for (const abi::runtime_test::ReturnValueTest &Iteration : Test->second)
         Helper.returnValue(Iteration);
 

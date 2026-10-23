@@ -18,13 +18,16 @@
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Signals.h"
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/TypeDefinitionKind.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/InitRevng.h"
+#include "revng/Support/YAMLTraits.h"
 
 #include "ABIRuntimeTestResultParser.h"
 #include "ExpectedFailures.h"
@@ -91,6 +94,14 @@ static list<std::string> ExpectedFailures("expected-failures",
                                           desc("<expected failure list>"),
                                           cat(ThisToolCategory));
 
+constexpr const char *SaveLayoutsDescription = "Save the ABI layout of every "
+                                               "tested function to the given "
+                                               "YAML file.";
+static opt<std::string> SaveLayouts("save-layouts",
+                                    desc(SaveLayoutsDescription),
+                                    value_desc("<output file name>"),
+                                    cat(ThisToolCategory));
+
 } // namespace Options
 
 int main(int argc, char *argv[]) {
@@ -130,10 +141,25 @@ int main(int argc, char *argv[]) {
     revng_abort(Error.c_str());
   }
 
+  std::optional<std::vector<FunctionLayoutEntry>> Layouts;
+  if (Options::SaveLayouts.getNumOccurrences() != 0)
+    Layouts.emplace();
+
   auto Failures = verifyABI(*Deserialized,
                             Artifact,
                             Options::TargetABI,
-                            Options::readVerifyType());
+                            Options::readVerifyType(),
+                            Layouts);
+
+  if (Layouts) {
+    auto Error = serializeToFile(*Layouts, Options::SaveLayouts);
+    if (Error) {
+      std::string Message = "Unable to save the layouts to `"
+                            + Options::SaveLayouts
+                            + "`: " + consumeToString(std::move(Error)) + ".";
+      revng_abort(Message.c_str());
+    }
+  }
 
   llvm::StringRef ABIName = model::ABI::getName(Options::TargetABI);
   const std::vector<std::string> &ExpectedFailures = Options::ExpectedFailures;
