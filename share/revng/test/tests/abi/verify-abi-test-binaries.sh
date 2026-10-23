@@ -45,7 +45,13 @@ revng pipeline run-analysis convert-functions-to-raw \
     -o "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml"
 
 # Convert RawFunctionDefinition back to CABIFunctionDefinition
-echo "ABI: ${ABI_NAME}" > "${OUTPUT_DIRECTORY}/convert-to-cabi-configuration.yml"
+#
+# The conversion is restricted to a list of "safe" ABIs by default, and the ABIs
+# tested here are not all part of it, so request the "unsafe" mode explicitly.
+{
+  echo "ABI: ${ABI_NAME}"
+  echo "Mode: unsafe"
+} > "${OUTPUT_DIRECTORY}/convert-to-cabi-configuration.yml"
 revng pipeline run-analysis convert-functions-to-cabi \
     --configuration "${OUTPUT_DIRECTORY}/convert-to-cabi-configuration.yml" \
     "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
