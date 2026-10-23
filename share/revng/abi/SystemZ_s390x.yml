@@ -41,6 +41,9 @@ VectorArgumentRegisters:
   - f2_systemz
   - f4_systemz
   - f6_systemz
+
+# NOTE: the order is intentional: every even register is used first, then
+#       every odd one.
 # - v24_systemz
 # - v26_systemz
 # - v28_systemz
