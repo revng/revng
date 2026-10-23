@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-ABI: SystemV_MIPS_o32
+ABI: SystemV_MIPSEL_o32_softfloat
 
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: true
@@ -15,12 +15,15 @@ FloatsUseGPRs: true
 PackStackArguments: false
 TreatAllAggregatesAsPacked: false
 
+FloatingPointArgumentStrategy: NextRegisterFromTheGeneralPurposeRegisterSet
+FloatingPointReturnValueStrategy: NextRegisterFromTheGeneralPurposeRegisterSet
+
 StackAlignment: 4
 MinimumStackArgumentSize: 4
 UnusedStackArgumentBytes: 16
 
 MaximumGPRsPerAggregateArgument: 4
-MaximumGPRsPerAggregateReturnValue: 1
+MaximumGPRsPerAggregateReturnValue: 0
 MaximumGPRsPerScalarArgument: 4
 MaximumGPRsPerScalarReturnValue: 4
 
@@ -32,16 +35,8 @@ GeneralPurposeArgumentRegisters:
 GeneralPurposeReturnValueRegisters:
   - v0_mips
   - v1_mips
-VectorArgumentRegisters:
-  - f12_mips
-  - f13_mips
-  - f14_mips
-  - f15_mips
-VectorReturnValueRegisters:
-  - f0_mips
-  - f1_mips
-  - f2_mips
-  - f3_mips
+VectorArgumentRegisters: []
+VectorReturnValueRegisters: []
 CalleeSavedRegisters:
   - s0_mips
   - s1_mips

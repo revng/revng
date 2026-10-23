@@ -636,13 +636,13 @@ static model::ABI::Values getABI(llvm::codeview::CallingConvention CallConv,
     }
   } else if (Architecture == model::Architecture::mips
              and CallConv == CallingConvention::MipsCall) {
-    return model::ABI::SystemV_MIPS_o32;
+    return model::ABI::SystemV_MIPS_o32_hardfloat;
   } else if (Architecture == model::Architecture::mipsel
              and CallConv == CallingConvention::MipsCall) {
-    return model::ABI::SystemV_MIPSEL_o32;
+    return model::ABI::SystemV_MIPSEL_o32_hardfloat;
   } else if (Architecture == model::Architecture::arm
              and CallConv == CallingConvention::ArmCall) {
-    return model::ABI::AAPCS;
+    return model::ABI::AAPCS_hardfloat;
   } else if (Architecture == model::Architecture::aarch64
              /* and CallConv == CallingConvention::ArmCall
                 (I'm seeing CallingConvention::NearC)

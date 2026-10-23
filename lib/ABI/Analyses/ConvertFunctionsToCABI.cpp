@@ -11,128 +11,11 @@
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/TypeDefinition.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/TupleTree/TupleTree.h"
 
-// TODO: Stop using VerifyHelper for this verification.
-//       Introduce a new class instead.
-
 // TODO: Also take advantage of `::edges()` helpers for traversing
 //       the file system.
-
-static RecursiveCoroutine<bool> usesFloat(model::VerifyHelper &VH,
-                                          const model::TypeDefinition &Type);
-
-static RecursiveCoroutine<bool>
-usesFloat(model::VerifyHelper &VH, const model::PrimitiveKind::Values &Kind) {
-  rc_return VH.maybeFail(Kind != model::PrimitiveKind::Float,
-                         "Floating Point primitive found.");
-}
-
-static RecursiveCoroutine<bool> usesFloat(model::VerifyHelper &VH,
-                                          const model::Type &Type) {
-  if (const auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
-    // Arrays have no impact on the type, so just unwrap them.
-    rc_return rc_recur usesFloat(VH, *Array->ElementType());
-
-  } else if (const auto *D = llvm::dyn_cast<model::DefinedType>(&Type)) {
-    // Defined types need special processing, so unwrap them.
-    rc_return rc_recur usesFloat(VH, D->unwrap());
-
-  } else if (const auto *P = llvm::dyn_cast<model::PointerType>(&Type)) {
-    // If it's a pointer, it's acceptable no matter what it points to.
-    rc_return true;
-
-  } else if (const auto *P = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
-    // For primitives it depends purely on the kind.
-    rc_return rc_recur usesFloat(VH, P->PrimitiveKind());
-
-  } else {
-    revng_abort("Unsupported type.");
-  }
-}
-
-template<typename RealType>
-inline RecursiveCoroutine<bool>
-underlyingHelper(model::VerifyHelper &VH, const model::TypeDefinition &Value) {
-  const RealType &Cast = llvm::cast<RealType>(Value);
-  rc_return rc_recur usesFloat(VH, *Cast.UnderlyingType());
-}
-
-static RecursiveCoroutine<bool> usesFloat(model::VerifyHelper &VH,
-                                          const model::TypeDefinition &Type) {
-  if (VH.isVerified(Type))
-    rc_return true;
-
-  // Ensure we never recur indefinitely
-  if (VH.isVerificationInProgress(Type))
-    rc_return VH.fail();
-
-  VH.verificationInProgress(Type);
-
-  bool Result = false;
-
-  switch (Type.Kind()) {
-  case model::TypeDefinitionKind::EnumDefinition:
-    Result = rc_recur underlyingHelper<model::EnumDefinition>(VH, Type);
-    break;
-
-  case model::TypeDefinitionKind::TypedefDefinition:
-    Result = rc_recur underlyingHelper<model::TypedefDefinition>(VH, Type);
-    break;
-
-  case model::TypeDefinitionKind::StructDefinition:
-    Result = true;
-    for (const auto &F : llvm::cast<model::StructDefinition>(Type).Fields())
-      Result = Result && rc_recur usesFloat(VH, *F.Type());
-    break;
-
-  case model::TypeDefinitionKind::UnionDefinition:
-    Result = true;
-    for (const auto &F : llvm::cast<model::UnionDefinition>(Type).Fields())
-      Result = Result && rc_recur usesFloat(VH, *F.Type());
-    break;
-
-  case model::TypeDefinitionKind::CABIFunctionDefinition: {
-    Result = true;
-    using CABIFT = model::CABIFunctionDefinition;
-    for (const auto &A : llvm::cast<CABIFT>(Type).Arguments())
-      Result = Result && rc_recur usesFloat(VH, *A.Type());
-    const auto &ReturnType = llvm::cast<CABIFT>(Type).ReturnType();
-    Result = Result && rc_recur usesFloat(VH, *ReturnType);
-  } break;
-
-  case model::TypeDefinitionKind::RawFunctionDefinition: {
-    Result = true;
-    using RawFT = model::RawFunctionDefinition;
-    for (const auto &A : llvm::cast<RawFT>(Type).Arguments()) {
-      auto Kind = model::Register::getPrimitiveKind(A.Location());
-      Result = Result && rc_recur usesFloat(VH, Kind);
-      Result = Result && rc_recur usesFloat(VH, *A.Type());
-    }
-    for (const auto &V : llvm::cast<RawFT>(Type).ReturnValues()) {
-      auto Kind = model::Register::getPrimitiveKind(V.Location());
-      Result = Result && rc_recur usesFloat(VH, Kind);
-      Result = Result && rc_recur usesFloat(VH, *V.Type());
-    }
-
-    const auto &Stack = llvm::cast<RawFT>(Type).StackArgumentsType();
-    if (not Stack.isEmpty())
-      Result = Result && rc_recur usesFloat(VH, *Stack);
-  } break;
-
-  default:
-    revng_abort("Unknown type.");
-  }
-
-  if (Result) {
-    VH.setVerified(Type);
-    VH.verificationCompleted(Type);
-  }
-
-  rc_return VH.maybeFail(Result);
-}
 
 static Logger Log("function-type-conversion-to-cabi-analysis");
 
@@ -143,9 +26,8 @@ static void convertFunctionsToCABI(TupleTree<model::Binary> &Model,
   // Minimize the negative impact on binaries with ABI that is not fully
   // supported by disabling the conversion by default.
   //
-  // Use `--convert-functions-to-cabi-mode=unsafe` to force conversion even
-  // when ABI is not considered fully tested.
-  if (Mode == "safe") {
+  // Pass `Mode: unsafe` as a pipe configuration option to run on any ABI.
+  if (Mode != "unsafe") {
     // TODO: extend this list.
     static constexpr std::array ABIsTheConversionIsEnabledFor = {
       model::ABI::SystemV_x86_64,
@@ -163,12 +45,17 @@ static void convertFunctionsToCABI(TupleTree<model::Binary> &Model,
       model::ABI::Microsoft_x86_stdcall_gcc,
       model::ABI::Microsoft_x86_thiscall,
       model::ABI::Microsoft_x86_vectorcall,
-      model::ABI::AAPCS,
-      model::ABI::AAPCS64
+      model::ABI::AAPCS_hardfloat,
+      model::ABI::AAPCS_softfloat,
+      model::ABI::AAPCS64,
+      model::ABI::Apple_AAPCS64,
+      model::ABI::Microsoft_AAPCS64
 
       // There are known issues
-      // model::ABI::SystemV_MIPS_o32,
-      // model::ABI::SystemV_MIPSEL_o32
+      // model::ABI::SystemV_MIPS_o32_hardfloat,
+      // model::ABI::SystemV_MIPS_o32_softfloat,
+      // model::ABI::SystemV_MIPSEL_o32_hardfloat,
+      // model::ABI::SystemV_MIPSEL_o32_softfloat,
 
       // Unable to reliably test: QEMU aborts
       // model::ABI::SystemZ_s390x,
@@ -186,11 +73,6 @@ static void convertFunctionsToCABI(TupleTree<model::Binary> &Model,
 
   // Determines the strictness of register state deductions
   bool SoftDeductions = (ABIConfidence == "low");
-
-  // This reuses the verification map within the `model::VerifyHelper` in
-  // an incompatible manner. DO NOT pass this object into a normal
-  // verification routine or things are going to break down.
-  model::VerifyHelper VectorVH;
 
   // Choose functions for the conversion, but leave DefaultPrototype alone
   // (in order to avoid invalidation),
@@ -233,14 +115,6 @@ static void convertFunctionsToCABI(TupleTree<model::Binary> &Model,
   // And convert them.
   for (model::RawFunctionDefinition *Old : ToConvert) {
     LogFunctionName(Old->key());
-
-    if (!usesFloat(VectorVH, *Old)) {
-      // TODO: remove this check after `abi::FunctionType` supports vectors.
-      revng_log(Log,
-                "Do not touch this function because it requires vector "
-                "register support.");
-      continue;
-    }
 
     namespace FT = abi::FunctionType;
     if (auto New = FT::tryConvertToCABI(*Old, Model, ABI, SoftDeductions)) {

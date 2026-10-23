@@ -15,6 +15,9 @@ FloatsUseGPRs: false
 PackStackArguments: false
 TreatAllAggregatesAsPacked: false
 
+FloatingPointArgumentStrategy: Ignored
+FloatingPointReturnValueStrategy: Ignored
+
 StackAlignment: 16
 MinimumStackArgumentSize: 4
 
@@ -30,10 +33,6 @@ GeneralPurposeArgumentRegisters:
 GeneralPurposeReturnValueRegisters:
   - eax_x86
   - edx_x86
-VectorArgumentRegisters:
-  - zmm0_x86
-  - zmm1_x86
-  - zmm2_x86
 CalleeSavedRegisters:
   - ebx_x86
   - ebp_x86
