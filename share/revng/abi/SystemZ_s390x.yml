@@ -36,13 +36,9 @@ GeneralPurposeReturnValueRegisters:
   - r2_systemz
 VectorArgumentRegisters:
   - f0_systemz
-  - f1_systemz
   - f2_systemz
-  - f3_systemz
   - f4_systemz
-  - f5_systemz
   - f6_systemz
-  - f7_systemz
 # - v24_systemz
 # - v26_systemz
 # - v28_systemz
