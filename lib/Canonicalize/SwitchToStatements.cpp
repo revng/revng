@@ -49,6 +49,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/ADT/GenericGraph.h"
+#include "revng/ADT/LazySmallBitVector.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/Canonicalize/AllocaKillPoint.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
@@ -164,14 +165,195 @@ struct AvailableExpression {
   std::strong_ordering operator<=>(const AvailableExpression &) const = default;
 };
 
-using AvailableSet = std::set<AvailableExpression>;
+/// Every available expression a function can produce, in the order
+/// AvailableExpression compares in.
+///
+/// A set of available expressions is a bit vector over the indices of this
+/// vector, which is what keeps the analysis's memory in check: a
+/// std::set<AvailableExpression> spends a 48 byte node on each 16 byte
+/// element, and the analysis holds two sets per program point.
+///
+/// It is fundamental to sort the universe in the same way the elements compare:
+/// iterating a set by increasing index then yields exactly the sequence a
+/// std::set would, and the entries sharing an Expression end up contiguous,
+/// which is what rangeOf relies on.
+class AvailableUniverse {
+private:
+  std::vector<AvailableExpression> Elements;
+
+public:
+  void add(const AvailableExpression &A) { Elements.push_back(A); }
+
+  void sort() {
+    llvm::sort(Elements);
+    Elements.erase(std::unique(Elements.begin(), Elements.end()),
+                   Elements.end());
+  }
+
+  unsigned size() const { return Elements.size(); }
+
+  const AvailableExpression &at(unsigned Index) const {
+    return Elements[Index];
+  }
+
+  /// \return the index of \p A, which has to be part of the universe
+  unsigned indexOf(const AvailableExpression &A) const {
+    auto It = llvm::lower_bound(Elements, A);
+    revng_assert(It != Elements.end() and *It == A,
+                 "available expression outside the universe");
+    return It - Elements.begin();
+  }
+
+  /// \return the half open index range of the entries whose Expression is
+  ///         \p I, mirroring what lower_bound and upper_bound used to find
+  std::pair<unsigned, unsigned> rangeOf(Instruction *I) const {
+    auto Begin = llvm::lower_bound(Elements,
+                                   AvailableExpression{
+                                     .Expression = I, .Assignment = nullptr });
+    auto End = std::upper_bound(Elements.begin(),
+                                Elements.end(),
+                                AvailableExpression{ .Expression = std::next(I),
+                                                     .Assignment = nullptr });
+    return { unsigned(Begin - Elements.begin()),
+             unsigned(End - Elements.begin()) };
+  }
+};
+
+/// Walks the expressions a set holds within an index window, in universe order
+class AvailableSetIterator {
+private:
+  const AvailableUniverse *Universe = nullptr;
+  const LazySmallBitVector *Bits = nullptr;
+  unsigned Index = 0;
+  unsigned EndIndex = 0;
+
+public:
+  using value_type = AvailableExpression;
+  using reference = const AvailableExpression &;
+  using pointer = const AvailableExpression *;
+  using difference_type = std::ptrdiff_t;
+  using iterator_category = std::forward_iterator_tag;
+
+  AvailableSetIterator() = default;
+
+  AvailableSetIterator(const AvailableUniverse &Universe,
+                       const LazySmallBitVector &Bits,
+                       unsigned Index,
+                       unsigned EndIndex) :
+    Universe(&Universe), Bits(&Bits), Index(Index), EndIndex(EndIndex) {
+    skipUnavailable();
+  }
+
+  reference operator*() const { return Universe->at(Index); }
+  pointer operator->() const { return &Universe->at(Index); }
+
+  AvailableSetIterator &operator++() {
+    ++Index;
+    skipUnavailable();
+    return *this;
+  }
+
+  AvailableSetIterator operator++(int) {
+    AvailableSetIterator Result = *this;
+    ++*this;
+    return Result;
+  }
+
+  bool operator==(const AvailableSetIterator &Other) const {
+    return Index == Other.Index;
+  }
+
+private:
+  void skipUnavailable() {
+    while (Index < EndIndex and not(*Bits)[Index])
+      ++Index;
+    Index = std::min(Index, EndIndex);
+  }
+};
+
+/// A set of available expressions, as a bit vector over an AvailableUniverse
+///
+/// Default construction leaves it without a universe: the monotone framework
+/// needs that to put one in a map, and such a set is empty, which is what a
+/// default constructed std::set used to be. Only insert and erase need the
+/// universe, and a set reaches them having been assigned one of the seeds.
+class AvailableSet {
+private:
+  const AvailableUniverse *Universe = nullptr;
+  LazySmallBitVector Bits;
+
+public:
+  AvailableSet() = default;
+
+  explicit AvailableSet(const AvailableUniverse &Universe) :
+    Universe(&Universe) {}
+
+  /// \return a set holding every expression of \p Universe
+  static AvailableSet makeFull(const AvailableUniverse &Universe) {
+    AvailableSet Result(Universe);
+    unsigned Size = Universe.size();
+    Result.Bits.reserve(Size);
+    for (unsigned Index = 0; Index < Size; ++Index)
+      Result.Bits.set(Index);
+    return Result;
+  }
+
+  AvailableSetIterator begin() const {
+    return { *Universe, Bits, 0, scanLimit() };
+  }
+
+  AvailableSetIterator end() const {
+    return { *Universe, Bits, scanLimit(), scanLimit() };
+  }
+
+  /// The expressions in this set whose Expression is \p I
+  llvm::iterator_range<AvailableSetIterator> at(Instruction *I) const {
+    auto [Begin, End] = Universe->rangeOf(I);
+    End = std::min(End, scanLimit());
+    Begin = std::min(Begin, End);
+    return { AvailableSetIterator{ *Universe, Bits, Begin, End },
+             AvailableSetIterator{ *Universe, Bits, End, End } };
+  }
+
+  void insert(const AvailableExpression &A) {
+    revng_assert(Universe != nullptr);
+    Bits.set(Universe->indexOf(A));
+  }
+
+  void erase(const AvailableExpression &A) {
+    revng_assert(Universe != nullptr);
+    Bits.unset(Universe->indexOf(A));
+  }
+
+  /// Keep only the expressions \p Other holds too
+  void intersect(const AvailableSet &Other) { Bits &= Other.Bits; }
+
+  /// \return true if this set holds every expression \p Other holds
+  bool includes(const AvailableSet &Other) const {
+    unsigned Limit = Other.scanLimit();
+    for (unsigned Index = 0; Index < Limit; ++Index) {
+      if (Other.Bits[Index] and not Bits[Index])
+        return false;
+    }
+    return true;
+  }
+
+  bool operator==(const AvailableSet &Other) const {
+    return Bits == Other.Bits;
+  }
+
+private:
+  /// No bit is set from here on, so iteration and comparison can stop
+  unsigned scanLimit() const {
+    unsigned Limit = Bits.requiredBits();
+    if (Universe != nullptr)
+      Limit = std::min(Limit, Universe->size());
+    return Limit;
+  }
+};
 
 static auto findAvailableRange(const AvailableSet &Availables, Instruction *I) {
-  auto Begin = Availables.lower_bound(AvailableExpression{
-    .Expression = I, .Assignment = nullptr });
-  auto End = Availables.upper_bound(AvailableExpression{
-    .Expression = std::next(I), .Assignment = nullptr });
-  return llvm::make_range(Begin, End);
+  return Availables.at(I);
 }
 
 constexpr size_t SmallSize = 8;
@@ -224,14 +406,20 @@ public:
     AA(A), MST(TheMST), PDT(ThePDT), AllocaKillBlocks(KillBlocks) {}
 
 public:
+  // What SetIntersectionLattice does, on the bit vector: an expression is
+  // available where both sides have it.
   LatticeElement combineValues(const LatticeElement &LHS,
                                const LatticeElement &RHS) const {
-    return SetIntersectionLattice<LatticeElement>::combineValues(LHS, RHS);
+    LatticeElement Result = LHS;
+    Result.intersect(RHS);
+    return Result;
   }
 
+  // Also as SetIntersectionLattice has it: a larger set is lower in this
+  // lattice, so LHS is below RHS when it holds everything RHS holds.
   bool isLessOrEqual(const LatticeElement &LHS,
                      const LatticeElement &RHS) const {
-    return SetIntersectionLattice<LatticeElement>::isLessOrEqual(LHS, RHS);
+    return LHS.includes(RHS);
   }
 
   LatticeElement applyTransferFunction(ProgramPointNode *L,
@@ -481,6 +669,12 @@ public:
   ProgramPointsCFG ProgramPointsGraph;
   AvailableExpressionsMap AvailableExpressions;
 
+  // The sets in AvailableExpressions point at this, and this class gets moved
+  // into the analysis cache, so the universe lives behind a pointer: moving
+  // the owner then leaves the address those sets hold alone.
+  std::unique_ptr<AvailableUniverse>
+    Universe = std::make_unique<AvailableUniverse>();
+
 private:
   // Map an Instruction to its associated program point in ProgramPointsGraph
   InstructionProgramPoint ProgramPoint;
@@ -699,12 +893,15 @@ static AEResult getAvailableExpressions(Function &F,
   // runs are coalesced (the memory optimisation) a node no longer maps 1:1 to
   // an instruction, but the lattice domain still needs an entry for every
   // memory read and every instruction-valued store.
-  AvailableSet Bottom;
+  // These are the only two expressions the transfer function can ever make
+  // available, under the very same conditions, so collecting them here gives
+  // the closed universe the bit vectors index into.
+  AvailableUniverse &Universe = *Result.Universe;
   for (Instruction &Inst : llvm::instructions(F)) {
     Instruction *I = &Inst;
 
     if (mayReadMemory(I)) {
-      Bottom.insert(AvailableExpression{
+      Universe.add(AvailableExpression{
         .Expression = I,
         .Assignment = nullptr,
       });
@@ -714,12 +911,20 @@ static AEResult getAvailableExpressions(Function &F,
     auto *AssignedInstruction = dyn_cast_or_null<Instruction>(StoredOperand);
     if (AssignedInstruction
         and storedValueCanBeMadeAvailable(cast<StoreInst>(I))) {
-      Bottom.insert(AvailableExpression{
+      Universe.add(AvailableExpression{
         .Expression = AssignedInstruction,
         .Assignment = cast<AssignType>(I),
       });
     }
   }
+  Universe.sort();
+
+  AvailableSet Bottom = AvailableSet::makeFull(Universe);
+
+  // The entry point has nothing available yet. The framework would default
+  // construct this value, and a default constructed set has no universe to
+  // insert into.
+  AvailableSet Extremal{ Universe };
 
   ProgramPointsCFG *Graph = &Result.ProgramPointsGraph;
   ProgramPointNode *Entry = Graph->getEntryNode();
@@ -741,6 +946,7 @@ static AEResult getAvailableExpressions(Function &F,
     .Instance = &AvailableExpressionsMF,
     .Flow = Graph,
     .Bottom = &Bottom,
+    .ExtremalValue = &Extremal,
     .ExtremalLabels = &Entries,
     .EntryLabels = &Entries
   };
