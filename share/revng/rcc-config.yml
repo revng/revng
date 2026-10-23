@@ -85,6 +85,9 @@ read_passes:
       - Doxyfile.in
     include_pathnames:
       - CMakeLists.txt
+  - type: FilecheckTestListPass
+    directory: tests/filecheck
+    list_path: tests/filecheck/tests.txt
   - type: BashPass
   - # This is hardcoded to act on file tagged as "c"
     type: CPPCheckPass
