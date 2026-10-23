@@ -136,3 +136,50 @@ define i1 @shared_or_diamond(i64 %a, i64 %b, i64 %c, i64 %d) {
   ; CHECK-NEXT: ret i1 [[RESULT]]
   ret i1 %result
 }
+
+; A mask of the lowest bit narrows to a single bit. The backend widens that one
+; to a byte and has a path of its own for it, so the fold applies.
+; CHECK-LABEL: define i1 @sign_bit_of_one_bit(
+define i1 @sign_bit_of_one_bit(i32 %x) {
+  %masked = and i32 %x, 1
+  %result = icmp eq i32 %masked, 0
+  ; CHECK: and i32 %x, 1
+  ; CHECK-NEXT: [[VALUE:%[a-zA-Z0-9._]+]] = trunc i32 %x to i1
+  ; CHECK-NEXT: [[RESULT:%[a-zA-Z0-9._]+]] = icmp sge i1 [[VALUE]], false
+  ; CHECK-NEXT: ret i1 [[RESULT]]
+  ret i1 %result
+}
+
+; Two and four bits wide are not whole bytes, so the backend cannot emit them
+; and these two keep the form they came in with.
+; CHECK-LABEL: define i1 @sign_bit_of_two_bits(
+define i1 @sign_bit_of_two_bits(i32 %x) {
+  %masked = and i32 %x, 2
+  %result = icmp eq i32 %masked, 0
+  ; CHECK: %masked = and i32 %x, 2
+  ; CHECK-NEXT: %result = icmp eq i32 %masked, 0
+  ; CHECK-NEXT: ret i1 %result
+  ret i1 %result
+}
+
+; CHECK-LABEL: define i1 @sign_bit_of_four_bits(
+define i1 @sign_bit_of_four_bits(i32 %x) {
+  %masked = and i32 %x, 8
+  %result = icmp eq i32 %masked, 0
+  ; CHECK: %masked = and i32 %x, 8
+  ; CHECK-NEXT: %result = icmp eq i32 %masked, 0
+  ; CHECK-NEXT: ret i1 %result
+  ret i1 %result
+}
+
+; A whole byte is emittable, so the fold applies there too.
+; CHECK-LABEL: define i1 @sign_bit_of_one_byte(
+define i1 @sign_bit_of_one_byte(i32 %x) {
+  %masked = and i32 %x, 128
+  %result = icmp eq i32 %masked, 0
+  ; CHECK: and i32 %x, 128
+  ; CHECK-NEXT: [[VALUE:%[a-zA-Z0-9._]+]] = trunc i32 %x to i8
+  ; CHECK-NEXT: [[RESULT:%[a-zA-Z0-9._]+]] = icmp sge i8 [[VALUE]], 0
+  ; CHECK-NEXT: ret i1 [[RESULT]]
+  ret i1 %result
+}

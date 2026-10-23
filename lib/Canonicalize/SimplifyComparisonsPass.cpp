@@ -180,7 +180,24 @@ bool ComparisonSimplifier::simplifySignBitComparison(ICmpInst &Comparison) {
     return false;
 
   unsigned Width = Mask->getActiveBits();
-  if (not Mask->isPowerOf2() or not isPowerOf2_64(Width))
+
+  // Comparing the narrowed value against zero asks whether one single bit is
+  // set, so the mask has to select exactly that bit. A mask with more bits set
+  // asks a different question, which this rewrite would not answer.
+  if (not Mask->isPowerOf2())
+    return false;
+
+  // The mask selects bit Width - 1, which makes Width the narrowest type whose
+  // sign bit that bit is. Only a power of two is the width of a type the rest
+  // of the pipeline deals in, so this leaves the bits 0, 1, 3, 7, 15, 31 and
+  // 63, and turns down a mask such as 4, whose Width of 3 would ask for an i3.
+  if (not isPowerOf2_64(Width))
+    return false;
+
+  // Of the widths that leaves, 2 and 4 are not whole bytes, so the backend
+  // cannot emit them and the clifter aborts on one. A single bit is fine: the
+  // clifter widens that one to a byte and has a path of its own for it.
+  if (Width == 2 or Width == 4)
     return false;
 
   revng::IRBuilder Builder(Comparison.getContext());
