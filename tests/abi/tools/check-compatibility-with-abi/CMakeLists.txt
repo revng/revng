@@ -6,7 +6,11 @@ revng_add_executable(
   check-compatibility-with-abi ABIRuntimeTestResultParser.cpp
   ExpectedFailures.cpp Verify.cpp Main.cpp)
 
-llvm_map_components_to_libnames(LLVM_LIBRARIES Support Core)
+llvm_map_components_to_libnames(
+  LLVM_LIBRARIES Support Core
+  # WIP: Investigate why the linkage fails without this
+  X86AsmParser)
+
 target_link_libraries(
   check-compatibility-with-abi revngABI revngEarlyFunctionAnalysis revngModel
   revngSupport ${LLVM_LIBRARIES})
