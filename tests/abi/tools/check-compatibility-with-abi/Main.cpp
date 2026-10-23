@@ -40,9 +40,9 @@ template<size_t... Indices>
 static auto packValues(std::integer_sequence<size_t, Indices...>) {
   using namespace llvm::cl;
   using namespace model::ABI;
-  return values(OptionEnumValue{ getName(Values(Indices)),
-                                 int(Indices),
-                                 getDescription(Values(Indices)) }...);
+  return values(OptionEnumValue{ getName(Values(Indices + 1)),
+                                 int(Indices + 1),
+                                 getDescription(Values(Indices + 1)) }...);
 }
 
 constexpr auto ABIList = std::make_index_sequence<model::ABI::Count - 1>{};
