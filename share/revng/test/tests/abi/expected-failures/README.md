@@ -35,6 +35,14 @@ Also, there are some additional issues with big-endian mips that do not affect l
 
 Note that since these issues are visible in the output of the test binaries, they are not necessarily means there are problems with how revng handles these ABIs. BUT they do me that we cannot test these ABIs. So they are definitely hiding bugs!
 
+##### `s390x-specific.yml`
+
+These are failures specific to `SystemZ_s390x`.
+
+A big chunk of them is because the big endian interferes with some of the checking logic. But not exclusively, stack padding as well as return value logic does not seem correct in some cases.
+
+Note that there's a lot of parallels between these new failures and the existing mips ones. Fixing one will likely lead to fixing the other.
+
 ##### `arm-specific.yml` and `apple-specific.yml`
 
 These are failures specific to ARM, and they are relatively new (uncovered in a recent iteration of the testing suite). There might be easy fixes in there.

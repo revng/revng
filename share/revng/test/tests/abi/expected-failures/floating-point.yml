@@ -29,6 +29,7 @@
     - SystemV_x86_regparm_1
     - SystemV_x86_regparm_2
     - SystemV_x86_regparm_3
+    - SystemZ_s390x # WIP: drop this to fill the `s390x-specific.yml` in.
   tests:
     - deeply_nested_float_struct_argument_on_stack
     - deeply_nested_float_struct_union_argument_on_stack

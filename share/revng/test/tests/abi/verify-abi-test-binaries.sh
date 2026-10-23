@@ -75,6 +75,7 @@ revng \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/microsoft-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/s390x-specific.yml" \
     --verify-type=CABIFunctionDefinition \
     --save-layouts="${OUTPUT_DIRECTORY}/layouts/1-reference-binary.yml" \
     "${OUTPUT_DIRECTORY}/models/1-reference-binary.yml" \
@@ -87,6 +88,7 @@ revng \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/microsoft-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/s390x-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
     --expected-failures="${EXPECTED_FAILURES}/apple-specific.yml" \
     --verify-type=RawFunctionDefinition \
@@ -101,6 +103,7 @@ revng \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/microsoft-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/s390x-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
     --expected-failures="${EXPECTED_FAILURES}/non-cft.yml" \
     --verify-type=CABIFunctionDefinition \
@@ -115,6 +118,7 @@ revng \
     --expected-failures="${EXPECTED_FAILURES}/arm-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/microsoft-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/mips-specific.yml" \
+    --expected-failures="${EXPECTED_FAILURES}/s390x-specific.yml" \
     --expected-failures="${EXPECTED_FAILURES}/rft-insufficiency.yml" \
     --expected-failures="${EXPECTED_FAILURES}/apple-specific.yml" \
     --verify-type=RawFunctionDefinition \
