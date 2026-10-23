@@ -4,8 +4,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/ABI/FunctionType/Layout.h"
-#include "revng/ADT/SortedVector.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"

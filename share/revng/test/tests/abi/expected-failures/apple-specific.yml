@@ -1,0 +1,18 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# See the readme for more information.
+
+- ABIs:
+    - Apple_AAPCS64
+  tests:
+    - apple_padded_eight_byte_aligned_primitive_on_stack
+    - apple_padded_four_byte_aligned_primitive_on_stack
+    - apple_padded_two_byte_aligned_primitive_on_stack
+    - padded_four_byte_scalar_on_stack
+    - padded_two_byte_primitive_on_stack
+  errors:
+    - Argument 11 uses neither the expected stack part nor the expected registers.
+    - Argument 15 uses neither the expected stack part nor the expected registers.
+    - Argument 9 uses neither the expected stack part nor the expected registers.

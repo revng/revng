@@ -1,0 +1,28 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Version: 12
+
+DefaultABI: AAPCS
+TargetABI: SystemV_MIPS_o32
+
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
+    ID: 0
+    ABI: AAPCS
+
+  - Kind: CABIFunctionDefinition
+    ID: 1
+    ABI: SystemV_MIPS_o32
+
+Segments:
+  - StartAddress: "0x1000:Generic64"
+    VirtualSize: 4096
+    StartOffset: 0
+    FileSize: 4096
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
+
+Architecture: arm

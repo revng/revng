@@ -1,0 +1,40 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# See the readme for more information.
+
+# These failures are related to the padding argument logic.
+- ABIs:
+    - AAPCS_hardfloat
+    - AAPCS_softfloat
+  tests:
+    - mixed_64_32_bit_integer_arguments
+    - mixed_int_64_struct_32_arguments
+    - mixed_struct_64_int_32_arguments
+    - padded_sixteen_byte_scalar_in_registers
+    - struct_after_three_gprs
+  errors:
+    - Argument 1 uses neither the expected stack part nor the expected registers.
+    - Argument 2 uses neither the expected stack part nor the expected registers.
+    - Argument 3 uses neither the expected stack part nor the expected registers.
+
+# These failures are related to the apple-specific alignment computation logic.
+# Look into `PackStackArguments` boolean for more details.
+- ABIs:
+    - Apple_AAPCS64
+  tests:
+    - apple_eight_byte_aligned_aggregate_on_stack
+    - apple_four_byte_aligned_aggregate_on_stack
+    - apple_padded_eight_byte_aligned_aggregate_on_stack
+    - apple_padded_four_byte_aligned_aggregate_on_stack
+    - apple_two_byte_aligned_aggregate_on_stack
+    - padded_unnaturally_aligned_struct_16_on_stack
+  errors:
+    - Argument 10 uses neither the expected stack part nor the expected registers.
+    - Argument 11 uses neither the expected stack part nor the expected registers.
+    - Argument 12 uses neither the expected stack part nor the expected registers.
+    - Argument 15 uses neither the expected stack part nor the expected registers.
+    - Argument 16 uses neither the expected stack part nor the expected registers.
+    - There are 16 unconsumed stack bytes - the layout shows the need for more stack bytes than necessary.
+    - There are 8 unconsumed stack bytes - the layout shows the need for more stack bytes than necessary.

@@ -1359,25 +1359,50 @@ definitions:
           https://developer.apple.com/documentation/xcode/writing-arm64-\
           code-for-apple-platforms)."
 
-      - name: AAPCS
+      - name: AAPCS_hardfloat
         doc: |-
           Stands for "Arm Architecture Procedure Call Standard"
           ([reference](https://github.com/ARM-software/abi-aa/releases)).
-          The official ABI for ARM processor architecture.
+          The official ABI for ARM processor architecture, the variant
+          where the floating point arguments are passed in the floating
+          point registers (VFP).
 
-      - name: SystemV_MIPS_o32
+      - name: AAPCS_softfloat
+        doc: |-
+          The variant of `AAPCS_hardfloat` that does not use NEON registers
+          on function call boundary. Arguments that would be passed in such
+          registers are instead treated as regular arguments (and therefore
+          passed in the general purpose registers).
+
+      - name: SystemV_MIPS_o32_hardfloat
         doc: |-
           The ABI for MIPS RISC processor architecture
-          ([reference][abi4]).
+          ([reference][abi4]), the variant where the floating point
+          arguments are passed in the floating point registers.
 
           [abi4]: http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
 
-      - name: SystemV_MIPSEL_o32
+      - name: SystemV_MIPS_o32_softfloat
+        doc: |-
+          The variant of `SystemV_MIPS_o32_hardfloat` that does not use
+          coprocessor-1 registers on function call boundary. Arguments that
+          would be passed in such registers are instead treated as regular
+          arguments (and therefore passed in the general purpose registers).
+
+      - name: SystemV_MIPSEL_o32_hardfloat
         doc: |-
           The ABI for little-endian edition of the MIPS RISC processor architecture
-          ([reference][abi5]).
+          ([reference][abi5]), in the variant where the floating point
+          arguments are passed in the floating point registers.
 
           [abi5]: http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
+
+      - name: SystemV_MIPSEL_o32_softfloat
+        doc: |-
+          The variant of `SystemV_MIPSEL_o32_hardfloat` that does not use
+          coprocessor-1 registers on function call boundary. Arguments that
+          would be passed in such registers are instead treated as regular
+          arguments (and therefore passed in the general purpose registers).
 
       - name: SystemZ_s390x
         doc: |-

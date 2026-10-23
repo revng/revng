@@ -12,7 +12,6 @@
 #include "revng/Model/Helpers.h"
 #include "revng/Model/TypeBucket.h"
 #include "revng/Support/AlignmentHelpers.h"
-#include "revng/Support/OverflowSafeInt.h"
 
 #include "ValueDistributor.h"
 
@@ -305,50 +304,7 @@ static bool verifyAlignment(const abi::Definition &ABI,
     return false;
   }
 
-  uint64_t ExpectedOffset = 0;
-  if (Previous.has_value()) {
-    uint64_t PaddedSize = paddedSizeOnStack(Previous->Size,
-                                            Previous->Alignment);
-
-    if (PaddedSize != Previous->Size)
-      revng_log(Log,
-                "The previous argument had to be padded to "
-                  << PaddedSize << " bytes because of alignment constraints.");
-
-    OverflowSafeInt OverflowCheck = Previous->Offset;
-    OverflowCheck += PaddedSize;
-    if (!OverflowCheck) {
-      // Abandon if offset overflows.
-      revng_log(Log, "Error: Integer overflow when calculating field offsets.");
-      return false;
-    }
-
-    ExpectedOffset = *OverflowCheck;
-  }
-
-  ExpectedOffset = llvm::alignToPowerOf2(ExpectedOffset, Current.Alignment);
-
-  if (ExpectedOffset == Current.Offset) {
-    revng_log(Log, "Argument slots in perfectly.");
-    return true;
-
-  } else if (ExpectedOffset < Current.Offset) {
-    revng_log(Log,
-              "Error: The natural alignment of a type would make it "
-              "impossible to represent as CABI:\n"
-              "There would have to be a hole between two arguments.");
-
-    // TODO: we probably want to preprocess such functions and manually
-    //       "fill" the holes in before attempting the conversion.
-    return false;
-
-  } else {
-    revng_log(Log,
-              "Error: The natural alignment of a type would make it "
-              "impossible to represent as CABI:\n"
-              "The arguments (including the padding) would have to overlap.");
-    return false;
-  }
+  return true;
 }
 
 template<model::AnyType ModelType>
@@ -392,19 +348,13 @@ bool canBeNext(ArgumentDistributor &Distributor,
       return false;
     }
 
-    // Compute the next stack offset
-    auto NextStackOffset = llvm::alignToPowerOf2(LocalDistributor
-                                                   .UsedStackOffset,
-                                                 *ABI.alignment(CurrentType));
-    NextStackOffset += ABI.paddedSizeOnStack(Current.Size);
-    auto SizeWithPadding = NextStackOffset - LocalDistributor.UsedStackOffset;
-    if (Distributed.SizeOnStack != SizeWithPadding) {
+    if (Distributed.OffsetOnStack != Current.Offset) {
       revng_log(Log,
                 "Because the stack position wouldn't match due to holes in "
                 "the stack, an argument cannot just be added as is - resulting "
-                "CFT would not be compatible. Expected size is "
-                  << SizeWithPadding << " but distributor reports "
-                  << Distributed.SizeOnStack << " instead.");
+                "CFT would not be compatible. Expected offset is "
+                  << Current.Offset << " but distributor reports "
+                  << Distributed.OffsetOnStack << " instead.");
       return false;
     }
 
