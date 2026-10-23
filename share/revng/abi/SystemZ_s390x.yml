@@ -55,8 +55,6 @@ VectorReturnValueRegisters:
   - f0_systemz
 # - v24_systemz
 CalleeSavedRegisters:
-  - r6_systemz
-  - r7_systemz
   - r8_systemz
   - r9_systemz
   - r10_systemz
