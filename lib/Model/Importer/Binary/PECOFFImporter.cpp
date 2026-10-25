@@ -207,8 +207,9 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
                                              uint32_t ImportAddressTableEntry) {
 
   // Index of entries within import table.
-  uint32_t Index = 0;
+  int32_t Index = -1;
   for (const ImportedSymbolRef &I : Range) {
+    ++Index;
     StringRef Sym;
     if (Error E = I.getSymbolName(Sym)) {
       std::string Message = toString(std::move(E));
@@ -249,7 +250,6 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
     auto It = Model->ImportedDynamicFunctions().insert(Sym.str()).first;
     revng_assert(NewRelocation.verify(true));
     It->Relocations().insert(NewRelocation);
-    ++Index;
   }
 }
 
@@ -330,8 +330,9 @@ void PECOFFImporter::parseImportedSymbols() {
 void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
                                                   ImportedSymbolRange Range) {
   // Index of entries within import table.
-  uint32_t Index = 0;
+  int32_t Index = -1;
   for (const ImportedSymbolRef &S : Range) {
+    ++Index;
     StringRef Sym;
     if (Error E = S.getSymbolName(Sym)) {
       std::string Message = toString(std::move(E));
@@ -352,7 +353,7 @@ void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
     }
 
     uint64_t Addr;
-    if (Error E = I.getImportAddress(Index++, Addr)) {
+    if (Error E = I.getImportAddress(Index, Addr)) {
       std::string Message = toString(std::move(E));
       revng_log(Log,
                 "Found a delay imported symbol without an address: "
