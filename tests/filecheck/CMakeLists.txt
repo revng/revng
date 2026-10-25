@@ -491,7 +491,8 @@ set(FILECHECK_TESTS
     model/drop-types/DropStructField.yml
     model/drop-types/DropViaPointer.yml
     model/drop-types/UnionCascade.yml
-    model/drop-types/UnionPartialDrop.yml)
+    model/drop-types/UnionPartialDrop.yml
+    model/import/pe-import-table-indices.yml)
 
 foreach(F IN LISTS FILECHECK_TESTS)
   add_filecheck_test(${F})

@@ -206,9 +206,12 @@ void PECOFFImporter::parseSymbols() {
 void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
                                              uint32_t ImportAddressTableEntry) {
 
-  // Index of entries within import table.
+  uint64_t PointerSize = getPointerSize(Model->Architecture());
   uint32_t Index = 0;
   for (const ImportedSymbolRef &I : Range) {
+    MetaAddress AddressOfImportEntry = ImageBase + u64(ImportAddressTableEntry)
+                                       + u64(Index++ * PointerSize);
+
     StringRef Sym;
     if (Error E = I.getSymbolName(Sym)) {
       std::string Message = toString(std::move(E));
@@ -231,13 +234,6 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
     if (Sym.empty() or Model->ImportedDynamicFunctions().contains(Sym.str()))
       continue;
 
-    // NOTE: This address will occur in the .text section as a target of a jump.
-    // Once we have the address of the entry within .idata, we can access
-    // the information about symbol.
-    uint64_t PointerSize = getPointerSize(Model->Architecture());
-    MetaAddress AddressOfImportEntry = ImageBase + u64(ImportAddressTableEntry)
-                                       + u64(Index * PointerSize);
-
     // Lets make a Relocation.
     using namespace model::RelocationType;
     auto [RelocationType, Size] = formCOFFRelocation(Model->Architecture());
@@ -249,7 +245,6 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
     auto It = Model->ImportedDynamicFunctions().insert(Sym.str()).first;
     revng_assert(NewRelocation.verify(true));
     It->Relocations().insert(NewRelocation);
-    ++Index;
   }
 }
 
