@@ -164,8 +164,11 @@ public:
 
   bool isSmall() const { return Storage & 1; }
 
+  /// Make room for \p Size bits, that is, for the indices below it
   void reserve(unsigned Size) {
-    if (Size + 1 >= capacity())
+    // alloc asserts that what it is asked for exceeds the current capacity, so
+    // anything that already fits has to be left alone.
+    if (Size > capacity())
       alloc(Size);
   }
 
