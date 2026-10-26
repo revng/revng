@@ -1509,6 +1509,13 @@ void sortModule(llvm::Module &M);
 std::unique_ptr<llvm::Module> parseIR(llvm::LLVMContext &Context,
                                       llvm::StringRef Path);
 
+/// Same as `parseIR`, except that the function bodies are left on disk. Call
+/// `llvm::Function::materialize` on the ones that are actually needed. Use
+/// this for the modules revng ships, which hold far more than any single
+/// caller consumes.
+std::unique_ptr<llvm::Module> parseIRLazily(llvm::LLVMContext &Context,
+                                            llvm::StringRef Path);
+
 /// Link \p Source module into the \p Destination module. This function should
 /// not be used for linking modules with revng isolated functions, use
 /// `linkFunctionModules` instead.

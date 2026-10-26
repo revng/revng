@@ -13,6 +13,7 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Error.h"
 
 #include "revng/InlineHelpers/LinkHelpersToInline.h"
 #include "revng/Support/Assert.h"
@@ -72,12 +73,19 @@ bool LinkHelpersToInlinePass::runOnModule(llvm::Module &M) {
                                          .str();
     auto OptionalHelpers = revng::ResourceFinder.findFile(LibHelpersName);
     revng_assert(OptionalHelpers.has_value(), "Cannot find libtcg helpers");
-    std::unique_ptr<Module> HelpersModule = parseIR(M.getContext(),
-                                                    OptionalHelpers.value());
-    HelpersModules[ArchName] = std::move(HelpersModule);
+    // The bitcode holds the body of every inline helper of the architecture,
+    // around four hundred of them, while a module only ever misses a handful.
+    // Parsing it lazily leaves those bodies on disk, and the loop below reads
+    // in the ones this module asked for and nothing else.
+    std::unique_ptr<Module> Parsed = parseIRLazily(M.getContext(),
+                                                   OptionalHelpers.value());
+    HelpersModules[ArchName] = std::move(Parsed);
   }
   Module &HelpersModule = *HelpersModules[ArchName];
 
+  // `isDeclaration` keeps telling the truth on a lazily parsed module: it is
+  // `empty() and not isMaterializable()`, so a body that has not been read in
+  // yet still counts as a definition.
   std::set<const llvm::Function *> ToClone;
   for (StringRef Name : MissingBodies) {
     llvm::Function *HelperFunction = HelpersModule.getFunction(Name);
@@ -86,6 +94,11 @@ bool LinkHelpersToInlinePass::runOnModule(llvm::Module &M) {
                  "revng_inline helper missing body in to-inline.bc; the "
                  "static-policy / slim-down chain produced an "
                  "inconsistent state");
+
+    // Read the body in, so that `cloneFiltered` has something to copy. Asking
+    // for one that an earlier run of this pass already read in does nothing.
+    cantFail(HelperFunction->materialize());
+
     ToClone.insert(HelperFunction);
   }
 

@@ -639,6 +639,18 @@ std::unique_ptr<Module> parseIR(LLVMContext &Context, StringRef Path) {
   return Result;
 }
 
+std::unique_ptr<Module> parseIRLazily(LLVMContext &Context, StringRef Path) {
+  SMDiagnostic Errors;
+  std::unique_ptr<Module> Result = getLazyIRFileModule(Path, Errors, Context);
+
+  if (Result.get() == nullptr) {
+    Errors.print("revng", dbgs());
+    revng_abort();
+  }
+
+  return Result;
+}
+
 void linkModules(std::unique_ptr<Module> &&Source,
                  Module &Destination,
                  std::optional<GlobalValue::LinkageTypes> FinalLinkage) {
