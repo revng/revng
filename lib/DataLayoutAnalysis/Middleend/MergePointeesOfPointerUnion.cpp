@@ -283,7 +283,7 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
         }
 
         llvm::SmallSetVector<LTSN *, 8> UniquedScalars;
-        llvm::SmallPtrSet<LTSN *, 8> PointersToScalars;
+        llvm::SmallSetVector<LTSN *, 8> PointersToScalars;
         llvm::SmallSetVector<LTSN *, 8> UniquedAggregates;
         llvm::SmallSetVector<LTSN *, 8> UniquedFromModel;
         llvm::SmallPtrSet<LTSN *, 8> PointersToFromModel;
