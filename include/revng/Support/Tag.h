@@ -27,6 +27,14 @@ namespace FunctionTags {
 
 class Tag;
 
+/// Orders tags by name, so that iterating a TagsSet is reproducible. Tags are
+/// static objects spread across revng's libraries, so ordering them by address
+/// makes the order depend on where those libraries happen to be loaded, and
+/// the metadata written out of a set changes from one run to the next.
+struct TagLess {
+  bool operator()(const Tag *LHS, const Tag *RHS) const;
+};
+
 template<typename T>
 concept Taggable = (std::is_same_v<llvm::GlobalVariable, T>
                     or std::is_same_v<llvm::Function, T>);
@@ -42,7 +50,7 @@ private:
   static constexpr const char *TagsMetadataName = "revng.tags";
 
 private:
-  std::set<const Tag *> Tags;
+  std::set<const Tag *, TagLess> Tags;
 
 public:
   TagsSet() {}

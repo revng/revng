@@ -32,6 +32,10 @@ Tag::Tag(llvm::StringRef Name) : DynamicHierarchy(Name) {
 Tag::Tag(llvm::StringRef Name, Tag &Parent) : DynamicHierarchy(Name, Parent) {
 }
 
+bool TagLess::operator()(const Tag *LHS, const Tag *RHS) const {
+  return LHS->name() < RHS->name();
+}
+
 llvm::MDNode *TagsSet::getMetadata(LLVMContext &C) const {
   SmallVector<Metadata *, 8> MDTags;
   for (const Tag *T : Tags)
