@@ -771,7 +771,35 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
   struct Entry {
     StringRef SymbolName;
     ConstantInt *Value = nullptr;
-    std::strong_ordering operator<=>(const Entry &Other) const = default;
+
+    bool operator==(const Entry &Other) const = default;
+
+    /// Implement deterministic comparison
+    std::strong_ordering operator<=>(const Entry &Other) const {
+      if (int Comparison = SymbolName.compare(Other.SymbolName);
+          Comparison != 0)
+        return Comparison < 0 ? std::strong_ordering::less :
+                                std::strong_ordering::greater;
+
+      if (Value == Other.Value)
+        return std::strong_ordering::equal;
+
+      if (Value == nullptr)
+        return std::strong_ordering::less;
+
+      if (Other.Value == nullptr)
+        return std::strong_ordering::greater;
+
+      const APInt &LHS = Value->getValue();
+      const APInt &RHS = Other.Value->getValue();
+      if (LHS.getBitWidth() != RHS.getBitWidth())
+        return LHS.getBitWidth() <=> RHS.getBitWidth();
+
+      if (LHS.ult(RHS))
+        return std::strong_ordering::less;
+
+      return std::strong_ordering::greater;
+    }
   };
   std::map<uint32_t, SmallVector<Entry>> MaterializedValuesById;
 
