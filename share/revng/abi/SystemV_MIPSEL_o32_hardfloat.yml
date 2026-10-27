@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-ABI: SystemV_MIPS_o32
+ABI: SystemV_MIPSEL_o32_hardfloat
 
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: true
@@ -11,7 +11,7 @@ BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: false
 AllowPackedTypesInRegisters: false
 CalleeIsResponsibleForStackCleanup: false
-FloatsUseGPRs: true
+FloatsUseGPRs: false
 PackStackArguments: false
 TreatAllAggregatesAsPacked: false
 

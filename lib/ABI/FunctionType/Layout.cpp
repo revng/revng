@@ -855,9 +855,6 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
       if (!SingleArg.RepresentsPadding)
         Result.Arguments.append(toPortions(SingleArg));
     }
-
-    if (!Distributor.canNextArgumentUseRegisters())
-      break;
   }
 
   return Result;

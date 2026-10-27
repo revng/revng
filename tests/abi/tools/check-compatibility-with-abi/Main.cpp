@@ -12,6 +12,7 @@
 //
 
 #include <fstream>
+#include <optional>
 #include <streambuf>
 #include <string>
 
@@ -21,10 +22,12 @@
 #include "llvm/Support/Signals.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/TypeDefinitionKind.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/InitRevng.h"
 
 #include "ABIRuntimeTestResultParser.h"
+#include "ExpectedFailures.h"
 #include "Verify.h"
 
 namespace Options {
@@ -49,6 +52,30 @@ static opt<model::ABI::Values> TargetABI("abi",
                                          desc(Description),
                                          cat(ThisToolCategory));
 
+constexpr const char *VerifyTypeDescription = "Require every `test_` function "
+                                              "of the binary to use a "
+                                              "prototype "
+                                              "of this kind.";
+namespace TDK = model::TypeDefinitionKind;
+static constexpr auto CABIFunctionDefinition = TDK::CABIFunctionDefinition;
+static constexpr auto RawFunctionDefinition = TDK::RawFunctionDefinition;
+static opt<model::TypeDefinitionKind::Values> // formatting
+  VerifyType("verify-type",
+             desc(VerifyTypeDescription),
+             values(clEnumVal(CABIFunctionDefinition,
+                              "Verify that every test function is a cabi "
+                              "function."),
+                    clEnumVal(RawFunctionDefinition,
+                              "Verify that every test function is a raw "
+                              "function.")),
+             cat(ThisToolCategory));
+static std::optional<model::TypeDefinitionKind::Values> readVerifyType() {
+  if (VerifyType.getNumOccurrences() == 0)
+    return std::nullopt;
+
+  return VerifyType;
+}
+
 static opt<std::string> Filename(Positional,
                                  Required,
                                  desc("<input file name>"),
@@ -58,6 +85,11 @@ static opt<std::string> Artifact(Positional,
                                  Required,
                                  desc("<runtime abi artifact name>"),
                                  cat(ThisToolCategory));
+
+static list<std::string> ExpectedFailures("expected-failures",
+                                          Required,
+                                          desc("<expected failure list>"),
+                                          cat(ThisToolCategory));
 
 } // namespace Options
 
@@ -98,5 +130,18 @@ int main(int argc, char *argv[]) {
     revng_abort(Error.c_str());
   }
 
-  verifyABI(*Deserialized, Artifact, Options::TargetABI);
+  auto Failures = verifyABI(*Deserialized,
+                            Artifact,
+                            Options::TargetABI,
+                            Options::readVerifyType());
+
+  llvm::StringRef ABIName = model::ABI::getName(Options::TargetABI);
+  const std::vector<std::string> &ExpectedFailures = Options::ExpectedFailures;
+  auto Expectations = loadExpectedFailures(ExpectedFailures, ABIName);
+
+  auto Filtered = filterFailures(Failures, Expectations);
+  for (const Failure &Failure : Filtered)
+    dbg << "- " << Failure.Test << ": " << Failure.Reason << "\n";
+
+  return static_cast<int>(Filtered.size());
 }
