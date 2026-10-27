@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Error.h"
@@ -206,9 +207,7 @@ void PECOFFImporter::parseSymbols() {
 void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
                                              uint32_t ImportAddressTableEntry) {
 
-  // Index of entries within import table.
-  uint32_t Index = 0;
-  for (const ImportedSymbolRef &I : Range) {
+  for (const auto &[Index, I] : llvm::enumerate(Range)) {
     StringRef Sym;
     if (Error E = I.getSymbolName(Sym)) {
       std::string Message = toString(std::move(E));
@@ -249,7 +248,6 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
     auto It = Model->ImportedDynamicFunctions().insert(Sym.str()).first;
     revng_assert(NewRelocation.verify(true));
     It->Relocations().insert(NewRelocation);
-    ++Index;
   }
 }
 
