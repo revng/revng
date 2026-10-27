@@ -60,6 +60,8 @@ getFunctionPrototype(const model::Binary &Model, const Function &F) {
 bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                                            const SegmentNodeMapT
                                              &SegmentNodeMap) {
+  const llvm::DataLayout &DL = M.getDataLayout();
+
   for (const Function &F : M.functions()) {
 
     auto FTags = FunctionTags::TagsSet::from(&F);
@@ -217,9 +219,13 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                 TS.addInstanceLink(ActualTypes[FieldId].first,
                                    FormalTypes[FieldId].first,
                                    OffsetExpression{});
-                auto *Placeholder = TS.createArtificialLayoutType();
-                Placeholder->Size = getPointerSize(Model.Architecture());
-                TS.addPointerLink(Placeholder, ActualTypes[FieldId].first);
+                // Only leave open the possibility that the argument is a
+                // pointer if a pointer fits in it.
+                if (couldHoldAPointer(ActualArg->getType(), Model, DL)) {
+                  auto *Placeholder = TS.createArtificialLayoutType();
+                  Placeholder->Size = getPointerSize(Model.Architecture());
+                  TS.addPointerLink(Placeholder, ActualTypes[FieldId].first);
+                }
               }
             }
             ++ArgNo;
@@ -283,9 +289,17 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                   TS.addInstanceLink(RetTypes[FieldId].first,
                                      FRetTypes[FieldId].first,
                                      OffsetExpression{});
-                  auto *Placeholder = TS.createArtificialLayoutType();
-                  Placeholder->Size = getPointerSize(Model.Architecture());
-                  TS.addPointerLink(Placeholder, RetTypes[FieldId].first);
+                  // Only leave open the possibility that the returned value is
+                  // a pointer if a pointer fits in the slot it comes back in.
+                  llvm::Type *SlotType = RetVal->getType();
+                  if (auto *Struct = dyn_cast<llvm::StructType>(SlotType))
+                    SlotType = Struct->getElementType(FieldId);
+
+                  if (couldHoldAPointer(SlotType, Model, DL)) {
+                    auto *Placeholder = TS.createArtificialLayoutType();
+                    Placeholder->Size = getPointerSize(Model.Architecture());
+                    TS.addPointerLink(Placeholder, RetTypes[FieldId].first);
+                  }
                 }
               }
             }

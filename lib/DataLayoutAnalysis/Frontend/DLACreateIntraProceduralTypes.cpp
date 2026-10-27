@@ -849,11 +849,11 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M) {
           Changed |= ILA.createBaseAddrWithInstanceLink(PointerVal, *B);
 
           // Create Access node.
+          const DataLayout &DL = I.getModule()->getDataLayout();
           uint64_t AccessSize;
           if (isArrayOfBytes(Val->getType())) {
             // For an array of bytes use the type's allocation size to record
             // the real number of accessed bytes.
-            const DataLayout &DL = I.getModule()->getDataLayout();
             AccessSize = DL.getTypeAllocSize(Val->getType());
           } else {
             AccessSize = Val->getType()->getScalarSizeInBits() / 8;
@@ -886,10 +886,10 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M) {
           //   equality links between things that have pointer edges towards the
           //   same PointeeNode.
 
-          // All this being said, if the AccessSize is different from the
-          // pointer size in the model, we already know for sure that the
-          // pointee is not going to be a pointer, and we can bail out early.
-          if (AccessSize != getPointerSize(Model.Architecture()))
+          // All this being said, if a pointer does not fit in the accessed
+          // size, we already know for sure that the pointee is not going to be
+          // a pointer, and we can bail out early.
+          if (not couldHoldAPointer(AccessSize, Model, DL))
             continue;
 
           PointeeNode->InterferingInfo = Unknown;
@@ -902,8 +902,10 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M) {
           using InversePointerGraph = llvm::Inverse<PointerGraph>;
           for (LayoutTypeSystemNode *PointerToPointee :
                llvm::children<InversePointerGraph>(PointeeNode)) {
-            revng_assert(AccessSize == getPointerSize(Model.Architecture()));
-            revng_assert(AccessSize == PointerToPointee->Size);
+            revng_assert(couldHoldAPointer(AccessSize, Model, DL));
+            // Two values of different widths can both hold a pointer, so the
+            // sizes need not match, they only both have to fit one.
+            revng_assert(couldHoldAPointer(PointerToPointee->Size, Model, DL));
             if (PointerToPointee != AccessNode)
               TS.addEqualityLink(PointerToPointee, AccessNode);
           }

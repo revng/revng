@@ -6,6 +6,7 @@
 
 #include <ranges>
 
+#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
@@ -54,6 +55,36 @@ inline bool isPointerToFunctionExpression(const llvm::Value *V) {
 inline bool isArrayOfBytes(const llvm::Type *T) {
   auto *Array = llvm::dyn_cast<llvm::ArrayType>(T);
   return Array and Array->getElementType()->isIntegerTy(8);
+}
+
+/// Whether a value of \p ValueSize bytes could hold a pointer, which is the
+/// question to ask before leaving open the possibility that it is one.
+///
+/// The model is the authority on how wide a pointer is. A value narrower than
+/// that cannot hold one, whatever else is true of it. A value exactly that
+/// wide can. A wider value can too, but only when it is as wide as a pointer
+/// in the IR, which happens where the IR carries pointers wider than the
+/// architecture's: there it is the IR width that says a pointer fits.
+inline bool couldHoldAPointer(uint64_t ValueSize,
+                              const model::Binary &Model,
+                              const llvm::DataLayout &DL) {
+  uint64_t ModelPointerSize = getPointerSize(Model.Architecture());
+  uint64_t IRPointerSize = DL.getPointerSize();
+  if (ValueSize == ModelPointerSize)
+    return true;
+
+  if (ValueSize < ModelPointerSize)
+    return false;
+
+  return ValueSize == IRPointerSize;
+}
+
+/// Whether a value of type \p T could hold a pointer in \p Model, under the
+/// \p DL of the module it belongs to.
+inline bool couldHoldAPointer(llvm::Type *T,
+                              const model::Binary &Model,
+                              const llvm::DataLayout &DL) {
+  return couldHoldAPointer(DL.getTypeStoreSize(T).getFixedValue(), Model, DL);
 }
 
 /// This class is used to print LLVM information when debugging the TS

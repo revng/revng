@@ -50,7 +50,16 @@ using model::PrimitiveKind::PointerOrNumber;
 /// Returns true if \a T can be upgraded by DLA
 // TODO: implement a better way to merge types, based on the lattice of
 //       primitive types.
-static bool canBeUpgraded(const model::Type &T) {
+static bool canBeUpgraded(const model::Type &T, uint64_t PointerSize) {
+  // Upgrading turns the type into a pointer to the type DLA recovered, and
+  // that pointer is as wide as the architecture, so the slot has to be that
+  // wide already for its size to stay what it was. A slot of another width
+  // cannot hold the pointer and keep describing the register it came from:
+  // the return value of a function returning in a 512 bit vector register is
+  // one such slot.
+  if (T.size() != PointerSize)
+    return false;
+
   return T.isPointerOrNumberPrimitive() or T.isGenericPrimitive();
 }
 
@@ -152,7 +161,7 @@ static bool updateArgumentTypes(model::Binary &Model,
     // no accesses in the TypeSystem graph. These nodes are pruned away in the
     // middle-end, therefore there is no Type associated to them at this
     // stage.
-    if (canBeUpgraded(*ModelArg.Type())) {
+    if (canBeUpgraded(*ModelArg.Type(), getPointerSize(Model.Architecture()))) {
       LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::FieldNumNone };
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
         auto OldSize = *ModelArg.Type()->size();
@@ -211,10 +220,10 @@ static bool updateReturnType(model::Binary &Model,
     // middle-end, therefore there is no Type associated to them at this
     // stage.
     model::UpcastableType &ModelReturnType = ModelRet.value().Type();
-    if (canBeUpgraded(*ModelReturnType)) {
+    if (canBeUpgraded(*ModelReturnType, getPointerSize(Model.Architecture()))) {
       LayoutTypePtr Key{ LLVMRetVal, Index };
       if (auto NewTypeIt = TypeMap.find(Key); NewTypeIt != TypeMap.end()) {
-        auto OldSize = ModelReturnType->size();
+        auto OldSize = *ModelReturnType->size();
         // The type is associated to a `LayoutTypeSystemPtr`, hence we have to
         // make it a pointer
         ModelReturnType = model::PointerType::make(NewTypeIt->second.copy(),
@@ -260,7 +269,7 @@ static bool updateArgumentTypes(model::Binary &Model,
     // no accesses in the TypeSystem graph. These nodes are pruned away in the
     // middle-end, therefore there is no Type associated to them at this
     // stage.
-    if (canBeUpgraded(*ModelArg.Type())) {
+    if (canBeUpgraded(*ModelArg.Type(), getPointerSize(Model.Architecture()))) {
       LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::FieldNumNone };
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
         auto OldSize = *ModelArg.Type()->size();
@@ -320,7 +329,7 @@ static bool updateReturnType(model::Binary &Model,
     // no accesses in the TypeSystem graph. These nodes are pruned away in the
     // middle-end, therefore there is no Type associated to them at this
     // stage.
-    if (canBeUpgraded(*ModelReturnType)) {
+    if (canBeUpgraded(*ModelReturnType, getPointerSize(Model.Architecture()))) {
       LayoutTypePtr Key{ LLVMRetVal, LayoutTypePtr::FieldNumNone };
       if (auto NewTypeIt = TypeMap.find(Key); NewTypeIt != TypeMap.end()) {
         auto OldSize = *ModelReturnType->size();
