@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Error.h"
@@ -206,12 +207,7 @@ void PECOFFImporter::parseSymbols() {
 void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
                                              uint32_t ImportAddressTableEntry) {
 
-  uint64_t PointerSize = getPointerSize(Model->Architecture());
-  uint32_t Index = 0;
-  for (const ImportedSymbolRef &I : Range) {
-    MetaAddress AddressOfImportEntry = ImageBase + u64(ImportAddressTableEntry)
-                                       + u64(Index++ * PointerSize);
-
+  for (const auto &[Index, I] : llvm::enumerate(Range)) {
     StringRef Sym;
     if (Error E = I.getSymbolName(Sym)) {
       std::string Message = toString(std::move(E));
@@ -233,6 +229,13 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
     // TODO: handle imports by ordinal
     if (Sym.empty() or Model->ImportedDynamicFunctions().contains(Sym.str()))
       continue;
+
+    // NOTE: This address will occur in the .text section as a target of a jump.
+    // Once we have the address of the entry within .idata, we can access
+    // the information about symbol.
+    uint64_t PointerSize = getPointerSize(Model->Architecture());
+    MetaAddress AddressOfImportEntry = ImageBase + u64(ImportAddressTableEntry)
+                                       + u64(Index * PointerSize);
 
     // Lets make a Relocation.
     using namespace model::RelocationType;
