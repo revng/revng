@@ -2,8 +2,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <array>
 #include <span>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "revng/ADT/Concepts.h"
 #include "revng/Model/ABI.h"
@@ -29,6 +31,22 @@ bool verifyRegisters(const RegisterContainer &Registers,
   }
 
   return true;
+}
+
+/// Given a list of register ranges, it checks if each value appears exactly
+/// once.
+template<std::ranges::range... RangeTypes>
+  requires(RangeOf<RangeTypes, model::Register::Values> && ...)
+bool verifyNoRepeatedRegisters(const RangeTypes &...Ranges) {
+  std::unordered_set<model::Register::Values> Seen = {};
+  auto Check = [&Seen](const std::ranges::range auto &Range) {
+    for (auto Register : Range)
+      if (not Seen.emplace(Register).second)
+        return false;
+    return true;
+  };
+
+  return (Check(Ranges) && ...);
 }
 
 bool isVectorRegister(model::Register::Values Register) {
@@ -132,6 +150,35 @@ bool Definition::verify() const {
   if (!verifyRegisters(VectorReturnValueRegisters(), Architecture))
     return false;
   if (!verifyRegisters(CalleeSavedRegisters(), Architecture))
+    return false;
+
+  // Verify arguments do not appear more than once and do not contain any
+  // callee saved registers.
+  if (!verifyNoRepeatedRegisters(GeneralPurposeArgumentRegisters(),
+                                 VectorArgumentRegisters(),
+                                 CalleeSavedRegisters()))
+    return false;
+
+  // Same for return values.
+  if (!verifyNoRepeatedRegisters(GeneralPurposeReturnValueRegisters(),
+                                 VectorReturnValueRegisters(),
+                                 CalleeSavedRegisters()))
+    return false;
+
+  // Do not allow return value location to be callee saved or returned as
+  // a vector register.
+  if (ReturnValueLocationRegister() != model::Register::Invalid) {
+    // TODO: use optional instead of an array after switching to C++26 or newer.
+    std::array ReturnValueLocation = { ReturnValueLocationRegister() };
+    if (!verifyNoRepeatedRegisters(ReturnValueLocation,
+                                   VectorArgumentRegisters(),
+                                   CalleeSavedRegisters()))
+      return false;
+  }
+
+  if (!abi::FloatingPointStrategy::isValid(FloatingPointArgumentStrategy()))
+    return false;
+  if (!abi::FloatingPointStrategy::isValid(FloatingPointReturnValueStrategy()))
     return false;
 
   if (!verifyReturnValueLocation(*this))
@@ -264,7 +311,7 @@ const Definition &Definition::get(model::ABI::Values ABI) {
     revng_abort(Error.c_str());
   }
 
-  if (!Parsed->verify()) {
+  if (!(*Parsed)->verify()) {
     std::string Error = "Deserialized ABI definition is not valid: "
                         + ::toString(ABI);
     revng_abort(Error.c_str());

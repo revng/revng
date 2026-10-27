@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-ABI: SystemV_MIPSEL_o32
+ABI: SystemV_MIPS_o32_hardfloat
 
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: true
@@ -11,16 +11,19 @@ BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: false
 AllowPackedTypesInRegisters: false
 CalleeIsResponsibleForStackCleanup: false
-FloatsUseGPRs: true
+FloatsUseGPRs: false
 PackStackArguments: false
 TreatAllAggregatesAsPacked: false
+
+FloatingPointArgumentStrategy: Ignored
+FloatingPointReturnValueStrategy: Ignored
 
 StackAlignment: 4
 MinimumStackArgumentSize: 4
 UnusedStackArgumentBytes: 16
 
 MaximumGPRsPerAggregateArgument: 4
-MaximumGPRsPerAggregateReturnValue: 1
+MaximumGPRsPerAggregateReturnValue: 0
 MaximumGPRsPerScalarArgument: 4
 MaximumGPRsPerScalarReturnValue: 4
 

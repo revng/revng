@@ -15,11 +15,16 @@ FloatsUseGPRs: false
 PackStackArguments: false
 TreatAllAggregatesAsPacked: false
 
+FloatingPointArgumentStrategy: NextRegisterFromTheDedicatedSet
+FloatingPointReturnValueStrategy: NextRegisterFromTheDedicatedSet
+
 StackAlignment: 8
 MinimumStackArgumentSize: 8
 
+UnusedStackArgumentBytes: 160
+
 MaximumGPRsPerAggregateArgument: 1
-MaximumGPRsPerAggregateReturnValue: 1
+MaximumGPRsPerAggregateReturnValue: 0
 MaximumGPRsPerScalarArgument: 1
 MaximumGPRsPerScalarReturnValue: 1
 
@@ -33,13 +38,12 @@ GeneralPurposeReturnValueRegisters:
   - r2_systemz
 VectorArgumentRegisters:
   - f0_systemz
-  - f1_systemz
   - f2_systemz
-  - f3_systemz
   - f4_systemz
-  - f5_systemz
   - f6_systemz
-  - f7_systemz
+
+# NOTE: the order is intentional: every even register is used first, then
+#       every odd one.
 # - v24_systemz
 # - v26_systemz
 # - v28_systemz
@@ -52,8 +56,6 @@ VectorReturnValueRegisters:
   - f0_systemz
 # - v24_systemz
 CalleeSavedRegisters:
-  - r6_systemz
-  - r7_systemz
   - r8_systemz
   - r9_systemz
   - r10_systemz

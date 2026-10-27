@@ -170,6 +170,22 @@ definitions:
         type: bool
         default: false
 
+      - name: FloatingPointArgumentStrategy
+        doc: |
+          Determines how floating point *arguments* are passed under this ABI.
+          Every ABI must set this explicitly: the default value (`Invalid`)
+          makes `verify()` fail.
+        type: FloatingPointStrategy
+        default: Invalid
+
+      - name: FloatingPointReturnValueStrategy
+        doc: |
+          Determines how floating point *return values* are passed under this
+          ABI. Every ABI must set this explicitly: the default value (`Invalid`)
+          makes `verify()` fail.
+        type: FloatingPointStrategy
+        default: Invalid
+
       - name: ScalarTypes
         doc: |
           See `revng/share/doc/revng/references/abi-definition.md` for details.
@@ -252,6 +268,36 @@ definitions:
     members:
       - name: Integer
       - name: FloatingPoint
+
+  - name: FloatingPointStrategy
+    type: enum
+    doc: |
+      Describes the strategy an ABI uses to pass a single floating point
+      argument (or return value) around.
+    members:
+      - name: NextRegisterFromTheDedicatedSet
+        doc: |
+          Each value consumes the next free register from the dedicated
+          floating point register set (`VectorArgumentRegisters` or
+          `VectorReturnValueRegisters`). Once the set is exhausted, the stack is
+          used instead.
+
+      - name: NextRegisterFromTheGeneralPurposeRegisterSet
+        doc: |
+          Values are passed like any other value, that is, using the general
+          purpose registers and, once those are exhausted, the stack.
+
+      - name: Stack
+        doc: |
+          Values never occupy a register. Depending on whether the ABI is
+          position-based, they are passed on the stack directly or replaced
+          with a pointer to a copy.
+
+      - name: Ignored
+        doc: |
+          Floating point argument/return-values are not supported under this
+          ABI. They should be ignored in layouts and should prevent all
+          the functions using them from ever being promoted to a CFT.
 
   - name: CType
     type: enum

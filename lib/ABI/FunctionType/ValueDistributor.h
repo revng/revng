@@ -9,6 +9,8 @@
 #include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Register.h"
 
+#include "FloatingPointStrategy.h"
+
 namespace abi::FunctionType {
 
 using RegisterVector = llvm::SmallVector<model::Register::Values, 2>;
@@ -60,6 +62,22 @@ struct DistributedValue {
   /// `RawFunctionDefinition` but are omitted in `Layout`.
   bool RepresentsPadding = false;
 
+  /// Mark this value as one that should be dropped entirely.
+  ///
+  /// Currently the only way this flag can be set is when a floating-point-
+  /// containing argument/return-value is distributed under an ABI that
+  /// explicitly sets floating point handling strategy to `Ignored`.
+  ///
+  /// IMPORTANT: any layout/RFT that was produced with the `Ignored` strategy
+  /// trigger is likely to *not* correspond to the real function in the binary.
+  ///
+  /// While this is relatively harmless on the return value (as there's only
+  /// one), it is likely to cause any following arguments to be misplaced.
+  ///
+  /// Note that no RFT->CFT promotion should take place if this flag is ever set
+  /// when checking the output.
+  bool ShouldBeIgnored = false;
+
   static DistributedValue voidReturnValue() {
     return DistributedValue{ .Registers = {},
                              .Size = 0,
@@ -68,7 +86,17 @@ struct DistributedValue {
                              .SizeOnStack = 0,
                              .OffsetOnStack = 0,
                              .UsesPointerToCopy = false,
-                             .RepresentsPadding = false };
+                             .RepresentsPadding = false,
+                             .ShouldBeIgnored = false };
+  }
+
+  /// A placeholder for a value that should be dropped entirely.
+  ///
+  /// See \ref ShouldBeIgnored.
+  static DistributedValue ignoredValuePlaceholder() {
+    DistributedValue Result;
+    Result.ShouldBeIgnored = true;
+    return Result;
   }
 };
 using DistributedValues = llvm::SmallVector<DistributedValue, 8>;
@@ -178,41 +206,24 @@ public:
   template<model::AnyType AnyType>
   DistributedValues nextArgument(const AnyType &Type) {
     if (ABI.ArgumentsArePositionBased()) {
-      return positionBased(Type.isFloatPrimitive(), *Type.size());
+      return positionBased(floatingPointKind(Type), *Type.size());
     } else {
       abi::Definition::AlignmentCache Cache;
       uint64_t Alignment = *ABI.alignment(Type, Cache);
       bool IsNatural = *ABI.hasNaturalAlignment(Type, Cache);
       return nonPositionBased(Type.isScalar(),
-                              Type.isFloatPrimitive(),
+                              floatingPointKind(Type),
                               *Type.size(),
                               Alignment,
                               IsNatural);
     }
   }
 
-  bool canNextArgumentUseRegisters() const {
-    size_t GPRCount = ABI.GeneralPurposeArgumentRegisters().size();
-    size_t VectorCount = ABI.VectorArgumentRegisters().size();
-
-    if (ABI.ArgumentsArePositionBased()) {
-      return nextPositionBasedIndex() < std::max(GPRCount, VectorCount);
-    } else {
-      if (UsedGeneralPurposeRegisterCount == GPRCount
-          && UsedVectorRegisterCount == VectorCount)
-        return false;
-
-      if (ABI.NoRegisterArgumentsCanComeAfterStackOnes() && UsedStackOffset)
-        return false;
-    }
-
-    return true;
-  }
-
 private:
-  DistributedValues positionBased(bool IsFloat, uint64_t Size);
+  DistributedValues positionBased(FloatingPointKind FloatingPoint,
+                                  uint64_t Size);
   DistributedValues nonPositionBased(bool IsScalar,
-                                     bool IsFloat,
+                                     FloatingPointKind FloatingPoint,
                                      uint64_t Size,
                                      uint64_t Alignment,
                                      bool HasNaturalAlignment);

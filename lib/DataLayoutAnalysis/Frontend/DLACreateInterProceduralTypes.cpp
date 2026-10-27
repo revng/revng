@@ -84,6 +84,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                    or (not RFT->StackArgumentsType().isEmpty()
                        and (F.arg_size() == RFT->Arguments().size() + 1)));
     } else if (CABIFT) {
+      // WIP! We can no longer assert this because of `Ignored` mips arguments.
       revng_assert(CABIFT->Arguments().size() == F.arg_size());
     } else {
       revng_abort();

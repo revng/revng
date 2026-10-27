@@ -2,23 +2,86 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <vector>
+
 #include "llvm/ADT/SmallSet.h"
 
 #include "revng/ABI/FunctionType/Conversion.h"
 #include "revng/ABI/FunctionType/Support.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/ABI/Definition.h"
+#include "revng/Model/ArrayType.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
+#include "revng/Model/PointerType.h"
+#include "revng/Model/PrimitiveType.h"
 #include "revng/Model/TypeBucket.h"
 #include "revng/Support/AlignmentHelpers.h"
-#include "revng/Support/OverflowSafeInt.h"
 
+#include "FloatingPointStrategy.h"
 #include "ValueDistributor.h"
 
 static Logger Log("function-type-conversion-to-cabi");
 
 namespace abi::FunctionType {
+
+/// Checks whether \p ABI can represent an argument described by \p Type.
+///
+/// A stack argument has no register to tell us where it lives, so only its type
+/// can indicate the presence of a floating point value.
+///
+/// Note that we cannot just blindly let these through unchecked because under
+/// some ABIs the alignment considerations differ for floating point types -
+/// meaning such CFTs would not result in the exact same padding amounts in
+/// all the cases.
+static bool canRepresentArgument(const abi::Definition &ABI,
+                                 const model::Type &Type) {
+  const auto Strategy = argumentStrategy(ABI, floatingPointKind(Type));
+  return Strategy != FloatingPointStrategy::Ignored;
+}
+
+/// Checks whether \p ABI can represent a return value described by \p Type.
+static bool canRepresentReturnValue(const abi::Definition &ABI,
+                                    const model::Type &T) {
+  const auto Strategy = returnValueStrategy(ABI, floatingPointKind(T));
+  return Strategy != FloatingPointStrategy::Ignored;
+}
+
+/// This helper attempts to refine a type of something known to be passed in
+/// a float-presenting register even if it is labeled as `Generic`.
+///
+/// \param Type the type in the model.
+///
+/// \returns return a new type if the refinement was successful.
+///          Otherwise it returns `std::nullopt` to indicate that the original
+///          type should be used.
+static std::optional<model::UpcastableType>
+refineGenericType(const abi::Definition &ABI,
+                  model::Register::Values Register,
+                  const model::Type &Type) {
+  // Only do this if the register is floating-point presenting.
+  const auto RegisterKind = model::Register::getPrimitiveKind(Register);
+  if (RegisterKind != model::PrimitiveKind::Float)
+    return std::nullopt;
+
+  const auto *Primitive = Type.getPrimitive();
+
+  // Not a primitive - do not touch.
+  if (not Primitive)
+    return std::nullopt;
+
+  // Not a generic - do not touch.
+  if (Primitive->PrimitiveKind() != model::PrimitiveKind::Generic)
+    return std::nullopt;
+
+  size_t Size = *Type.size();
+  revng_assert(Size <= model::Register::getSize(Register));
+
+  if (model::PrimitiveType::isSizeValid(model::PrimitiveKind::Float, Size))
+    return model::PrimitiveType::makeFloat(Size);
+
+  return std::nullopt;
+}
 
 class ToCABIConverter {
 private:
@@ -248,6 +311,17 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   for (model::Register::Values Register : Ordered) {
     auto CurrentRegisterIterator = Registers.find(Register);
     if (CurrentRegisterIterator != Registers.end()) {
+      revng_assert(!CurrentRegisterIterator->Type().isEmpty());
+      if (not canRepresentArgument(ABI, *CurrentRegisterIterator->Type())) {
+        revng_log(Log,
+                  "FAIL: the argument in `"
+                    << model::Register::getRegisterName(Register)
+                    << "` cannot be represented under `"
+                    << model::ABI::getName(ABI.ABI())
+                    << "`, whose floating point strategy is `Ignored`.");
+        return std::nullopt;
+      }
+
       // If the current register is confirmed to be in use, convert it into
       // an argument while preserving its type and metadata.
       model::Argument &Current = Result.emplace_back();
@@ -305,50 +379,7 @@ static bool verifyAlignment(const abi::Definition &ABI,
     return false;
   }
 
-  uint64_t ExpectedOffset = 0;
-  if (Previous.has_value()) {
-    uint64_t PaddedSize = paddedSizeOnStack(Previous->Size,
-                                            Previous->Alignment);
-
-    if (PaddedSize != Previous->Size)
-      revng_log(Log,
-                "The previous argument had to be padded to "
-                  << PaddedSize << " bytes because of alignment constraints.");
-
-    OverflowSafeInt OverflowCheck = Previous->Offset;
-    OverflowCheck += PaddedSize;
-    if (!OverflowCheck) {
-      // Abandon if offset overflows.
-      revng_log(Log, "Error: Integer overflow when calculating field offsets.");
-      return false;
-    }
-
-    ExpectedOffset = *OverflowCheck;
-  }
-
-  ExpectedOffset = llvm::alignToPowerOf2(ExpectedOffset, Current.Alignment);
-
-  if (ExpectedOffset == Current.Offset) {
-    revng_log(Log, "Argument slots in perfectly.");
-    return true;
-
-  } else if (ExpectedOffset < Current.Offset) {
-    revng_log(Log,
-              "Error: The natural alignment of a type would make it "
-              "impossible to represent as CABI:\n"
-              "There would have to be a hole between two arguments.");
-
-    // TODO: we probably want to preprocess such functions and manually
-    //       "fill" the holes in before attempting the conversion.
-    return false;
-
-  } else {
-    revng_log(Log,
-              "Error: The natural alignment of a type would make it "
-              "impossible to represent as CABI:\n"
-              "The arguments (including the padding) would have to overlap.");
-    return false;
-  }
+  return true;
 }
 
 template<model::AnyType ModelType>
@@ -392,19 +423,13 @@ bool canBeNext(ArgumentDistributor &Distributor,
       return false;
     }
 
-    // Compute the next stack offset
-    auto NextStackOffset = llvm::alignToPowerOf2(LocalDistributor
-                                                   .UsedStackOffset,
-                                                 *ABI.alignment(CurrentType));
-    NextStackOffset += ABI.paddedSizeOnStack(Current.Size);
-    auto SizeWithPadding = NextStackOffset - LocalDistributor.UsedStackOffset;
-    if (Distributed.SizeOnStack != SizeWithPadding) {
+    if (Distributed.OffsetOnStack != Current.Offset) {
       revng_log(Log,
                 "Because the stack position wouldn't match due to holes in "
                 "the stack, an argument cannot just be added as is - resulting "
-                "CFT would not be compatible. Expected size is "
-                  << SizeWithPadding << " but distributor reports "
-                  << Distributed.SizeOnStack << " instead.");
+                "CFT would not be compatible. Expected offset is "
+                  << Current.Offset << " but distributor reports "
+                  << Distributed.OffsetOnStack << " instead.");
       return false;
     }
 
@@ -491,6 +516,15 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
 
     while (not RemainingRange.empty()) {
       const auto &CurrentArgument = *RemainingRange.begin();
+      if (not canRepresentArgument(ABI, *CurrentArgument.Type())) {
+        revng_log(Log,
+                  "FAIL: the stack argument of type `"
+                    << CurrentArgument.Type()->toString()
+                    << "` cannot be represented under `"
+                    << model::ABI::getName(ABI.ABI())
+                    << "`, whose floating point strategy is `Ignored`.");
+        return std::nullopt;
+      }
 
       ArgumentProperties CurrentArgumentProperties = {
         .Offset = CurrentArgument.Offset(),
@@ -616,6 +650,15 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
     return std::nullopt;
   }
 
+  if (not canRepresentArgument(ABI, *StackStruct)) {
+    revng_log(Log,
+              "FAIL: the stack arguments of type `"
+                << StackStruct->toString() << "` cannot be represented under `"
+                << model::ABI::getName(ABI.ABI())
+                << "`, whose floating point strategy is `Ignored`.");
+    return std::nullopt;
+  }
+
   ArgumentProperties FullStackProperties = {
     .Offset = 0, .Size = Stack.Size(), .Alignment = adjustedAlignment(Stack)
   };
@@ -671,8 +714,24 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
 
   if (Ordered.size() == 1) {
     if (auto Iter = Registers.find(*Ordered.begin()); Iter != Registers.end()) {
+      // Before triggering the strategy logic, attempt to refine the type
+      // (a 64-bit generic in zmm0 is to be treated as `double`).
+      if (auto R = refineGenericType(ABI, *Ordered.begin(), *Iter->Type())) {
+        if (not canRepresentReturnValue(ABI, **R)) {
+          revng_log(Log,
+                    "FAIL: the return value in `"
+                      << model::Register::getRegisterName(*Ordered.begin())
+                      << "` cannot be represented under `"
+                      << model::ABI::getName(ABI.ABI())
+                      << "`, whose floating point strategy is `Ignored`.");
+          return std::nullopt;
+        }
+
+        return R;
+      }
+
       // Only one register is used, just return its type.
-      return Iter->Type();
+      return model::copyType(*Iter->Type());
     } else {
       // One register is used but its type cannot be obtained.
       // Create a register sized return type instead.
@@ -718,11 +777,30 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
         model::StructField Field;
         Field.Offset() = Definition.Size();
 
-        // TODO: ensure that the type is in fact naturally aligned
-        if (auto It = Registers.find(*Ordered.begin()); It != Registers.end())
-          Field.Type() = It->Type();
+        // Take the type the register currently describes, if any.
+        if (auto Iter = Registers.find(Register); Iter != Registers.end())
+          Field.Type() = model::copyType(*Iter->Type());
         else
-          Field.Type() = model::PrimitiveType::makeGeneric(*Ordered.begin());
+          Field.Type() = model::PrimitiveType::make(Register);
+
+        // Before triggering the strategy logic, attempt to refine the type
+        // (a 64-bit generic in zmm0 is to be treated as `double`).
+        if (std::optional Refined = refineGenericType(ABI,
+                                                      Register,
+                                                      *Field.Type()))
+          Field.Type() = std::move(*Refined);
+
+        if (not canRepresentReturnValue(ABI, *Field.Type())) {
+          revng_log(Log,
+                    "FAIL: the return value in `"
+                      << model::Register::getRegisterName(Register)
+                      << "` cannot be represented under `"
+                      << model::ABI::getName(ABI.ABI())
+                      << "`, whose floating point strategy is `Ignored`.");
+          return std::nullopt;
+        }
+
+        // TODO: ensure that the type is in fact naturally aligned
 
         std::optional<uint64_t> FieldSize = Field.Type()->size();
         revng_assert(FieldSize.has_value() && FieldSize.value() != 0);

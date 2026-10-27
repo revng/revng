@@ -58,7 +58,7 @@ A typical example of a position-based ABI is `Microsoft_x86_64`, a non-position-
 
 ## `OnlyStartDoubleArgumentsFromAnEvenRegister` (`bool`)
 
-States whether an object that needs two GPRs to fit (5-8 bytes on 32-bit architectures and 9-16 bytes on 64-bit systems) is only allowed to start from a register with an even index.
+States whether an object with an alignment bigger than the size of a GPR (8 bytes on 32-bit architectures and 16 bytes on 64-bit systems) is only allowed to start from a register with an even index.
 
 Here's an example function:
 
@@ -68,7 +68,7 @@ void function(uint32_t, uint64_t);
 
 On a system with 32-bit wide GPRs, the first argument (`uint32_t`) is passed using the first allowed GPR (say `r0`).
 
-The second argument (`uint64_t`) requires two registers to fit, so it's passed using second and third registers if the ABI allows starting double arguments from any register (`r1` and `r2` in this example), or third and forth if it only allows starting them from even registers (`r2` and `r3` in this example, since `r1` is considered an odd register (the count starts from 0, much like C array indexing).
+The second argument (`uint64_t`) is 8-byte aligned and requires two registers to fit, so it's passed using second and third registers if the ABI allows starting double arguments from any register (`r1` and `r2` in this example), or third and forth if it only allows starting them from even registers (`r2` and `r3` in this example, since `r1` is considered an odd register (the count starts from 0, much like C array indexing).
 
 ## `ArgumentsCanBeSplitBetweenRegistersAndStack` (`bool`)
 
