@@ -29,7 +29,7 @@ struct ContainerIO {
 
   static llvm::Error deserialize(T &Handle, nanobind::dict &Data) {
     // Input map that will be fed to the Container's deserialize method
-    std::map<const ObjectID *, llvm::ArrayRef<char>> Input;
+    RawObjectMap Input;
     // Temporary PyBuffer-s that are needed to read the contents of Data's
     // values
     std::vector<ManagedPyBuffer> Buffers;

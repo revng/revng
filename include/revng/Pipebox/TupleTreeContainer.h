@@ -24,8 +24,7 @@ public:
     return std::views::keys(Map) | revng::to<std::set<ObjectID>>();
   }
 
-  void
-  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
+  void deserialize(const RawObjectMap Data) {
     for (const auto &[Key, Value] : Data) {
       revng_assert(Key->kind() == Kind);
       llvm::StringRef String{ Value.data(), Value.size() };

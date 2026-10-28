@@ -32,10 +32,7 @@ concept IsContainer = requires(T &A, const T &AConst) {
   { T::Compression } -> std::same_as<const llvm::StringRef &>;
   { AConst.objects() } -> std::same_as<std::set<ObjectID>>;
   { AConst.verify() } -> std::same_as<bool>;
-  {
-    A.deserialize(std::declval<
-                  const std::map<const ObjectID *, llvm::ArrayRef<char>>>())
-  } -> std::same_as<void>;
+  { A.deserialize(std::declval<const RawObjectMap>()) } -> std::same_as<void>;
   {
     AConst.serialize(std::declval<const std::vector<const ObjectID *>>())
   } -> std::same_as<std::map<ObjectID, revng::pypeline::Buffer>>;

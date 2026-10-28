@@ -39,8 +39,7 @@ public:
     return std::views::keys(Modules) | revng::to<std::set<ObjectID>>();
   }
 
-  void
-  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
+  void deserialize(const RawObjectMap Data) {
     const mlir::ParserConfig Config(Context.get());
     for (auto const &[Object, Buffer] : Data) {
       revng_assert(Object->kind() == Kind);
@@ -134,8 +133,7 @@ public:
       return std::set{ ObjectID() };
   }
 
-  void
-  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
+  void deserialize(const RawObjectMap Data) {
     if (Data.size() == 0)
       return;
 

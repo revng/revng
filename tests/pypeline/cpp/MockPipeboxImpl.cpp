@@ -24,8 +24,7 @@ std::set<ObjectID> StringContainer::objects() const {
   return std::views::keys(Storage) | revng::to<std::set<ObjectID>>();
 }
 
-void StringContainer::deserialize(const std::map<const ObjectID *,
-                                                 llvm::ArrayRef<char>> Data) {
+void StringContainer::deserialize(const RawObjectMap Data) {
   for (auto &Entry : Data) {
     revng_assert(Entry.first->kind() == Kind);
     std::string EntryData(Entry.second.data(), Entry.second.size());
@@ -71,8 +70,7 @@ std::set<ObjectID> RootStringContainer::objects() const {
     return { ObjectID::root() };
 }
 
-void RootStringContainer::deserialize(const std::map<const ObjectID *,
-                                                     ArrayRef<char>> Data) {
+void RootStringContainer::deserialize(const RawObjectMap Data) {
   for (auto &[Object, Entry] : Data)
     Storage = { Entry.data(), Entry.size() };
 }
