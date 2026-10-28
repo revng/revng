@@ -21,20 +21,50 @@ namespace dla {
 struct ChildrenKey {
   uint64_t Size;
   const TypeLinkTag *Tag = nullptr;
-  bool operator==(const ChildrenKey &) const noexcept = default;
-  std::strong_ordering
-  operator<=>(const ChildrenKey &) const noexcept = default;
+
+  /// Compares the tags through their contents. A defaulted comparison would
+  /// compare the pointers, and the tags are allocated wherever the type
+  /// system put them. Contents are as good as identity here, since the type
+  /// system keeps its tags in a `std::set<TypeLinkTag>`, so two tags with the
+  /// same contents are the same object.
+  std::strong_ordering operator<=>(const ChildrenKey &Other) const noexcept {
+    if (auto Cmp = Size <=> Other.Size; Cmp != std::strong_ordering::equal)
+      return Cmp;
+
+    if (Tag == nullptr or Other.Tag == nullptr)
+      return (Tag != nullptr) <=> (Other.Tag != nullptr);
+
+    return *Tag <=> *Other.Tag;
+  }
+
+  bool operator==(const ChildrenKey &Other) const noexcept {
+    return (*this <=> Other) == std::strong_ordering::equal;
+  }
 };
 
 using NodePredicate = const std::function<bool(const LayoutTypeSystemNode *)>;
 
 using NeighborIterator = LayoutTypeSystemNode::NeighborIterator;
 
+/// Orders two edges by the ID of the child and by the contents of the tag.
+///
+/// `resolveUnion` walks the set below pairwise and erases the less general of
+/// every comparable pair, and "more general" is not a total order, so which
+/// children survive depends on the order they are visited in. Ordering by the
+/// addresses of the nodes and of the tags would hand that decision to the
+/// allocator.
 static bool neighborLess(const NeighborIterator &AIt,
                          const NeighborIterator &BIt) {
   const auto &[AChild, ATag] = *AIt;
   const auto &[BChild, BTag] = *BIt;
-  return (AChild < BChild) or (ATag < BTag);
+
+  if (AChild->ID != BChild->ID)
+    return AChild->ID < BChild->ID;
+
+  if (ATag == nullptr or BTag == nullptr)
+    return ATag == nullptr and BTag != nullptr;
+
+  return *ATag < *BTag;
 }
 
 using NeighborLess = std::integral_constant<decltype(&neighborLess),
