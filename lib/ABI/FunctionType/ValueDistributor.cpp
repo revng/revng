@@ -206,18 +206,18 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
   uint64_t *RegisterCounter = nullptr;
   std::span<const model::Register::Values> RegisterList;
   if (IsFloat && !ABI.FloatsUseGPRs()) {
-    RegisterList = ABI.VectorArgumentRegisters();
-    RegisterCounter = &UsedVectorRegisterCount;
+    RegisterList = ABI.FloatArgumentRegisters();
+    RegisterCounter = &UsedFloatRegisterCount;
 
     if (RegisterList.size() > *RegisterCounter) {
       // The conventional non-position based approach is not applicable for
-      // vector registers since it's rare for multiple registers to be used
+      // float registers since it's rare for multiple registers to be used
       // to pass a single argument.
       //
-      // For now, provide at most a single vector register for such a value,
+      // For now, provide at most a single float register for such a value,
       // if there's a free one.
       //
-      // TODO: find reproducers and handle the cases where multiple vector
+      // TODO: find reproducers and handle the cases where multiple float
       //       registers are used together.
       DistributedValue Result;
       Result.Size = Size;
@@ -230,7 +230,7 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
       RegisterLimit = 0;
     }
 
-    // Explicitly disallow splitting vector arguments across the registers
+    // Explicitly disallow splitting float arguments across the registers
     // and the stack.
     ForbidSplitting = true;
   } else {
@@ -305,14 +305,14 @@ DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
     Result.Size = ABI.getPointerSize();
     Result.UsesPointerToCopy = true;
 
-    // Pointers never use vector registers.
+    // Pointers never use float registers.
     IsFloat = false;
   }
 
   bool UseVR = ABI.FloatsUseGPRs() ? false : IsFloat;
-  const auto &UsedRegisters = UseVR ? ABI.VectorArgumentRegisters() :
+  const auto &UsedRegisters = UseVR ? ABI.FloatArgumentRegisters() :
                                       ABI.GeneralPurposeArgumentRegisters();
-  uint64_t &UsedRegisterCount = UseVR ? UsedVectorRegisterCount :
+  uint64_t &UsedRegisterCount = UseVR ? UsedFloatRegisterCount :
                                         UsedGeneralPurposeRegisterCount;
 
   uint64_t CurrentArgumentIndex = nextPositionBasedIndex();
@@ -349,7 +349,7 @@ DistributedValue ReturnValueDistributor::returnValue(const model::Type &Type) {
   uint64_t Limit = 0;
   std::span<const model::Register::Values> RegisterList;
   if (Type.isFloatPrimitive() and not ABI.FloatsUseGPRs()) {
-    RegisterList = ABI.VectorReturnValueRegisters();
+    RegisterList = ABI.FloatReturnValueRegisters();
 
     // For now replace unsupported floating point return values with `void`
     // The main offenders are the values returned in `st0`.

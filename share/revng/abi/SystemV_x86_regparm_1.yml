@@ -28,7 +28,7 @@ GeneralPurposeArgumentRegisters:
 GeneralPurposeReturnValueRegisters:
   - eax_x86
   - edx_x86
-VectorArgumentRegisters:
+FloatArgumentRegisters:
   - zmm0_x86
   - zmm1_x86
   - zmm2_x86
@@ -52,20 +52,10 @@ ScalarTypes:
     Size: 8
     AlignedAt: 4
   - Kind: FloatingPoint
-    Size: 2 # IEEE Binary16
-  - Kind: FloatingPoint
     Size: 4 # IEEE Binary32
   - Kind: FloatingPoint
     Size: 8 # IEEE Binary64
     AlignedAt: 4
-  - Kind: FloatingPoint
-    Size: 12 # x87 Extended
-    AlignedAt: 4
-    CTypes:
-      - LongDouble
-  - Kind: FloatingPoint
-    Size: 16 # IEEE Binary128
-
 PrimitiveAliases:
   - Name: size_t
     Kind: Unsigned

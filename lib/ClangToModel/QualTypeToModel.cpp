@@ -202,18 +202,23 @@ Converter::makePrimitive(const BuiltinType *UnderlyingBuiltin, QualType Type) {
   case BuiltinType::Void:
     return model::PrimitiveType::makeVoid();
 
-  case BuiltinType::Float16:
-    return model::PrimitiveType::makeFloat(2);
-
   case BuiltinType::Float:
     return model::PrimitiveType::makeFloat(4);
 
   case BuiltinType::Double:
     return model::PrimitiveType::makeFloat(8);
 
-  case BuiltinType::Float128:
   case BuiltinType::LongDouble:
-    return model::PrimitiveType::makeFloat(16);
+  case BuiltinType::Float16:
+  case BuiltinType::Float128: {
+    // Only `float` and `double` are representable as model float primitives.
+    auto N = UnderlyingBuiltin->getName(PrintingPolicy(Context.getLangOpts()));
+    Errors.emplace_back(ErrorPrefix.str() + " The `" + N.str()
+                        + "` type is not supported: only `float` and `double`"
+                          " are, as `float32_t` and `float64_t`.\n");
+
+    return model::UpcastableType::empty();
+  }
 
   default:
     Errors.emplace_back(ErrorPrefix.str()

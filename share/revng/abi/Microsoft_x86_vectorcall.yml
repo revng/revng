@@ -29,14 +29,14 @@ GeneralPurposeArgumentRegisters:
 GeneralPurposeReturnValueRegisters:
   - eax_x86
   - edx_x86
-VectorArgumentRegisters:
+FloatArgumentRegisters:
   - zmm0_x86
   - zmm1_x86
   - zmm2_x86
   - zmm3_x86
   - zmm4_x86
   - zmm5_x86
-VectorReturnValueRegisters:
+FloatReturnValueRegisters:
   - zmm0_x86
 CalleeSavedRegisters:
   - ebx_x86
@@ -59,8 +59,6 @@ ScalarTypes:
   - Kind: Integer
     Size: 8
     AlignedAt: 4 # TODO: The correct value is 8, but stack arguments align to 4.
-  - Kind: FloatingPoint
-    Size: 2 # IEEE Binary16
   - Kind: FloatingPoint
     Size: 4 # IEEE Binary32
   - Kind: FloatingPoint

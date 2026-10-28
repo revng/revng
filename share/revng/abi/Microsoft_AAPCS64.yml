@@ -44,7 +44,7 @@ GeneralPurposeReturnValueRegisters:
   - x5_aarch64
   - x6_aarch64
   - x7_aarch64
-VectorArgumentRegisters:
+FloatArgumentRegisters:
   - v0_aarch64
   - v1_aarch64
   - v2_aarch64
@@ -53,7 +53,7 @@ VectorArgumentRegisters:
   - v5_aarch64
   - v6_aarch64
   - v7_aarch64
-VectorReturnValueRegisters:
+FloatReturnValueRegisters:
   - v0_aarch64
   - v1_aarch64
   - v2_aarch64
@@ -100,14 +100,9 @@ ScalarTypes:
   - Kind: Integer
     Size: 16
   - Kind: FloatingPoint
-    Size: 2 # IEEE Binary16
-  - Kind: FloatingPoint
     Size: 4 # IEEE Binary32
   - Kind: FloatingPoint
     Size: 8 # IEEE Binary64
-  - Kind: FloatingPoint
-    Size: 16 # IEEE Binary128
-
 PrimitiveAliases:
   - Name: size_t
     Kind: Unsigned

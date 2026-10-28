@@ -5,16 +5,16 @@
 // RUN: %root/bin/revng clift-opt --emit-type-and-global-header %s -o /dev/null | FileCheck %s
 // RUN: %root/bin/revng clift-opt --emit-type-and-global-header=ptml %s -o /dev/null | %root/bin/revng ptml | FileCheck %s
 
-!float96_t = !clift.float<12>
+!float64_t = !clift.float<8>
 
 // CHECK: /// Take a look at struct and function comment tests for more "meat".
 // CHECK: ///
 // CHECK: /// This one is just to ensure typedef-attached comments don't
 // CHECK: /// accidentally get broken!
-// CHECK: typedef float96_t my_float;
+// CHECK: typedef float64_t my_float;
 
 !my_float = !clift.typedef<
-  "/type-definition/0-TypedefDefinition" as "my_float" : !float96_t
+  "/type-definition/0-TypedefDefinition" as "my_float" : !float64_t
   comment "Take a look at struct and function comment tests for more \22meat\22.\0A\0AThis one is just to ensure typedef-attached comments don't\0Aaccidentally get broken!"
 >
 

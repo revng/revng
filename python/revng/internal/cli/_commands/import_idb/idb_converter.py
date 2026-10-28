@@ -643,7 +643,11 @@ def get_primitive_kind(idb_type: idb.typeinf.TInfo) -> m.PrimitiveKind:
     if idb_type.is_decl_void():
         return m.PrimitiveKind.Void
     elif idb_type.is_decl_floating():
-        return m.PrimitiveKind.Float
+        if idb_type.get_size() in (4, 8):
+            return m.PrimitiveKind.Float
+
+        # TODO: should we ignore these instead?
+        return m.PrimitiveKind.Generic
     elif idb.typeinf_flags.is_type_integral(idb_type.get_decltype()):
         if idb_type.is_signed():
             return m.PrimitiveKind.Signed

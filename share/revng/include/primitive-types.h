@@ -92,14 +92,6 @@ typedef uint128_t generic128_t;
 typedef uint256_t generic256_t;
 typedef uint512_t generic512_t;
 
-typedef struct {
-  char data[10];
-} generic80_t;
-
-typedef struct {
-  char data[12];
-} generic96_t;
-
 //
 // PointerOrNumber
 //
@@ -153,22 +145,6 @@ typedef struct {
 } float64_t;
 #endif
 
-#if __SIZEOF_LONG_DOUBLE__ == 10
-typedef long double float80_t;
-#else
-typedef struct {
-  char data[10];
-} float80_t;
-#endif
-
-#if __SIZEOF_LONG_DOUBLE__ == 12
-typedef long double float96_t;
-#else
-typedef struct {
-  char data[12];
-} float96_t;
-#endif
-
 #if __SIZEOF_LONG_DOUBLE__ == 16
 typedef long double float128_t;
 #else
@@ -184,8 +160,6 @@ typedef struct {
 static_assert(sizeof(float16_t) == 2, "");
 static_assert(sizeof(float32_t) == 4, "");
 static_assert(sizeof(float64_t) == 8, "");
-static_assert(sizeof(float80_t) == 10, "");
-static_assert(sizeof(float96_t) == 12, "");
 static_assert(sizeof(float128_t) == 16, "");
 
 //

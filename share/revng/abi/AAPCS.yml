@@ -33,12 +33,12 @@ GeneralPurposeReturnValueRegisters:
   - r1_arm
   - r2_arm
   - r3_arm
-VectorArgumentRegisters:
+FloatArgumentRegisters:
   - q0_arm
   - q1_arm
   - q2_arm
   - q3_arm
-VectorReturnValueRegisters:
+FloatReturnValueRegisters:
   - q0_arm
   - q1_arm
   - q2_arm
@@ -69,8 +69,6 @@ ScalarTypes:
     Size: 4
   - Kind: Integer
     Size: 8
-  - Kind: FloatingPoint
-    Size: 2 # IEEE Binary16
   - Kind: FloatingPoint
     Size: 4 # IEEE Binary32
   - Kind: FloatingPoint

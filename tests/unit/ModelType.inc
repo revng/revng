@@ -35,40 +35,53 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
   TupleTree<model::Binary> T;
   T->Architecture() = model::Architecture::x86_64;
 
+  // Explicit checks for the types we *currently* support.
   revng_check(verify(*PrimitiveType::makeVoid(), *T, true));
   revng_check(verify(*PrimitiveType::makeUnsigned(1), *T, true));
   revng_check(verify(*PrimitiveType::makeUnsigned(2), *T, true));
   revng_check(verify(*PrimitiveType::makeUnsigned(4), *T, true));
   revng_check(verify(*PrimitiveType::makeUnsigned(8), *T, true));
   revng_check(verify(*PrimitiveType::makeUnsigned(16), *T, true));
+  revng_check(verify(*PrimitiveType::makeUnsigned(32), *T, true));
+  revng_check(verify(*PrimitiveType::makeUnsigned(64), *T, true));
   revng_check(verify(*PrimitiveType::makeSigned(1), *T, true));
   revng_check(verify(*PrimitiveType::makeSigned(2), *T, true));
   revng_check(verify(*PrimitiveType::makeSigned(4), *T, true));
   revng_check(verify(*PrimitiveType::makeSigned(8), *T, true));
   revng_check(verify(*PrimitiveType::makeSigned(16), *T, true));
-  revng_check(verify(*PrimitiveType::makeFloat(2), *T, true));
+  revng_check(verify(*PrimitiveType::makeSigned(32), *T, true));
+  revng_check(verify(*PrimitiveType::makeSigned(64), *T, true));
   revng_check(verify(*PrimitiveType::makeFloat(4), *T, true));
   revng_check(verify(*PrimitiveType::makeFloat(8), *T, true));
-  revng_check(verify(*PrimitiveType::makeFloat(10), *T, true));
-  revng_check(verify(*PrimitiveType::makeFloat(12), *T, true));
-  revng_check(verify(*PrimitiveType::makeFloat(16), *T, true));
   revng_check(verify(*PrimitiveType::makeGeneric(1), *T, true));
   revng_check(verify(*PrimitiveType::makeGeneric(2), *T, true));
   revng_check(verify(*PrimitiveType::makeGeneric(4), *T, true));
   revng_check(verify(*PrimitiveType::makeGeneric(8), *T, true));
-  revng_check(verify(*PrimitiveType::makeGeneric(10), *T, true));
-  revng_check(verify(*PrimitiveType::makeGeneric(12), *T, true));
   revng_check(verify(*PrimitiveType::makeGeneric(16), *T, true));
+  revng_check(verify(*PrimitiveType::makeGeneric(32), *T, true));
+  revng_check(verify(*PrimitiveType::makeGeneric(64), *T, true));
   revng_check(verify(*PrimitiveType::makeNumber(1), *T, true));
   revng_check(verify(*PrimitiveType::makeNumber(2), *T, true));
   revng_check(verify(*PrimitiveType::makeNumber(4), *T, true));
   revng_check(verify(*PrimitiveType::makeNumber(8), *T, true));
   revng_check(verify(*PrimitiveType::makeNumber(16), *T, true));
+  revng_check(verify(*PrimitiveType::makeNumber(16), *T, true));
+  revng_check(verify(*PrimitiveType::makeNumber(32), *T, true));
   revng_check(verify(*PrimitiveType::makePointerOrNumber(1), *T, true));
   revng_check(verify(*PrimitiveType::makePointerOrNumber(2), *T, true));
   revng_check(verify(*PrimitiveType::makePointerOrNumber(4), *T, true));
   revng_check(verify(*PrimitiveType::makePointerOrNumber(8), *T, true));
   revng_check(verify(*PrimitiveType::makePointerOrNumber(16), *T, true));
+  revng_check(verify(*PrimitiveType::makePointerOrNumber(32), *T, true));
+  revng_check(verify(*PrimitiveType::makePointerOrNumber(64), *T, true));
+
+  // Explicit checks for the types we *used to* support.
+  revng_check(not verify(*PrimitiveType::makeFloat(2), *T, false));
+  revng_check(not verify(*PrimitiveType::makeFloat(10), *T, false));
+  revng_check(not verify(*PrimitiveType::makeFloat(12), *T, false));
+  revng_check(not verify(*PrimitiveType::makeFloat(16), *T, false));
+  revng_check(not verify(*PrimitiveType::makeGeneric(10), *T, false));
+  revng_check(not verify(*PrimitiveType::makeGeneric(12), *T, false));
 
   for (uint8_t ByteSize = 0; ByteSize < 20; ++ByteSize) {
     auto Unsigned = PrimitiveType::makeUnsigned(ByteSize);
@@ -102,22 +115,24 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
 
   for (uint8_t ByteSize = 0; ByteSize < 20; ++ByteSize) {
     auto Float = PrimitiveType::makeFloat(ByteSize);
-    auto G = PrimitiveType::makeGeneric(ByteSize);
-    if (ByteSize == 2 or ByteSize == 4 or ByteSize == 8 or ByteSize == 10
-        or ByteSize == 12 or ByteSize == 16) {
+    if (ByteSize == 4 or ByteSize == 8) {
       revng_check(verify(*Float, *T, true));
       auto ExpectedName = ("float" + Twine(8 * ByteSize) + "_t").str();
       revng_check(Float->toPrimitive().getCName() == ExpectedName);
-
-      revng_check(verify(*G, *T, true));
-      ExpectedName = ("generic" + Twine(8 * ByteSize) + "_t").str();
-      revng_check(G->toPrimitive().getCName() == ExpectedName);
     } else {
       revng_check(not verify(*Float, *T, false));
-      if (ByteSize == 1)
-        revng_check(verify(*G, *T, true));
-      else
-        revng_check(not verify(*G, *T, false));
+    }
+  }
+
+  for (uint8_t ByteSize = 0; ByteSize < 20; ++ByteSize) {
+    auto G = PrimitiveType::makeGeneric(ByteSize);
+    if (ByteSize == 1 or ByteSize == 2 or ByteSize == 4 or ByteSize == 8
+        or ByteSize == 16) {
+      revng_check(verify(*G, *T, true));
+      auto ExpectedName = ("generic" + Twine(8 * ByteSize) + "_t").str();
+      revng_check(G->toPrimitive().getCName() == ExpectedName);
+    } else {
+      revng_check(not verify(*G, *T, false));
     }
   }
 

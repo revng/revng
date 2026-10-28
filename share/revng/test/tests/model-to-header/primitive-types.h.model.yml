@@ -126,7 +126,7 @@ TypeDefinitions:
           PointeeType:
             Kind: PrimitiveType
             PrimitiveKind: Generic
-            Size: 10
+            Size: 8
         Name: arg5
       - Index: 1
         Type:
@@ -135,7 +135,7 @@ TypeDefinitions:
           PointeeType:
             Kind: PrimitiveType
             PrimitiveKind: Generic
-            Size: 12
+            Size: 16
         Name: arg6
   - Kind: CABIFunctionDefinition
     ID: 3002
@@ -388,7 +388,7 @@ TypeDefinitions:
           PointerSize: 8
           PointeeType:
             Kind: PrimitiveType
-            PrimitiveKind: Float
+            PrimitiveKind: Generic
             Size: 2
         Name: arg4
       - Index: 4
@@ -415,8 +415,8 @@ TypeDefinitions:
           PointerSize: 8
           PointeeType:
             Kind: PrimitiveType
-            PrimitiveKind: Float
-            Size: 10
+            PrimitiveKind: Generic
+            Size: 8
         Name: arg7
       - Index: 7
         Type:
@@ -424,8 +424,8 @@ TypeDefinitions:
           PointerSize: 8
           PointeeType:
             Kind: PrimitiveType
-            PrimitiveKind: Float
-            Size: 12
+            PrimitiveKind: Generic
+            Size: 2
         Name: arg8
       - Index: 8
         Type:
@@ -433,7 +433,7 @@ TypeDefinitions:
           PointerSize: 8
           PointeeType:
             Kind: PrimitiveType
-            PrimitiveKind: Float
+            PrimitiveKind: Generic
             Size: 16
         Name: arg9
   - Kind: StructDefinition

@@ -90,6 +90,8 @@ public:
   static uint64_t maximumValidSize(model::PrimitiveKind::Values Kind);
   static bool isSizeValid(model::PrimitiveKind::Values Kind, uint8_t Size);
 
+  static std::span<const uint64_t> validSizes();
+
 public:
   bool isValid() const { return isSizeValid(PrimitiveKind(), Size()); }
 
