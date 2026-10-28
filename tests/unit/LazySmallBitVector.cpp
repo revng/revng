@@ -55,6 +55,32 @@ BOOST_AUTO_TEST_CASE(TestSetAndRead) {
   BOOST_TEST(BitVector[FirstLargeBit] == false);
 }
 
+BOOST_AUTO_TEST_CASE(TestReserve) {
+  // Reserving what already fits has to be a no-op, and reserving more has to
+  // leave the vector usable up to the requested size. The sizes around the
+  // capacity of the inline storage used to abort inside alloc.
+  for (unsigned Size = 0; Size < 200; ++Size) {
+    LazySmallBitVector BitVector;
+    BitVector.reserve(Size);
+    BOOST_TEST(BitVector.isZero());
+
+    if (Size != 0) {
+      BitVector.set(Size - 1);
+      BOOST_TEST(BitVector[Size - 1] == true);
+      BOOST_TEST(BitVector.requiredBits() == Size);
+    }
+  }
+
+  // Reserving on a vector that already holds something keeps its contents.
+  LazySmallBitVector BitVector;
+  BitVector.set(3);
+  for (unsigned Size = 0; Size < 200; ++Size) {
+    BitVector.reserve(Size);
+    BOOST_TEST(BitVector[3] == true);
+    BOOST_TEST(BitVector.requiredBits() == 4U);
+  }
+}
+
 BOOST_AUTO_TEST_CASE(TestZero) {
   LazySmallBitVector BitVector;
   BitVector.set(0);
