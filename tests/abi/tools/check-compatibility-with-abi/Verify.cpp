@@ -268,8 +268,8 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
   if (UsesPointerToCopy && !Remaining.Registers.empty()) {
     auto Iterator = State.Registers.find(Remaining.Registers[0]);
     if (Iterator == State.Registers.end()) {
-      fail("Register `" + model::Register::getName(Remaining.Registers[0]).str()
-           + "` is not known.");
+      fail("Register " + model::Register::getName(Remaining.Registers[0]).str()
+           + " is not known.");
       return LeftToVerify{ .HasError = true };
     }
 
@@ -287,9 +287,9 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
     if (!Remaining.Registers.empty()) {
       auto Iterator = State.Registers.find(Remaining.Registers[0]);
       if (Iterator == State.Registers.end()) {
-        fail("Register `"
+        fail("Register "
              + model::Register::getName(Remaining.Registers[0]).str()
-             + "` is not known.");
+             + " is not known.");
         return LeftToVerify{ .HasError = true };
       }
 
@@ -500,16 +500,16 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
       const auto &Registers = Test.StateBeforeTheCall.Registers;
       model::Register::Values SPTARRegister = SPTAR.Registers[0].Register;
       if (not Registers.contains(SPTARRegister)) {
-        fail("Returned register (`"
+        fail("Returned register ("
              + model::Register::getName(SPTARRegister).str()
-             + "`) is not present in the tested artifact.");
+             + ") is not present in the tested artifact.");
         return;
       }
 
       llvm::ArrayRef RegisterBytes = Registers.at(SPTARRegister).Bytes;
       if (RegisterBytes != llvm::ArrayRef(Test.ReturnValue.AddressBytes)) {
-        fail("Verification of the return value location register (`"
-             + model::Register::getName(SPTARRegister).str() + "`) failed.");
+        fail("Verification of the return value location register ("
+             + model::Register::getName(SPTARRegister).str() + ") failed.");
         return;
       }
 
@@ -528,8 +528,8 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
                                           SPTAR.Stack->Size);
       ReturnValueLocationValue = valueFromBytes(ReturnValueLocationBytes);
     } else {
-      fail("ABI definition for `" + std::string(ABI.getName())
-           + "` does not define a return value location. Does the ABI support "
+      fail("ABI definition for " + std::string(ABI.getName())
+           + " does not define a return value location. Does the ABI support "
              "returning big values?");
       return;
     }
@@ -547,15 +547,15 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
 
       auto RVReg = FunctionLayout.ReturnValues[0].Registers[0].Register;
       if (not Test.StateAfterTheReturn.Registers.contains(RVReg)) {
-        fail("Returned register (`" + model::Register::getName(RVReg).str()
-             + "`) is not present in the tested artifact.");
+        fail("Returned register (" + model::Register::getName(RVReg).str()
+             + ") is not present in the tested artifact.");
         return;
       }
 
       llvm::ArrayRef Bytes = Test.StateAfterTheReturn.Registers.at(RVReg).Bytes;
       if (ReturnValueLocationBytes != Bytes) {
-        fail("Returned pointer (`" + model::Register::getName(RVReg).str()
-             + "`) doesn't match SPTAR value.");
+        fail("Returned pointer (" + model::Register::getName(RVReg).str()
+             + ") doesn't match SPTAR value.");
         return;
       }
     }
@@ -565,9 +565,9 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
 
     auto StackPointer = model::Architecture::getStackPointer(Architecture);
     if (not Test.StateAfterTheReturn.Registers.contains(StackPointer)) {
-      fail("Stack pointer register (`"
+      fail("Stack pointer register ("
            + model::Register::getName(StackPointer).str()
-           + "`) is not present in the tested artifact.");
+           + ") is not present in the tested artifact.");
       return;
     }
 
@@ -596,8 +596,8 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
       for (const model::Register::Portion &Portion : ReturnValue.Registers) {
         model::Register::Values Register = Portion.Register;
         if (not Test.StateAfterTheReturn.Registers.contains(Register)) {
-          fail("Register (`" + model::Register::getName(Register).str()
-               + "`) is not present in the tested artifact.");
+          fail("Register (" + model::Register::getName(Register).str()
+               + ") is not present in the tested artifact.");
           return;
         }
 
@@ -608,9 +608,9 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
                                              ReturnValueBytes.size());
         Bytes = Bytes.take_front(CheckedByteCount);
         if (!ReturnValueBytes.take_front(CheckedByteCount).equals(Bytes)) {
-          fail("A piece of the return value found in the `"
+          fail("A piece of the return value found in the "
                + model::Register::getName(Register).str()
-               + "` register doesn't match the expected value.");
+               + " register doesn't match the expected value.");
           return;
         }
 
@@ -620,8 +620,8 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
 
     if (!ReturnValueBytes.empty()) {
       fail("Unable to find some parts of the return value. Should some "
-           "additional registers be mentioned in the definition of `"
-           + std::string(ABI.getName()) + "` abi?");
+           "additional registers be mentioned in the definition of "
+           + std::string(ABI.getName()) + " abi?");
       return;
     }
   }
@@ -632,8 +632,8 @@ VH::getPrototypeLayout(const model::Function &Function) const {
   if (const auto *CABI = Function.cabiPrototype()) {
     if (ABI.ABI() != CABI->ABI()) {
       std::string Error = "ABI mismatch. Passed argument indicates that "
-                          "the intended ABI is `"
-                          + toString(ABI.ABI()) + "` but the function is\n"
+                          "the intended ABI is "
+                          + toString(ABI.ABI()) + " but the function is\n"
                           + toString(Function) + "\nWith prototype:\n"
                           + toString(*CABI);
       revng_abort(Error.c_str());
@@ -710,9 +710,9 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
       }
 
       if (ExpectedPrototypeKind != Prototype->Kind()) {
-        Helper.fail("`" + toString(Prototype->Kind())
-                    + "` is found instead of the expected `"
-                    + toString(ExpectedPrototypeKind) + "`");
+        Helper.fail(toString(Prototype->Kind())
+                    + " is found instead of the expected "
+                    + toString(ExpectedPrototypeKind));
         continue;
       }
 
@@ -738,9 +738,9 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
       }
 
       if (ExpectedPrototypeKind != Prototype->Kind()) {
-        Helper.fail("`" + toString(Prototype->Kind())
-                    + "` is found instead of the expected `"
-                    + toString(ExpectedPrototypeKind) + "`");
+        Helper.fail(toString(Prototype->Kind())
+                    + " is found instead of the expected "
+                    + toString(ExpectedPrototypeKind));
         continue;
       }
 
