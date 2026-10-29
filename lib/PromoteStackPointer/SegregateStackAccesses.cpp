@@ -1142,7 +1142,7 @@ void SegregateFunctionStack::upgrade() {
   prepareReturnValueStorage();
 
   revng::IRBuilder B(NewFunction->getContext());
-  B.setInsertPointToFirstNonAlloca(*NewFunction);
+  B.SetInsertPointPastAllocas(NewFunction);
 
   lowerArguments(B);
 
