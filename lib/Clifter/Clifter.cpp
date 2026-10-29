@@ -819,9 +819,11 @@ private:
   mlir::Value emitImplicitBitcast(mlir::Location Loc,
                                   mlir::Value Value,
                                   mlir::Type TargetType) {
+    revng_assert(not isConst(TargetType));
+
     mlir::Type SourceType = Value.getType();
 
-    if (SourceType == TargetType)
+    if (clift::equivalent(SourceType, TargetType))
       return Value;
 
     auto SourceT = clift::unwrapped_dyn_cast<ValueType>(SourceType);
@@ -923,7 +925,7 @@ private:
     llvm::SmallVector<mlir::Value> Initializers;
     for (const auto &[A, F] : llvm::zip(Call->args(), T.getFields())) {
       mlir::Value Value = rc_recur emitExpression(A, Loc);
-      Value = emitImplicitBitcast(Loc, Value, F.getType());
+      Value = emitImplicitBitcast(Loc, Value, removeConst(F.getType()));
       Initializers.push_back(Value);
     }
 
@@ -1404,7 +1406,7 @@ private:
                                          C.getModelPointerType(T));
           Argument = Builder.create<IndirectionOp>(Loc, T, Argument);
         } else {
-          Argument = emitImplicitBitcast(Loc, Argument, T);
+          Argument = emitImplicitBitcast(Loc, Argument, removeConst(T));
         }
 
         Arguments.push_back(Argument);
@@ -1733,8 +1735,7 @@ private:
       if (const llvm::Value *Value = Return->getReturnValue()) {
         clift::FunctionType FunctionType = Function.getFunctionType();
 
-        mlir::Type FuncReturnType = FunctionType.getReturnType();
-        mlir::Type LLVMReturnType = FuncReturnType;
+        mlir::Type ReturnType = FunctionType.getReturnType();
 
         // Emit the expression tree rooted at the return instruction directly
         // into the expression region of the newly created return operation:
@@ -1754,17 +1755,17 @@ private:
             ReturnValue = //
               emitImplicitBitcast(TerminalLoc,
                                   ReturnValue,
-                                  C.getPointerType(LLVMReturnType));
+                                  C.getPointerType(ReturnType));
 
             ReturnValue = Builder.create<IndirectionOp>(TerminalLoc,
-                                                        LLVMReturnType,
+                                                        ReturnType,
                                                         ReturnValue);
           }
 
           // Emit an implicit cast to the required return type if necessary:
           ReturnValue = emitImplicitBitcast(TerminalLoc,
                                             ReturnValue,
-                                            LLVMReturnType);
+                                            ReturnType);
 
           return ReturnValue;
         });
