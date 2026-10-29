@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "llvm/Support/raw_ostream.h"
+
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/ABI/Definition.h"
@@ -91,15 +93,15 @@ void VH::fail(std::string &&Message) const {
 }
 
 void VH::printResults() const {
-  dbg << "failed-tests:";
+  llvm::outs() << "failed-tests:";
   if (Errors.empty()) {
-    dbg << " []";
+    llvm::outs() << " []\n";
     return;
   }
 
-  dbg << "\n";
+  llvm::outs() << "\n";
   for (const Error &E : Errors)
-    dbg << "- " << E.FunctionName << ": " << E.Reason << "\n";
+    llvm::outs() << "- " << E.FunctionName << ": " << E.Reason << "\n";
 }
 
 void VH::verifyValuePreservation(llvm::ArrayRef<std::byte> ExpectedBytes,
