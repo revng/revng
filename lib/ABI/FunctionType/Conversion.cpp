@@ -495,10 +495,11 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
                   "rest as a struct.");
 
         if (not RemainingRange.empty()
-            and RemainingRange.begin()->Offset() < StartingOffset) {
+            and RemainingRange.begin()->Offset() != StartingOffset) {
           revng_log(Log,
-                    "Such a struct would start on a misaligned offset, "
-                    "which is not supported.");
+                    "The remaining arguments do not start where they would "
+                    "be distributed (a hole in the stack), so they cannot be "
+                    "packed into a struct without changing the layout.");
 
         } else {
           model::StructDefinition RemainingArgs;
