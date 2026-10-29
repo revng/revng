@@ -1059,16 +1059,10 @@ private:
     }
 
     if (auto N = llvm::dyn_cast<llvm::ConstantPointerNull>(V)) {
-      revng_log(ExpressionLog, "llvm::ConstantPointerNull -> ImmediateOp");
+      revng_log(ExpressionLog, "llvm::ConstantPointerNull -> NullOp");
 
-      auto Op = Builder.create<ImmediateOp>(SurroundingLocation,
-                                            C.getIntptrType(),
-                                            C.getPointerSize() * 8);
-
-      LoggerIndent Indent(ExpressionLog);
-      rc_return emitImplicitBitcast(SurroundingLocation,
-                                    Op,
-                                    C.getVoidPointerType());
+      rc_return Builder.create<NullOp>(SurroundingLocation,
+                                       C.getVoidPointerType());
     }
 
     if (auto E = llvm::dyn_cast<llvm::ConstantExpr>(V)) {
