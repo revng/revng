@@ -56,30 +56,81 @@ revng pipeline run-analysis convert-functions-to-raw \
     "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
     -o "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"
 
-# Verify that no step contradicts the actual state.
+# Look for any problems with the models produced above.
+#
+# Note that `check-compatibility-with-abi` will return *0* even if some
+# functions *fail!* Non-zero exit code is only possible on serious issues (like
+# missing/broken inputs).
+#
+# The goal of this stage is to list *all* the failures to be analyzed separately
+# (having full lists simplifies debugging by a lot).
+#
+# See `filter-failures.py` invocations below for the actual checks.
+UNFILTERED_FAILURES="${OUTPUT_DIRECTORY}/unfiltered"
+mkdir -p "${UNFILTERED_FAILURES}"
+
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
     "${OUTPUT_DIRECTORY}/reference_binary.yml" \
-    "${RUNTIME_ABI_ANALYSIS_RESULT}"
+    "${RUNTIME_ABI_ANALYSIS_RESULT}" \
+    > "${UNFILTERED_FAILURES}/reference_binary.yml"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
     "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
-    "${RUNTIME_ABI_ANALYSIS_RESULT}"
+    "${RUNTIME_ABI_ANALYSIS_RESULT}" \
+    > "${UNFILTERED_FAILURES}/downgraded_reference_binary.yml"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
     "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
-    "${RUNTIME_ABI_ANALYSIS_RESULT}"
+    "${RUNTIME_ABI_ANALYSIS_RESULT}" \
+    > "${UNFILTERED_FAILURES}/upgraded_downgraded_reference_binary.yml"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
     "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml" \
-    "${RUNTIME_ABI_ANALYSIS_RESULT}"
+    "${RUNTIME_ABI_ANALYSIS_RESULT}" \
+    > "${UNFILTERED_FAILURES}/downgraded_upgraded_downgraded_reference_binary.yml"
+
+# Notice that different stages use different sets of expected failures.
+#
+# To improve the readability of this script, let's group the entries based on
+# which stages they apply to.
+UNIVERSAL_FAILURES=()
+RFT_STAGE_FAILURES=()
+CFT_STAGE_FAILURES=()
+
+FILTERED_FAILURES="${OUTPUT_DIRECTORY}/filtered"
+mkdir -p "${FILTERED_FAILURES}"
+
+python3 "${SCRIPT_DIRECTORY}/filter-failures.py" \
+    "${ABI_NAME}" \
+    "${UNFILTERED_FAILURES}/reference_binary.yml" \
+    "${UNIVERSAL_FAILURES[@]}" \
+  | tee "${FILTERED_FAILURES}/reference_binary.yml"
+
+python3 "${SCRIPT_DIRECTORY}/filter-failures.py" \
+    "${ABI_NAME}" \
+    "${UNFILTERED_FAILURES}/downgraded_reference_binary.yml" \
+    "${UNIVERSAL_FAILURES[@]}" "${RFT_STAGE_FAILURES[@]}" \
+  | tee "${FILTERED_FAILURES}/downgraded_reference_binary.yml"
+
+python3 "${SCRIPT_DIRECTORY}/filter-failures.py" \
+    "${ABI_NAME}" \
+    "${UNFILTERED_FAILURES}/upgraded_downgraded_reference_binary.yml" \
+    "${UNIVERSAL_FAILURES[@]}" "${CFT_STAGE_FAILURES[@]}" \
+  | tee "${FILTERED_FAILURES}/upgraded_downgraded_reference_binary.yml"
+
+python3 "${SCRIPT_DIRECTORY}/filter-failures.py" \
+    "${ABI_NAME}" \
+    "${UNFILTERED_FAILURES}/downgraded_upgraded_downgraded_reference_binary.yml" \
+    "${UNIVERSAL_FAILURES[@]}" "${RFT_STAGE_FAILURES[@]}" \
+  | tee "${FILTERED_FAILURES}/downgraded_upgraded_downgraded_reference_binary.yml"
 
 # Check there are no differences
 revng \
