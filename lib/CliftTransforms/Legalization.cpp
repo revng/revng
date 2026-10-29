@@ -508,6 +508,23 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
   }
 };
 
+// Introduces casts around null constants whose type is not pointer to void.
+struct NullCastPattern : mlir::OpRewritePattern<NullOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(NullOp Op, mlir::PatternRewriter &Rewriter) const override {
+    auto Type = PointerType::get(VoidType::get(Rewriter.getContext()),
+                                 /*PointerSize=*/getObjectSize(Op.getType()));
+
+    if (Op.getType() == Type)
+      return mlir::failure();
+
+    modifyResultType(Rewriter, Op, Type);
+    return mlir::success();
+  }
+};
+
 //===----------------------------- Intrinsics -----------------------------===//
 
 static mlir::Type getOperationType(ImmediateOp Immediate) {
@@ -646,6 +663,7 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     mlir::RewritePatternSet Set(Context);
 
     Set.add<ImmediateCastPattern>(Context, DataModel);
+    Set.add<NullCastPattern>(Context);
     Set.add<BooleanCanonicalizationPattern>(Context, DataModel);
 
     auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
