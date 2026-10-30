@@ -207,6 +207,13 @@ protected:
     if (not isa<SCEVConstant>(OffsetSCEV))
       return Created;
 
+    // If the constant can't hold a pointer it can't even be a valid offset.
+    // Just bail out.
+    if (not couldHoldAPointer(OffsetSCEV->getType(),
+                              Model,
+                              F->getParent()->getDataLayout()))
+      return Created;
+
     // Don't add links for instances at negative offsets.
     OE.Offset = getSCEVConstantSExtVal(OffsetSCEV);
     if (OE.Offset < 0LL)
