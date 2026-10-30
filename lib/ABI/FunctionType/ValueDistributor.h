@@ -13,13 +13,14 @@
 
 namespace abi::FunctionType {
 
-using RegisterVector = llvm::SmallVector<model::Register::Values, 2>;
+using RegisterPortions = llvm::SmallVector<model::Register::Portion, 2>;
+using RegisterPortionSpan = std::span<const model::Register::Portion>;
 
 /// The internal representation of the argument shared between both
 /// the to-raw conversion and the layout.
 struct DistributedValue {
-  /// A list of registers the argument uses.
-  RegisterVector Registers = {};
+  /// A list of portions of the registers this argument uses.
+  RegisterPortions Registers = {};
 
   /// The total size of the argument in bytes WITHOUT any padding.
   uint64_t Size = 0;
@@ -102,8 +103,6 @@ struct DistributedValue {
 };
 using DistributedValues = llvm::SmallVector<DistributedValue, 8>;
 
-using RegisterSpan = std::span<const model::Register::Values>;
-
 class ValueDistributor {
 public:
   const abi::Definition &ABI;
@@ -141,7 +140,7 @@ protected:
   /// \param Size The size of the object.
   /// \param Alignment The alignment of the object.
   /// \param IsNaturallyAligned `true` if the object is aligned naturally.
-  /// \param Registers The list of registers allowed for usage for the type.
+  /// \param Registers The list of register portions available.
   /// \param OccupiedRegisterCount The count of registers in \ref Registers
   ///        Container that are already occupied.
   /// \param AllowedRegisterLimit The maximum number of registers available to
@@ -159,7 +158,7 @@ protected:
   distribute(uint64_t Size,
              uint64_t Alignment,
              bool IsNaturallyAligned,
-             RegisterSpan Registers,
+             RegisterPortionSpan Registers,
              uint64_t OccupiedRegisterCount,
              uint64_t AllowedRegisterLimit,
              bool ForbidSplittingBetweenRegistersAndStack);
@@ -167,7 +166,7 @@ protected:
   template<model::AnyType AnyType>
   std::pair<DistributedValues, uint64_t>
   distribute(const AnyType &Type,
-             RegisterSpan Registers,
+             RegisterPortionSpan Registers,
              uint64_t OccupiedRegisterCount,
              uint64_t AllowedRegisterLimit,
              bool ForbidSplittingBetweenRegistersAndStack) {

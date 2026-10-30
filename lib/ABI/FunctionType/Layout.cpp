@@ -104,7 +104,9 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
       revng_assert(ReturnValue.SizeOnStack == 0);
 
       // The return value uses registers: pass them through to the new type.
-      for (model::Register::Values Register : ReturnValue.Registers) {
+      for (const model::Register::Portion &Portion : ReturnValue.Registers) {
+        const model::Register::Values Register = Portion.Register;
+
         model::NamedTypedRegister Converted;
         Converted.Location() = Register;
 
@@ -197,7 +199,9 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
 
     if (!Distributed.RepresentsPadding) {
       // Transfer the register arguments first.
-      for (model::Register::Values Register : Distributed.Registers) {
+      for (const model::Register::Portion &Portion : Distributed.Registers) {
+        const model::Register::Values Register = Portion.Register;
+
         model::NamedTypedRegister Argument(Register);
 
         const auto &ArgumentType = FunctionType.Arguments().at(Index).Type();
@@ -268,7 +272,9 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
       revng_assert(Distributed.SizeOnStack == 0,
                    "Only padding register arguments are supported here. "
                    "Stack padding is represented as normal struct padding.");
-      for (model::Register::Values Register : Distributed.Registers) {
+      for (const model::Register::Portion &Portion : Distributed.Registers) {
+        const model::Register::Values Register = Portion.Register;
+
         model::NamedTypedRegister Argument(Register);
         Argument.Type() = model::PrimitiveType::makeGeneric(Register);
 
@@ -406,8 +412,9 @@ convertToRaw(const model::CABIFunctionDefinition &FunctionType,
 
 static Logger LayoutLog("function-type-layout");
 
-/// A value either takes a portion of a single register or one or more full
-/// registers
+/// Sanitizes the portions reported by `ValueDistributor` for the sake of
+/// the consumers, which can only represent a value that either takes
+/// a portion of a single register or one or more full registers.
 static llvm::SmallVector<model::Register::Portion, 2>
 toPortions(const DistributedValue &Value) {
   revng_assert(not Value.RepresentsPadding);
@@ -415,10 +422,12 @@ toPortions(const DistributedValue &Value) {
   llvm::SmallVector<model::Register::Portion, 2> Result;
 
   if (Value.Registers.size() == 1 and Value.SizeOnStack == 0) {
-    Result.emplace_back(Value.Registers[0], Value.Size);
+    revng_assert(Value.Registers[0].Size == Value.Size);
+    Result.emplace_back(Value.Registers[0]);
   } else {
-    for (model::Register::Values Register : Value.Registers)
-      Result.emplace_back(Register, model::Register::getSize(Register));
+    for (const model::Register::Portion &Portion : Value.Registers)
+      Result.emplace_back(Portion.Register,
+                          model::Register::getSize(Portion.Register));
   }
 
   return Result;
