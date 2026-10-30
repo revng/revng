@@ -15,11 +15,39 @@ static Logger Log("function-type-value-distributor");
 
 namespace abi::FunctionType {
 
+// TODO: currently the portion information is not preserved between arguments.
+//
+// Specifically, each `distribute()` call is supplied with `fullPortions()`
+// version of the available register list.
+//
+// This is sufficient for cases where arguments do not share registers.
+//
+// However, when we begin handling ARM-32, whose floating point arguments pack
+// together, leading to a single register used for multiple arguments, we would
+// need to extend the distributor state to keep track of which portion of which
+// register is already in use.
+
+namespace {
+
+/// Builds a portion that covers each of the registers in its entirety.
+RegisterPortions
+fullPortions(std::span<const model::Register::Values> Registers) {
+  RegisterPortions Result;
+  Result.reserve(Registers.size());
+
+  for (model::Register::Values Register : Registers)
+    Result.emplace_back(Register, model::Register::getSize(Register));
+
+  return Result;
+}
+
+} // namespace
+
 std::pair<DistributedValues, uint64_t>
 ValueDistributor::distribute(uint64_t Size,
                              uint64_t Alignment,
                              bool HasNaturalAlignment,
-                             RegisterSpan Registers,
+                             RegisterPortionSpan Registers,
                              uint64_t OccupiedRegisterCount,
                              uint64_t AllowedRegisterLimit,
                              bool ForbidSplittingBetweenRegistersAndStack) {
@@ -124,9 +152,7 @@ ValueDistributor::distribute(uint64_t Size,
              && ConsideredRegisterCounter < LastRegister;
     };
     while (ShouldContinue()) {
-      const auto CurrentRegister = Registers[ConsideredRegisterCounter];
-      SizeCounter += model::Register::getSize(CurrentRegister);
-
+      SizeCounter += Registers[ConsideredRegisterCounter].Size;
       ++ConsideredRegisterCounter;
     }
   }
@@ -150,9 +176,24 @@ ValueDistributor::distribute(uint64_t Size,
   revng_assert(ConsideredRegisterCounter <= Registers.size());
   bool AllTheRegistersAreInUse = ConsideredRegisterCounter == LastRegister;
   if (SizeCounter >= Size && CanUseRegisters) {
-    // This a register-only argument, add the registers.
-    for (uint64_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
-      DA.Registers.emplace_back(Registers[I]);
+    // This a register-only argument, reserve portions of size matching
+    // the exact number of bytes the value takes up.
+    //
+    // NOTE: As of now, the distribution results in each register only used
+    //       *once* for the entire argument list.
+    //       This will change in the future, once we add support for ARM-32
+    //       floating point arguments.
+    uint64_t SizeLeft = Size;
+    for (auto I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I) {
+      const model::Register::Portion &Available = Registers[I];
+      const uint64_t PortionSize = std::min(Available.Size, SizeLeft);
+      revng_assert(PortionSize != 0);
+
+      DA.Registers.emplace_back(Available.Register, PortionSize);
+      SizeLeft -= PortionSize;
+    }
+
+    revng_assert(SizeLeft == 0);
     DA.SizeOnStack = 0;
   } else if (AllowSplitting && AllTheRegistersAreInUse && SizeCounter > 0) {
     // This argument is split among the registers and the stack.
@@ -202,8 +243,8 @@ ValueDistributor::distribute(uint64_t Size,
     if (!DA.Registers.empty()) {
       Message += " (";
       constexpr llvm::StringRef Separator = ", ";
-      for (auto Register : DA.Registers)
-        Message += model::Register::getRegisterName(Register).str()
+      for (const model::Register::Portion &Portion : DA.Registers)
+        Message += model::Register::getRegisterName(Portion.Register).str()
                    + Separator.str();
       Message.resize(Message.size() - Separator.size());
       Message += ")";
@@ -253,18 +294,13 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
     RegisterCounter = &UsedFloatRegisterCount;
 
     if (RegisterList.size() > *RegisterCounter) {
-      // The conventional non-position based approach is not applicable for
-      // float registers since it's rare for multiple registers to be used
-      // to pass a single argument.
-      //
-      // For now, provide at most a single float register for such a value,
-      // if there's a free one.
-      //
-      // TODO: find reproducers and handle the cases where multiple float
-      //       registers are used together.
       DistributedValue Result;
       Result.Size = Size;
-      Result.Registers.emplace_back(RegisterList[*RegisterCounter]);
+
+      const auto Register = RegisterList[*RegisterCounter];
+      const uint64_t RegisterSize = model::Register::getSize(Register);
+      revng_assert(Size <= RegisterSize);
+      Result.Registers.emplace_back(Register, Size);
 
       ++(*RegisterCounter);
       ++ArgumentIndex;
@@ -316,7 +352,7 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
   auto &&[Result, NextRegisterIndex] = distribute(Size,
                                                   Alignment,
                                                   HasNaturalAlignment,
-                                                  RegisterList,
+                                                  fullPortions(RegisterList),
                                                   *RegisterCounter,
                                                   RegisterLimit,
                                                   ForbidSplitting);
@@ -422,7 +458,9 @@ DistributedValues ArgumentDistributor::positionBased(FloatingPointKind FPKind,
 
   uint64_t CurrentArgumentIndex = nextPositionBasedIndex();
   if (CurrentArgumentIndex < UsedRegisters.size()) {
-    Result.Registers.emplace_back(UsedRegisters[CurrentArgumentIndex]);
+    const auto Register = UsedRegisters[CurrentArgumentIndex];
+    revng_assert(Result.Size <= model::Register::getSize(Register));
+    Result.Registers.emplace_back(Register, Result.Size);
 
     revng_assert(UsedRegisterCount <= CurrentArgumentIndex);
     UsedRegisterCount = CurrentArgumentIndex + 1;
@@ -500,9 +538,9 @@ DistributedValue ReturnValueDistributor::returnValue(const model::Type &T) {
     revng_abort("Unknown floating point strategy.");
   }
 
-  auto &&[Result, _] = distribute(T, RegisterList, 0, Limit, true);
-  revng_assert(Result.size() == 1, "Return values should never be padded.");
-  return Result[0];
+  auto &&[R, _] = distribute(T, fullPortions(RegisterList), 0, Limit, true);
+  revng_assert(R.size() == 1, "Return values should never be padded.");
+  return R[0];
 }
 
 } // namespace abi::FunctionType
