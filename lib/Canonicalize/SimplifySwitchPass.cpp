@@ -132,7 +132,26 @@ static bool handleSwitch(SwitchInst *Switch,
     return false;
   }
 
-  std::map<ConstantInt *, BasicBlock *> NewLabels;
+  // The cases of the new switch are added in the order of the container
+  // holding them, so order that container by the value each case matches.
+  // Ordering it by the address of the constant instead would let the
+  // allocator decide the order of the cases, which changes from one run to
+  // the next.
+  struct ByCaseValue {
+    bool operator()(const ConstantInt *LHS, const ConstantInt *RHS) const {
+      const APInt &Left = LHS->getValue();
+      const APInt &Right = RHS->getValue();
+
+      // Comparing the widths first keeps this a strict weak ordering even if
+      // constants of different widths ever reach it, which `ult` would
+      // otherwise refuse to compare.
+      if (Left.getBitWidth() != Right.getBitWidth())
+        return Left.getBitWidth() < Right.getBitWidth();
+
+      return Left.ult(Right);
+    }
+  };
+  std::map<ConstantInt *, BasicBlock *, ByCaseValue> NewLabels;
   for (const llvm::APInt &Value : *StartNode->OracleRange) {
     std::optional<MaterializedValue> OldValue = DFG.materializeOne(StartNode,
                                                                    MO,
