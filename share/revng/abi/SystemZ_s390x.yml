@@ -21,6 +21,8 @@ FloatingPointReturnValueStrategy: NextRegisterFromTheDedicatedSet
 StackAlignment: 8
 MinimumStackArgumentSize: 8
 
+UnusedStackArgumentBytes: 160
+
 MaximumGPRsPerAggregateArgument: 1
 MaximumGPRsPerAggregateReturnValue: 0
 MaximumGPRsPerScalarArgument: 1
