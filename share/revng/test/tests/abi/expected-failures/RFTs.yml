@@ -33,6 +33,22 @@
     - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
     - Argument 1 uses neither the expected stack part nor the expected registers.
 
+# Same as above, but soft-float only.
+- ABIs:
+    - AAPCS_softfloat
+    - SystemV_MIPSEL_o32_softfloat
+    - SystemV_MIPS_o32_softfloat
+  tests:
+    - mixed_float_double_arguments
+    - mixed_float_double_struct_arguments
+    - mixed_float_int_64_arguments
+    - mixed_float_struct_64_arguments
+    - mixed_float_struct_double_arguments
+    - mixed_int_32_double_arguments
+    - mixed_struct_32_double_arguments
+  errors:
+    - Argument 1 uses neither the expected stack part nor the expected registers.
+
 - ABIs:
     - AAPCS64
   tests:
