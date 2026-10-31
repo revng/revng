@@ -27,22 +27,24 @@ if test -e "${BINARY}.pdb"; then
 fi
 
 # Import DWARF information
-revng -C "$OUTPUT_DIRECTORY" project init --overwrite --no-initial-auto-analysis "$BINARY"
-revng -C "$OUTPUT_DIRECTORY" project analyze parse-binary -o /dev/null -- "${EXTRA_ARGUMENTS[@]}"
+mkdir -p "${OUTPUT_DIRECTORY}/project"
+revng -C "${OUTPUT_DIRECTORY}/project" project init --overwrite --no-initial-auto-analysis "$BINARY"
+revng -C "${OUTPUT_DIRECTORY}/project" project analyze parse-binary -o /dev/null -- "${EXTRA_ARGUMENTS[@]}"
 
 # Remove all the functions we don't find relevant, then force-override the ABI
 # field of all the renaming prototypes because DWARF information is not always
 # reliable
+mkdir -p "${OUTPUT_DIRECTORY}/models"
 python3 \
     "${SCRIPT_DIRECTORY}/prepare-tested-model.py" \
     "$ABI_NAME" \
-    "${OUTPUT_DIRECTORY}/revng.yml" \
-    "${OUTPUT_DIRECTORY}/reference_binary.yml"
+    "${OUTPUT_DIRECTORY}/project/revng.yml" \
+    "${OUTPUT_DIRECTORY}/models/1-reference-binary.yml"
 
 # Convert CABIFunctionDefinition to RawFunctionDefinition
 revng pipeline run-analysis convert-functions-to-raw \
-    "${OUTPUT_DIRECTORY}/reference_binary.yml" \
-    -o "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml"
+    "${OUTPUT_DIRECTORY}/models/1-reference-binary.yml" \
+    -o "${OUTPUT_DIRECTORY}/models/2-downgraded-reference-binary.yml"
 
 # Convert RawFunctionDefinition back to CABIFunctionDefinition
 #
@@ -54,13 +56,13 @@ revng pipeline run-analysis convert-functions-to-raw \
 } > "${OUTPUT_DIRECTORY}/convert-to-cabi-configuration.yml"
 revng pipeline run-analysis convert-functions-to-cabi \
     --configuration "${OUTPUT_DIRECTORY}/convert-to-cabi-configuration.yml" \
-    "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
-    -o "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml"
+    "${OUTPUT_DIRECTORY}/models/2-downgraded-reference-binary.yml" \
+    -o "${OUTPUT_DIRECTORY}/models/3-upgraded-downgraded-reference-binary.yml"
 
 # Back to RawFunctionDefinition again
 revng pipeline run-analysis convert-functions-to-raw \
-    "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
-    -o "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"
+    "${OUTPUT_DIRECTORY}/models/3-upgraded-downgraded-reference-binary.yml" \
+    -o "${OUTPUT_DIRECTORY}/models/4-downgraded-upgraded-downgraded-reference-binary.yml"
 
 # Look for any problems with the models produced above.
 #
@@ -72,40 +74,39 @@ revng pipeline run-analysis convert-functions-to-raw \
 # (having full lists simplifies debugging by a lot).
 #
 # See `filter-failures.py` invocations below for the actual checks.
-UNFILTERED_FAILURES="${OUTPUT_DIRECTORY}/unfiltered"
-mkdir -p "${UNFILTERED_FAILURES}"
+mkdir -p "${OUTPUT_DIRECTORY}/unfiltered"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
     CABIFunctionDefinition \
-    "${OUTPUT_DIRECTORY}/reference_binary.yml" \
+    "${OUTPUT_DIRECTORY}/models/1-reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
-    > "${UNFILTERED_FAILURES}/reference_binary.yml"
+    > "${OUTPUT_DIRECTORY}/unfiltered/1-reference_binary.yml"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
     RawFunctionDefinition \
-    "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
+    "${OUTPUT_DIRECTORY}/models/2-downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
-    > "${UNFILTERED_FAILURES}/downgraded_reference_binary.yml"
+    > "${OUTPUT_DIRECTORY}/unfiltered/2-downgraded_reference_binary.yml"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
     CABIFunctionDefinition \
-    "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
+    "${OUTPUT_DIRECTORY}/models/3-upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
-    > "${UNFILTERED_FAILURES}/upgraded_downgraded_reference_binary.yml"
+    > "${OUTPUT_DIRECTORY}/unfiltered/3-upgraded_downgraded_reference_binary.yml"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
     RawFunctionDefinition \
-    "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml" \
+    "${OUTPUT_DIRECTORY}/models/4-downgraded_upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
-    > "${UNFILTERED_FAILURES}/downgraded_upgraded_downgraded_reference_binary.yml"
+    > "${OUTPUT_DIRECTORY}/unfiltered/4-downgraded_upgraded_downgraded_reference_binary.yml"
 
 # All the failure lists are recorded, now check whether tests should pass or not
 # by talking the expected failure lists into account.
@@ -133,35 +134,34 @@ CFT_STAGE_FAILURES=(
     "${EXPECTED_FAILURES}/non-CFT.yml"
 )
 
-FILTERED_FAILURES="${OUTPUT_DIRECTORY}/filtered"
-mkdir -p "${FILTERED_FAILURES}"
+mkdir -p "${OUTPUT_DIRECTORY}/filtered"
 
 python3 "${SCRIPT_DIRECTORY}/filter-failures.py" \
     "${ABI_NAME}" \
-    "${UNFILTERED_FAILURES}/reference_binary.yml" \
+    "${OUTPUT_DIRECTORY}/unfiltered/1-reference-binary.yml" \
     "${UNIVERSAL_FAILURES[@]}" \
-  | tee "${FILTERED_FAILURES}/reference_binary.yml"
+  | tee "${OUTPUT_DIRECTORY}/filtered/1-reference-binary.yml"
 
 python3 "${SCRIPT_DIRECTORY}/filter-failures.py" \
     "${ABI_NAME}" \
-    "${UNFILTERED_FAILURES}/downgraded_reference_binary.yml" \
+    "${OUTPUT_DIRECTORY}/unfiltered/2-downgraded-reference-binary.yml" \
     "${UNIVERSAL_FAILURES[@]}" "${RFT_STAGE_FAILURES[@]}" \
-  | tee "${FILTERED_FAILURES}/downgraded_reference_binary.yml"
+  | tee "${OUTPUT_DIRECTORY}/filtered/2-downgraded-reference-binary.yml"
 
 python3 "${SCRIPT_DIRECTORY}/filter-failures.py" \
     "${ABI_NAME}" \
-    "${UNFILTERED_FAILURES}/upgraded_downgraded_reference_binary.yml" \
+    "${OUTPUT_DIRECTORY}/unfiltered/3-upgraded-downgraded-reference-binary.yml" \
     "${UNIVERSAL_FAILURES[@]}" "${CFT_STAGE_FAILURES[@]}" \
-  | tee "${FILTERED_FAILURES}/upgraded_downgraded_reference_binary.yml"
+  | tee "${OUTPUT_DIRECTORY}/filtered/3-upgraded-downgraded-reference-binary.yml"
 
 python3 "${SCRIPT_DIRECTORY}/filter-failures.py" \
     "${ABI_NAME}" \
-    "${UNFILTERED_FAILURES}/downgraded_upgraded_downgraded_reference_binary.yml" \
+    "${OUTPUT_DIRECTORY}/unfiltered/4-downgraded-upgraded-downgraded-reference-binary.yml" \
     "${UNIVERSAL_FAILURES[@]}" "${RFT_STAGE_FAILURES[@]}" \
-  | tee "${FILTERED_FAILURES}/downgraded_upgraded_downgraded_reference_binary.yml"
+  | tee "${OUTPUT_DIRECTORY}/filtered/4-downgraded-upgraded-downgraded-reference-binary.yml"
 
 # Check there are no differences
 revng \
     ensure-rft-equivalence \
-    "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
-    "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"
+    "${OUTPUT_DIRECTORY}/models/2-downgraded-reference-binary.yml" \
+    "${OUTPUT_DIRECTORY}/models/4-downgraded-upgraded-downgraded-reference-binary.yml"
