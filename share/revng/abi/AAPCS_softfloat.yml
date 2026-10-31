@@ -15,6 +15,9 @@ FloatsUseGPRs: true
 PackStackArguments: false
 TreatAllAggregatesAsPacked: false
 
+FloatingPointArgumentStrategy: Ignored
+FloatingPointReturnValueStrategy: Ignored
+
 StackAlignment: 8
 MinimumStackArgumentSize: 4
 
