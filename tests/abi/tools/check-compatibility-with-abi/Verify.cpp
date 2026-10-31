@@ -684,7 +684,8 @@ VH::getPrototypeLayout(const model::Function &Function) const {
 void verifyABI(const TupleTree<model::Binary> &Binary,
                llvm::StringRef RuntimeArtifact,
                model::ABI::Values ABI,
-               model::TypeDefinitionKind::Values ExpectedPrototypeKind) {
+               model::TypeDefinitionKind::Values ExpectedPrototypeKind,
+               std::optional<std::vector<FunctionLayoutEntry>> &Layouts) {
   model::Architecture::Values Architecture = model::ABI::getArchitecture(ABI);
   auto Parsed = abi::runtime_test::parse(RuntimeArtifact, Architecture);
 
@@ -693,6 +694,22 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
 
   const abi::Definition &Def = abi::Definition::get(ABI);
   VerificationHelper Helper{ Architecture, Def, Parsed.IsLittleEndian };
+
+  // The layouts are only collected when the caller asked for them.
+  namespace FT = abi::FunctionType;
+  const auto RecordLayout = [&Layouts](llvm::StringRef Name,
+                                       const model::TypeDefinition &Prototype,
+                                       const FT::Layout &Layout) {
+    if (not Layouts.has_value())
+      return;
+
+    Layouts->push_back(FunctionLayoutEntry{
+      .Name = Name.str(),
+      .Prototype = Prototype,
+      .Layout = Layout,
+    });
+  };
+
   size_t ArgumentTestCount = 0, ReturnValueTestCount = 0;
   for (auto &Function : Binary->Functions()) {
     Helper.FunctionName = Function.Name();
@@ -724,6 +741,8 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
       }
 
       Helper.FunctionLayout = std::move(*MaybeLayout);
+      RecordLayout(Helper.FunctionName, *Prototype, Helper.FunctionLayout);
+
       for (const abi::runtime_test::ArgumentTest &Iteration : Test->second)
         Helper.arguments(Iteration);
 
@@ -752,6 +771,8 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
       }
 
       Helper.FunctionLayout = std::move(*MaybeLayout);
+      RecordLayout(Helper.FunctionName, *Prototype, Helper.FunctionLayout);
+
       for (const abi::runtime_test::ReturnValueTest &Iteration : Test->second)
         Helper.returnValue(Iteration);
 
