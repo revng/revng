@@ -75,38 +75,43 @@ revng pipeline run-analysis convert-functions-to-raw \
 #
 # See `filter-failures.py` invocations below for the actual checks.
 mkdir -p "${OUTPUT_DIRECTORY}/unfiltered"
+mkdir -p "${OUTPUT_DIRECTORY}/layouts"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    --save-layouts="${OUTPUT_DIRECTORY}/layouts/1-reference-binary.yml" \
     CABIFunctionDefinition \
-    "${OUTPUT_DIRECTORY}/models/1-reference_binary.yml" \
+    "${OUTPUT_DIRECTORY}/models/1-reference-binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
-    > "${OUTPUT_DIRECTORY}/unfiltered/1-reference_binary.yml"
+    > "${OUTPUT_DIRECTORY}/unfiltered/1-reference-binary.yml"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    --save-layouts="${OUTPUT_DIRECTORY}/layouts/2-downgraded-reference-binary.yml" \
     RawFunctionDefinition \
-    "${OUTPUT_DIRECTORY}/models/2-downgraded_reference_binary.yml" \
+    "${OUTPUT_DIRECTORY}/models/2-downgraded-reference-binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
-    > "${OUTPUT_DIRECTORY}/unfiltered/2-downgraded_reference_binary.yml"
+    > "${OUTPUT_DIRECTORY}/unfiltered/2-downgraded-reference-binary.yml"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    --save-layouts="${OUTPUT_DIRECTORY}/layouts/3-upgraded-downgraded-reference-binary.yml" \
     CABIFunctionDefinition \
-    "${OUTPUT_DIRECTORY}/models/3-upgraded_downgraded_reference_binary.yml" \
+    "${OUTPUT_DIRECTORY}/models/3-upgraded-downgraded-reference-binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
-    > "${OUTPUT_DIRECTORY}/unfiltered/3-upgraded_downgraded_reference_binary.yml"
+    > "${OUTPUT_DIRECTORY}/unfiltered/3-upgraded-downgraded-reference-binary.yml"
 
 revng \
     check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
+    --save-layouts="${OUTPUT_DIRECTORY}/layouts/4-downgraded-upgraded-downgraded-reference-binary.yml" \
     RawFunctionDefinition \
-    "${OUTPUT_DIRECTORY}/models/4-downgraded_upgraded_downgraded_reference_binary.yml" \
+    "${OUTPUT_DIRECTORY}/models/4-downgraded-upgraded-downgraded-reference-binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}" \
-    > "${OUTPUT_DIRECTORY}/unfiltered/4-downgraded_upgraded_downgraded_reference_binary.yml"
+    > "${OUTPUT_DIRECTORY}/unfiltered/4-downgraded-upgraded-downgraded-reference-binary.yml"
 
 # All the failure lists are recorded, now check whether tests should pass or not
 # by talking the expected failure lists into account.
