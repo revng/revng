@@ -23,7 +23,7 @@ MinimumStackArgumentSize: 4
 UnusedStackArgumentBytes: 16
 
 MaximumGPRsPerAggregateArgument: 4
-MaximumGPRsPerAggregateReturnValue: 1
+MaximumGPRsPerAggregateReturnValue: 0
 MaximumGPRsPerScalarArgument: 4
 MaximumGPRsPerScalarReturnValue: 4
 
