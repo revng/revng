@@ -22,7 +22,7 @@ StackAlignment: 8
 MinimumStackArgumentSize: 8
 
 MaximumGPRsPerAggregateArgument: 1
-MaximumGPRsPerAggregateReturnValue: 1
+MaximumGPRsPerAggregateReturnValue: 0
 MaximumGPRsPerScalarArgument: 1
 MaximumGPRsPerScalarReturnValue: 1
 
