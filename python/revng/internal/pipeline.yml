@@ -17,6 +17,10 @@ artifact-tags:
   # Some artifacts (e.g. emit-c and emit-c-as-single-file) contain the same
   # data, ideally only one should be picked with the "main" representation
   - searchable
+  # Artifacts that represent exportable data from the project
+  # These are not meant to be visualized by the user but rather given to the
+  # user to accomplish other tasks
+  - exportable
 
 containers:
   - name: binaries-container
@@ -744,7 +748,7 @@ branches:
         artifacts:
           - name: emit-recompilable-archive
             container: recompilable-archive
-            tags: [metadata]
+            tags: [metadata, exportable]
             filename: recompilable_archive.tar
 
   hexdump:
@@ -817,7 +821,7 @@ branches:
               Specifically, it's an ELF executable for Linux x86-64 containing the
               `root` function plus the required runtime.
             container: translated
-            tags: [automation]
+            tags: [automation, exportable]
             filename: translated-binary
 
   recompile-isolated:
