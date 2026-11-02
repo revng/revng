@@ -2,9 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-artifact-categories:
-  - name: main
-    show-by-default: true
+artifact-tags:
+  - main
 
 containers:
   - name: string-container
@@ -28,4 +27,5 @@ branches:
         artifacts:
           - name: output
             container: string-container
-            category: main
+            show-by-default: true
+            tags: [main]

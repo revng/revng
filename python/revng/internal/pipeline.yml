@@ -2,21 +2,15 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-artifact-categories:
-  # User-facing artifacts that the end-user is expected to see
-  - name: user
-    show-by-default: true
+artifact-tags:
   # Artifacts that the user might request, but are machine-parsable and only
   # usable in conjunction with other software
-  - name: automation
-    show-by-default: false
+  - automation
   # Artifacts that the user is not expected to see but machine users
   # (e.g. scripting) are expected to use
-  - name: metadata
-    show-by-default: false
+  - metadata
   # Debugging artifacts, these are for debugging purposes and/or testing
-  - name: debug
-    show-by-default: false
+  - debug
 
 containers:
   - name: binaries-container
@@ -152,7 +146,8 @@ branches:
               It's a single large function containing all of the executable code
               identified in the binary.
             container: llvm-root
-            category: debug
+            show-by-default: false
+            tags: [debug]
             filename: lifted.bc
         analyses:
           - analysis: detect-abi
@@ -185,7 +180,8 @@ branches:
               the control-flow graph of each of the functions that need to be
               inlined into it.
             container: cfg-map
-            category: debug
+            show-by-default: false
+            tags: [debug]
 
   isolate:
     from: collect-cfg
@@ -207,7 +203,8 @@ branches:
               return data.
               Therefore, they lack arguments and return values.
             container: llvm-functions
-            category: debug
+            show-by-default: false
+            tags: [debug]
             filename: isolated.bc
 
   segregate-stack-accesses:
@@ -267,7 +264,8 @@ branches:
               arguments: they are accessed with pointer arithmetic w.r.t. the
               stack pointer CSV.
             container: llvm-functions
-            category: debug
+            show-by-default: false
+            tags: [debug]
             filename: abi_enforced.bc
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
@@ -340,7 +338,8 @@ branches:
               The stack pointer has been promoted to a local variable and
               initialized with the result of an opaque function call.
             container: llvm-functions
-            category: debug
+            show-by-default: false
+            tags: [debug]
             filename: simplify-switch.bc
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
@@ -414,7 +413,8 @@ branches:
         artifacts:
           - name: segregate-stack-accesses
             container: llvm-functions
-            category: debug
+            show-by-default: false
+            tags: [debug]
             filename: stack_accesses_segregated.bc
         analyses:
           - analysis: detect-c-strings
@@ -458,7 +458,8 @@ branches:
         artifacts:
           - name: clifter-input
             container: llvm-functions
-            category: debug
+            show-by-default: false
+            tags: [debug]
             filename: clifter_input.bc
       - pipe: fix-pointer-size
         arguments: [llvm-functions]
@@ -467,7 +468,8 @@ branches:
         artifacts:
           - name: clift-unoptimized
             container: clift-functions
-            category: debug
+            show-by-default: false
+            tags: [debug]
             filename: clifter_unoptimized.mlir.bc
       - pipe: import-function-data-model
         arguments: [clift-functions]
@@ -571,7 +573,8 @@ branches:
         artifacts:
           - name: pre-backend-clift
             container: clift-functions
-            category: debug
+            show-by-default: false
+            tags: [debug]
             filename: pre_backend_clift.mlir.bc
 
   single-file:
@@ -587,7 +590,7 @@ branches:
               This artifact contains a C function for each function in the input
               program.
             container: decompile-c
-            category: user
+            show-by-default: true
             filename: decompiled.c
             defined_locations:
               - function
@@ -607,7 +610,7 @@ branches:
               code of the whole program, including the body of all of program's
               functions. (Clift backend)
             container: decompiled-single-file
-            category: user
+            show-by-default: true
             filename: binary_decompiled.c
             defined_locations:
               - function
@@ -627,7 +630,7 @@ branches:
               This artifact contains all the declarations of llvm and qemu helpers
               that survived until the decompiled code.
             container: helper-header
-            category: user
+            show-by-default: true
             filename: helpers.h
             defined_locations:
               - helper-function
@@ -647,7 +650,8 @@ branches:
         artifacts:
           - name: emit-tagless-c
             container: tagless-decompile-c
-            category: metadata
+            show-by-default: false
+            tags: [metadata]
             filename: decompiled.c
             defined_locations:
               - function
@@ -663,7 +667,8 @@ branches:
         artifacts:
           - name: emit-tagless-c-as-single-file
             container: tagless-decompiled-single-file
-            category: metadata
+            show-by-default: false
+            tags: [metadata]
             filename: binary_decompiled.c
             defined_locations:
               - function
@@ -694,11 +699,13 @@ branches:
         artifacts:
           - name: emit-tagless-helper-header
             container: tagless-helper-header
-            category: metadata
+            show-by-default: false
+            tags: [metadata]
             filename: helpers.h
           - name: emit-tagless-type-and-global-header
             container: tagless-type-and-global-header
-            category: metadata
+            show-by-default: false
+            tags: [metadata]
             filename: types-and-globals.h
         analyses:
           - analysis: edit-c-body
@@ -728,7 +735,8 @@ branches:
         artifacts:
           - name: emit-recompilable-archive
             container: recompilable-archive
-            category: metadata
+            show-by-default: false
+            tags: [metadata]
             filename: recompilable_archive.tar
 
   hexdump:
@@ -748,7 +756,7 @@ branches:
               This artifact contains a hex dump of each segment in the input
               binary.
             container: hexdump
-            category: user
+            show-by-default: true
             filename: hex_dump.hex
 
   process-assembly:
@@ -770,7 +778,7 @@ branches:
               This artifact is an archive of PTML files.
               Each file represents the disassembly of the given function.
             container: assembly
-            category: user
+            show-by-default: true
             filename: disassembly.S
             defined_locations:
               - function
@@ -801,7 +809,8 @@ branches:
               Specifically, it's an ELF executable for Linux x86-64 containing the
               `root` function plus the required runtime.
             container: translated
-            category: automation
+            show-by-default: false
+            tags: [automation]
             filename: translated-binary
 
   recompile-isolated:
@@ -831,7 +840,8 @@ branches:
               `root` function, all the isolated functions plus the required
               runtime.
             container: translated
-            category: automation
+            show-by-default: false
+            tags: [automation]
             filename: isolated-translated-binary
 
   cleanup-ir:
@@ -864,7 +874,8 @@ branches:
               This is an appropriate artifact on top of which write analyses, such
               as a taint analysis.
             container: llvm-root-merged
-            category: automation
+            show-by-default: false
+            tags: [automation]
             filename: clean-ir.bc
 
   process-call-graph:
@@ -883,7 +894,8 @@ branches:
               using each of them. A global variable holding a string also
               carries what it says.
             container: cross-relations
-            category: metadata
+            show-by-default: false
+            tags: [metadata]
             filename: cross-relations.yml
 
   yield-call-graph:
@@ -899,7 +911,7 @@ branches:
               This artifact is an SVG representing the call graph of the input
               program.
             container: call-graph
-            category: user
+            show-by-default: true
             filename: call-graph.svg
 
   yield-call-graph-slice:
@@ -916,7 +928,7 @@ branches:
               Each file represents a subset of the call graph considering only the
               functions called/calling, directly or indirectly, the given function.
             container: call-graph-slice
-            category: user
+            show-by-default: true
             filename: call-graph-slice.svg
 
   yield-cfg:
@@ -932,7 +944,7 @@ branches:
               This artifact is an archive of SVG files.
               Each file represents the CFG of the given function.
             container: function-cfg
-            category: user
+            show-by-default: true
             filename: cfg.svg
 
   import-types:
@@ -945,7 +957,8 @@ branches:
               This artifact contains all the declarations of non-primitive types
               without any name or comment information.
             container: clift-types-and-globals
-            category: debug
+            show-by-default: false
+            tags: [debug]
             filename: types.mlir
       - pipe: import-function-declarations
         arguments: [clift-types-and-globals]
@@ -960,7 +973,8 @@ branches:
         artifacts:
           - name: type-and-global-header-clift
             container: clift-types-and-globals
-            category: debug
+            show-by-default: false
+            tags: [debug]
             filename: type-and-global-header.mlir.bc
       - pipe: emit-type-and-global-header
         arguments: [clift-types-and-globals, type-and-global-header]
@@ -975,7 +989,7 @@ branches:
               This artifact is a header containing all the declarations of
               non-primitive types, functions and segments.
             container: type-and-global-header
-            category: user
+            show-by-default: true
             filename: types-and-globals.h
             defined_locations:
               - type-definition
@@ -1011,5 +1025,5 @@ branches:
               easily editable by the end-user; it's not designed to represent
               valid C code, unlike the `emit-type-and-global-header` artifact.
             container: single-type
-            category: user
+            show-by-default: true
             filename: type.h
