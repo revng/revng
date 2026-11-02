@@ -11,6 +11,8 @@ artifact-tags:
   - metadata
   # Debugging artifacts, these are for debugging purposes and/or testing
   - debug
+  # Artifacts that should be used for full-text search
+  - for-search
 
 containers:
   - name: binaries-container
@@ -611,6 +613,7 @@ branches:
               functions. (Clift backend)
             container: decompiled-single-file
             show-by-default: true
+            tags: [for-search]
             filename: binary_decompiled.c
             defined_locations:
               - function
@@ -631,6 +634,7 @@ branches:
               that survived until the decompiled code.
             container: helper-header
             show-by-default: true
+            tags: [for-search]
             filename: helpers.h
             defined_locations:
               - helper-function
@@ -990,6 +994,7 @@ branches:
               non-primitive types, functions and segments.
             container: type-and-global-header
             show-by-default: true
+            tags: [for-search]
             filename: types-and-globals.h
             defined_locations:
               - type-definition
