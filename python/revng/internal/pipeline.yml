@@ -743,7 +743,7 @@ branches:
             container: recompilable-archive
             show-by-default: false
             tags: [metadata, for-export]
-            filename: recompilable_archive.tar
+            filename: recompilable_archive.tar.gz
 
   hexdump:
     from: isolate
