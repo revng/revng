@@ -749,7 +749,7 @@ branches:
           - name: emit-recompilable-archive
             container: recompilable-archive
             tags: [metadata, exportable]
-            filename: recompilable_archive.tar
+            filename: recompilable_archive.tar.gz
 
   hexdump:
     from: isolate
