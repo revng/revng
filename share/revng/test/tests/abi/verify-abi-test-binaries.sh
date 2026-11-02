@@ -6,6 +6,58 @@
 
 set -euo pipefail
 
+# To make failures easier to debug, `${OUTPUT_DIRECTORY}` is structured as
+# following:
+#
+#   ${OUTPUT_DIRECTORY}/
+#   |
+#   |-- dwarf.dump
+#   |     The DWARF information contained within the input binary
+#   |
+#   |-- project/
+#   |     The revng project used to run `parse-binary` analysis
+#   |
+#   |-- models/ (*)
+#   |     A single model for each stage, see below for more context.
+#   |
+#   |-- layouts/ (*)
+#   |     `abi::FunctionType::Layout`s for *all* the tested functions, grouped
+#   |     by stage.
+#   |
+#   |-- unfiltered/ (*)
+#   |     The raw list of failed tests for each stage, of the form
+#   |     `failed-tests: [{<function>: <reason>, ...}]`.
+#   |     Does *not* take `expected-failures/` into account.
+#   |
+#   `-- filtered/ (*) (**)
+#         The test failures that still remain active after `expected-failures/`
+#         *are* taken into account.
+#
+# ---
+#
+# (*) Each directory marked with (*) is a directory containing exactly four YAML
+#     files, one per stage:
+#
+#     - `1-reference-binary.yml`
+#       This corresponds to the original model `parse-binary` produces.
+#
+#     - `2-downgraded-reference-binary.yml`
+#       This corresponds to the model after the first iteration of `cft->rft` is
+#       applied.
+#
+#     - `3-upgraded-downgraded-reference-binary.yml`
+#       This corresponds to the model after the tested `rft->cft` analysis is
+#       applied.
+#
+#     - `4-downgraded-upgraded-downgraded-reference-binary.yml`
+#       This corresponds to the model after the second iteration of `cft->rft`
+#       is applied.
+#
+# (**) Unlike other (*)-marked directories that always contain four files
+#      (unless a crash occurred, in which case the entire directory is not
+#      reliable anyway), this one contains *up-to* four files, as the first
+#      non-empty `filtered` output fails the test.
+
 ABI_NAME="$1"
 RUNTIME_ABI_ANALYSIS_RESULT="$2"
 BINARY="$3"
