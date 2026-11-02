@@ -13,6 +13,8 @@ artifact-tags:
   - debug
   # Artifacts that should be used for full-text search
   - for-search
+  # Artifacts that should be included when exporting
+  - for-export
 
 containers:
   - name: binaries-container
@@ -740,7 +742,7 @@ branches:
           - name: emit-recompilable-archive
             container: recompilable-archive
             show-by-default: false
-            tags: [metadata]
+            tags: [metadata, for-export]
             filename: recompilable_archive.tar
 
   hexdump:
