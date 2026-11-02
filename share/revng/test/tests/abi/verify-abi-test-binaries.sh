@@ -129,6 +129,7 @@ UNIVERSAL_FAILURES=(
     "${EXPECTED_FAILURES}/arm.yml"
     "${EXPECTED_FAILURES}/microsoft.yml"
     "${EXPECTED_FAILURES}/mips.yml"
+    "${EXPECTED_FAILURES}/s390x.yml"
 )
 RFT_STAGE_FAILURES=(
     "${EXPECTED_FAILURES}/RFTs.yml"
