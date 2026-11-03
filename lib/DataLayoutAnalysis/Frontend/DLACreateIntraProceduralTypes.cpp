@@ -40,9 +40,7 @@ using namespace model::Architecture;
 using LayoutTypeSystemNode = dla::LayoutTypeSystemNode;
 using SCEVTypeMap = SCEVBaseAddressExplorer::SCEVTypeMap;
 
-static int64_t getSCEVConstantSExtVal(const SCEV *S) {
-  return cast<SCEVConstant>(S)->getAPInt().getSExtValue();
-}
+static Logger Log("dla-offset-split");
 
 class DLATypeSystemLLVMBuilder::InstanceLinkAdder {
 public:
@@ -85,15 +83,8 @@ protected:
     return { nullptr, false };
   }
 
-  std::optional<int64_t> getStride(const SCEVAddRecExpr *RE) const {
-    const auto *Stride = dyn_cast<SCEVConstant>(RE->getStepRecurrence(*SE));
-    if (not Stride or Stride->isZero())
-      return std::nullopt;
-    return getSCEVConstantSExtVal(Stride);
-  }
-
   // Gets the trip count. Returns nullopt for unknown trip counts.
-  std::optional<uint64_t> getTripCount(const SCEVAddRecExpr *RE) const {
+  std::optional<llvm::APInt> getTripCount(const SCEVAddRecExpr *RE) const {
     const Loop *L = RE->getLoop();
     revng_assert(L);
     if (not L->isLoopSimplifyForm())
@@ -112,7 +103,7 @@ protected:
 
     const auto *One = SE->getOne(TakenCount->getType());
     const auto *TripCount = cast<SCEVConstant>(SE->getAddExpr(TakenCount, One));
-    return TripCount->getAPInt().getZExtValue();
+    return TripCount->getAPInt();
   }
 
   bool addInstanceLink(Value *PointerVal,
@@ -171,41 +162,59 @@ protected:
 
     const SCEV *OffsetSCEV = SE->getMinusSCEV(PointerValSCEV, BaseAddrSCEV);
 
-    OffsetExpression OE{};
+    unsigned BitWidth = OffsetSCEV->getType()->getIntegerBitWidth();
+
+    // One stride and trip count per dimension, innermost first. They are kept
+    // as `APInt` for easier handling.
+    llvm::SmallVector<std::pair<llvm::APInt, std::optional<llvm::APInt>>, 4>
+      Dimensions;
+
     while (const auto *Rec = dyn_cast<SCEVAddRecExpr>(OffsetSCEV)) {
-      std::optional<int64_t> Stride = getStride(Rec);
-      // Don't add links for unknown or negative strides.
-      if (not Stride or *Stride < 0)
+      const auto
+        *StrideSCEV = dyn_cast<SCEVConstant>(Rec->getStepRecurrence(*SE));
+
+      // Don't add links for unknown strides.
+      if (not StrideSCEV)
         return Created;
 
-      std::optional<uint64_t> TripCount = getTripCount(Rec);
+      llvm::APInt Stride = StrideSCEV->getAPInt();
+      revng_assert(Stride.getBitWidth() == BitWidth);
 
-      OE.TripCounts.push_back(std::move(TripCount));
-      OE.Strides.push_back(*Stride);
+      // Don't add links for zero strides.
+      if (Stride.isZero())
+        return Created;
+
+      // Don't add links for negative strides.
+      // TODO: negative strides could be handled in principle, turning them
+      // positive and adjusting the base offset.
+      if (Stride.isNegative())
+        return Created;
+
+      std::optional<llvm::APInt> TripCount = getTripCount(Rec);
+      if (TripCount.has_value()) {
+        if (TripCount->getActiveBits() > BitWidth) {
+          TripCount = std::nullopt;
+        } else {
+          TripCount = TripCount->zextOrTrunc(BitWidth);
+        }
+      }
+      revng_assert(not TripCount.has_value()
+                   or TripCount->getBitWidth() == BitWidth);
+
+      Dimensions.push_back({ std::move(Stride), std::move(TripCount) });
       OffsetSCEV = Rec->getStart();
     }
 
-    if (OE.Strides.size()) {
-      // Nested SCEVAddRecs are not guaranteed to have strides that go from
-      // larger to smaller.
-      // This code re-orders them so that the larger strides always come first.
-      // TODO: this dance of copies is only necessary because Strides and
-      // TripCounts are held as 2 separate vectors in OffsetExpression.
-      // Eventually we should change the code so that its a vector of structs
-      // instead of two separate vectors.
-      llvm::SmallVector<std::pair<int64_t, std::optional<int64_t>>> Tmp;
-      for (const auto &[S, TC] : llvm::zip(OE.Strides, OE.TripCounts))
-        Tmp.push_back({ S, TC });
-      llvm::stable_sort(Tmp, llvm::on_first<std::greater<int64_t>>());
-      for (const auto &Group : llvm::enumerate(Tmp)) {
-        OE.Strides[Group.index()] = Group.value().first;
-        OE.TripCounts[Group.index()] = Group.value().second;
-      }
-    }
-
-    // For now we do not support offsets that are not constant.
-    if (not isa<SCEVConstant>(OffsetSCEV))
+    // For now we do not support offsets that are not constant. This is
+    // checked before the sort below, because there is no point ordering the
+    // dimensions of a link that is being dropped.
+    const auto *OffsetConstant = dyn_cast<SCEVConstant>(OffsetSCEV);
+    if (not OffsetConstant) {
+      revng_log(Log,
+                "dropped, offset is not constant: "
+                  << dumpToString(*OffsetSCEV));
       return Created;
+    }
 
     // If the constant can't hold a pointer it can't even be a valid offset.
     // Just bail out.
@@ -215,9 +224,89 @@ protected:
       return Created;
 
     // Don't add links for instances at negative offsets.
-    OE.Offset = getSCEVConstantSExtVal(OffsetSCEV);
-    if (OE.Offset < 0LL)
+    llvm::APInt Offset = OffsetConstant->getAPInt();
+    revng_assert(Offset.getBitWidth() == BitWidth);
+    if (Offset.isNegative())
       return Created;
+
+    // Nested recurrences are not guaranteed to have strides that go from
+    // larger to smaller, and `OffsetExpression` requires that order.
+    llvm::stable_sort(Dimensions, [](const auto &LHS, const auto &RHS) {
+      return LHS.first.ugt(RHS.first);
+    });
+
+    // Refuse any trip count that would warp past what an can be represented in
+    // an `intptr_t` holds, or that doesn't fit inside a single element of the
+    // array around it.
+    //
+    // A backedge taken count can be very close to 2^64 if the induction
+    // variable wraps around before the loop exit test bcomes true.
+    // That count is strictly speaking correct for the trip count, but it
+    // doesn't make any sense as array length, because it represents an array
+    // larger than the memory that is supposed to contain it.
+    //
+    // The code below detects when that happens and sets the trip count to
+    // unknown.
+    //
+    // The arithmetic is done on `2 * BitWidth + 2` bits, where the products
+    // and their running sum are exact, so no step of it can itself wrap.
+    unsigned Wide = 2 * BitWidth + 2;
+    // The largest address an access may reach.
+    llvm::APInt AddressLimit = llvm::APInt::getSignedMaxValue(BitWidth)
+                                 .zext(Wide);
+    // ParentStride is the stride of the parent array of the one being examined.
+    // It start from max because the outermost array has no parent.
+    llvm::APInt ParentStride = llvm::APInt::getMaxValue(BitWidth).zext(Wide);
+
+    // Whatever constant address the base already accounts for, leaves that
+    // less room for the array.
+    llvm::APInt Reach = Offset.zext(Wide);
+
+    for (auto &[Stride, TripCount] : Dimensions) {
+      llvm::APInt WideStride = Stride.zext(Wide);
+
+      // How many bytes are left until we hit the AddressLimit
+      llvm::APInt InnerRoom = AddressLimit.ugt(Reach) ? AddressLimit - Reach :
+                                                        llvm::APInt(Wide, 0);
+      llvm::APInt MaxCount = llvm::APIntOps::umin(InnerRoom.udiv(WideStride),
+                                                  ParentStride
+                                                    .udiv(WideStride));
+
+      // Not even one element fits, so there is no array to record here.
+      if (MaxCount.isZero()) {
+        revng_log(Log,
+                  "dropped, no room for one element of stride "
+                    << Stride.getZExtValue());
+        return Created;
+      }
+
+      llvm::APInt Count = TripCount.has_value() ? TripCount->zext(Wide) :
+                                                  llvm::APInt(Wide, 1);
+      if (Count.ugt(MaxCount)) {
+        revng_log(Log,
+                  "dropped trip count "
+                    << Count.getZExtValue() << " as unusable: it exceeds "
+                    << MaxCount.getZExtValue() << " for stride "
+                    << Stride.getZExtValue());
+        Count = llvm::APInt(Wide, 1);
+        TripCount = std::nullopt;
+      }
+
+      Reach += WideStride * Count;
+      ParentStride = WideStride;
+    }
+
+    OffsetExpression OE{};
+    OE.Offset = Offset.getZExtValue();
+    for (const auto &[Stride, TripCount] : Dimensions) {
+      OE.Strides.push_back(Stride.getZExtValue());
+      std::optional<uint64_t> Count;
+      if (TripCount.has_value())
+        Count = TripCount->getZExtValue();
+      OE.TripCounts.push_back(Count);
+    }
+
+    revng_assert(OE.verify());
 
     Created |= Builder.TS.addInstanceLink(Src, Tgt, std::move(OE)).second;
     return Created;
