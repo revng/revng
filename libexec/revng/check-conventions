@@ -456,6 +456,55 @@ class LicenseCheckPass(TaggedPass):
         )
 
 
+class FileListPass(TaggedPass):
+    """Checks that a list file names every file of a directory.
+
+    Whatever is handed to this pass, if it sits in `directory` it has to
+    appear in `list_path`, as a path relative to `directory`. Invoked with no
+    arguments it sees every file tracked by git, so it then covers the whole
+    directory; invoked with a subset, as `--HEAD` does, it checks that subset.
+    Either way a file that reaches the repository without reaching the list is
+    reported.
+
+    `contents`, when given, narrows the requirement to the files that contain
+    it, so a directory may hold files that whoever reads the list is not meant
+    to pick up. Blank lines and lines opening with `#` in the list file are
+    ignored."""
+
+    def __init__(self, directory: str, list_path: str, contents: str = ""):
+        super().__init__("file-list", "all")
+        self.directory = Path(directory)
+        self.list_path = Path(list_path)
+        self.contents = contents
+
+    def listed_files(self) -> Set[str]:
+        result = set()
+        for line in read_file(str(self.list_path)).splitlines():
+            stripped = line.strip()
+            if stripped != "" and not stripped.startswith("#"):
+                result.add(stripped)
+        return result
+
+    async def process(self, files: Dict[Path, str], args: Dict[str, str | bool]) -> PassResult:
+        # There is nothing to check when the list is absent, which is the case
+        # whenever check-conventions runs outside this repository.
+        if not self.list_path.is_file():
+            return PassResult("", True)
+
+        listed = self.listed_files()
+        unlisted = [
+            path
+            for path, content in files.items()
+            if path.is_relative_to(self.directory)
+            and (self.contents == "" or self.contents in content)
+            and str(path.relative_to(self.directory)) not in listed
+        ]
+
+        return PassResult.make_from(
+            files={f"These files are missing from {self.list_path}:": unlisted}
+        )
+
+
 class BashPass(SingleCommandPass):
     def __init__(self):
         super().__init__("bash-check", "bash", ("shellcheck",))
