@@ -229,6 +229,29 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
                                       uint64_t Size,
                                       uint64_t Alignment,
                                       bool HasNaturalAlignment) {
+  // We need to make sure all the aggregates we consider naturally aligned are
+  // actually padded accordingly to the full aggregate alignment.
+  //
+  // For example, when a struct, like
+  // ```cpp
+  // struct A { uint64_t a[5]; };
+  // ```
+  // is used as a field of a union, other fields of which have wider alignment
+  // requirements, like
+  // ```cpp
+  // union B { struct A a; uint128_t b; };
+  // ```
+  // (assuming the ABI in question aligns `uint128_t` to 16 bytes),
+  //
+  // the actual size of B is the *size* of `a` padded to the alignment of `b`.
+  //
+  // Note that ABIs packing their arguments are excluded from this - as they
+  // already handle padding in a special way.
+  if (not IsScalar and HasNaturalAlignment and not ABI.PackStackArguments()) {
+    revng_assert(Size != 0);
+    Size = paddedSizeOnStack(Size, Alignment);
+  }
+
   const auto Strategy = argumentStrategy(ABI, FPKind);
   if (Strategy == abi::FloatingPointStrategy::Ignored) {
     revng_log(Log,
