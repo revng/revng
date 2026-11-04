@@ -1786,7 +1786,7 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
         }
       } else if (ModelArgument.Stack) {
         unsigned OldSize = ModelArgument.Stack->Size;
-        revng_assert(OldSize <= 128 / 8);
+        revng_assert(OldSize != 0);
         revng_assert(MaybeStackOffsetAtCallSite);
 
         // Create an alloca
