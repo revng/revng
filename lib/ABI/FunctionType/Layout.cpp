@@ -457,6 +457,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
       auto Pointer = model::PointerType::make(Function.ReturnType().copy(),
                                               Architecture);
       Argument &RVLocationIn = Arguments.emplace_back(std::move(Pointer));
+      RVLocationIn.PaddedSize = ABI.getPointerSize();
       RVLocationIn.Kind = ArgumentKind::ShadowPointerToAggregateReturnValue;
       UsesSPTAR = true;
 
@@ -518,6 +519,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
 
       Argument &Current = Arguments.emplace_back(CurrentType.copy());
       Current.Index = Index;
+      Current.PaddedSize = Distributed.Size;
 
       // Disambiguate scalar and aggregate arguments.
       // Scalars are passed by value,
@@ -575,6 +577,7 @@ Layout::Layout(const model::RawFunctionDefinition &Function) :
     auto &Argument = Arguments.emplace_back(Register.Type().copy());
     Argument.Registers.emplace_back(Register.Location(),
                                     *Register.Type()->size());
+    Argument.PaddedSize = *Register.Type()->size();
     Argument.Kind = ArgumentKind::Scalar;
   }
 
@@ -588,6 +591,7 @@ Layout::Layout(const model::RawFunctionDefinition &Function) :
   // Lay stack arguments out.
   if (not Function.StackArgumentsType().isEmpty()) {
     auto &NewArg = Arguments.emplace_back(Function.StackArgumentsType().copy());
+    NewArg.PaddedSize = *Function.StackArgumentsType()->size();
 
     // Stack argument is always passed by pointer for RawFunctionDefinition
     NewArg.Kind = ArgumentKind::ReferenceToAggregate;
@@ -727,7 +731,7 @@ bool Layout::verify() const {
   using namespace abi::FunctionType::ArgumentKind;
   uint64_t PointerSize = model::Architecture::getPointerSize(Architecture);
   for (auto &&[Index, Argument] : llvm::enumerate(Arguments)) {
-    uint64_t Size = *Argument.Type->size();
+    uint64_t Size = Argument.PaddedSize;
     if (Argument.Kind == PointerToCopy)
       Size = PointerSize;
 

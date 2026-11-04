@@ -103,6 +103,15 @@ public:
     std::optional<StackSpan> Stack;
     ArgumentKind::Values Kind = ArgumentKind::Scalar;
 
+    /// The final, post-distributor size of the current argument.
+    ///
+    /// Since padding amount is ABI-dependent, this cannot be recomputed on
+    /// demand, as such it has to be carried out explicitly.
+    ///
+    /// NOTE: this is currently only used for the purposes of layout
+    ///       verification, but more uses are likely to follow.
+    uint64_t PaddedSize = 0;
+
     /// The index of the `model::Argument` this argument was laid out from.
     ///
     /// It's only set for layouts that originate from CFTs and is only needed
@@ -357,6 +366,7 @@ struct llvm::yaml::MappingTraits<FTL::Argument> {
     IO.mapRequired("Registers", A.Registers);
     IO.mapOptional("Stack", A.Stack);
     IO.mapOptional("Index", A.Index);
+    IO.mapOptional("PaddedSize", A.PaddedSize);
   }
 };
 LLVM_YAML_IS_SEQUENCE_VECTOR(FTL::Argument)
