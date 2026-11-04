@@ -1,0 +1,37 @@
+#!/usr/bin/bash
+
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+set -euo pipefail
+
+REVNG="$1"
+MODEL="$2"
+ASSEMBLY="$3"
+FUNCTION="$4"
+
+TMP=$(mktemp -d)
+
+printf '8*******4***hello world\0' > "$TMP/binary"
+#       ^       ^   ^
+#       |       |   |
+#       |       |   uint8_t seg_0x402000.offset_4[12]
+#       |       |
+#       |       uint32_t seg_0x402000.offset_0
+#       |
+#       seg_0x401000 (executable)
+
+SHA=$(sha256sum "$TMP/binary" | awk '{print $1}')
+
+tar -c -f "$TMP/binaries-inner.tar" --transform "s;.*;binaries/$SHA;" "$TMP/binary"
+tar -c -f "$TMP/binaries-outer.tar" --transform 's;.*;/binary;' "$TMP/binaries-inner.tar"
+tar -c -f "$TMP/functions.tar" --transform "s;.*;$FUNCTION;" "$ASSEMBLY"
+
+"$REVNG" pipeline run-pipe emit-strings \
+  "$MODEL" \
+  "$TMP/binaries-outer.tar" \
+  "$TMP/functions.tar" \
+  "$TMP/output.mlir.bc"
+
+"$REVNG" clift-opt "$TMP/output.mlir.bc"

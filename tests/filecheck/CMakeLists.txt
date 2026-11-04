@@ -154,6 +154,7 @@ set(FILECHECK_TESTS
     clift/emit-header/array-typedef-of-array-typedef.mlir
     clift/emit-header/array-typedef-of-typedef.mlir
     clift/emit-header/struct-with-array-of-typedef.mlir
+    clift/emit-strings/match.mlir
     clift/expression-rewrites/addressof.mlir
     clift/expression-rewrites/assign-type-punned-discarded.mlir
     clift/expression-rewrites/assign-type-punned-read.mlir
