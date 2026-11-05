@@ -20,19 +20,26 @@ struct RawState {
   State extract(model::Architecture::Values Architecture) {
     State Result;
     for (auto Register : model::Architecture::registers(Architecture)) {
-      constexpr auto PoN = model::PrimitiveKind::PointerOrNumber;
-      if (model::Register::getPrimitiveKind(Register) != PoN) {
-        // Only support generic registers for now.
-        // TODO: add vector register support.
-        continue;
+      if (Architecture == model::Architecture::x86) {
+        // Explicitly skip x86 floating point registers, as the testing suite
+        // does not support them yet.
+        namespace PK = model::PrimitiveKind;
+        if (model::Register::getPrimitiveKind(Register) != PK::PointerOrNumber)
+          continue;
+
+      } else if (Architecture == model::Architecture::x86_64) {
+        // Ignore `fs_x86_64`
+        if (Register == model::Register::fs_x86_64)
+          continue;
       }
 
+      // Make sure *everything* else is present.
       auto Iterator = llvm::find_if(Registers, [Register](const RawWord &Raw) {
         return Raw.Name == getRegisterName(Register);
       });
       if (Iterator == Registers.end()) {
-        std::string Error = "Unable to find `" + getRegisterName(Register).str()
-                            + "` in the artifact.\n";
+        std::string Error = "Unable to find " + getRegisterName(Register).str()
+                            + " in the artifact.\n";
         revng_abort(Error.c_str());
       }
       Result.Registers.try_emplace(Register, Iterator->Value, Iterator->Bytes);
@@ -185,10 +192,10 @@ abi::runtime_test::parse(llvm::StringRef RuntimeArtifact,
 
   llvm::StringRef ArchitectureName = model::Architecture::getName(Architecture);
   if (ArchitectureName != Deserialized.TargetArchitecture) {
-    std::string Error = "Target architecture (`"
+    std::string Error = "Target architecture ("
                         + Deserialized.TargetArchitecture.str()
-                        + "`) does not match the expected one: `"
-                        + ArchitectureName.str() + "`\n";
+                        + ") does not match the expected one: "
+                        + ArchitectureName.str() + "\n";
     revng_abort(Error.c_str());
   }
 

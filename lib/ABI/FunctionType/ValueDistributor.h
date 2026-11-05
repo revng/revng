@@ -191,24 +191,6 @@ public:
     }
   }
 
-  bool canNextArgumentUseRegisters() const {
-    size_t GPRCount = ABI.GeneralPurposeArgumentRegisters().size();
-    size_t FloatCount = ABI.FloatArgumentRegisters().size();
-
-    if (ABI.ArgumentsArePositionBased()) {
-      return nextPositionBasedIndex() < std::max(GPRCount, FloatCount);
-    } else {
-      if (UsedGeneralPurposeRegisterCount == GPRCount
-          && UsedFloatRegisterCount == FloatCount)
-        return false;
-
-      if (ABI.NoRegisterArgumentsCanComeAfterStackOnes() && UsedStackOffset)
-        return false;
-    }
-
-    return true;
-  }
-
 private:
   DistributedValues positionBased(bool IsFloat, uint64_t Size);
   DistributedValues nonPositionBased(bool IsScalar,

@@ -33,8 +33,8 @@
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/Local.h"
 
-#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/EagerMaterializationRangeIterator.h"
+#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRBuilder.h"
