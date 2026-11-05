@@ -271,10 +271,39 @@ static void writeType(IntegerType Type, mlir::DialectBytecodeWriter &Writer) {
 
 //===------------------------------ FloatType -----------------------------===//
 
+mlir::FloatType FloatType::getBuiltinFloatType() {
+  switch (getSize()) {
+  case 4:
+    return mlir::FloatType::getF32(getContext());
+  case 8:
+    return mlir::FloatType::getF64(getContext());
+  default:
+    revng_abort("Unsupported floating point format");
+  }
+}
+
+const llvm::fltSemantics &FloatType::getFloatSemantics() {
+  switch (getSize()) {
+  case 4:
+    return llvm::APFloat::IEEEsingle();
+  case 8:
+    return llvm::APFloat::IEEEdouble();
+  default:
+    revng_abort("Unsupported floating point format");
+  }
+}
+
 mlir::LogicalResult
 FloatType::verify(EmitErrorType EmitError, uint64_t Size, bool IsConst) {
-  if (Size == 0)
-    return EmitError() << "Floating point types must have non-zero size.";
+  switch (Size) {
+  case 4:
+  case 8:
+    break;
+
+  default:
+    return EmitError() << "Unsupported floating point format (size: " << Size
+                       << ").";
+  }
 
   return mlir::success();
 }
