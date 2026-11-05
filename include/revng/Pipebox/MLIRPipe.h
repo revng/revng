@@ -28,6 +28,14 @@ namespace revng::pypeline::pipes {
 ///     options: option1=value1 option2=value2
 ///   - pass2
 /// ```
+///
+/// Passes restricted to `builtin.module` run on the module of each function.
+/// All other passes run on every `clift.func` directly inside it, declarations
+/// included: this covers passes restricted to `clift.func`, passes that can run
+/// on any operation (e.g. `canonicalize`) and interface passes. Passes
+/// restricted to any other operation are not supported. Consecutive
+/// `clift.func` passes share one nested pass manager, so each function goes
+/// through all of them before the next function is processed.
 class PureMLIRPassesPipe {
 public:
   static constexpr llvm::StringRef Name = "pure-mlir-passes-pipe";
