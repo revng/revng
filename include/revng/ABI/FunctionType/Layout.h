@@ -165,6 +165,19 @@ public:
     return (Arguments.size() >= 1 and Arguments[0].Kind == SPTAR);
   }
 
+  /// The arguments as they appear in the C prototype.
+  llvm::ArrayRef<Argument> argumentsForC() const {
+    // There are quite a few places that explicitly ignore the SPTAR.
+    //
+    // TODO: look into whether it's better to separate it from
+    //      the `Layout::Arguments` altogether.
+
+    llvm::ArrayRef Result = Arguments;
+    if (hasSPTAR())
+      Result = Result.drop_front();
+    return Result;
+  }
+
   ReturnMethod::Values returnMethod() const {
     if (hasSPTAR()) {
       revng_assert(ReturnValues.size() <= 1);
