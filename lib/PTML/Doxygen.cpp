@@ -299,9 +299,16 @@ gatherArgumentComments(const model::Binary &Binary,
     //
     // which is pretty confusing, isn't it?
 
-    auto LayoutArguments = Layout.argumentsForC();
-    revng_assert(FT->Arguments().size() == LayoutArguments.size());
     for (size_t Index = 0; Index < FT->Arguments().size(); ++Index) {
+      const abi::FunctionType::Layout::Argument *CurrentArgument = nullptr;
+      for (const auto &Argument : Layout.argumentsForC()) {
+        if (Argument.Index == Index) {
+          revng_assert(CurrentArgument == nullptr,
+                       "Multiple layout arguments with the same index.");
+          CurrentArgument = &Argument;
+        }
+      }
+
       const std::string &Comment = FT->Arguments().at(Index).Comment();
       if (!Comment.empty()) {
         DoxygenLine &Line = Result.emplace_back();
@@ -322,31 +329,36 @@ gatherArgumentComments(const model::Binary &Binary,
         N.ExtraAttributes.emplace_back(Attribute::LocationReferences.str(),
                                        Location);
 
-        const auto &CurrentArgument = LayoutArguments[Index];
-        if (!CurrentArgument.Registers.empty()) {
-          Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
-          for (const auto &Portion : skip_back(CurrentArgument.Registers)) {
-            auto Name = model::Register::getRegisterName(Portion.Register);
-            Line->emplace_back(DoxygenToken::Types::Identifier, Name.str());
-            Line->emplace_back(DoxygenToken::Types::Untagged, ", ");
-          }
-          auto Last = CurrentArgument.Registers.back().Register;
-          Line->emplace_back(DoxygenToken::Types::Identifier,
-                             model::Register::getRegisterName(Last).str());
-          Line->emplace_back(DoxygenToken::Types::Untagged, ")");
+        if (CurrentArgument == nullptr) {
+          Line->emplace_back(DoxygenToken::Types::Untagged, " (unsupported)");
         } else {
-          Line->emplace_back(DoxygenToken::Types::Untagged,
-                             " (" + std::to_string(CurrentArgument.Stack->Size)
-                               + " bytes at ");
+          if (!CurrentArgument->Registers.empty()) {
+            Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
+            for (const auto &Portion : skip_back(CurrentArgument->Registers)) {
+              auto Name = model::Register::getRegisterName(Portion.Register);
+              Line->emplace_back(DoxygenToken::Types::Identifier, Name.str());
+              Line->emplace_back(DoxygenToken::Types::Untagged, ", ");
+            }
+            auto Last = CurrentArgument->Registers.back().Register;
+            Line->emplace_back(DoxygenToken::Types::Identifier,
+                               model::Register::getRegisterName(Last).str());
+            Line->emplace_back(DoxygenToken::Types::Untagged, ")");
+          }
 
-          namespace Arch = model::Architecture;
-          auto SP = Arch::getStackPointer(Binary.Architecture());
-          Line->emplace_back(DoxygenToken::Types::Identifier,
-                             model::Register::getRegisterName(SP).str());
-          uint64_t Adjustment = Arch::getCallPushSize(Binary.Architecture());
-          uint64_t Adjusted = CurrentArgument.Stack->Offset + Adjustment;
-          Line->emplace_back(DoxygenToken::Types::Untagged,
-                             "+" + std::to_string(Adjusted) + ")");
+          if (CurrentArgument->Stack.has_value()) {
+            auto Size = std::to_string(CurrentArgument->Stack->Size);
+            Line->emplace_back(DoxygenToken::Types::Untagged,
+                               " (" + Size + " bytes at ");
+
+            namespace Arch = model::Architecture;
+            auto SP = Arch::getStackPointer(Binary.Architecture());
+            Line->emplace_back(DoxygenToken::Types::Identifier,
+                               model::Register::getRegisterName(SP).str());
+            uint64_t Adjustment = Arch::getCallPushSize(Binary.Architecture());
+            uint64_t Adjusted = CurrentArgument->Stack->Offset + Adjustment;
+            Line->emplace_back(DoxygenToken::Types::Untagged,
+                               "+" + std::to_string(Adjusted) + ")");
+          }
         }
 
         Line->emplace_back(DoxygenToken::Types::Untagged, " ");
