@@ -6,6 +6,7 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -145,5 +146,13 @@ def project_agent(ctx: ClickContext, agent: str | None, prompt_append: str | Non
         return subprocess.run(command, cwd=model_path.parent, env=env, check=False).returncode
 
 
+@click.command(name="detect-agents")
+def detect_agents():
+    for agent_name, agent_cmd in AGENTS.items():
+        if shutil.which(agent_cmd[0]) is not None:
+            sys.stdout.write(agent_name + "\n")
+
+
 def setup(registry: CommandRegistry):
     registry.register(("project",), project_agent)
+    registry.register(("internal",), detect_agents)
