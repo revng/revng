@@ -75,8 +75,8 @@ _cache_directory_fallback: tempfile.TemporaryDirectory | None = None
 
 def cache_directory() -> Path:
     global _cache_directory_fallback
-    if "cache-path" in configuration():
-        return Path("cache-path")
+    if "cache-path" in (the_configuration := configuration()):
+        return Path(the_configuration["cache-path"])
     candidate = xdg_cache_home() / "revng"
     try:
         candidate.mkdir(parents=True, exist_ok=True)
