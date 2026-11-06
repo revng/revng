@@ -372,15 +372,16 @@ ToRawConverter::distributeArguments(CFTArguments Arguments,
                       std::back_inserter(Result));
 
   if (ABI.PackStackArguments()) {
-    for (auto &&[Current, Next] : zip_pairs(Result)) {
-      if (Current.SizeOnStack && Next.SizeOnStack) {
-        if (Current.OffsetOnStack + Current.SizeOnStack > Next.OffsetOnStack) {
-          Current.SizeOnStack -= Current.PostPaddingSize;
-          Current.PostPaddingSize = 0;
+    auto StackArguments = Result | std::views::filter([](const auto &Value) {
+                            return Value.SizeOnStack != 0;
+                          });
+    for (auto &&[Current, Next] : zip_pairs(StackArguments)) {
+      if (Current.OffsetOnStack + Current.SizeOnStack > Next.OffsetOnStack) {
+        Current.SizeOnStack -= Current.PostPaddingSize;
+        Current.PostPaddingSize = 0;
 
-          uint64_t NewOffset = Current.OffsetOnStack + Current.SizeOnStack;
-          revng_assert(NewOffset <= Next.OffsetOnStack);
-        }
+        uint64_t NewOffset = Current.OffsetOnStack + Current.SizeOnStack;
+        revng_assert(NewOffset <= Next.OffsetOnStack);
       }
     }
 
