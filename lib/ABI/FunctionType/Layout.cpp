@@ -513,6 +513,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
       }
 
       Argument &Current = Arguments.emplace_back(CurrentType.copy());
+      Current.Index = Index;
 
       // Disambiguate scalar and aggregate arguments.
       // Scalars are passed by value,
@@ -750,6 +751,11 @@ bool Layout::verify() const {
       // SPTAR must be the first argument
       if (!IsFirst) {
         revng_log(LayoutLog, "The SPTAR is not the first argument");
+        return false;
+      }
+
+      if (Argument.Index.has_value()) {
+        revng_log(LayoutLog, "The SPTAR must not have an index.");
         return false;
       }
 

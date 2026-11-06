@@ -102,6 +102,16 @@ public:
   public:
     std::optional<StackSpan> Stack;
     ArgumentKind::Values Kind = ArgumentKind::Scalar;
+
+    /// The index of the `model::Argument` this argument was laid out from.
+    ///
+    /// It's only set for layouts that originate from CFTs and is only needed
+    /// because there is no longer a guarantee of one-to-one argument match
+    /// between the CFT and its layout. See `FloatingPointStrategy::Ignored` for
+    /// additional context.
+    ///
+    /// Note: this must never be set for the SPTAR argument.
+    std::optional<uint64_t> Index;
   };
 
 public:
@@ -346,6 +356,7 @@ struct llvm::yaml::MappingTraits<FTL::Argument> {
     IO.mapRequired("Kind", A.Kind);
     IO.mapRequired("Registers", A.Registers);
     IO.mapOptional("Stack", A.Stack);
+    IO.mapOptional("Index", A.Index);
   }
 };
 LLVM_YAML_IS_SEQUENCE_VECTOR(FTL::Argument)
