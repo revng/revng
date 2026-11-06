@@ -10,6 +10,7 @@
 
 #include "mlir/IR/RegionGraphTraits.h"
 
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftTypes.h"
 #include "revng/Clift/Helpers.h"
@@ -530,11 +531,16 @@ private:
 
     llvm::StringRef ReturnValueComment = "";
     if (const auto *T = llvm::dyn_cast<CF>(Prototype)) {
-      revng_assert(Op.getArgCount() == T->Arguments().size());
+      const auto Layout = abi::FunctionType::Layout(*T);
+      const auto LayoutArguments = Layout.argumentsForC();
+      revng_assert(Op.getArgCount() == LayoutArguments.size());
       auto TL = pipeline::location(rr::TypeDefinition, T->key());
 
-      for (auto [I, A] : llvm::enumerate(T->Arguments())) {
-        auto AL = TL.extend(rr::CABIArgument, static_cast<uint64_t>(I));
+      for (auto [I, ArgumentLayout] : llvm::enumerate(LayoutArguments)) {
+        revng_assert(ArgumentLayout.Index.has_value());
+        const uint64_t ModelIndex = *ArgumentLayout.Index;
+        const model::Argument &A = T->Arguments().at(ModelIndex);
+        auto AL = TL.extend(rr::CABIArgument, ModelIndex);
         Attrs.setString(I, "clift.handle", AL.toString());
         Attrs.setString(I, "clift.name", NameBuilder.name(*T, A));
         Attrs.setString(I, "clift.comment", A.Comment());

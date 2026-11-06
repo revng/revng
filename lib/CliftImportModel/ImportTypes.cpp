@@ -8,6 +8,7 @@
 
 #include "mlir/IR/BuiltinOps.h"
 
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftAttributes.h"
@@ -149,17 +150,21 @@ private:
     }
 
     AttributeVector<mlir::Type> ArgumentTypes;
-    ArgumentTypes.reserve(ModelType.Arguments().size());
 
-    for (const model::Argument &Argument : ModelType.Arguments()) {
-      const auto Type = rc_recur fromType(*Argument.Type());
+    const abi::FunctionType::Layout FunctionLayout(ModelType);
+    ArgumentTypes.reserve(FunctionLayout.argumentsForC().size());
+
+    for (const auto &Argument : FunctionLayout.argumentsForC()) {
+      revng_assert(Argument.Index.has_value());
+      const auto &CFTArgument = ModelType.Arguments().at(*Argument.Index);
+      const auto Type = rc_recur fromType(*CFTArgument.Type());
       if (not Type)
         rc_return nullptr;
       ArgumentTypes.push_back(Type);
     }
 
     mlir::Type ReturnType = nullptr;
-    if (ModelType.ReturnType().isEmpty())
+    if (FunctionLayout.returnMethod() == abi::FunctionType::ReturnMethod::Void)
       ReturnType = rc_recur fromType(*model::PrimitiveType::makeVoid());
     else
       ReturnType = rc_recur fromType(*ModelType.ReturnType());
