@@ -497,6 +497,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
   uint64_t Index = 0;
   uint64_t StackStructSize = 0;
   uint64_t IgnoredArgumentCount = 0;
+  uint64_t FirstMisplacedIndex = 0;
   for (const DistributedValue &Distributed : Converted) {
     if (!Distributed.RepresentsPadding) {
       auto &CurrentType = Function.Arguments().at(Index).Type();
@@ -509,6 +510,8 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
         //            is not trustworthy.
         ++IgnoredArgumentCount;
         ++Index;
+        if (FirstMisplacedIndex == 0)
+          FirstMisplacedIndex = Index;
         continue;
       }
 
@@ -550,6 +553,14 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
   revng_log(LayoutLog,
             "Layout of " + toString(Function.key()) + " is:\n"
               << toString(*this));
+  if (IgnoredArgumentCount > 0) {
+    revng_assert(FirstMisplacedIndex != 0);
+    revng_log(LayoutLog,
+              "WARNING: it skipped "
+                << IgnoredArgumentCount << " arguments, argument "
+                << FirstMisplacedIndex
+                << " and everything after it could be placed incorrectly.\n");
+  }
 
   revng_assert(verify());
 }
