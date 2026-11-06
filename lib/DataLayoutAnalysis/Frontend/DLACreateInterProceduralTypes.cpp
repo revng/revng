@@ -8,6 +8,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
 
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng/Model/Binary.h"
@@ -57,6 +58,21 @@ getFunctionPrototype(const model::Binary &Model, const Function &F) {
   return Model.prototypeOrDefault(It->prototype());
 }
 
+/// To simplify the conversion between the model prototype indexing and its
+/// layout indexing, build a basic map between the two.
+static llvm::SmallVector<uint64_t, 8>
+layoutToModelIndexMap(const model::CABIFunctionDefinition &Prototype) {
+  llvm::SmallVector<uint64_t, 8> Result;
+
+  const abi::FunctionType::Layout Layout(Prototype);
+  for (const auto &Argument : Layout.argumentsForC()) {
+    revng_assert(Argument.Index.has_value());
+    Result.push_back(Argument.Index.value());
+  }
+
+  return Result;
+}
+
 bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                                            const SegmentNodeMapT
                                              &SegmentNodeMap) {
@@ -79,6 +95,8 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     const model::TypeDefinition *Prototype = getFunctionPrototype(Model, F);
     revng_assert(Prototype);
 
+    llvm::SmallVector<uint64_t, 8> LayoutToModelIndexMap;
+
     const auto *RFT = dyn_cast<model::RawFunctionDefinition>(Prototype);
     const auto *CABIFT = dyn_cast<model::CABIFunctionDefinition>(Prototype);
     if (RFT) {
@@ -86,7 +104,8 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                    or (not RFT->StackArgumentsType().isEmpty()
                        and (F.arg_size() == RFT->Arguments().size() + 1)));
     } else if (CABIFT) {
-      revng_assert(CABIFT->Arguments().size() == F.arg_size());
+      LayoutToModelIndexMap = layoutToModelIndexMap(*CABIFT);
+      revng_assert(LayoutToModelIndexMap.size() == F.arg_size());
     } else {
       revng_abort();
     }
@@ -130,7 +149,9 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
           ArgumentModelType = RFT->StackArgumentsType();
       } else {
         revng_assert(CABIFT);
-        ArgumentModelType = CABIFT->Arguments().at(ArgIndex).Type();
+        revng_assert(ArgIndex < LayoutToModelIndexMap.size());
+        const uint64_t ModelIndex = LayoutToModelIndexMap[ArgIndex];
+        ArgumentModelType = CABIFT->Arguments().at(ModelIndex).Type();
       }
 
       if (model::PointerType *Pointer = ArgumentModelType->getPointer()) {

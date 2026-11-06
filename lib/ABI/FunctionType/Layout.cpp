@@ -15,6 +15,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/TupleTree/NamedEnumScalarTraits.h"
 
+#include "FloatingPointStrategy.h"
 #include "ValueDistributor.h"
 
 static Logger Log("function-type-conversion-to-raw");
@@ -95,7 +96,11 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
   bool UsesSPTAR = false;
   if (!FunctionType.ReturnType().isEmpty()) {
     auto ReturnValue = distributeReturnValue(*FunctionType.ReturnType());
-    if (!ReturnValue.Registers.empty()) {
+    if (ReturnValue.ShouldBeIgnored) {
+      // We do not have the means to handle this return value - ignore it.
+      revng_log(Log, "Return value is ignored.\n");
+
+    } else if (!ReturnValue.Registers.empty()) {
       revng_assert(ReturnValue.SizeOnStack == 0);
 
       // The return value uses registers: pass them through to the new type.
@@ -178,6 +183,18 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
   auto Arguments = distributeArguments(FunctionType.Arguments(), UsesSPTAR);
   uint64_t Index = 0;
   for (const DistributedValue &Distributed : Arguments) {
+    if (Distributed.ShouldBeIgnored) {
+      // We do not have the means to handle this argument - ignore it.
+      //
+      // IMPORTANT: this likely means that following arguments will not be
+      //            placed correctly either. Layout produced for this function
+      //            is not trustworthy.
+      revng_log(Log, "Ignoring an argument.");
+
+      ++Index;
+      continue;
+    }
+
     if (!Distributed.RepresentsPadding) {
       // Transfer the register arguments first.
       for (model::Register::Values Register : Distributed.Registers) {
@@ -355,15 +372,16 @@ ToRawConverter::distributeArguments(CFTArguments Arguments,
                       std::back_inserter(Result));
 
   if (ABI.PackStackArguments()) {
-    for (auto &&[Current, Next] : zip_pairs(Result)) {
-      if (Current.SizeOnStack && Next.SizeOnStack) {
-        if (Current.OffsetOnStack + Current.SizeOnStack > Next.OffsetOnStack) {
-          Current.SizeOnStack -= Current.PostPaddingSize;
-          Current.PostPaddingSize = 0;
+    auto StackArguments = Result | std::views::filter([](const auto &Value) {
+                            return Value.SizeOnStack != 0;
+                          });
+    for (auto &&[Current, Next] : zip_pairs(StackArguments)) {
+      if (Current.OffsetOnStack + Current.SizeOnStack > Next.OffsetOnStack) {
+        Current.SizeOnStack -= Current.PostPaddingSize;
+        Current.PostPaddingSize = 0;
 
-          uint64_t NewOffset = Current.OffsetOnStack + Current.SizeOnStack;
-          revng_assert(NewOffset <= Next.OffsetOnStack);
-        }
+        uint64_t NewOffset = Current.OffsetOnStack + Current.SizeOnStack;
+        revng_assert(NewOffset <= Next.OffsetOnStack);
       }
     }
 
@@ -418,7 +436,11 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
   bool UsesSPTAR = false;
   if (!Function.ReturnType().isEmpty()) {
     auto RV = Converter.distributeReturnValue(*Function.ReturnType());
-    if (RV.SizeOnStack == 0) {
+    if (RV.ShouldBeIgnored) {
+      // We do not have the means to handle this return value - ignore it.
+      revng_log(Log, "Return value is ignored.\n");
+
+    } else if (RV.SizeOnStack == 0) {
       if (Function.ReturnType().isEmpty()) {
         // This function returns `void`: no need to do anything special.
       } else {
@@ -435,6 +457,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
       auto Pointer = model::PointerType::make(Function.ReturnType().copy(),
                                               Architecture);
       Argument &RVLocationIn = Arguments.emplace_back(std::move(Pointer));
+      RVLocationIn.PaddedSize = ABI.getPointerSize();
       RVLocationIn.Kind = ArgumentKind::ShadowPointerToAggregateReturnValue;
       UsesSPTAR = true;
 
@@ -475,10 +498,28 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
   revng_assert(Converted.size() >= Function.Arguments().size());
   uint64_t Index = 0;
   uint64_t StackStructSize = 0;
+  uint64_t IgnoredArgumentCount = 0;
+  uint64_t FirstMisplacedIndex = 0;
   for (const DistributedValue &Distributed : Converted) {
     if (!Distributed.RepresentsPadding) {
       auto &CurrentType = Function.Arguments().at(Index).Type();
+
+      if (Distributed.ShouldBeIgnored) {
+        // We do not have the means to handle this argument - ignore it.
+        //
+        // IMPORTANT: this likely means that following arguments will not be
+        //            placed correctly either. Layout produced for this function
+        //            is not trustworthy.
+        ++IgnoredArgumentCount;
+        ++Index;
+        if (FirstMisplacedIndex == 0)
+          FirstMisplacedIndex = Index;
+        continue;
+      }
+
       Argument &Current = Arguments.emplace_back(CurrentType.copy());
+      Current.Index = Index;
+      Current.PaddedSize = Distributed.Size;
 
       // Disambiguate scalar and aggregate arguments.
       // Scalars are passed by value,
@@ -504,10 +545,8 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
     }
   }
 
-  if (UsesSPTAR)
-    revng_assert(Arguments.size() == Function.Arguments().size() + 1);
-  else
-    revng_assert(Arguments.size() == Function.Arguments().size());
+  uint64_t Expected = Function.Arguments().size() + (UsesSPTAR ? 1 : 0);
+  revng_assert(Arguments.size() + IgnoredArgumentCount == Expected);
 
   CalleeSavedRegisters.resize(ABI.CalleeSavedRegisters().size());
   llvm::copy(ABI.CalleeSavedRegisters(), CalleeSavedRegisters.begin());
@@ -517,6 +556,14 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
   revng_log(LayoutLog,
             "Layout of " + toString(Function.key()) + " is:\n"
               << toString(*this));
+  if (IgnoredArgumentCount > 0) {
+    revng_assert(FirstMisplacedIndex != 0);
+    revng_log(LayoutLog,
+              "WARNING: it skipped "
+                << IgnoredArgumentCount << " arguments, argument "
+                << FirstMisplacedIndex
+                << " and everything after it could be placed incorrectly.\n");
+  }
 
   revng_assert(verify());
 }
@@ -530,6 +577,7 @@ Layout::Layout(const model::RawFunctionDefinition &Function) :
     auto &Argument = Arguments.emplace_back(Register.Type().copy());
     Argument.Registers.emplace_back(Register.Location(),
                                     *Register.Type()->size());
+    Argument.PaddedSize = *Register.Type()->size();
     Argument.Kind = ArgumentKind::Scalar;
   }
 
@@ -543,6 +591,7 @@ Layout::Layout(const model::RawFunctionDefinition &Function) :
   // Lay stack arguments out.
   if (not Function.StackArgumentsType().isEmpty()) {
     auto &NewArg = Arguments.emplace_back(Function.StackArgumentsType().copy());
+    NewArg.PaddedSize = *Function.StackArgumentsType()->size();
 
     // Stack argument is always passed by pointer for RawFunctionDefinition
     NewArg.Kind = ArgumentKind::ReferenceToAggregate;
@@ -682,7 +731,7 @@ bool Layout::verify() const {
   using namespace abi::FunctionType::ArgumentKind;
   uint64_t PointerSize = model::Architecture::getPointerSize(Architecture);
   for (auto &&[Index, Argument] : llvm::enumerate(Arguments)) {
-    uint64_t Size = *Argument.Type->size();
+    uint64_t Size = Argument.PaddedSize;
     if (Argument.Kind == PointerToCopy)
       Size = PointerSize;
 
@@ -718,6 +767,11 @@ bool Layout::verify() const {
       // SPTAR must be the first argument
       if (!IsFirst) {
         revng_log(LayoutLog, "The SPTAR is not the first argument");
+        return false;
+      }
+
+      if (Argument.Index.has_value()) {
+        revng_log(LayoutLog, "The SPTAR must not have an index.");
         return false;
       }
 
@@ -850,8 +904,13 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
   // Iterate over arguments until we are sure no further argument can use
   // any registers.
   for (const model::Argument &Argument : Function.Arguments().asVector()) {
+    // An argument the ABI's floating point strategy drops occupies no
+    // register.
     auto Distributed = Distributor.nextArgument(*Argument.Type());
     for (DistributedValue SingleArg : Distributed) {
+      if (SingleArg.ShouldBeIgnored)
+        continue;
+
       if (!SingleArg.RepresentsPadding)
         Result.Arguments.append(toPortions(SingleArg));
     }

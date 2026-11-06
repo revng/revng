@@ -21,6 +21,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/RecursiveCoroutine.h"
@@ -252,14 +253,19 @@ static bool updateArgumentTypes(model::Binary &Model,
   auto &ModelArgs = ModelPrototype.Arguments();
   auto LLVMArgs = getArgs(CallOrFunction);
 
+  const abi::FunctionType::Layout Layout(ModelPrototype);
+  const llvm::ArrayRef ABIArgs = Layout.argumentsForC();
+
   uint64_t EffectiveLLVMArgSize = arg_size(CallOrFunction);
-  revng_assert(ModelArgs.size() == EffectiveLLVMArgSize
+  revng_assert(ABIArgs.size() == EffectiveLLVMArgSize
                or (ModelArgs.size() == 1 and EffectiveLLVMArgSize == 0
                    and ModelArgs.begin()->Type()->isVoidPrimitive()));
 
   revng_log(Log, "Updating arguments");
 
-  for (const auto &[LLVMArg, ModelArg] : llvm::zip_first(LLVMArgs, ModelArgs)) {
+  for (const auto &[LLVMArg, ABIArg] : llvm::zip_first(LLVMArgs, ABIArgs)) {
+    revng_assert(ABIArg.Index.has_value());
+    model::Argument &ModelArg = ModelArgs.at(ABIArg.Index.value());
     const llvm::Value *LLVMVal = toLLVMValue(LLVMArg);
     revng_log(Log, "Updating argument " << LLVMVal->getNameOrAsOperand());
 
@@ -301,7 +307,11 @@ static bool updateReturnType(model::Binary &Model,
   // If the return type is void there's nothing to do.
   if (LLVMRetType->isVoidTy()) {
     revng_log(Log, "Is void");
-    revng_assert(ModelReturnType.isEmpty());
+    // The ABI may have dropped the return value entirely, in which case the
+    // LLVM function returns nothing while the model still has a return type.
+    const auto Layout = abi::FunctionType::Layout(ModelPrototype);
+    const auto Void = abi::FunctionType::ReturnMethod::Void;
+    revng_assert(ModelReturnType.isEmpty() or Layout.returnMethod() == Void);
     return false;
   } else {
     revng_assert(!ModelReturnType.isEmpty());

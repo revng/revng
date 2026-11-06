@@ -3,7 +3,11 @@
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/Support/AlignmentHelpers.h"
 #include "revng/Support/Debug.h"
+
+#include "revng/Model/ABI/Generated/Early/FloatingPointStrategy.h"
+#include "revng/Model/Generated/Early/Register.h"
 
 #include "ValueDistributor.h"
 
@@ -48,6 +52,68 @@ ValueDistributor::distribute(uint64_t Size,
   uint64_t ConsideredRegisterCounter = OccupiedRegisterCount;
   uint64_t SizeCounter = 0;
 
+  // Take the alignment into consideration on the architectures that require
+  // padding to be inserted even for arguments passed in registers.
+  //
+  // For example:
+  // ```cpp
+  // // compiled for arm-32
+  // void test(uint32_t r0, uint32_t r1, uint32_t r2,
+  //           uint64_t tested_argument);
+  // ```
+  // what would happen is that after the `r#` arguments are placed in
+  // the corresponding registers, because the `tested_argument` is aligned
+  // at 8 bytes, it must start from an even-numbered register (which `r3` is
+  // not) so the *full* argument should be placed on the stack, with `r3`
+  // becoming a padding register (it must be considered occupied).
+  //
+  // Specifically, if there are more arguments after that, like
+  // ```cpp
+  // // compiled for arm-32
+  // void test(uint32_t r0, uint32_t r1, uint32_t r2,
+  //           uint64_t tested_argument,
+  //           uint32_t next_argument);
+  // ```
+  //
+  // Even though `r3` is enough for `next_argument` *and* this is
+  // a non-position-based ABI, it must not be allocated there, as `r3` is
+  // already occupied with the padding.
+  //
+  // To make this work, we have to handle
+  // the `OnlyStartDoubleArgumentsFromAnEvenRegister`
+  // logic *before* doing any real distribution.
+  if (ABI.OnlyStartDoubleArgumentsFromAnEvenRegister()) {
+    const uint64_t PointerSize = ABI.getPointerSize();
+    bool MultiAligned = Size >= PointerSize && Alignment > PointerSize;
+    bool FirstRegisterOdd = (OccupiedRegisterCount & 1) != 0;
+    if (MultiAligned && FirstRegisterOdd) {
+      LoggerIndent Indentation(Log);
+      revng_log(Log,
+                "Because the ABI requires arguments placed in the "
+                "registers to also be aligned, an extra register needs "
+                "to be used to hold the padding.");
+
+      if (OccupiedRegisterCount + 1 >= Registers.size()) {
+        // Omit marking the very last register as padding since the argument
+        // is going to end up on the stack anyway.
+
+      } else {
+        revng_assert(OccupiedRegisterCount + 1 < Registers.size());
+
+        // Add an extra "padding" argument to represent this.
+        DistributedValue &Padding = Result.emplace_back();
+        Padding.Registers = { Registers[OccupiedRegisterCount++] };
+        Padding.Size = PointerSize;
+        Padding.RepresentsPadding = true;
+
+        // The padding register does not count towards the limit
+        ++LastRegister;
+      }
+
+      ConsideredRegisterCounter = OccupiedRegisterCount;
+    }
+  }
+
   // Keep adding the registers until either the total size exceeds needed or
   // we run out of allowed registers.
   if (!Registers.empty()) {
@@ -68,41 +134,6 @@ ValueDistributor::distribute(uint64_t Size,
       revng_log(Log,
                 (ConsideredRegisterCounter - OccupiedRegisterCount)
                   << " registers are sufficient to hold the value.");
-    }
-  }
-
-  // Take the alignment into consideration on the architectures that require
-  // padding to be inserted even for arguments passed in registers.
-  if (ABI.OnlyStartDoubleArgumentsFromAnEvenRegister()) {
-    const uint64_t PointerSize = ABI.getPointerSize();
-    bool MultiAligned = Size >= PointerSize && Alignment > PointerSize;
-    bool LastRegisterUsed = ConsideredRegisterCounter == Registers.size();
-    bool FirstRegisterOdd = (OccupiedRegisterCount & 1) != 0;
-    if (MultiAligned && !LastRegisterUsed && FirstRegisterOdd) {
-      LoggerIndent Indentation(Log);
-      revng_log(Log,
-                "Because the ABI requires arguments placed in the "
-                "registers to also be aligned, an extra register needs "
-                "to be used to hold the padding.");
-
-      if (OccupiedRegisterCount + 1 == Registers.size()) {
-        // Omit marking the very last register as padding since the argument
-        // is going to end up on the stack anyway.
-      } else {
-        revng_assert(OccupiedRegisterCount < Registers.size());
-
-        // Add an extra "padding" argument to represent this.
-        DistributedValue &Padding = Result.emplace_back();
-        Padding.Registers = { Registers[OccupiedRegisterCount++] };
-        Padding.Size = PointerSize;
-        Padding.RepresentsPadding = true;
-
-        // The padding register does not count towards the limit
-        ++LastRegister;
-      }
-
-      if (ConsideredRegisterCounter < LastRegister)
-        ++ConsideredRegisterCounter;
     }
   }
 
@@ -194,16 +225,49 @@ ValueDistributor::distribute(uint64_t Size,
 
 DistributedValues
 ArgumentDistributor::nonPositionBased(bool IsScalar,
-                                      bool IsFloat,
+                                      FloatingPointKind FPKind,
                                       uint64_t Size,
                                       uint64_t Alignment,
                                       bool HasNaturalAlignment) {
+  // We need to make sure all the aggregates we consider naturally aligned are
+  // actually padded accordingly to the full aggregate alignment.
+  //
+  // For example, when a struct, like
+  // ```cpp
+  // struct A { uint64_t a[5]; };
+  // ```
+  // is used as a field of a union, other fields of which have wider alignment
+  // requirements, like
+  // ```cpp
+  // union B { struct A a; uint128_t b; };
+  // ```
+  // (assuming the ABI in question aligns `uint128_t` to 16 bytes),
+  //
+  // the actual size of B is the *size* of `a` padded to the alignment of `b`.
+  //
+  // Note that ABIs packing their arguments are excluded from this - as they
+  // already handle padding in a special way.
+  if (not IsScalar and HasNaturalAlignment and not ABI.PackStackArguments()) {
+    revng_assert(Size != 0);
+    Size = paddedSizeOnStack(Size, Alignment);
+  }
+
+  const auto Strategy = argumentStrategy(ABI, FPKind);
+  if (Strategy == abi::FloatingPointStrategy::Ignored) {
+    revng_log(Log,
+              "Ignoring an argument because the floating point strategy of `"
+                << model::ABI::getName(ABI.ABI()) << "` is `Ignored`.");
+
+    ++ArgumentIndex;
+    return { DistributedValue::ignoredValuePlaceholder() };
+  }
+
   uint64_t RegisterLimit = 0;
   bool ForbidSplitting = false;
   bool UsesPointerToCopy = false;
   uint64_t *RegisterCounter = nullptr;
   std::span<const model::Register::Values> RegisterList;
-  if (IsFloat && !ABI.FloatsUseGPRs()) {
+  if (Strategy == abi::FloatingPointStrategy::NextRegisterFromTheDedicatedSet) {
     RegisterList = ABI.FloatArgumentRegisters();
     RegisterCounter = &UsedFloatRegisterCount;
 
@@ -220,6 +284,8 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
       DistributedValue Result;
       Result.Size = Size;
       Result.Registers.emplace_back(RegisterList[(*RegisterCounter)++]);
+
+      ++ArgumentIndex;
       return { Result };
     } else {
       // If there are no free registers left, explicitly set the limit to 0,
@@ -231,11 +297,21 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
     // Explicitly disallow splitting float arguments across the registers
     // and the stack.
     ForbidSplitting = true;
+
   } else {
     RegisterList = ABI.GeneralPurposeArgumentRegisters();
     RegisterCounter = &UsedGeneralPurposeRegisterCount;
-    RegisterLimit = IsScalar ? ABI.MaximumGPRsPerScalarArgument() :
-                               ABI.MaximumGPRsPerAggregateArgument();
+
+    if (Strategy == abi::FloatingPointStrategy::Stack) {
+      // The value is passed directly on the stack: it is never offered a
+      // register, and it is not split between the registers and the stack
+      // either.
+      RegisterLimit = 0;
+      ForbidSplitting = true;
+    } else {
+      RegisterLimit = IsScalar ? ABI.MaximumGPRsPerScalarArgument() :
+                                 ABI.MaximumGPRsPerAggregateArgument();
+    }
 
     // Allow positional-ABI-like pointer-to-copy substitution if ABI requires it
     if (ABI.BigArgumentsUsePointersToCopy()
@@ -295,23 +371,72 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
   return std::move(Result);
 }
 
-DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
+DistributedValues ArgumentDistributor::positionBased(FloatingPointKind FPKind,
                                                      uint64_t Size) {
-  DistributedValue Result;
-  Result.Size = Size;
-  if (Result.Size > ABI.getPointerSize()) {
-    Result.Size = ABI.getPointerSize();
-    Result.UsesPointerToCopy = true;
+  // Propagate ignored arguments up.
+  const auto Strategy = argumentStrategy(ABI, FPKind);
+  if (Strategy == abi::FloatingPointStrategy::Ignored) {
+    revng_log(Log,
+              "Ignoring an argument because the floating point strategy of `"
+                << model::ABI::getName(ABI.ABI()) << "` is `Ignored`.");
 
-    // Pointers never use float registers.
-    IsFloat = false;
+    ++ArgumentIndex;
+
+    // The slot is consumed even if an argument is ignored: that's the big
+    // advantage of position-based ABIs - predictability over efficiency.
+    uint64_t CurrentArgumentIndex = nextPositionBasedIndex();
+    UsedGeneralPurposeRegisterCount = CurrentArgumentIndex + 1;
+
+    return { DistributedValue::ignoredValuePlaceholder() };
   }
 
-  bool UseVR = ABI.FloatsUseGPRs() ? false : IsFloat;
-  const auto &UsedRegisters = UseVR ? ABI.FloatArgumentRegisters() :
-                                      ABI.GeneralPurposeArgumentRegisters();
-  uint64_t &UsedRegisterCount = UseVR ? UsedFloatRegisterCount :
-                                        UsedGeneralPurposeRegisterCount;
+  namespace FPS = abi::FloatingPointStrategy;
+  bool UseFloatRegisters = Strategy == FPS::NextRegisterFromTheDedicatedSet
+                           and FPKind == FloatingPointKind::FloatPrimitive;
+
+  DistributedValue Result;
+  Result.Size = Size;
+
+  // Handle pointer-to-copy substitution.
+  Result.UsesPointerToCopy = false;
+  if (UseFloatRegisters) {
+    revng_assert(not ABI.FloatArgumentRegisters().empty(),
+                 "Using the dedicated floating point register set requires at "
+                 "least one such register present!");
+    const auto FirstRegister = ABI.FloatArgumentRegisters().front();
+    if (Result.Size > model::Register::getSize(FirstRegister))
+      Result.UsesPointerToCopy = true;
+
+  } else {
+    if (not ABI.GeneralPurposeArgumentRegisters().empty()) {
+      const auto FirstGPR = ABI.GeneralPurposeArgumentRegisters().front();
+      revng_assert(model::Register::getSize(FirstGPR) == ABI.getPointerSize(),
+                   "GPR of an unsupported size is used as an argument.");
+    }
+
+    if (Result.Size > ABI.getPointerSize())
+      Result.UsesPointerToCopy = true;
+  }
+
+  // Under a position based ABI every argument occupies one slot, so a value
+  // that never goes in a register cannot simply be appended to the stack:
+  // instead a pointer to copy is used.
+  if (Strategy == abi::FloatingPointStrategy::Stack)
+    Result.UsesPointerToCopy = true;
+
+  if (Result.UsesPointerToCopy) {
+    Result.Size = ABI.getPointerSize();
+
+    // Pointers never use float registers.
+    UseFloatRegisters = false;
+  }
+
+  const auto &UsedRegisters = UseFloatRegisters ?
+                                ABI.FloatArgumentRegisters() :
+                                ABI.GeneralPurposeArgumentRegisters();
+  uint64_t &UsedRegisterCount = UseFloatRegisters ?
+                                  UsedFloatRegisterCount :
+                                  UsedGeneralPurposeRegisterCount;
 
   uint64_t CurrentArgumentIndex = nextPositionBasedIndex();
   if (CurrentArgumentIndex < UsedRegisters.size()) {
@@ -341,12 +466,36 @@ DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
   return { Result };
 }
 
-DistributedValue ReturnValueDistributor::returnValue(const model::Type &Type) {
-  revng_assert(!Type.isVoidPrimitive());
+DistributedValue ReturnValueDistributor::returnValue(const model::Type &T) {
+  revng_assert(!T.isVoidPrimitive());
+
+  // Position-based ABIs do not use floating point registers for aggregates:
+  // such values are returned in the general purpose registers instead.
+  auto FPKind = floatingPointKind(T);
+  auto Strategy = returnValueStrategy(ABI, FPKind);
+  if (Strategy == abi::FloatingPointStrategy::NextRegisterFromTheDedicatedSet
+      and FPKind == FloatingPointKind::FloatContainingAggregate
+      and ABI.ArgumentsArePositionBased()) {
+    namespace FPS = abi::FloatingPointStrategy;
+    Strategy = FPS::NextRegisterFromTheGeneralPurposeRegisterSet;
+  }
+
+  if (Strategy == abi::FloatingPointStrategy::Ignored) {
+    revng_log(Log,
+              "Dropping a return value because the floating point strategy of `"
+                << model::ABI::getName(ABI.ABI()) << "` is `Ignored`.");
+    return DistributedValue::ignoredValuePlaceholder();
+  }
 
   uint64_t Limit = 0;
   std::span<const model::Register::Values> RegisterList;
-  if (Type.isFloatPrimitive() and not ABI.FloatsUseGPRs()) {
+  namespace FPS = abi::FloatingPointStrategy;
+  if (Strategy == FPS::Stack) {
+    // `Stack` in the return value context just means SPTAR.
+    RegisterList = {};
+    Limit = 0;
+
+  } else if (Strategy == FPS::NextRegisterFromTheDedicatedSet) {
     RegisterList = ABI.FloatReturnValueRegisters();
 
     // For now replace unsupported floating point return values with `void`
@@ -359,13 +508,17 @@ DistributedValue ReturnValueDistributor::returnValue(const model::Type &Type) {
     // value. For more information see the relevant comment in
     // `distributeRegisterArguments`.
     Limit = 1;
-  } else {
+
+  } else if (Strategy == FPS::NextRegisterFromTheGeneralPurposeRegisterSet) {
     RegisterList = ABI.GeneralPurposeReturnValueRegisters();
-    Limit = Type.isScalar() ? ABI.MaximumGPRsPerScalarReturnValue() :
-                              ABI.MaximumGPRsPerAggregateReturnValue();
+    Limit = T.isScalar() ? ABI.MaximumGPRsPerScalarReturnValue() :
+                           ABI.MaximumGPRsPerAggregateReturnValue();
+
+  } else {
+    revng_abort("Unknown floating point strategy.");
   }
 
-  auto &&[Result, _] = distribute(Type, RegisterList, 0, Limit, true);
+  auto &&[Result, _] = distribute(T, RegisterList, 0, Limit, true);
   revng_assert(Result.size() == 1, "Return values should never be padded.");
   return Result[0];
 }
