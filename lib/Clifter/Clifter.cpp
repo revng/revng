@@ -1386,7 +1386,7 @@ private:
         Callee = emitImplicitBitcast(Loc, Callee, C.getPointerType(CallType));
       }
 
-      llvm::ArrayRef LayoutArguments = getLayoutArguments(Layout);
+      llvm::ArrayRef LayoutArguments = Layout.argumentsForC();
       revng_assert(I->arg_size() == LayoutArguments.size());
       revng_assert(I->arg_size() == CallType.getArgumentTypes().size());
 
@@ -1938,16 +1938,8 @@ private:
 
   //===----------------------- LLVM function import -----------------------===//
 
-  static llvm::ArrayRef<abi::FunctionType::Layout::Argument>
-  getLayoutArguments(const abi::FunctionType::Layout &Layout) {
-    llvm::ArrayRef LayoutArguments = Layout.Arguments;
-    if (Layout.hasSPTAR())
-      LayoutArguments = LayoutArguments.drop_front();
-    return LayoutArguments;
-  }
-
   void initializeArgumentMapping(const llvm::Function *F) {
-    llvm::ArrayRef LayoutArguments = getLayoutArguments(FunctionLayout);
+    llvm::ArrayRef LayoutArguments = FunctionLayout.argumentsForC();
     revng_assert(F->arg_size() == Function.getArgumentTypes().size());
     revng_assert(F->arg_size() == LayoutArguments.size());
 
