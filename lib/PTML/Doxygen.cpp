@@ -299,8 +299,8 @@ gatherArgumentComments(const model::Binary &Binary,
     //
     // which is pretty confusing, isn't it?
 
-    std::size_t IndOffset = Layout.hasSPTAR() ? 1 : 0;
-    revng_assert(FT->Arguments().size() + IndOffset == Layout.Arguments.size());
+    auto LayoutArguments = Layout.argumentsForC();
+    revng_assert(FT->Arguments().size() == LayoutArguments.size());
     for (size_t Index = 0; Index < FT->Arguments().size(); ++Index) {
       const std::string &Comment = FT->Arguments().at(Index).Comment();
       if (!Comment.empty()) {
@@ -322,7 +322,7 @@ gatherArgumentComments(const model::Binary &Binary,
         N.ExtraAttributes.emplace_back(Attribute::LocationReferences.str(),
                                        Location);
 
-        const auto CurrentArgument = Layout.Arguments[Index + IndOffset];
+        const auto &CurrentArgument = LayoutArguments[Index];
         if (!CurrentArgument.Registers.empty()) {
           Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
           for (const auto &Portion : skip_back(CurrentArgument.Registers)) {

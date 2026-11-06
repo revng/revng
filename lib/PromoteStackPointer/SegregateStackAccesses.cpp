@@ -1271,20 +1271,8 @@ void SegregateFunctionStack::prepareReturnValueStorage() {
 }
 
 void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
-  using namespace abi::FunctionType;
-  using namespace abi::FunctionType::ArgumentKind;
-
-  // The SPTAR argument was handled in prepareReturnValueStorage; drop it
-  // from the list of arguments we still need to lower.
-  auto ModelArguments = llvm::make_range(Layout.Arguments.begin(),
-                                         Layout.Arguments.end());
-  if (Layout.returnMethod() == ReturnMethod::ModelAggregate
-      and Layout.hasSPTAR()) {
-    ModelArguments = llvm::drop_begin(ModelArguments);
-  }
-
   for (auto &&[ModelArgument, NewArgument] :
-       zip(ModelArguments, NewFunction->args())) {
+       zip(Layout.argumentsForC(), NewFunction->args())) {
 
     unsigned OffsetInNewArgument = 0;
     Type *NewArgumentType = NewArgument.getType();
@@ -1293,6 +1281,7 @@ void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
     llvm::Value *ToRecordSpan = nullptr;
     bool UsesStack = ModelArgument.Stack.has_value();
 
+    using namespace abi::FunctionType::ArgumentKind;
     if (ModelArgument.Kind == PointerToCopy) {
       auto Architecture = SSA.Binary.Architecture();
       auto PointerSize = model::Architecture::getPointerSize(Architecture);
