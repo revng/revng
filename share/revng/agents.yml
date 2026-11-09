@@ -3,17 +3,24 @@
 #
 
 claude:
-  - claude
+  command: [claude, --append-system-prompt, $instructions]
+  user_prompt_args: [$user_prompt]
 codex:
-  - codex
-  - --no-daemon
-  # By default codex runs commands with sandboxing, which causes errors such as
-  # `Directory '$HOME/.cache/revng' is not writable`, which is confusing for the
-  # user. Moreover it continuously asks to run each `revng` command without any
-  # option to allow all `revng *` commands. To circumvent both of these issues
-  # run the agent without the sandbox.
-  - --sandbox
-  - danger-full-access
+  command:
+    - codex
+    - --no-daemon
+    - -c
+    - developer_instructions=$instructions_toml
+    # By default codex runs commands with sandboxing, which causes errors such
+    # as `Directory '$HOME/.cache/revng' is not writable`, which is confusing
+    # for the user. Moreover it continuously asks to run each `revng` command
+    # without any option to allow all `revng *` commands. To circumvent both of
+    # these issues run the agent without the sandbox.
+    - --sandbox
+    - danger-full-access
+  user_prompt_args: [$user_prompt]
 opencode:
-  - opencode
-  - --prompt
+  command: [opencode]
+  user_prompt_args: [--prompt, $user_prompt]
+  environment:
+    OPENCODE_CONFIG_CONTENT: '{"instructions": ["${instructions_file}"]}'

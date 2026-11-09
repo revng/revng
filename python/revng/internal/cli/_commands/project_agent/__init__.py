@@ -2,15 +2,18 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import hashlib
+import json
 import os
 import shutil
 import signal
+import string
 import subprocess
 import sys
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator
+from typing import Generator, NotRequired, TypedDict
 
 import click
 import yaml
@@ -23,7 +26,18 @@ from revng.pypeline.storage.storage_provider import storage_provider_factory_fac
 from revng.support import get_root
 
 
-def _load_agents() -> dict[str, list[str]]:
+class AgentEntry(TypedDict):
+    # Command to run the agent, if a string contains a $var placeholder it will
+    # be replaced
+    command: list[str]
+    # Additional arguments if a user prompt has been specified
+    user_prompt_args: list[str]
+    # Environment variables to use to run the agent. These also have variable
+    # placeholders replaced before passing them to the process.
+    environment: NotRequired[dict[str, str]]
+
+
+def _load_agents() -> dict[str, AgentEntry]:
     with open(get_root() / "share/revng/agents.yml") as f:
         return yaml.safe_load(f)
 
@@ -42,8 +56,8 @@ def _detect_or_ask_agent():
         cache_file.write_text(agent_name)
 
     agents_present = []
-    for agent, agent_cmd in AGENTS.items():
-        if shutil.which(agent_cmd[0]) is not None:
+    for agent, agent_config in AGENTS.items():
+        if shutil.which(agent_config["command"][0]) is not None:
             agents_present.append(agent)
 
     if len(agents_present) == 0:
@@ -112,17 +126,23 @@ def _daemon(ctx: ClickContext, socket_path: Path) -> Generator[None]:
     type=click.Choice(AGENTS),
     help="Use the specified agent, skipping auto-detection.",
 )
-@click.option("--prompt-append", help="Append the specified string to the prompt.")
+@click.option("--system-prompt-append", help="Append the specified string to the system prompt.")
+@click.option("--user-prompt", help="Start the agent with the specified user prompt.")
 @pass_context
-def project_agent(ctx: ClickContext, agent: str | None, prompt_append: str | None):
+def project_agent(
+    ctx: ClickContext,
+    agent: str | None,
+    system_prompt_append: str | None,
+    user_prompt: str | None,
+):
     """Run a coding agent against the project's daemon."""
 
     if agent is not None:
-        if shutil.which(agent) is None:
+        agent_config = AGENTS[agent]
+        if shutil.which(agent_config["command"][0]) is None:
             raise click.ClickException(f"{agent} is not installed")
-        agent_cmd = AGENTS[agent]
     else:
-        agent_cmd = _detect_or_ask_agent()
+        agent_config = _detect_or_ask_agent()
 
     factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
     model_path = factory.model_path(ctx.obj.base_directory)
@@ -135,21 +155,45 @@ def project_agent(ctx: ClickContext, agent: str | None, prompt_append: str | Non
         template = Template(f.read())
 
     doc_root = str(get_root() / "share/doc/revng")
-    prompt = template.render({"doc_root": doc_root})
-    if prompt_append is not None:
-        prompt += "\n"
-        prompt += prompt_append
+    instructions = template.render(
+        {"doc_root": doc_root, "system_prompt_append": system_prompt_append}
+    )
 
-    command = (*agent_cmd, prompt)
-    env = {**os.environ, "REVNG_STORAGE_PROVIDER": f"daemon://!unix{socket_path.resolve()!s}"}
+    # Write the instructions to a file, needed for some agents
+    instructions_hash = hashlib.sha256(instructions.encode("utf-8")).hexdigest()[:8]
+    instructions_file = cache_directory() / "prompts" / f"prompt_{instructions_hash}.md"
+    instructions_file.parent.mkdir(parents=True, exist_ok=True)
+    instructions_file.write_text(instructions)
+
+    variables = {
+        "instructions": instructions,
+        # A JSON string is also a valid TOML basic string
+        "instructions_toml": json.dumps(instructions),
+        "instructions_file": str(instructions_file),
+        "user_prompt": user_prompt,
+    }
+
+    def expand(value: str) -> str:
+        return string.Template(value).substitute(variables)
+
+    command = list(agent_config["command"])
+    if user_prompt is not None:
+        command.extend(agent_config["user_prompt_args"])
+    command = [expand(a) for a in command]
+
+    env = {
+        **os.environ,
+        **{k: expand(v) for k, v in agent_config.get("environment", {}).items()},
+        "REVNG_STORAGE_PROVIDER": f"daemon://!unix{socket_path.resolve()!s}",
+    }
     with _daemon(ctx, socket_path):
         return subprocess.run(command, cwd=model_path.parent, env=env, check=False).returncode
 
 
 @click.command(name="detect-agents")
 def detect_agents():
-    for agent_name, agent_cmd in AGENTS.items():
-        if shutil.which(agent_cmd[0]) is not None:
+    for agent_name, agent_config in AGENTS.items():
+        if shutil.which(agent_config["command"][0]) is not None:
             sys.stdout.write(agent_name + "\n")
 
 
