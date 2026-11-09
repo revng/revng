@@ -1482,7 +1482,7 @@ private:
       }
 
       Operand = Builder.create<BitCastOp>(Loc,
-                                          C.getPointerType(C.getIntegerType(1)),
+                                          C.getIntptrType(),
                                           Operand);
 
       mlir::Value Index = rc_recur emitExpression(GEPIndex, Loc);
@@ -1490,10 +1490,7 @@ private:
                                              Index,
                                              getObjectSize(Operand));
 
-      rc_return Builder.create<PtrAddOp>(Loc,
-                                         Operand.getType(),
-                                         Operand,
-                                         Index);
+      rc_return Builder.create<AddOp>(Loc, Operand, Index);
     }
 
     if (auto I = llvm::dyn_cast<llvm::FreezeInst>(V))
