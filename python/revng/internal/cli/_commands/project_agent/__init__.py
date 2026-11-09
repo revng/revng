@@ -113,8 +113,16 @@ def _daemon(ctx: ClickContext, socket_path: Path) -> Generator[None]:
     help="Use the specified agent, skipping auto-detection.",
 )
 @click.option("--prompt-append", help="Append the specified string to the prompt.")
+@click.option(
+    "--has-instructions", is_flag=True, help="The appended prompt has instructions on what to do"
+)
 @pass_context
-def project_agent(ctx: ClickContext, agent: str | None, prompt_append: str | None):
+def project_agent(
+    ctx: ClickContext,
+    agent: str | None,
+    prompt_append: str | None,
+    has_instructions: bool,
+):
     """Run a coding agent against the project's daemon."""
 
     if agent is not None:
@@ -135,10 +143,9 @@ def project_agent(ctx: ClickContext, agent: str | None, prompt_append: str | Non
         template = Template(f.read())
 
     doc_root = str(get_root() / "share/doc/revng")
-    prompt = template.render({"doc_root": doc_root})
-    if prompt_append is not None:
-        prompt += "\n"
-        prompt += prompt_append
+    prompt = template.render(
+        {"doc_root": doc_root, "prompt_append": prompt_append, "has_instructions": has_instructions}
+    )
 
     command = (*agent_cmd, prompt)
     env = {**os.environ, "REVNG_STORAGE_PROVIDER": f"daemon://!unix{socket_path.resolve()!s}"}
