@@ -27,8 +27,8 @@ nav:
           - Model: "user-manual/key-concepts/model.md"
           - "Artifacts and analyses": "user-manual/key-concepts/artifacts-and-analyses.md"
       - Tutorial:
+          - "Your first decompilation": "user-manual/tutorial/first-decompilation.md"
           - "A model from scratch": "user-manual/tutorial/model-from-scratch.md"
-          - "Running the initial auto-analysis": "user-manual/tutorial/running-initial-auto-analysis.md"
           - "Editing types in C": "user-manual/tutorial/editing-types-in-c.md"
           - "Comments and local variables": "user-manual/tutorial/comments-and-local-variables.md"
       - "Python scripting": "user-manual/python-scripting.md"

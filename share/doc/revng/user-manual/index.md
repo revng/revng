@@ -14,6 +14,7 @@ The manual discusses the following topics:
     3. [Artifacts and analyses](key-concepts/artifacts-and-analyses.md). In rev.ng, you mostly do two things: either you produce an artifact, for instance the decompiled C code of a function, or you run an analysis, for instance the analysis detecting the arguments of a function.
        This section introduces the concepts of "artifact" and "analysis" in rev.ng.
 3. Tutorial: a practical walkthrough to better understand the concepts above and become familiar with rev.ng's command line and scripting interfaces.
-    1. [A model from scratch](tutorial/model-from-scratch.md): a practical, step-by-step tutorial on how to build a model from scratch and how to produce artifacts such as disassembly and decompiled code.
-    2. [Running the initial auto-analysis](tutorial/running-initial-auto-analysis.md): analyses are the part of rev.ng that automatically infer information about a binary and write them in the model, just as a user could do.
-    <br />rev.ng provides analyses to detect function entry points, function prototypes, data structures and more.
+    1. [Your first decompilation](tutorial/first-decompilation.md): decompile a program in a single command with `revng quick`, then create a persistent project with `revng project` to keep working on it.
+    2. [A model from scratch](tutorial/model-from-scratch.md): a practical, step-by-step tutorial on how to build a model from scratch and how to produce artifacts such as disassembly and decompiled code.
+    3. [Editing types in C](tutorial/editing-types-in-c.md): name and refine a recovered data structure by editing it as a C declaration.
+    4. [Comments and local variables](tutorial/comments-and-local-variables.md): comment statements, and name and retype local variables, by editing the decompiled C.

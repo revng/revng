@@ -1,3 +1,6 @@
+In the [previous page](first-decompilation.md) the initial auto-analysis wrote the model for us.
+Let's now build one by hand, starting from nothing, to see what each part of it is for.
+
 An empty model is a valid model:
 
 ```bash
