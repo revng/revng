@@ -171,7 +171,51 @@ entry:
 }
 ; CHECK-DAG: define ptr @helper_conditional_select(i1 %c, ptr %base) section "revng_inline" !revng.inline.policy ![[COND_GEP]]
 
+;
+; (10) Calls to other inline helpers, which are expected to be inlined: the
+; actual arguments in the critical positions of the callee
+; (`@helper_conditional_gep`) have to become constants too.
+;
+; (10a) The caller passes an argument which is already critical: the call is
+; inlined.
+;
+define ptr @helper_already_critical(ptr %base, i64 %idx) section "revng_inline" {
+entry:
+  %own = getelementptr i64, ptr %base, i64 %idx
+  %p = call ptr @helper_conditional_gep(i64 %idx, ptr %own)
+  ret ptr %p
+}
+; CHECK-DAG: define ptr @helper_already_critical(ptr %base, i64 %idx) section "revng_inline" !revng.inline.policy ![[COND_SWITCH]]
+; CHECK-DAG: call ptr @helper_conditional_gep(i64 %idx, ptr %own){{$}}
+
+;
+; (10b) The caller forwards an argument which is not critical: the call stays
+; a call, to be inlined depending on the actual arguments.
+;
+define ptr @helper_forwarding(ptr %base, i64 %forwarded) section "revng_inline" {
+entry:
+  %p = call ptr @helper_conditional_gep(i64 %forwarded, ptr %base)
+  ret ptr %p
+}
+; CHECK-DAG: define ptr @helper_forwarding(ptr %base, i64 %forwarded) section "revng_inline" !revng.inline.policy ![[ALWAYS_TWO:[0-9]+]]
+; CHECK-DAG: call ptr @helper_conditional_gep(i64 %forwarded, ptr %base) [[NOINLINE:#[0-9]+]]
+
+;
+; (10c) The caller passes a runtime value: the call stays a call.
+;
+define ptr @helper_runtime_argument(ptr %base) section "revng_inline" {
+entry:
+  %runtime = load i32, ptr @runtime_csv
+  %runtime_idx = zext i32 %runtime to i64
+  %p = call ptr @helper_conditional_gep(i64 %runtime_idx, ptr %base)
+  ret ptr %p
+}
+; CHECK-DAG: define ptr @helper_runtime_argument(ptr %base) section "revng_inline" !revng.inline.policy ![[ALWAYS]]
+; CHECK-DAG: call ptr @helper_conditional_gep(i64 %runtime_idx, ptr %base) [[NOINLINE]]
+; CHECK-DAG: attributes [[NOINLINE]] = { noinline }
+
 ; Checks for the metadata shapes themselves.
 ; CHECK-DAG: ![[ALWAYS]] = !{i2 0}
+; CHECK-DAG: ![[ALWAYS_TWO]] = !{i3 0}
 ; CHECK-DAG: ![[COND_SWITCH]] = !{i3 2}
 ; CHECK-DAG: ![[COND_GEP]] = !{i3 1}
