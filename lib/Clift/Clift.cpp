@@ -1911,6 +1911,14 @@ static FunctionType unwrapCalleeType(mlir::Type CalleeType) {
   return mlir::dyn_cast<FunctionType>(CalleeType);
 }
 
+FunctionOp CallOp::getCalledFunction() {
+  if (auto Use = getCallee().getDefiningOp<UseOp>()) {
+    if (mlir::Operation *Global = Use.getUsedGlobal())
+      return mlir::dyn_cast<FunctionOp>(Global);
+  }
+  return {};
+}
+
 FunctionType CallOp::getFunctionType() {
   return unwrapCalleeType(getCalleeType());
 }

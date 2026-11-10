@@ -1197,6 +1197,7 @@ def Clift_CallOp : Clift_ExpressionOp<"call"> {
     }
 
     [[nodiscard]] FunctionType getFunctionType();
+    [[nodiscard]] FunctionOp getCalledFunction();
   }];
 }
 
