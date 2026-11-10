@@ -242,11 +242,16 @@ public:
 
     revng_assert((mlir::isa<TestOp,
                             NegOp,
+                            FNegOp,
                             AddOp,
+                            FAddOp,
                             SubOp,
+                            FSubOp,
                             MulOp,
+                            FMulOp,
                             SDivOp,
                             UDivOp,
+                            FDivOp,
                             SRemOp,
                             URemOp,
                             ShlOp,
@@ -261,15 +266,21 @@ public:
                             PostIncrementOp,
                             PostDecrementOp,
                             CmpEqOp,
+                            FCmpEqOp,
                             CmpNeOp,
+                            FCmpNeOp,
                             SCmpLtOp,
                             UCmpLtOp,
+                            FCmpLtOp,
                             SCmpGtOp,
                             UCmpGtOp,
+                            FCmpGtOp,
                             SCmpLeOp,
                             UCmpLeOp,
+                            FCmpLeOp,
                             SCmpGeOp,
-                            UCmpGeOp>(Op)));
+                            UCmpGeOp,
+                            FCmpGeOp>(Op)));
 
     return emitUsualIntrinsicExpression(Op);
   }
@@ -569,13 +580,13 @@ public:
   }
 
   static CTE::Operator getOperator(mlir::Operation *Op) {
-    if (mlir::isa<NegOp, SubOp, PtrSubOp, PtrDiffOp>(Op))
+    if (mlir::isa<NegOp, FNegOp, SubOp, FSubOp, PtrSubOp, PtrDiffOp>(Op))
       return CTE::Operator::Minus;
-    if (mlir::isa<AddOp, PtrAddOp>(Op))
+    if (mlir::isa<AddOp, FAddOp, PtrAddOp>(Op))
       return CTE::Operator::Plus;
-    if (mlir::isa<MulOp, IndirectionOp>(Op))
+    if (mlir::isa<MulOp, FMulOp, IndirectionOp>(Op))
       return CTE::Operator::Star;
-    if (mlir::isa<SDivOp, UDivOp>(Op))
+    if (mlir::isa<SDivOp, UDivOp, FDivOp>(Op))
       return CTE::Operator::Slash;
     if (mlir::isa<SRemOp, URemOp>(Op))
       return CTE::Operator::Percent;
@@ -597,17 +608,17 @@ public:
       return CTE::Operator::LessLess;
     if (mlir::isa<ShrOp, SarOp>(Op))
       return CTE::Operator::GreaterGreater;
-    if (mlir::isa<CmpEqOp>(Op))
+    if (mlir::isa<CmpEqOp, FCmpEqOp>(Op))
       return CTE::Operator::EqualsEquals;
-    if (mlir::isa<CmpNeOp>(Op))
+    if (mlir::isa<CmpNeOp, FCmpNeOp>(Op))
       return CTE::Operator::ExclaimEquals;
-    if (mlir::isa<SCmpLtOp, UCmpLtOp>(Op))
+    if (mlir::isa<SCmpLtOp, UCmpLtOp, FCmpLtOp>(Op))
       return CTE::Operator::Less;
-    if (mlir::isa<SCmpGtOp, UCmpGtOp>(Op))
+    if (mlir::isa<SCmpGtOp, UCmpGtOp, FCmpGtOp>(Op))
       return CTE::Operator::Greater;
-    if (mlir::isa<SCmpLeOp, UCmpLeOp>(Op))
+    if (mlir::isa<SCmpLeOp, UCmpLeOp, FCmpLeOp>(Op))
       return CTE::Operator::LessEquals;
-    if (mlir::isa<SCmpGeOp, UCmpGeOp>(Op))
+    if (mlir::isa<SCmpGeOp, UCmpGeOp, FCmpGeOp>(Op))
       return CTE::Operator::GreaterEquals;
     if (mlir::isa<IncrementOp, PostIncrementOp>(Op))
       return CTE::Operator::PlusPlus;
@@ -822,6 +833,7 @@ public:
     }
 
     if (mlir::isa<NegOp,
+                  FNegOp,
                   BitwiseNotOp,
                   LogicalNotOp,
                   IncrementOp,
@@ -834,14 +846,20 @@ public:
       };
     }
 
-    if (mlir::isa<MulOp, SDivOp, UDivOp, SRemOp, URemOp>(E)) {
+    if (mlir::isa<MulOp, FMulOp, SDivOp, UDivOp, FDivOp, SRemOp, URemOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Multiplicative,
         .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
-    if (mlir::isa<AddOp, SubOp, PtrAddOp, PtrSubOp, PtrDiffOp>(E)) {
+    if (mlir::isa<AddOp, //
+                  FAddOp,
+                  SubOp,
+                  FSubOp,
+                  PtrAddOp,
+                  PtrSubOp,
+                  PtrDiffOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Additive,
         .Emit = &CliftToCEmitter::emitInfixExpression,
@@ -857,19 +875,23 @@ public:
 
     if (mlir::isa<SCmpLtOp,
                   UCmpLtOp,
+                  FCmpLtOp,
                   SCmpGtOp,
                   UCmpGtOp,
+                  FCmpGtOp,
                   SCmpLeOp,
                   UCmpLeOp,
+                  FCmpLeOp,
                   SCmpGeOp,
-                  UCmpGeOp>(E)) {
+                  UCmpGeOp,
+                  FCmpGeOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Relational,
         .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
-    if (mlir::isa<CmpEqOp, CmpNeOp>(E)) {
+    if (mlir::isa<CmpEqOp, FCmpEqOp, CmpNeOp, FCmpNeOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Equality,
         .Emit = &CliftToCEmitter::emitInfixExpression,
