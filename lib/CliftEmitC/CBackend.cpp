@@ -175,6 +175,21 @@ public:
     rc_return;
   }
 
+  RecursiveCoroutine<void>
+  emitIntrinsicFloatingPointImmediateExpression(FImmediateOp E) {
+    emitIntrinsicMacro(getIntrinsicIdentifier(E));
+    Tokens.emitOperator(CTE::Operator::LeftParenthesis);
+
+    emitType(E.getType());
+    Tokens.emitPunctuator(CTE::Punctuator::Comma);
+
+    Tokens.emitFloatingPointLiteral(E.getValue(), /*Suffix=*/std::nullopt);
+
+    Tokens.emitOperator(CTE::Operator::RightParenthesis);
+
+    rc_return;
+  }
+
   RecursiveCoroutine<void> emitIntrinsicCastExpression(CastOpInterface E) {
     revng_assert((mlir::isa<BoolExtendOp,
                             ZeroExtendOp,
@@ -216,6 +231,9 @@ public:
 
     if (auto E = mlir::dyn_cast<ImmediateOp>(Op))
       return emitIntrinsicImmediateExpression(E);
+
+    if (auto E = mlir::dyn_cast<FImmediateOp>(Op))
+      return emitIntrinsicFloatingPointImmediateExpression(E);
 
     if (auto E = mlir::dyn_cast<CastOpInterface>(Op)) {
       if (not mlir::isa<TestOp>(Op))
@@ -290,6 +308,23 @@ public:
                        IntType.isSigned(),
                        CType,
                        getConstantRadix(E));
+
+    rc_return;
+  }
+
+  RecursiveCoroutine<void> emitFloatingPointImmediateExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<FImmediateOp>();
+    auto Type = clift::unwrapped_cast<FloatType>(E.getType());
+
+    auto Range = DataModel.getStandardFloatingPointRange(Type.getSize());
+    revng_assert(Range, "Floating point immediate not representable in C.");
+
+    auto CType = Range->first;
+    if (CStandardType::Double <= Range->first
+        and Range->second <= CStandardType::Double)
+      CType = CStandardType::Double;
+
+    Tokens.emitFloatingPointLiteral(E.getValue(), CType);
 
     rc_return;
   }
@@ -688,6 +723,13 @@ public:
       return {
         .Precedence = OperatorPrecedence::Primary,
         .Emit = &CliftToCEmitter::emitImmediateExpression,
+      };
+    }
+
+    if (auto Immediate = mlir::dyn_cast<FImmediateOp>(E.getOperation())) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CliftToCEmitter::emitFloatingPointImmediateExpression,
       };
     }
 
