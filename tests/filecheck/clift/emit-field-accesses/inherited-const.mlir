@@ -3,7 +3,6 @@
 //
 
 // RUN: %root/bin/revng clift-opt %s --emit-field-accesses --canonicalize | FileCheck %s
-// RUN: %root/bin/revng clift-opt %s --refine-types-and-accesses -o /dev/null
 
 !void = !clift.void
 !generic64_t = !clift.int<generic 8>

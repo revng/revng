@@ -49,6 +49,10 @@ namespace immediate_canonicalization {
 } // namespace immediate_canonicalization
 
 namespace expression_optimization {
+#include "revng/CliftTransforms/Expressions.h.inc"
+} // namespace expression_optimization
+
+namespace expression_optional_optimization {
 
 static std::optional<llvm::APInt>
 pointerOffsetQuotient(mlir::IntegerAttr OffsetAttr,
@@ -70,11 +74,6 @@ pointerOffsetQuotient(mlir::IntegerAttr OffsetAttr,
   return Quotient;
 }
 
-#include "revng/CliftTransforms/Expressions.h.inc"
-
-} // namespace expression_optimization
-
-namespace expression_optional_optimization {
 #include "revng/CliftTransforms/ExpressionsOptional.h.inc"
 } // namespace expression_optional_optimization
 
@@ -277,9 +276,11 @@ void clift::populateWithExpressionOptimizationPatterns(mlir::RewritePatternSet
 
   namespace opt = expression_optional_optimization;
 
-  Set.addWithLabel<opt::SubscriptZeroPattern>( //
-    llvm::StringRef("incompatible-with-efa"),
-    Set.getContext());
+  llvm::StringRef IncompatibleWithEFA("incompatible-with-efa");
+  Set.addWithLabel<opt::SubscriptZeroPattern,
+                   opt::PointerArithmeticAddImmPattern,
+                   opt::PointerArithmeticAddMulImmPattern>(IncompatibleWithEFA,
+                                                           Set.getContext());
 
   populateWithBooleanNegationPatterns(Set);
   populateWithCastCanonicalizations(Set);
