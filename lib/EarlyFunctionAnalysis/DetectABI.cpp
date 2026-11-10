@@ -216,6 +216,7 @@ private:
   void propagatePrototypesInFunction(model::Function &Function);
 
 private:
+  /// Record in \p Inserter the registers whose lowest CSV is in \p CSVs.
   void recordRegisters(const efa::CSVSet &CSVs, auto Inserter);
 
   CSVSet computePreservedCSVs(const CSVSet &ClobberedRegisters) const;
@@ -724,11 +725,14 @@ void DetectABI::applyABIDeductions() {
     for (const auto &Register : model::Architecture::registers(Architecture)) {
       for (const model::Register::CSV &RegisterCSV :
            model::Register::getCSVs(Register)) {
+        // A register is an argument or a return value if its lowest CSV is
+        if (RegisterCSV.StartOffset != 0)
+          continue;
+
         llvm::GlobalVariable *CSV = M.getGlobalVariable(RegisterCSV.Name, true);
         if (CSV == nullptr)
           continue;
 
-        // A register is an argument or a return value if any of its CSVs is.
         if (Summary.ABIResults.ArgumentsRegisters.contains(CSV))
           Arguments.emplace(Register);
 
@@ -815,6 +819,7 @@ void DetectABI::recordRegisters(const efa::CSVSet &CSVs, auto Inserter) {
   // type it as `generic64_t` instead of `generic512_t`, which is a lot nicer
   // to work with!
   std::map<model::Register::Values, uint64_t> ConfirmedByteCounts;
+  std::set<model::Register::Values> HasLowestCSV;
   for (auto *CSV : CSVs) {
     model::Register::Portion Portion(CSV->getName(), Binary->Architecture());
     if (Portion.Register == model::Register::Invalid)
@@ -822,10 +827,16 @@ void DetectABI::recordRegisters(const efa::CSVSet &CSVs, auto Inserter) {
 
     uint64_t &Bytes = ConfirmedByteCounts[Portion.Register];
     Bytes = std::max(Bytes, Portion.StartOffset + Portion.Size);
+
+    if (Portion.StartOffset == 0)
+      HasLowestCSV.insert(Portion.Register);
   }
 
   for (auto [Register, ByteCount] : ConfirmedByteCounts) {
     revng_assert(model::Register::getSize(Register) >= ByteCount);
+
+    if (not HasLowestCSV.contains(Register))
+      continue;
 
     namespace PK = model::PrimitiveKind;
     auto Type = model::PrimitiveType::makeNextPowerOfTwo(PK::Generic,
