@@ -782,26 +782,11 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
       if (Comparison != std::strong_ordering::equal)
         return Comparison;
 
-      if (Value == Other.Value)
-        return std::strong_ordering::equal;
-
-      if (Value == nullptr)
-        return std::strong_ordering::less;
-
-      if (Other.Value == nullptr)
-        return std::strong_ordering::greater;
-
-      const APInt &LHS = Value->getValue();
-      const APInt &RHS = Other.Value->getValue();
-      if (LHS.getBitWidth() != RHS.getBitWidth())
-        return LHS.getBitWidth() <=> RHS.getBitWidth();
-
-      if (LHS.ult(RHS))
-        return std::strong_ordering::less;
-
-      return std::strong_ordering::greater;
+      return compareConstantInts(Value, Other.Value);
     }
   };
+  /// The entries are sorted below, so their order must not depend on
+  /// addresses: it decides the order jump targets are registered in
   std::map<uint32_t, SmallVector<Entry>> MaterializedValuesById;
 
   // Collect materialized values
