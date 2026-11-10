@@ -7,10 +7,14 @@
 #include "llvm/IR/Module.h"
 
 #include "revng/Model/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
 
+/// \return true for the variables introduced by rev.ng, such as the
+///         `revng.const.*` strings, as opposed to QEMU's.
 inline bool isSpecialGV(llvm::GlobalVariable &GV) {
   llvm::StringRef Name = GV.getName();
-  return Name == "cpu_loop_exiting" or Name == "arch_cpu_type_beacon";
+  return Name == "cpu_loop_exiting" or Name == "arch_cpu_type_beacon"
+         or Name.starts_with(DefaultStringNamespace);
 }
 
 inline bool isHelper(llvm::Function &F) {

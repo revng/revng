@@ -49,8 +49,9 @@ public:
     // Now that all of the non-`revng_inline` functions have gone, we want to
     // reduce the number of global variables with some help from GlobalDCE.
     // We have three type of variables:
-    // * Special variables (`arch_cpu_type_beacon`, `cpu_loop_exiting`) which
-    //   should not be touched
+    // * Special variables (`arch_cpu_type_beacon`, `cpu_loop_exiting` and the
+    //   `revng.const.*` strings emitted by rev.ng, e.g., abort messages)
+    //   which should not be touched
     // * CSVs we want to keep only the ones used by the `revng_inline`
     //   functions, so we set their linkage temporarily to internal, run
     //   `globaldce` and then restore them to their original linkage
