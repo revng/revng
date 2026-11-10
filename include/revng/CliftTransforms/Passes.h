@@ -18,6 +18,7 @@ using PassPtr = std::unique_ptr<mlir::OperationPass<OpT>>;
 
 PassPtr<mlir::ModuleOp> createQEMUHelperTranslationPass();
 
+PassPtr<clift::FunctionOp> createFloatingPointPromotionPass();
 PassPtr<clift::FunctionOp> createTrivialReturnEliminationPass();
 
 PassPtr<clift::FunctionOp> createLabelMergingPass();

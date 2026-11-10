@@ -223,6 +223,7 @@ clift/expressions/truncate-i32-to-i32.mlir
 clift/expressions/truncate.mlir
 clift/expressions/use-global-variable.mlir
 clift/expressions/use-nonexistent-global-variable.mlir
+clift/floating-point-promotion/float32_add.mlir
 clift/implicit-cast-elision/add.mlir
 clift/implicit-cast-elision/assign.mlir
 clift/implicit-cast-elision/if.mlir

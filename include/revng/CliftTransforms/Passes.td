@@ -26,6 +26,15 @@ def CliftQEMUHelperTranslation : Clift_Pass<"translate-qemu-helpers",
   let constructor = "clift::createQEMUHelperTranslationPass()";
 }
 
+def CliftFloatingPointPromotion
+  : Clift_Pass<"promote-floating-point-operations"> {
+
+  let summary = "Promote external floating point operation function calls into "
+                "first class Clift operations.";
+
+  let constructor = "clift::createFloatingPointPromotionPass()";
+}
+
 def CliftTrivialReturnElimination : Clift_Pass<"trivial-return-elimination"> {
   let summary = "Remove any void return statements where control falls through "
                 "to the end of the function.";
