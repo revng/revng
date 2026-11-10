@@ -10,6 +10,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 
+#include "revng/ADT/Ordering.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Ranks/Location.h"
 #include "revng/Ranks/Ranks.h"
@@ -246,31 +247,11 @@ struct std::hash<const ObjectID> {
 template<>
 struct std::hash<ObjectID> : std::hash<const ObjectID> {};
 
-/// Orders `ObjectID`s through their pointers. The objects live wherever the
-/// caller put them, so comparing the pointers would make the iteration order
-/// of a container depend on the allocator.
-///
-/// A null pointer compares lower than any other one.
-struct ObjectIDPointerLess {
-  bool operator()(const ObjectID *LHS, const ObjectID *RHS) const {
-    if (LHS == nullptr)
-      return RHS != nullptr;
-
-    if (RHS == nullptr)
-      return false;
-
-    return *LHS < *RHS;
-  }
-};
-
 /// The raw data a container deserializes, one entry per object.
 ///
-/// Containers parse the objects in the order they are iterated here, and that
-/// order can reach what they produce: a `LLVMContainer`, for instance, parses
-/// every module into a single `llvm::LLVMContext`, which numbers identically
-/// named struct types in parse order. Hence the `ObjectID` order rather than
-/// the pointer one.
+/// Ordered by `ObjectID` rather than by pointer: containers parse in this
+/// order, and parse order reaches what they produce.
 template<typename T>
-using ObjectIDMap = std::map<const ObjectID *, T, ObjectIDPointerLess>;
+using ObjectIDMap = std::map<const ObjectID *, T, PointeeLess<ObjectID>>;
 
 using RawObjectMap = ObjectIDMap<llvm::ArrayRef<char>>;
