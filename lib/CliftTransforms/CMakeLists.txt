@@ -21,6 +21,7 @@ revng_add_library_internal(
   LoopDetection.cpp
   PatternRewriter.cpp
   PromoteBreakContinue.cpp
+  QEMUHelperTranslation.cpp
   RewriteHelpers.cpp
   Statements.cpp
   TerminalBranchHoisting.cpp

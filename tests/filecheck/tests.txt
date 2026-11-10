@@ -373,6 +373,7 @@ clift/operations/switch-with-mismatched-cases.mlir
 clift/operations/switch-with-pointer-condition.mlir
 clift/operations/switch-without-condition.mlir
 clift/operations/while-without-condition.mlir
+clift/qemu-helper-translation/float32_add.mlir
 clift/reformat/normalization.mlir
 clift/reformat/tag-preservation.mlir
 clift/serialization/const.mlir

@@ -14,6 +14,18 @@ class Clift_Pass<string arg, string operation = "clift::FunctionOp">
   let dependentDialects = ["clift::CliftDialect"];
 }
 
+def CliftQEMUHelperTranslation : Clift_Pass<"translate-qemu-helpers",
+                                            "mlir::ModuleOp"> {
+
+  let summary =
+    "Translates QEMU-specific helper functions to more useful forms.\\n"
+    "* Adds more specific typing (e.g. float in place of generic).\\n"
+    "* Discards unused arguments (e.g. floating point status).\\n"
+    "  Note that this process does not preserve semantics.\\n";
+
+  let constructor = "clift::createQEMUHelperTranslationPass()";
+}
+
 def CliftTrivialReturnElimination : Clift_Pass<"trivial-return-elimination"> {
   let summary = "Remove any void return statements where control falls through "
                 "to the end of the function.";

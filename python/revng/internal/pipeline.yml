@@ -480,6 +480,7 @@ branches:
             #
             # This phase is composed of early one-off rewrites, applied in
             # order to enable or simplify later transformations.
+            - translate-qemu-helpers
             - trivial-return-elimination
             - label-merging
             - loop-detection
