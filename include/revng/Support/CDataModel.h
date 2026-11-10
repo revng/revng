@@ -143,19 +143,44 @@ public:
     return std::pair<CStandardType, CStandardType>(Min, Max);
   }
 
+  /// Returns the (inclusive) range of standard floating point types matching
+  /// the specified size, or nullopt if no such floating point types are
+  /// available.
+  [[nodiscard]] std::optional<std::pair<CStandardType, CStandardType>>
+  getStandardFloatingPointRange(uint8_t Size) const {
+    CStandardType Min = CStandardType::Float;
+    while (Min <= CStandardType::LongDouble and getStandardTypeSize(Min) < Size)
+      Min = next(Min);
+
+    if (Min > CStandardType::LongDouble)
+      return std::nullopt;
+
+    CStandardType Max = Min;
+    while (Max < CStandardType::LongDouble
+           and getStandardTypeSize(next(Max)) <= Size)
+      Max = next(Max);
+
+    return std::pair<CStandardType, CStandardType>(Min, Max);
+  }
+
   [[nodiscard]] unsigned getStandardIntegerSizeMask() const {
     return getCharSize() | getShortSize() | getIntSize() | getLongSize()
            | getLongLongSize();
   }
 
-  [[nodiscard]] unsigned getSuportedIntegerSizeMask() const {
+  [[nodiscard]] unsigned getSupportedIntegerSizeMask() const {
     return getStandardIntegerSizeMask() | ExtendedIntegerSizeMask;
   }
 
   /// \pre \p Size is a power of two.
   [[nodiscard]] bool isSupportedIntegerSize(unsigned Size) const {
     revng_assert(std::has_single_bit(Size));
-    return (getSuportedIntegerSizeMask() & Size) != 0;
+    return (getSupportedIntegerSizeMask() & Size) != 0;
+  }
+
+  [[nodiscard]] bool isSupportedFloatingPointSize(unsigned Size) const {
+    return Size == getFloatSize() or Size == getDoubleSize()
+           or Size == getLongDoubleSize();
   }
 
   [[nodiscard]] bool verify() const;
