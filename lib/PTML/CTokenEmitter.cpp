@@ -80,6 +80,18 @@ getCIntegerLiteralSuffix(const ptml::CTokenEmitter::IntegerSuffix &Suffix) {
   }
 }
 
+static llvm::StringRef getCFloatingPointLiteralSuffix(CStandardType Type) {
+  switch (Type) {
+  default:
+  case CStandardType::Float:
+    return "f";
+  case CStandardType::Double:
+    return "";
+  case CStandardType::LongDouble:
+    return "l";
+  }
+}
+
 static std::optional<llvm::StringRef> getScopeKindAttribute(ScopeKind Kind) {
   switch (Kind) {
   case ScopeKind::None:
@@ -673,6 +685,27 @@ void CTokenEmitter::emitIntegerLiteral(llvm::APInt Value,
 
   if (Suffix.has_value())
     String.append(getCIntegerLiteralSuffix(Suffix.value()));
+
+  auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
+  Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Constant);
+  Tag.finalizeOpenTag();
+
+  PTML.emit(String);
+}
+
+void CTokenEmitter::emitFloatingPointLiteral(llvm::APFloat Value,
+                                             std::optional<CStandardType>
+                                               Suffix) {
+  revng_assert(Value.isFinite());
+  revng_assert(not Suffix or isFloatingPointType(*Suffix));
+  revng_assert(not IsEmittingComment,
+               "Cannot emit tokens while an open CommentEmitter exists.");
+
+  llvm::SmallString<64> String;
+  Value.toString(String);
+
+  if (Suffix)
+    String.append(getCFloatingPointLiteralSuffix(*Suffix));
 
   auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
   Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Constant);
