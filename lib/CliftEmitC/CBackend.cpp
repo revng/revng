@@ -265,16 +265,6 @@ public:
     rc_return;
   }
 
-  static bool isNullPointerConstant(ImmediateOp E) {
-    if (E.getValue() != 0)
-      return false;
-
-    if (auto Cast = getOnlyUser<BitCastOp>(E))
-      return clift::unwrapped_isa<PointerType>(Cast.getType());
-
-    return false;
-  }
-
   RecursiveCoroutine<void> emitImmediateExpression(mlir::Value V) {
     auto E = V.getDefiningOp<ImmediateOp>();
     mlir::Type Type = unwrapTypedefs(E.getType());
