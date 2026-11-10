@@ -14,6 +14,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/ModRef.h"
 
+#include "revng/ADT/Ordering.h"
 #include "revng/Support/DynamicHierarchy.h"
 
 namespace llvm {
@@ -31,10 +32,6 @@ class Tag;
 /// static objects spread across revng's libraries, so ordering them by address
 /// makes the order depend on where those libraries happen to be loaded, and
 /// the metadata written out of a set changes from one run to the next.
-struct TagLess {
-  bool operator()(const Tag *LHS, const Tag *RHS) const;
-};
-
 template<typename T>
 concept Taggable = (std::is_same_v<llvm::GlobalVariable, T>
                     or std::is_same_v<llvm::Function, T>);
@@ -50,7 +47,8 @@ private:
   static constexpr const char *TagsMetadataName = "revng.tags";
 
 private:
-  std::set<const Tag *, TagLess> Tags;
+  /// Ordered by name: this order reaches the emitted metadata
+  NamedObjectsSet<Tag> Tags;
 
 public:
   TagsSet() {}
