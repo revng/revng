@@ -70,6 +70,11 @@ std::optional<BitVector> computeCriticalArgumentsFor(const Function &Helper) {
       // give up — the helper cannot be inlined at any call site.
       if (not isPointerToConstantGlobal(Load->getPointerOperand()))
         return std::nullopt;
+    } else if (isa<PHINode>(V)) {
+
+      // Unlike a `select`, a `phi` also depends on the branches leading to it,
+      // which the walk does not follow: give up.
+      return std::nullopt;
     } else if (const auto *I = dyn_cast<Instruction>(V)) {
 
       // Any other instruction. Enqueue its operands to keep walking back.
@@ -146,7 +151,7 @@ public:
       if (not Result.has_value()) {
         revng_log(Log,
                   "demote " << F.getName()
-                            << " reason=critical-args-runtime-load");
+                            << " reason=critical-args-not-constant");
         F.setSection("");
         continue;
       }
