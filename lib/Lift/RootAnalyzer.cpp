@@ -26,6 +26,7 @@
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
+#include "revng/ADT/Ordering.h"
 #include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
@@ -776,10 +777,10 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
 
     /// Implement deterministic comparison
     std::strong_ordering operator<=>(const Entry &Other) const {
-      if (int Comparison = SymbolName.compare(Other.SymbolName);
-          Comparison != 0)
-        return Comparison < 0 ? std::strong_ordering::less :
-                                std::strong_ordering::greater;
+      std::strong_ordering Comparison = compareStrings(SymbolName,
+                                                       Other.SymbolName);
+      if (Comparison != std::strong_ordering::equal)
+        return Comparison;
 
       if (Value == Other.Value)
         return std::strong_ordering::equal;

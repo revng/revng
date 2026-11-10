@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <compare>
 #include <concepts>
 #include <set>
 
@@ -60,3 +61,16 @@ struct ByName {
 /// A set of named objects, iterated by name
 template<typename T>
 using NamedObjectsSet = std::set<const T *, ByName<T>>;
+
+/// Three-way comparison for `llvm::StringRef`, which has no `operator<=>`
+inline std::strong_ordering compareStrings(llvm::StringRef LHS,
+                                           llvm::StringRef RHS) {
+  int Result = LHS.compare(RHS);
+  if (Result < 0)
+    return std::strong_ordering::less;
+
+  if (Result > 0)
+    return std::strong_ordering::greater;
+
+  return std::strong_ordering::equal;
+}
