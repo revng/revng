@@ -34,15 +34,6 @@ from .utils.registry import get_singleton
 
 
 @dataclass(frozen=True, slots=True)
-class ArtifactCategory:
-    name: str
-    show_by_default: bool
-
-    def to_dict(self) -> dict:
-        return {"name": self.name, "show_by_default": self.show_by_default}
-
-
-@dataclass(frozen=True, slots=True)
 class Artifact:
     """
     An artifact is a container in a certain point of the pipeline with some extra
@@ -55,9 +46,10 @@ class Artifact:
     name: str
     node: PipelineNode
     container: ContainerDeclaration
-    category: ArtifactCategory
+    show_by_default: bool
     description: Optional[str] = None
     filename: str | None = None
+    tags: list[str] = field(default_factory=list, hash=False)
     # TODO: this should be a property of the pipe that inserts the locations,
     # but for now we define it statically as a property of the artifact.
     defined_locations: list[str] = field(default_factory=list, hash=False)
@@ -79,7 +71,8 @@ class Artifact:
             "savepoint_id": savepoint_id,
             "container": self.container.name,
             "pipe_dependencies": self.pipe_dependencies(),
-            "category": self.category.to_dict(),
+            "show_by_default": self.show_by_default,
+            "tags": self.tags,
             "defined_locations": self.defined_locations,
             "preferred_artifacts": self.preferred_artifacts,
         }

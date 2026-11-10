@@ -2,9 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-artifact-categories:
-  - name: main
-    show-by-default: true
+artifact-tags:
+  - main
 
 containers:
   - name: child_source
@@ -51,7 +50,8 @@ branches:
         artifacts:
           - name: RootArtifact
             container: root_source
-            category: main
+            show-by-default: true
+            tags: [main]
         analyses:
           - analysis: PurgeAllAnalysis
             containers: [root_source]
@@ -69,7 +69,8 @@ branches:
           - name: ChildArtifact
             container: child_destination
             description: An artifact containing all objects in child_destination
-            category: main
+            show-by-default: true
+            tags: [main]
         analyses:
           - analysis: NullAnalysis
             containers: [child_destination]
