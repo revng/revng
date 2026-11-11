@@ -37,7 +37,7 @@ void InjectStackSizeProbesAtCallSites::runOnFunction(const model::Function
   for (llvm::Function &F : FunctionTags::Isolated.functions(&Module)) {
     if (F.isDeclaration())
       continue;
-    B.setInsertPointToFirstNonAlloca(F);
+    B.SetInsertPointPastAllocas(&F);
 
     auto *SP0 = B.createLoad(SP);
 

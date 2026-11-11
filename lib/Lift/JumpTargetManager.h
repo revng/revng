@@ -47,7 +47,6 @@ class Value;
 
 class JumpTargetManager;
 class ProgramCounterHandler;
-class SummaryCallsBuilder;
 
 template<typename Map>
 auto containing(Map const &M, typename Map::key_type const &K) {
@@ -158,8 +157,6 @@ private:
   using interval_set = boost::icl::interval_set<MetaAddress, CompareAddress>;
   using interval = boost::icl::interval<MetaAddress, CompareAddress>;
   using MetaAddressSet = std::unordered_set<MetaAddress>;
-  using GlobalToAllocaTy = llvm::DenseMap<llvm::GlobalVariable *,
-                                          llvm::AllocaInst *>;
 
 public:
   using BlockWithAddress = std::pair<MetaAddress, llvm::BasicBlock *>;
