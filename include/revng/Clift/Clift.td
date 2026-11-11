@@ -939,7 +939,12 @@ def Clift_PostIncrementOp : Clift_UnaryIntegerMutationOp<"post_inc">;
 def Clift_PostDecrementOp : Clift_UnaryIntegerMutationOp<"post_dec">;
 
 class Clift_CastExpressionOp<string mnemonic, list<Trait> traits = []>
-  : Clift_BasicExpressionOp<mnemonic, Clift_CastOpInterface, traits>;
+  : Clift_BasicExpressionOp<mnemonic, Clift_CastOpInterface, traits> {
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($value) `->` type($result)
+  }];
+}
 
 def Clift_DecayOp
   : Clift_CastExpressionOp<"decay",
@@ -952,10 +957,6 @@ def Clift_DecayOp
   let builders = [
     OpBuilder<(ins "mlir::Value":$Operand, "uint64_t":$PointerSize)>
   ];
-
-  let assemblyFormat = [{
-    $value attr-dict `:` type($value) `->` type($result)
-  }];
 }
 
 def Clift_TestOp : Clift_CastExpressionOp<"test"> {
@@ -986,10 +987,6 @@ def Clift_BitCastOp
 
   let arguments = (ins Clift_AnyValueType:$value);
   let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
-
-  let assemblyFormat = [{
-    $value attr-dict `:` type($value) `->` type($result)
-  }];
 }
 
 def Clift_ZeroExtendOp
@@ -999,10 +996,6 @@ def Clift_ZeroExtendOp
   let arguments = (ins Clift_AnyIntegerType:$value);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
-
-  let assemblyFormat = [{
-    $value attr-dict `:` type($value) `->` type($result)
-  }];
 }
 
 def Clift_SignExtendOp
@@ -1012,10 +1005,6 @@ def Clift_SignExtendOp
   let arguments = (ins Clift_AnyIntegerType:$value);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
-
-  let assemblyFormat = [{
-    $value attr-dict `:` type($value) `->` type($result)
-  }];
 }
 
 def Clift_TruncateOp
@@ -1025,10 +1014,6 @@ def Clift_TruncateOp
   let arguments = (ins Clift_AnyIntegerType:$value);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
-
-  let assemblyFormat = [{
-    $value attr-dict `:` type($value) `->` type($result)
-  }];
 }
 
 def Clift_PtrResizeOp
