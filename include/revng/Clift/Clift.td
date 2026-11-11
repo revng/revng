@@ -17,6 +17,12 @@ include "revng/Clift/CliftOpInterfaces.td"
 include "revng/Clift/CliftOpTraits.td"
 include "revng/Clift/CliftTypes.td"
 
+def APFloatAttr : Attr<CPred<"$_self.isa<mlir::FloatAttr>()">,
+                             "arbitrary floating point attribute"> {
+  let storageType = [{ mlir::FloatAttr }];
+  let returnType = [{ mlir::APFloat }];
+}
+
 class Clift_Op<string mnemonic, list<Trait> traits = []>
   : Op<Clift_Dialect,
        mnemonic,
@@ -55,6 +61,10 @@ def Clift_AnyIntegerType
 def Clift_AnyPrimitiveIntegerType
   : Type<CPred<"clift::unwrapped_isa<clift::IntegerType>($_self)">,
          "primitive integer type">;
+
+def Clift_AnyFloatingPointType
+  : Type<CPred<"clift::unwrapped_isa<clift::FloatType>($_self)">,
+         "floating point type">;
 
 def Clift_AnyPointerType
   : Type<CPred<"clift::unwrapped_isa<clift::PointerType>($_self)">,
@@ -684,6 +694,21 @@ def Clift_ImmediateOp : Clift_ExpressionOp<"imm"> {
   let hasVerifier = 1;
 }
 
+def Clift_FImmediateOp : Clift_ExpressionOp<"fimm"> {
+  let arguments = (ins APFloatAttr:$value);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyFloatingPointType>:$result);
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] FloatType getFloatType() {
+      return clift::unwrapped_dyn_cast<FloatType>(getType());
+    }
+  }];
+
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+}
+
 def Clift_NullOp : Clift_ExpressionOp<"null"> {
   let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
 
@@ -749,6 +774,18 @@ class Clift_UnaryArithmeticOp<string mnemonic>
   }];
 }
 
+class Clift_UnaryFloatingPointOp<string mnemonic>
+  : Clift_ExpressionOp<mnemonic,
+                       [Clift_UnqualifiedTypeMatches<"value", "result">]> {
+
+  let arguments = (ins Clift_AnyFloatingPointType:$value);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyFloatingPointType>:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($value)
+  }];
+}
+
 class Clift_BinaryArithmeticOp<string mnemonic, list<Trait> traits = []>
   : Clift_ExpressionOp<mnemonic,
                        !listconcat(traits,
@@ -758,6 +795,28 @@ class Clift_BinaryArithmeticOp<string mnemonic, list<Trait> traits = []>
                        Clift_AnyIntegerType:$rhs);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+
+  let builders = [
+    OpBuilder<(ins "mlir::Value":$Lhs, "mlir::Value":$Rhs), [{
+      build($_builder, $_state, Lhs.getType(), Lhs, Rhs);
+    }]>
+  ];
+
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:`
+    custom<CliftOpTypes>(type($result), type($lhs), type($rhs))
+  }];
+}
+
+class Clift_BinaryFloatingPointOp<string mnemonic, list<Trait> traits = []>
+ : Clift_ExpressionOp<mnemonic,
+                      !listconcat(traits,
+                                  [Clift_AllTypesMatch<["lhs", "rhs", "result"]>])> {
+
+  let arguments = (ins Clift_AnyFloatingPointType:$lhs,
+                       Clift_AnyFloatingPointType:$rhs);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyFloatingPointType>:$result);
 
   let builders = [
     OpBuilder<(ins "mlir::Value":$Lhs, "mlir::Value":$Rhs), [{
@@ -881,6 +940,19 @@ def Clift_SDivOp : Clift_BinaryArithmeticOp<"sdiv">;
 def Clift_UDivOp : Clift_BinaryArithmeticOp<"udiv">;
 def Clift_SRemOp : Clift_BinaryArithmeticOp<"srem">;
 def Clift_URemOp : Clift_BinaryArithmeticOp<"urem">;
+
+def Clift_FNegOp : Clift_UnaryFloatingPointOp<"fneg">;
+def Clift_FAddOp : Clift_BinaryFloatingPointOp<"fadd", [Commutative]>;
+def Clift_FSubOp : Clift_BinaryFloatingPointOp<"fsub">;
+def Clift_FMulOp : Clift_BinaryFloatingPointOp<"fmul", [Commutative]>;
+def Clift_FDivOp : Clift_BinaryFloatingPointOp<"fdiv">;
+
+def Clift_FCmpEqOp : Clift_ComparisonOp<"feq">;
+def Clift_FCmpNeOp : Clift_ComparisonOp<"fne">;
+def Clift_FCmpLtOp : Clift_ComparisonOp<"flt">;
+def Clift_FCmpGtOp : Clift_ComparisonOp<"fgt">;
+def Clift_FCmpLeOp : Clift_ComparisonOp<"fle">; // codespell:ignore fle
+def Clift_FCmpGeOp : Clift_ComparisonOp<"fge">;
 
 def Clift_PtrAddOp : Clift_PointerArithmeticOp<"ptr_add", [Commutative]>;
 def Clift_PtrSubOp : Clift_PointerArithmeticOp<"ptr_sub">;
@@ -1014,6 +1086,31 @@ def Clift_TruncateOp
   let arguments = (ins Clift_AnyIntegerType:$value);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+}
+
+def Clift_SignedToFloatOp : Clift_CastExpressionOp<"stof"> {
+  let arguments = (ins Clift_AnyIntegerType:$value);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyFloatingPointType>:$result);
+}
+
+def Clift_UnsignedToFloatOp : Clift_CastExpressionOp<"utof"> {
+  let arguments = (ins Clift_AnyIntegerType:$value);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyFloatingPointType>:$result);
+}
+
+def Clift_FloatToSignedOp : Clift_CastExpressionOp<"ftos"> {
+  let arguments = (ins Clift_AnyFloatingPointType:$value);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+}
+
+def Clift_FloatToUnsignedOp : Clift_CastExpressionOp<"ftou"> {
+  let arguments = (ins Clift_AnyFloatingPointType:$value);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+}
+
+def Clift_FloatToFloatOp : Clift_CastExpressionOp<"ftof"> {
+  let arguments = (ins Clift_AnyFloatingPointType:$value);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyFloatingPointType>:$result);
 }
 
 def Clift_PtrResizeOp

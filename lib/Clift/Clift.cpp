@@ -1520,6 +1520,87 @@ mlir::LogicalResult ImmediateOp::verify() {
   return mlir::success();
 }
 
+//===---------------------------- FImmediateOp ----------------------------===//
+
+mlir::ParseResult FImmediateOp::parse(mlir::OpAsmParser &Parser,
+                                      mlir::OperationState &Result) {
+  mlir::SMLoc ValueLoc = Parser.getCurrentLocation();
+
+  // Skip the floating point token for now:
+  {
+    double Ignored;
+    if (Parser.parseFloat(Ignored).failed())
+      return mlir::failure();
+  }
+
+  llvm::StringRef ValueToken = llvm::StringRef(ValueLoc.getPointer(),
+                                               Parser.getCurrentLocation()
+                                                   .getPointer()
+                                                 - ValueLoc.getPointer())
+                                 .rtrim();
+
+  if (ValueToken.starts_with("-"))
+    return Parser.emitError(ValueLoc) << "Expected non-negative real number.";
+
+  if (ValueToken.starts_with_insensitive("0x"))
+    return Parser.emitError(ValueLoc) << "Expected decimal real number.";
+
+  if (Parser.parseOptionalAttrDict(Result.attributes).failed())
+    return mlir::failure();
+
+  mlir::Type Type;
+  if (Parser.parseType(Type))
+    return mlir::failure();
+
+  mlir::FloatAttr
+    ValueAttr = mlir::FloatAttr::get(mlir::FloatType::getF64(Parser
+                                                               .getContext()),
+                                     0.0);
+
+  if (auto FT = clift::unwrapped_dyn_cast<FloatType>(Type)) {
+    llvm::APFloat Value(FT.getFloatSemantics());
+
+    // The default rounding mode of IEEE 754 (nearest ties to even) is used to
+    // ensure that the value is always round-tripped correctly.
+    auto E = Value.convertFromString(ValueToken,
+                                     llvm::APFloat::rmNearestTiesToEven);
+
+    if (not llvm::errorToBool(E.takeError()))
+      return Parser.emitError(ValueLoc) << "Expected real number";
+
+    ValueAttr = mlir::FloatAttr::get(FT.getBuiltinFloatType(), Value);
+  }
+
+  Result.addTypes(Type);
+  Result.addAttribute("value", std::move(ValueAttr));
+
+  return mlir::success();
+}
+
+void FImmediateOp::print(mlir::OpAsmPrinter &Printer) {
+  Printer << ' ';
+  getValue().print(Printer.getStream());
+  Printer.printOptionalAttrDict(getOperation()->getAttrs(), { "value" });
+  Printer << " : ";
+  Printer << getType();
+}
+
+mlir::LogicalResult FImmediateOp::verify() {
+  const llvm::APFloat &Value = getValue();
+
+  if (&Value.getSemantics() != &getFloatType().getFloatSemantics())
+    return emitOpError() << getOperationName()
+                         << " value format does not match the operation type.";
+
+  if (Value.isNegative())
+    return emitOpError() << getOperationName() << " value is negative.";
+
+  if (not Value.isFinite())
+    return emitOpError() << getOperationName() << " value is non-finite.";
+
+  return mlir::success();
+}
+
 //===------------------------------ StringOp ------------------------------===//
 
 bool StringOp::isLvalueExpression() {
