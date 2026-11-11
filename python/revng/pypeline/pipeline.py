@@ -251,8 +251,10 @@ class Pipeline:
         # This is needed in the case the first node is a pipe, which is not a savepoint
         if isinstance(node.task, SavePoint):
             current_id += 1
-        # Save the id on preorder visit
-        start = current_id
+            start = current_id
+        else:
+            # The first savepoint in the subtree of a pipe takes the next ID
+            start = current_id + 1
         # Recurse on the children, but do it in a deterministic way
         end = current_id
         for child in node.sorted_successors():
