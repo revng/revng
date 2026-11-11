@@ -397,6 +397,7 @@ branches:
             - early-cse
             # Merge the exposed narrow predicates, e.g., x != 0 && x >= 0.
             - instcombine-noarrays
+            - remove-extractvalues
             # Restore widths that instcombine may have widened again.
             - early-type-shrinking
             - type-shrinking
