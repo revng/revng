@@ -1458,6 +1458,17 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
           Ret->eraseFromParent();
           Call->eraseFromParent();
         }
+      } else if (OldReturnType->isVoidTy() and NewReturnType->isIntegerTy()) {
+        // The return value is not in any register: this happens for floating
+        // point values on ABIs we cannot return them on (e.g., in st0 on x86).
+        // EnforceABI produced a void function, return an undefined value.
+        for (ReturnInst *Ret : Returns) {
+          B.SetInsertPoint(Ret);
+          B.CreateRet(UndefValue::get(NewReturnType));
+          Ret->eraseFromParent();
+        }
+      } else {
+        revng_abort("Unexpected return type change");
       }
     }
   } break;
@@ -2029,6 +2040,10 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
         }
       }
 
+      revng_assert(OldCall->use_empty());
+    } else if (OldReturnType->isVoidTy()) {
+      // The return value is not in any register (e.g., st0 on x86), the old
+      // call has no uses
       revng_assert(OldCall->use_empty());
     } else {
       revng_assert(not OldReturnType->isStructTy());
