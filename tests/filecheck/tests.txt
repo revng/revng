@@ -169,6 +169,9 @@ clift/expressions/addressof-rvalue-object-access.mlir
 clift/expressions/addressof-subscript.mlir
 clift/expressions/aggregate-struct.mlir
 clift/expressions/arithmetic-add.mlir
+clift/expressions/arithmetic-fadd-with-integer.mlir
+clift/expressions/arithmetic-fadd-with-mismatched-types.mlir
+clift/expressions/arithmetic-fadd.mlir
 clift/expressions/arithmetic-neg.mlir
 clift/expressions/arithmetic-shl.mlir
 clift/expressions/arithmetic.mlir
@@ -194,6 +197,18 @@ clift/expressions/decay-int.mlir
 clift/expressions/direct-access-strips-qualifiers.mlir
 clift/expressions/extend-i32-to-i32.mlir
 clift/expressions/extend.mlir
+clift/expressions/float-conversion.mlir
+clift/expressions/float-immediate-hexadecimal.mlir
+clift/expressions/float-immediate-negative-zero.mlir
+clift/expressions/float-immediate-negative.mlir
+clift/expressions/float-immediate-out-of-range.mlir
+clift/expressions/float-immediate-with-integer-type.mlir
+clift/expressions/float-immediate-with-mismatched-format.mlir
+clift/expressions/float-immediate.mlir
+clift/expressions/float-to-float-f32-to-f32.mlir
+clift/expressions/float-to-float-to-integer.mlir
+clift/expressions/float-to-signed-from-integer.mlir
+clift/expressions/float-to-unsigned-to-float.mlir
 clift/expressions/immediate.mlir
 clift/expressions/immediate-out-of-range-max.mlir
 clift/expressions/immediate-out-of-range-min.mlir
@@ -212,6 +227,7 @@ clift/expressions/pointer-arithmetic.mlir
 clift/expressions/pointer-resize-reinterpret.mlir
 clift/expressions/pointer-resize.mlir
 clift/expressions/pointer-sub-reversed.mlir
+clift/expressions/signed-to-float-from-float.mlir
 clift/expressions/string-with-bad-array-size.mlir
 clift/expressions/string-with-non-array-type.mlir
 clift/expressions/string-with-non-char-type.mlir
@@ -221,6 +237,7 @@ clift/expressions/ternary-is-rvalue.mlir
 clift/expressions/ternary.mlir
 clift/expressions/truncate-i32-to-i32.mlir
 clift/expressions/truncate.mlir
+clift/expressions/unsigned-to-float-to-const.mlir
 clift/expressions/use-global-variable.mlir
 clift/expressions/use-nonexistent-global-variable.mlir
 clift/implicit-cast-elision/add.mlir
