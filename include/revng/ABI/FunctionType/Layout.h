@@ -166,27 +166,6 @@ public:
   llvm::SmallVector<model::Register::Portion> argumentRegisters() const;
   llvm::SmallVector<model::Register::Portion> returnValueRegisters() const;
 
-  auto returnValueTypes() {
-    return ReturnValues
-           | std::views::transform([](ReturnValue &RV) { return RV.Type; });
-  }
-
-  auto returnValueTypes() const {
-    return ReturnValues | std::views::transform([](const ReturnValue &RV) {
-             return RV.Type;
-           });
-  }
-
-  auto argumentTypes() {
-    return Arguments
-           | std::views::transform([](Argument &A) { return A.Type; });
-  }
-
-  auto argumentTypes() const {
-    return Arguments
-           | std::views::transform([](const Argument &A) { return A.Type; });
-  }
-
   bool hasSPTAR() const {
     using namespace abi::FunctionType::ArgumentKind;
     auto SPTAR = ShadowPointerToAggregateReturnValue;
