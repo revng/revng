@@ -437,8 +437,13 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
   if (!Function.ReturnType().isEmpty()) {
     auto RV = Converter.distributeReturnValue(*Function.ReturnType());
     if (RV.ShouldBeIgnored) {
-      // We do not have the means to handle this return value - ignore it.
+      // We do not have the means to handle this return value.
+      //
+      // Keep it in the layout as a placeholder with no registers, so that
+      // the consumers of the layout can make their own decisions on how to
+      // handle this.
       revng_log(Log, "Return value is ignored.\n");
+      ReturnValues.emplace_back(Function.ReturnType().copy());
 
     } else if (RV.SizeOnStack == 0) {
       if (Function.ReturnType().isEmpty()) {
@@ -722,6 +727,10 @@ bool Layout::verify() const {
   using namespace abi::FunctionType::ArgumentKind;
   uint64_t PointerSize = model::Architecture::getPointerSize(Architecture);
   for (auto &&[Index, Argument] : llvm::enumerate(Arguments)) {
+    // No use verifying explicitly unsupported arguments.
+    if (Argument.isUnsupported())
+      continue;
+
     uint64_t Size = *Argument.Type->size();
     if (Argument.Kind == PointerToCopy)
       Size = PointerSize;
@@ -739,9 +748,8 @@ bool Layout::verify() const {
   }
 
   for (auto &&[Index, ReturnValue] : llvm::enumerate(ReturnValues)) {
-    // The distributor drops floating point return values on ABIs without
-    // float return value registers
-    if (ReturnValue.Registers.empty())
+    // No use verifying explicitly unsupported return values.
+    if (ReturnValue.isUnsupported())
       continue;
 
     uint64_t Size = *ReturnValue.Type->size();
