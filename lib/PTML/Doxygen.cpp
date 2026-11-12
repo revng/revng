@@ -325,30 +325,45 @@ gatherArgumentComments(const model::Binary &Binary,
         const auto &CurrentArgument = LayoutArguments[Index];
         if (CurrentArgument.isUnsupported()) {
           Line->emplace_back(DoxygenToken::Types::Untagged, " (unsupported)");
-        } else if (!CurrentArgument.Registers.empty()) {
-          Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
-          for (const auto &Portion : skip_back(CurrentArgument.Registers)) {
-            auto Name = model::Register::getRegisterName(Portion.Register);
-            Line->emplace_back(DoxygenToken::Types::Identifier, Name.str());
-            Line->emplace_back(DoxygenToken::Types::Untagged, ", ");
-          }
-          auto Last = CurrentArgument.Registers.back().Register;
-          Line->emplace_back(DoxygenToken::Types::Identifier,
-                             model::Register::getRegisterName(Last).str());
-          Line->emplace_back(DoxygenToken::Types::Untagged, ")");
         } else {
-          Line->emplace_back(DoxygenToken::Types::Untagged,
-                             " (" + std::to_string(CurrentArgument.Stack->Size)
-                               + " bytes at ");
+          // An argument can be split among registers and the stack, in which
+          // case `Registers` and `Stack` are both populated.
+          bool HasRegisters = not CurrentArgument.Registers.empty();
+          bool HasStack = CurrentArgument.Stack.has_value();
+          revng_assert(HasRegisters or HasStack);
 
-          namespace Arch = model::Architecture;
-          auto SP = Arch::getStackPointer(Binary.Architecture());
-          Line->emplace_back(DoxygenToken::Types::Identifier,
-                             model::Register::getRegisterName(SP).str());
-          uint64_t Adjustment = Arch::getCallPushSize(Binary.Architecture());
-          uint64_t Adjusted = CurrentArgument.Stack->Offset + Adjustment;
-          Line->emplace_back(DoxygenToken::Types::Untagged,
-                             "+" + std::to_string(Adjusted) + ")");
+          Line->emplace_back(DoxygenToken::Types::Untagged, " (");
+          if (HasRegisters) {
+            Line->emplace_back(DoxygenToken::Types::Untagged, "in ");
+            for (const auto &Portion : skip_back(CurrentArgument.Registers)) {
+              auto Name = model::Register::getRegisterName(Portion.Register);
+              Line->emplace_back(DoxygenToken::Types::Identifier, Name.str());
+              Line->emplace_back(DoxygenToken::Types::Untagged, ", ");
+            }
+            auto Last = CurrentArgument.Registers.back().Register;
+            Line->emplace_back(DoxygenToken::Types::Identifier,
+                               model::Register::getRegisterName(Last).str());
+          }
+
+          if (HasRegisters and HasStack)
+            Line->emplace_back(DoxygenToken::Types::Untagged, "; ");
+
+          if (HasStack) {
+            Line->emplace_back(DoxygenToken::Types::Untagged,
+                               std::to_string(CurrentArgument.Stack->Size)
+                                 + " bytes at ");
+
+            namespace Arch = model::Architecture;
+            auto SP = Arch::getStackPointer(Binary.Architecture());
+            Line->emplace_back(DoxygenToken::Types::Identifier,
+                               model::Register::getRegisterName(SP).str());
+            uint64_t Adjustment = Arch::getCallPushSize(Binary.Architecture());
+            uint64_t Adjusted = CurrentArgument.Stack->Offset + Adjustment;
+            Line->emplace_back(DoxygenToken::Types::Untagged,
+                               "+" + std::to_string(Adjusted));
+          }
+
+          Line->emplace_back(DoxygenToken::Types::Untagged, ")");
         }
 
         Line->emplace_back(DoxygenToken::Types::Untagged, " ");
