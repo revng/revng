@@ -85,6 +85,19 @@ public:
 
     ReturnValue() = default;
     ReturnValue(model::UpcastableType &&Type) : Type(std::move(Type)) {}
+
+    /// \returns `true` if this return value is not supported.
+    ///
+    /// Specifically, this happens when our ABI implementation is lacking
+    /// support in the specific corner case - leading to the inability to
+    /// clearly decide where to place the value.
+    ///
+    /// Treat these as placeholders ensuring each CFT argument/return-value has
+    /// a corresponding layout entry.
+    ///
+    /// IMPORTANT: the IR must *not* use such arguments. Them appearing
+    /// in the function bodies is a bug.
+    bool isUnsupported() const { return Registers.empty(); }
   };
 
   struct Argument : public ReturnValue {
@@ -102,6 +115,21 @@ public:
   public:
     std::optional<StackSpan> Stack;
     ArgumentKind::Values Kind = ArgumentKind::Scalar;
+
+    /// \returns `true` if this argument is not supported.
+    ///
+    /// Specifically, this happens when our ABI implementation is lacking
+    /// support in the specific corner case - leading to the inability to
+    /// clearly decide where to place the value.
+    ///
+    /// Treat these as placeholders ensuring each CFT argument/return-value has
+    /// a corresponding layout entry.
+    ///
+    /// IMPORTANT: the IR must *not* use such arguments. Them appearing
+    /// in the function bodies is a bug.
+    bool isUnsupported() const {
+      return ReturnValue::isUnsupported() and not Stack.has_value();
+    }
   };
 
 public:
@@ -176,6 +204,15 @@ public:
     if (hasSPTAR())
       Result = Result.drop_front();
     return Result;
+  }
+
+  /// \returns `true` if the return value is not supported.
+  ///
+  /// See \ref ReturnValue::isUnsupported.
+  bool isReturnValueUnsupported() const {
+    return llvm::any_of(ReturnValues, [](const ReturnValue &RV) {
+      return RV.isUnsupported();
+    });
   }
 
   ReturnMethod::Values returnMethod() const {
