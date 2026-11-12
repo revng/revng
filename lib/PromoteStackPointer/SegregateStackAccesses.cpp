@@ -840,8 +840,8 @@ struct PointersMetadata {
 static PointersMetadata getPointerMetadata(const abi::FunctionType::Layout &L) {
   PointersMetadata Result;
 
-  for (const auto &R : L.ReturnValues)
-    if (L.returnMethod() != abi::FunctionType::ReturnMethod::ModelAggregate)
+  if (L.returnMethod() != abi::FunctionType::ReturnMethod::ModelAggregate)
+    for (const auto &R : L.ReturnValues)
       Result.ReturnValues.push_back(R.Type->isPointer());
 
   for (const auto &R : L.Arguments)
@@ -1227,8 +1227,8 @@ void SegregateFunctionStack::checkReturnMethod() {
   case ReturnMethod::RegisterSet:
     // Assert each return instruction is using a StructInitializer
     for (BasicBlock &BB : *NewFunction) {
-      if (auto *Ret = dyn_cast<ReturnInst>(BB.getTerminator())) {
-        auto *Call = cast<CallInst>(Ret->getReturnValue());
+      if (auto *Returned = dyn_cast<ReturnInst>(BB.getTerminator())) {
+        auto *Call = cast<CallInst>(Returned->getReturnValue());
         auto *Callee = getCalledFunction(Call);
         revng_assert(Call != nullptr);
         revng_assert(FunctionTags::StructInitializer.isTagOf(Callee));
@@ -1366,8 +1366,8 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
 
   llvm::SmallVector<ReturnInst *, 4> Returns;
   for (BasicBlock &BB : *NewFunction) {
-    if (auto *Ret = dyn_cast<ReturnInst>(BB.getTerminator()))
-      Returns.push_back(Ret);
+    if (auto *Returned = dyn_cast<ReturnInst>(BB.getTerminator()))
+      Returns.push_back(Returned);
   }
 
   for (BasicBlock &BB : *NewFunction) {
@@ -1378,8 +1378,8 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
   case ReturnMethod::ModelAggregate: {
     // Replace return instructions with returning a copy of the local variable
     // representing the return value
-    for (ReturnInst *Ret : Returns) {
-      B.SetInsertPoint(Ret);
+    for (ReturnInst *Returned : Returns) {
+      B.SetInsertPoint(Returned);
 
       if (not Layout.hasSPTAR()) {
         // We have an aggregate returned through registers, fill in the
@@ -1387,11 +1387,11 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
         revng_assert(Layout.returnValueRegisterCount() > 0);
 
         llvm::SmallVector<llvm::Value *, 4> ReturnValues;
-        Value *RetValue = Ret->getReturnValue();
+        Value *RetValue = Returned->getReturnValue();
         if (Layout.returnValueRegisterCount() == 1) {
           ReturnValues.push_back(RetValue);
         } else {
-          auto *Call = cast<CallInst>(Ret->getReturnValue());
+          auto *Call = cast<CallInst>(Returned->getReturnValue());
           auto *Callee = getCalledFunction(Call);
           revng_assert(Call != nullptr);
           revng_assert(FunctionTags::StructInitializer.isTagOf(Callee));
@@ -1411,7 +1411,7 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
       // TODO: we should review all the CreateLoad alignments
       Value *ToReturn = B.CreateLoad(NewReturnType, ReturnValueAllocation);
       B.CreateRet(ToReturn);
-      Ret->eraseFromParent();
+      Returned->eraseFromParent();
     }
   } break;
 
@@ -1421,20 +1421,20 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
     if (OldReturnType != NewReturnType) {
       if (OldReturnType->isIntegerTy() and NewReturnType->isIntegerTy()) {
         // Handle return values smaller than the original function
-        for (ReturnInst *Ret : Returns) {
-          B.SetInsertPoint(Ret);
-          B.CreateRet(B.CreateTrunc(Ret->getReturnValue(), NewReturnType));
-          Ret->eraseFromParent();
+        for (ReturnInst *Returned : Returns) {
+          B.SetInsertPoint(Returned);
+          B.CreateRet(B.CreateTrunc(Returned->getReturnValue(), NewReturnType));
+          Returned->eraseFromParent();
         }
       } else if (OldReturnType->isStructTy() and NewReturnType->isIntegerTy()) {
         // Turn struct_initializer into an integer
-        for (ReturnInst *Ret : Returns) {
-          auto *Call = cast<CallInst>(Ret->getReturnValue());
+        for (ReturnInst *Returned : Returns) {
+          auto *Call = cast<CallInst>(Returned->getReturnValue());
           auto *Callee = getCalledFunction(Call);
           revng_assert(Call != nullptr);
           revng_assert(FunctionTags::StructInitializer.isTagOf(Callee));
 
-          B.SetInsertPoint(Ret);
+          B.SetInsertPoint(Returned);
           Value *Accumulator = ConstantInt::get(NewReturnType, 0);
           uint64_t ShiftAmount = 0;
           for (Value *Argument : Call->args()) {
@@ -1444,7 +1444,7 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
             ShiftAmount += Argument->getType()->getIntegerBitWidth();
           }
           B.CreateRet(Accumulator);
-          Ret->eraseFromParent();
+          Returned->eraseFromParent();
           Call->eraseFromParent();
         }
       }
