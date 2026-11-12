@@ -323,7 +323,9 @@ gatherArgumentComments(const model::Binary &Binary,
                                        Location);
 
         const auto &CurrentArgument = LayoutArguments[Index];
-        if (!CurrentArgument.Registers.empty()) {
+        if (CurrentArgument.isUnsupported()) {
+          Line->emplace_back(DoxygenToken::Types::Untagged, " (unsupported)");
+        } else if (!CurrentArgument.Registers.empty()) {
           Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
           for (const auto &Portion : skip_back(CurrentArgument.Registers)) {
             auto Name = model::Register::getRegisterName(Portion.Register);
