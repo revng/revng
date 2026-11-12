@@ -28,7 +28,7 @@ bool isPointerToConstantGlobal(const llvm::Value *Pointer);
 ///
 /// \return One of three possible values:
 /// - `std::nullopt`: the helper cannot be inlined at any call site (the
-///   backward walk reaches a `load` from runtime memory).
+///   backward walk reaches a `load` from runtime memory or a `phi`).
 /// - empty `BitVector`: the helper can always be inlined.
 /// - non-empty `BitVector`: the set of formal-parameter indices that must be
 ///   `isa<Constant>` at the call site for the helper to be inlinable.

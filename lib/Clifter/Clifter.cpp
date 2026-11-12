@@ -635,9 +635,14 @@ private:
     if (ET == nullptr or ET->getBitWidth() != 8)
       return false;
 
-    const llvm::Constant *Init = V->getInitializer();
-    if (Init == nullptr)
+    if (not V->hasInitializer()) {
+      revng_log(ExpressionLog,
+                "Constant array of bytes " << V->getName()
+                                           << " has no initializer. Ignoring.");
       return false;
+    }
+
+    const llvm::Constant *Init = V->getInitializer();
     revng_assert(Init->getType() == Type);
 
     const auto *Array = llvm::dyn_cast<llvm::ConstantDataArray>(Init);

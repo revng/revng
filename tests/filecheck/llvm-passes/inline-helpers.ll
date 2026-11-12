@@ -6,7 +6,8 @@
 ; at helpers-build time and uses it to gate per-call-site inlining.
 ; A helper with a non-zero policy must only be inlined at call sites
 ; where every listed argument is a compile-time constant. A helper
-; with a zero policy must always be inlined.
+; with a zero policy must always be inlined. A call site marked `noinline`
+; is never inlined.
 ;
 ; RUN: %root/bin/revng opt -link-helpers-to-inline -inline-helpers -delete-helper-bodies %s -S -o - | FileCheck %s
 
@@ -61,10 +62,16 @@ entry:
   ; The no-critical-args call must be inlined away.
   ; CHECK-NOT: call i64 @helper_no_critical
   %c = call i64 @helper_no_critical(i64 %v)
+  ; The `noinline` call site must survive.
+  ; CHECK: call i64 @helper_no_critical(i64 %v) #
+  %d = call i64 @helper_no_critical(i64 %v) #0
   %ab = add i64 %a, %b
   %abc = add i64 %ab, %c
-  ret i64 %abc
+  %abcd = add i64 %abc, %d
+  ret i64 %abcd
 }
+
+attributes #0 = { noinline }
 
 !10 = !{!"isolated"}
 !20 = !{i3 2}

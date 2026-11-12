@@ -185,8 +185,8 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
                                          Helper->getParent());
   HelperWrapper->setSection(Helper->getSection());
 
-  // Dead CSVs are written through a null out-argument: mark null as valid so
-  // the optimizer does not treat that store as undefined behavior.
+  // Dead CSVs get a null out argument: mark null as valid so the optimizer
+  // does not treat accesses through it as undefined behavior.
   HelperWrapper->addFnAttr(Attribute::NullPointerIsValid);
 
   // Copy and extend tags
@@ -228,11 +228,22 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
   // Create the function call
   auto *HelperResult = Builder.CreateCall(Helper, HelperArguments);
 
-  // Update values of the out arguments
+  // Update values of the out arguments. Dead CSVs get a null out argument:
+  // skip their store, so that it goes away once the wrapper is inlined.
   unsigned OutArgument = FirstOutArgument;
   for (GlobalVariable *CSV : Written) {
-    Builder.CreateStore(Builder.createLoad(CSV),
-                        HelperWrapper->getArg(OutArgument));
+    Value *Pointer = HelperWrapper->getArg(OutArgument);
+    auto *StoreBlock = BasicBlock::Create(Context, "", HelperWrapper);
+    auto *NextBlock = BasicBlock::Create(Context, "", HelperWrapper);
+    Builder.CreateCondBr(Builder.CreateIsNotNull(Pointer),
+                         StoreBlock,
+                         NextBlock);
+
+    Builder.SetInsertPoint(StoreBlock);
+    Builder.CreateStore(Builder.createLoad(CSV), Pointer);
+    Builder.CreateBr(NextBlock);
+
+    Builder.SetInsertPoint(NextBlock);
     ++OutArgument;
   }
 

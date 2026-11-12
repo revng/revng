@@ -94,6 +94,10 @@ bool InlineHelpers::shouldInline(const CallInst *Call) const {
   if (not isInlineHelper(*Callee))
     return false;
 
+  // A call between helpers marked `noinline` is meant to stay a call
+  if (Call->getAttributes().hasFnAttr(Attribute::NoInline))
+    return false;
+
   InliningPolicy P = deserializeInliningPolicy(*Callee);
   const BitVector &Critical = P.CriticalArguments;
 

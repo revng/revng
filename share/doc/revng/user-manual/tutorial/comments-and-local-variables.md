@@ -1,4 +1,4 @@
-In the [previous](model-from-scratch.md) [tutorials](running-initial-auto-analysis.md) we gave names to functions, arguments and types.
+In the [previous](model-from-scratch.md) [tutorials](editing-types-in-c.md) we gave names to functions, arguments and types.
 Each of those lives at a stable place in the model (a function is keyed by its entry address, a type by its ID), so an edit can simply refer to it by key.
 
 Inside the body of a function there are two more things an analyst usually wants to do:
@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
 }
 ```
 
-Let's compile it and create a project, just like on the [previous page](running-initial-auto-analysis.md):
+Let's compile it and create a project, just like on the [previous page](editing-types-in-c.md):
 
 ```bash
 $ gcc calc.c -o calc -O1 -fno-stack-protector

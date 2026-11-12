@@ -1,4 +1,4 @@
-In the [previous tutorial](running-initial-auto-analysis.md) the initial auto-analysis recovered functions and types for us.
+In [the first tutorial](first-decompilation.md) the initial auto-analysis recovered functions and types for us.
 For data structures it can only go so far: it discovers that some memory is accessed as an aggregate and it recovers the fields it sees being used, but it has no way to know what those fields *mean*.
 The result is a struct with a generated name and fields called `offset_0`, `offset_8`, and so on.
 

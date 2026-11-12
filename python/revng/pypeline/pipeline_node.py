@@ -224,7 +224,7 @@ class PipelineNode:
                     "start": self.savepoint_range.start,
                     "end": self.savepoint_range.end,
                 }
-                if self.savepoint_range
+                if self.savepoint_range is not None
                 else None
             ),
         }

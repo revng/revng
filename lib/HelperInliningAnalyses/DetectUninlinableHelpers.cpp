@@ -3,8 +3,9 @@
 //
 
 #include "llvm/ADT/BitVector.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Function.h"
@@ -31,6 +32,9 @@ bool isPointerToConstantGlobal(const Value *Pointer) {
   return Global != nullptr and Global->isConstant();
 }
 
+static std::optional<BitVector> walkBack(const Function &Helper,
+                                         OnceQueue<const Value *> Worklist);
+
 std::optional<BitVector> computeCriticalArgumentsFor(const Function &Helper) {
 
   // A `Function` declaration has no body to inline, so it cannot be inlined at
@@ -53,6 +57,13 @@ std::optional<BitVector> computeCriticalArgumentsFor(const Function &Helper) {
       Worklist.insert(Switch->getCondition());
   }
 
+  return walkBack(Helper, std::move(Worklist));
+}
+
+/// \return the arguments of \p Helper the values in \p Worklist depend on, or
+///         `std::nullopt` if they do not become constants through inlining.
+static std::optional<BitVector> walkBack(const Function &Helper,
+                                         OnceQueue<const Value *> Worklist) {
   BitVector Critical(Helper.arg_size(), false);
 
   // Backward dataflow walk: for every `Value` reached, classify it.
@@ -70,6 +81,11 @@ std::optional<BitVector> computeCriticalArgumentsFor(const Function &Helper) {
       // give up — the helper cannot be inlined at any call site.
       if (not isPointerToConstantGlobal(Load->getPointerOperand()))
         return std::nullopt;
+    } else if (isa<PHINode>(V)) {
+
+      // Unlike a `select`, a `phi` also depends on the branches leading to it,
+      // which the walk does not follow: give up.
+      return std::nullopt;
     } else if (const auto *I = dyn_cast<Instruction>(V)) {
 
       // Any other instruction. Enqueue its operands to keep walking back.
@@ -96,12 +112,7 @@ bool containsInsertValue(const Function &F) {
 }
 
 /// Tests condition under which `F` must not be inlined at any call site.
-bool mustNotInline(const Function &F,
-                   const SmallPtrSetImpl<const Function *> &Recursive) {
-  if (Recursive.contains(&F)) {
-    revng_log(Log, "demote " << F.getName() << " reason=recursive-scc");
-    return true;
-  }
+bool mustNotInline(const Function &F) {
   if (containsInsertValue(F)) {
     revng_log(Log, "demote " << F.getName() << " reason=insertvalue");
     return true;
@@ -123,21 +134,33 @@ public:
   bool runOnModule(Module &M) override {
     using namespace DetectUninlinableHelpers;
 
-    // Collect every function in a recursive SCC on the call graph; these
+    // Demote every function in a recursive SCC on the call graph; these
     // cannot be inlined without an unbounded fixed-point loop.
-    SmallPtrSet<const Function *, 8> Recursive;
     CallGraph CG(M);
-    for (auto It = scc_begin(&CG), End = scc_end(&CG); It != End; ++It)
-      if (It.hasCycle())
-        for (auto &Node : *It)
-          if (const Function *F = Node->getFunction())
-            Recursive.insert(F);
+    for (auto It = scc_begin(&CG), End = scc_end(&CG); It != End; ++It) {
+      if (It.hasCycle()) {
+        for (auto &Node : *It) {
+          Function *F = Node->getFunction();
+          if (F != nullptr and isInlineHelper(*F)) {
+            revng_log(Log,
+                      "demote " << F->getName() << " reason=recursive-scc");
+            F->setSection("");
+          }
+        }
+      }
+    }
 
-    for (Function &F : M) {
-      if (not isInlineHelper(F))
+    // Visit callees before their callers, so that they have a policy when
+    // visiting their call sites. Functions the call graph does not reach have
+    // no callers.
+    DenseMap<const Function *, BitVector> CriticalArguments;
+    for (CallGraphNode *Node : post_order(&CG)) {
+      if (Node->getFunction() == nullptr
+          or not isInlineHelper(*Node->getFunction()))
         continue;
 
-      if (mustNotInline(F, Recursive)) {
+      Function &F = *Node->getFunction();
+      if (mustNotInline(F)) {
         F.setSection("");
         continue;
       }
@@ -146,11 +169,36 @@ public:
       if (not Result.has_value()) {
         revng_log(Log,
                   "demote " << F.getName()
-                            << " reason=critical-args-runtime-load");
+                            << " reason=critical-args-not-constant");
         F.setSection("");
         continue;
       }
 
+      // Calls to inline helpers are expected to be inlined: the actual
+      // arguments in their critical positions have to become constants too.
+      // Keep the call if they depend on a runtime value or on an argument that
+      // is not critical already: whether to inline it then depends on the
+      // actual arguments of the caller.
+      for (auto &[CallSite, CalleeNode] : *CG[&F]) {
+        auto It = CriticalArguments.find(CalleeNode->getFunction());
+        if (It == CriticalArguments.end())
+          continue;
+
+        auto *Call = cast<CallBase>(*CallSite);
+        OnceQueue<const Value *> Worklist;
+        for (unsigned Index : It->second.set_bits())
+          Worklist.insert(Call->getArgOperand(Index));
+
+        auto Reached = walkBack(F, std::move(Worklist));
+        if (not Reached.has_value() or Reached->test(*Result)) {
+          Call->addFnAttr(Attribute::NoInline);
+          revng_log(Log,
+                    "keep call " << F.getName() << " -> "
+                                 << It->first->getName());
+        }
+      }
+
+      CriticalArguments[&F] = *Result;
       serializeInliningPolicy(F, *Result);
       revng_log(Log,
                 "keep " << F.getName()
