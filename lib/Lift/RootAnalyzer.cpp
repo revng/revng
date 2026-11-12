@@ -26,6 +26,7 @@
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
+#include "revng/ADT/Ordering.h"
 #include "revng/BasicAnalyses/RootFunction.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
@@ -771,8 +772,21 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
   struct Entry {
     StringRef SymbolName;
     ConstantInt *Value = nullptr;
-    std::strong_ordering operator<=>(const Entry &Other) const = default;
+
+    bool operator==(const Entry &Other) const = default;
+
+    /// Implement deterministic comparison
+    std::strong_ordering operator<=>(const Entry &Other) const {
+      std::strong_ordering Comparison = compareStrings(SymbolName,
+                                                       Other.SymbolName);
+      if (Comparison != std::strong_ordering::equal)
+        return Comparison;
+
+      return compareConstantInts(Value, Other.Value);
+    }
   };
+  /// The entries are sorted below, so their order must not depend on
+  /// addresses: it decides the order jump targets are registered in
   std::map<uint32_t, SmallVector<Entry>> MaterializedValuesById;
 
   // Collect materialized values

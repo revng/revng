@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <compare>
 #include <queue>
 #include <set>
 #include <sstream>
@@ -1441,6 +1442,45 @@ void forceVerify(const llvm::Module *M);
 void forceVerify(const llvm::Function *F);
 
 } // namespace revng
+
+/// Three-way comparison for `llvm::ConstantInt`s, which have no
+/// `operator<=>`.
+///
+/// A null pointer compares less than any other one.
+inline std::strong_ordering compareConstantInts(const llvm::ConstantInt *LHS,
+                                                const llvm::ConstantInt *RHS) {
+  if (LHS == RHS)
+    return std::strong_ordering::equal;
+
+  if (LHS == nullptr)
+    return std::strong_ordering::less;
+
+  if (RHS == nullptr)
+    return std::strong_ordering::greater;
+
+  const llvm::APInt &Left = LHS->getValue();
+  const llvm::APInt &Right = RHS->getValue();
+
+  // Compare the widths first, since `ult` refuses constants of different
+  // widths
+  if (Left.getBitWidth() != Right.getBitWidth())
+    return Left.getBitWidth() <=> Right.getBitWidth();
+
+  if (Left == Right)
+    return std::strong_ordering::equal;
+
+  return Left.ult(Right) ? std::strong_ordering::less :
+                           std::strong_ordering::greater;
+}
+
+/// Orders `ConstantInt`s by value, rather than by the pointer, so that a
+/// container keyed on them iterates deterministically
+struct ConstantIntLess {
+  bool operator()(const llvm::ConstantInt *LHS,
+                  const llvm::ConstantInt *RHS) const {
+    return compareConstantInts(LHS, RHS) < 0;
+  }
+};
 
 void collectTypes(llvm::Type *Root, std::set<llvm::Type *> &Set);
 

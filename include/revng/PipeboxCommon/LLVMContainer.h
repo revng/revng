@@ -42,8 +42,7 @@ public:
       return std::set{ ObjectID() };
   }
 
-  void
-  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
+  void deserialize(const RawObjectMap Data) {
     if (Data.size() == 0)
       return;
 
@@ -116,8 +115,7 @@ public:
     return std::views::keys(Modules) | revng::to<std::set<ObjectID>>();
   }
 
-  void
-  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
+  void deserialize(const RawObjectMap Data) {
     for (auto const &[Object, Buffer] : Data) {
       llvm::MemoryBufferRef BufferRef({ Buffer.data(), Buffer.size() },
                                       "newBuffer");

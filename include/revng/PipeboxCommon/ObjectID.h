@@ -4,10 +4,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <map>
 #include <set>
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 
+#include "revng/ADT/Ordering.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Ranks/Location.h"
 #include "revng/Ranks/Ranks.h"
@@ -243,3 +246,12 @@ struct std::hash<const ObjectID> {
 
 template<>
 struct std::hash<ObjectID> : std::hash<const ObjectID> {};
+
+/// The raw data a container deserializes, one entry per object.
+///
+/// Ordered by `ObjectID` rather than by pointer: containers parse in this
+/// order, and parse order reaches what they produce.
+template<typename T>
+using ObjectIDMap = std::map<const ObjectID *, T, PointeeLess<ObjectID>>;
+
+using RawObjectMap = ObjectIDMap<llvm::ArrayRef<char>>;

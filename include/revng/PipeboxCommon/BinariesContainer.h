@@ -55,8 +55,7 @@ public:
       return std::set{ ObjectID() };
   }
 
-  void
-  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
+  void deserialize(const RawObjectMap Data) {
     if (Data.size() == 0)
       return;
 

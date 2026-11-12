@@ -16,8 +16,7 @@ public:
 
   virtual std::set<ObjectID> objects() = 0;
 
-  virtual void deserialize(const std::map<const ObjectID *,
-                                          llvm::ArrayRef<char>> &Input) = 0;
+  virtual void deserialize(const RawObjectMap &Input) = 0;
 
   virtual std::map<ObjectID, pypeline::Buffer>
   serialize(llvm::ArrayRef<ObjectID> ToSave) const = 0;
@@ -37,9 +36,7 @@ public:
 public:
   virtual std::set<ObjectID> objects() override { return Instance.objects(); }
 
-  virtual void
-  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> &Input)
-    override {
+  virtual void deserialize(const RawObjectMap &Input) override {
     Instance.deserialize(Input);
   }
 

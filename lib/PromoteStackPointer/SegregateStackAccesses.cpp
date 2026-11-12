@@ -6,6 +6,7 @@
 #include <set>
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
@@ -470,7 +471,8 @@ CallSite CallSite::make(CallInst *SSACSCall,
   return Result;
 }
 
-using CallSiteMap = std::map<CallInst *, CallSite>;
+/// Use `MapVector` for determinism purposes
+using CallSiteMap = llvm::MapVector<CallInst *, CallSite>;
 
 /// Given an instruction, returns what parts of the stack clobbers/writes
 ///

@@ -132,7 +132,8 @@ static bool handleSwitch(SwitchInst *Switch,
     return false;
   }
 
-  std::map<ConstantInt *, BasicBlock *> NewLabels;
+  // Order the cases by the value each one matches, for determinism
+  std::map<ConstantInt *, BasicBlock *, ConstantIntLess> NewLabels;
   for (const llvm::APInt &Value : *StartNode->OracleRange) {
     std::optional<MaterializedValue> OldValue = DFG.materializeOne(StartNode,
                                                                    MO,

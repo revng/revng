@@ -22,7 +22,7 @@ public:
 
   std::set<ObjectID> objects() const;
 
-  void deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data);
+  void deserialize(const RawObjectMap Data);
   std::map<ObjectID, revng::pypeline::Buffer>
   serialize(const std::vector<const ObjectID *> Objects) const;
   bool verify() const;
@@ -46,7 +46,7 @@ public:
 
   std::set<ObjectID> objects() const;
 
-  void deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data);
+  void deserialize(const RawObjectMap Data);
   std::map<ObjectID, revng::pypeline::Buffer>
   serialize(const std::vector<const ObjectID *> Objects) const;
   void setIsDisposable();

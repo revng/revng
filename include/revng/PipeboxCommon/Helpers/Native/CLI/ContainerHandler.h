@@ -79,7 +79,7 @@ public:
         if (not MaybeObjectID)
           return MaybeObjectID.takeError();
 
-        std::map<const ObjectID *, llvm::ArrayRef<char>> LoadInput;
+        RawObjectMap LoadInput;
         LoadInput[&*MaybeObjectID] = Entry.Data;
         LoadPair.first->deserialize(LoadInput);
       }
