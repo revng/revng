@@ -450,7 +450,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
       }
     } else {
       revng_assert(RV.Registers.empty(),
-                   "Register and stack return values should never be present "
+                   "Register and SPTAR return values should never be present "
                    "at the same time.");
 
       // Add an argument to represent the pointer to the return value location.

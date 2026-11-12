@@ -840,8 +840,8 @@ struct PointersMetadata {
 static PointersMetadata getPointerMetadata(const abi::FunctionType::Layout &L) {
   PointersMetadata Result;
 
-  for (const auto &R : L.ReturnValues)
-    if (L.returnMethod() != abi::FunctionType::ReturnMethod::ModelAggregate)
+  if (L.returnMethod() != abi::FunctionType::ReturnMethod::ModelAggregate)
+    for (const auto &R : L.ReturnValues)
       Result.ReturnValues.push_back(R.Type->isPointer());
 
   for (const auto &R : L.Arguments)
