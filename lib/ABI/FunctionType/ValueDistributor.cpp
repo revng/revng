@@ -236,7 +236,7 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
                 << model::ABI::getName(ABI.ABI()) << "` is `Ignored`.");
 
     ++ArgumentIndex;
-    return { DistributedValue::ignoredValuePlaceholder() };
+    return { DistributedValue::ignoredValuePlaceholder(Size) };
   }
 
   uint64_t RegisterLimit = 0;
@@ -364,7 +364,7 @@ DistributedValues ArgumentDistributor::positionBased(FloatingPointKind FPKind,
     uint64_t CurrentArgumentIndex = nextPositionBasedIndex();
     UsedGeneralPurposeRegisterCount = CurrentArgumentIndex + 1;
 
-    return { DistributedValue::ignoredValuePlaceholder() };
+    return { DistributedValue::ignoredValuePlaceholder(Size) };
   }
 
   namespace FPS = abi::FloatingPointStrategy;
@@ -461,7 +461,7 @@ DistributedValue ReturnValueDistributor::returnValue(const model::Type &T) {
     revng_log(Log,
               "Dropping a return value because the floating point strategy of `"
                 << model::ABI::getName(ABI.ABI()) << "` is `Ignored`.");
-    return DistributedValue::ignoredValuePlaceholder();
+    return DistributedValue::ignoredValuePlaceholder(*T.size());
   }
 
   uint64_t Limit = 0;

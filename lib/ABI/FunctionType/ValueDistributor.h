@@ -93,8 +93,9 @@ struct DistributedValue {
   /// A placeholder for a value that should be dropped entirely.
   ///
   /// See \ref ShouldBeIgnored.
-  static DistributedValue ignoredValuePlaceholder() {
+  static DistributedValue ignoredValuePlaceholder(uint64_t Size) {
     DistributedValue Result;
+    Result.Size = Size;
     Result.ShouldBeIgnored = true;
     return Result;
   }
