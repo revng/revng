@@ -497,25 +497,10 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
   revng_assert(Converted.size() >= Function.Arguments().size());
   uint64_t Index = 0;
   uint64_t StackStructSize = 0;
-  uint64_t IgnoredArgumentCount = 0;
-  uint64_t FirstMisplacedIndex = 0;
+  std::optional<uint64_t> FirstUnsupportedIndex;
   for (const DistributedValue &Distributed : Converted) {
     if (!Distributed.RepresentsPadding) {
       auto &CurrentType = Function.Arguments().at(Index).Type();
-
-      if (Distributed.ShouldBeIgnored) {
-        // We do not have the means to handle this argument - ignore it.
-        //
-        // IMPORTANT: this likely means that following arguments will not be
-        //            placed correctly either. Layout produced for this function
-        //            is not trustworthy.
-        ++IgnoredArgumentCount;
-        ++Index;
-        if (FirstMisplacedIndex == 0)
-          FirstMisplacedIndex = Index;
-        continue;
-      }
-
       Argument &Current = Arguments.emplace_back(CurrentType.copy());
 
       // Disambiguate scalar and aggregate arguments.
@@ -528,14 +513,25 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
       else
         Current.Kind = ArgumentKind::ReferenceToAggregate;
 
-      Current.Registers = toPortions(Distributed);
-      if (Distributed.SizeOnStack != 0) {
-        // The argument has a part (or is placed entirely) on the stack.
-        Current.Stack = Layout::Argument::StackSpan{
-          .Offset = Distributed.OffsetOnStack, .Size = Distributed.SizeOnStack
-        };
+      if (not Distributed.ShouldBeIgnored) {
+        Current.Registers = toPortions(Distributed);
+        if (Distributed.SizeOnStack != 0) {
+          // The argument has a part (or is placed entirely) on the stack.
+          Current.Stack = Layout::Argument::StackSpan{
+            .Offset = Distributed.OffsetOnStack, .Size = Distributed.SizeOnStack
+          };
 
-        StackStructSize = Distributed.OffsetOnStack + Distributed.SizeOnStack;
+          StackStructSize = Distributed.OffsetOnStack + Distributed.SizeOnStack;
+        }
+
+      } else {
+        // The ABI has no means of describing where this argument is passed.
+        // Keep the argument in the layout nonetheless, so that the layout
+        // stays in a one-to-one correspondence with `Function.Arguments()`,
+        // but leave it without any location. It's unsupported: no IR will
+        // ever refer to it, as there's no way of obtaining its value.
+        if (not FirstUnsupportedIndex.has_value())
+          FirstUnsupportedIndex = Index;
       }
 
       ++Index;
@@ -543,7 +539,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
   }
 
   uint64_t Expected = Function.Arguments().size() + (UsesSPTAR ? 1 : 0);
-  revng_assert(Arguments.size() + IgnoredArgumentCount == Expected);
+  revng_assert(Arguments.size() == Expected);
 
   CalleeSavedRegisters.resize(ABI.CalleeSavedRegisters().size());
   llvm::copy(ABI.CalleeSavedRegisters(), CalleeSavedRegisters.begin());
@@ -553,13 +549,13 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
   revng_log(LayoutLog,
             "Layout of " + toString(Function.key()) + " is:\n"
               << toString(*this));
-  if (IgnoredArgumentCount > 0) {
-    revng_assert(FirstMisplacedIndex != 0);
-    revng_log(LayoutLog,
-              "WARNING: it skipped "
-                << IgnoredArgumentCount << " arguments, argument "
-                << FirstMisplacedIndex
-                << " and everything after it could be placed incorrectly.\n");
+  if (FirstUnsupportedIndex.has_value()) {
+    std::string Message = "WARNING: argument "
+                          + std::to_string(*FirstUnsupportedIndex)
+                          + " cannot be placed correctly correctly.\n"
+                            "No argument placement after it can "
+                            "be trusted because of that.\n";
+    revng_log(LayoutLog, Message);
   }
 
   revng_assert(verify());
