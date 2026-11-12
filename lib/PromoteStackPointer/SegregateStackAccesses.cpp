@@ -981,6 +981,8 @@ private:
                                                      Architecture,
                                                      Layout);
 
+    const auto &[PointerReturns, PointerArguments] = getPointerMetadata(Layout);
+
     // NOTE: all the model *must* be read above this line!
     //       If we don't do this, we will break invalidation tracking
     //       information.
@@ -990,7 +992,6 @@ private:
 
     // Create the new function, stealing the name
     Function &NewFunction = recreateWithoutBody(*OldFunction, NewType);
-    const auto &[PointerReturns, PointerArguments] = getPointerMetadata(Layout);
     setPointersMetadata(&NewFunction, PointerReturns, PointerArguments);
 
     // Record the old-to-new mapping
