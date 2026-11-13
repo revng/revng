@@ -36,7 +36,6 @@
     - SystemV_x86_regparm_3
   tests:
     - deeply_nested_float_struct_argument_on_stack
-    - deeply_nested_float_struct_union_argument_on_stack
     - five_double_arguments
     - five_float_arguments
     - lots_of_eight_byte_float_arguments
@@ -87,7 +86,6 @@
     - single_big_float_struct_return_value
     - single_deeply_nested_float_struct_argument
     - single_deeply_nested_float_struct_return_value
-    - single_deeply_nested_float_struct_union_argument
     - single_deeply_nested_float_struct_union_return_value
     - single_double_argument
     - single_double_array_struct_argument
