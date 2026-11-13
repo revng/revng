@@ -1275,6 +1275,10 @@ void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
   for (auto &&[ModelArgument, NewArgument] :
        zip(Layout.argumentsForC(), NewFunction->args())) {
 
+    // Unsupported arguments have no location: they are mere placeholders.
+    if (ModelArgument.isUnsupported())
+      continue;
+
     unsigned OffsetInNewArgument = 0;
     Type *NewArgumentType = NewArgument.getType();
     unsigned NewArgumentSize = NewArgumentType->getIntegerBitWidth() / 8;
@@ -1382,7 +1386,7 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
     for (ReturnInst *Ret : Returns) {
       B.SetInsertPoint(Ret);
 
-      if (not Layout.hasSPTAR()) {
+      if (not Layout.hasSPTAR() and not Layout.isReturnValueUnsupported()) {
         // We have an aggregate returned through registers, fill in the
         // struct using stores
         revng_assert(Layout.returnValueRegisterCount() > 0);
@@ -1417,6 +1421,16 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
   } break;
 
   case ReturnMethod::Scalar: {
+    if (Layout.isReturnValueUnsupported()) {
+      // Unsupported scalar return value: populate it with an undef.
+      for (ReturnInst *Ret : Returns) {
+        B.SetInsertPoint(Ret);
+        B.CreateRet(UndefValue::get(NewReturnType));
+        Ret->eraseFromParent();
+      }
+      break;
+    }
+
     Type *OldReturnType = OldFunction.getReturnType();
 
     if (OldReturnType != NewReturnType) {
@@ -1722,6 +1736,13 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
   bool MessageEmitted = false;
   for (auto &&[LLVMType, ModelArgument] :
        llvm::zip(LLVMArgumentTypes, Layout.Arguments)) {
+
+    if (ModelArgument.isUnsupported()) {
+      // Unsupported argument: populate it with an undef.
+      Arguments.push_back(UndefValue::get(LLVMType));
+      continue;
+    }
+
     uint64_t NewSize = *ModelArgument.Type->size();
 
     switch (ModelArgument.Kind) {
@@ -1985,6 +2006,12 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
   } break;
 
   case ReturnMethod::Scalar:
+    if (Layout.isReturnValueUnsupported()) {
+      // Unsupported return value should *not* have been handled by
+      // the `enforce-abi`.
+      revng_assert(OldCall->use_empty());
+      break;
+    }
 
     if (OldReturnType != NewReturnType and OldReturnType->isIntegerTy()
         and NewReturnType->isIntegerTy()) {
@@ -2057,8 +2084,15 @@ void SegregateStackAccesses::run() {
     eraseFromParent(I);
 
   // Erase original functions
-  for (auto &&[OldFunction, NewFunction] : OldToNew)
+  for (auto &&[OldFunction, NewFunction] : OldToNew) {
+    // If an argument that was real at some point is now unsupported, we need
+    // to explicitly remove it, otherwise we get an assertion.
+    for (Argument &OldArgument : OldFunction->args())
+      if (not OldArgument.use_empty())
+        OldArgument.replaceAllUsesWith(UndefValue::get(OldArgument.getType()));
+
     eraseFromParent(OldFunction);
+  }
 }
 
 namespace revng::pypeline::piperuns {
