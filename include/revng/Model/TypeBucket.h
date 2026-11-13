@@ -53,6 +53,15 @@ public:
 
   [[nodiscard]] bool empty() const { return Definitions.empty(); }
 
+  /// Removes the latest added type definition from this bucket.
+  void pop() {
+    revng_assert(not Definitions.empty());
+    Definitions.pop_back();
+
+    revng_assert(NextAvailableID > FirstAvailableID);
+    NextAvailableID--;
+  }
+
 public:
   /// A helper for new type creation.
   ///
