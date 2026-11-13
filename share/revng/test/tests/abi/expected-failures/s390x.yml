@@ -58,7 +58,6 @@
     - apple_two_byte_aligned_aggregate_on_stack
     - apple_two_byte_aligned_primitive_on_stack
     - deeply_nested_float_struct_argument_on_stack
-    - deeply_nested_float_struct_union_argument_on_stack
     - five_float_arguments
     - huge_struct_on_the_stack
     - lots_of_aggregate_arguments

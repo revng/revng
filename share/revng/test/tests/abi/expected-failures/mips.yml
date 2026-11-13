@@ -299,7 +299,6 @@
     - SystemV_MIPS_o32_softfloat
   tests:
     - deeply_nested_float_struct_argument_on_stack
-    - deeply_nested_float_struct_union_argument_on_stack
     - lots_of_eight_byte_float_arguments
     - lots_of_four_byte_float_arguments
     - mixed_double_float_arguments
