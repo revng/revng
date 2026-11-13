@@ -67,6 +67,8 @@ layoutToLLVMFunctionType(llvm::LLVMContext &Context,
 
     switch (Argument.Kind) {
     case abi::FunctionType::ArgumentKind::ShadowPointerToAggregateReturnValue:
+      revng_assert(not Argument.isUnsupported(),
+                   "Unsupported SPTAR must never happen.");
       // Skip SPTAR
       continue;
     case abi::FunctionType::ArgumentKind::PointerToCopy:
