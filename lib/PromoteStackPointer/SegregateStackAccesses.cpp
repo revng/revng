@@ -1277,6 +1277,10 @@ void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
   for (auto &&[ModelArgument, NewArgument] :
        zip(Layout.argumentsForC(), NewFunction->args())) {
 
+    // Unsupported arguments have no location: they are mere placeholders.
+    if (ModelArgument.isUnsupported())
+      continue;
+
     unsigned OffsetInNewArgument = 0;
     Type *NewArgumentType = NewArgument.getType();
     unsigned NewArgumentSize = NewArgumentType->getIntegerBitWidth() / 8;
@@ -1384,9 +1388,11 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
     for (ReturnInst *Returned : Returns) {
       B.SetInsertPoint(Returned);
 
-      if (not Layout.hasSPTAR()) {
-        // We have an aggregate returned through registers, fill in the
-        // struct using stores
+      if (Layout.hasSPTAR() or Layout.isReturnValueUnsupported()) {
+        // Do not emit any stores for SPTAR and unsupported arguments,
+
+      } else {
+        // But *do* emit them for regular aggregates.
         revng_assert(Layout.returnValueRegisterCount() > 0);
 
         llvm::SmallVector<llvm::Value *, 4> ReturnValues;
@@ -1409,6 +1415,8 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
         }
       }
 
+      // Loads are emitted for all the return values - supported or not.
+
       revng_assert(ReturnValueAllocation);
       revng_assert(ReturnValueIntAddress);
       // TODO: we should review all the CreateLoad alignments
@@ -1419,6 +1427,16 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
   } break;
 
   case ReturnMethod::Scalar: {
+    if (Layout.isReturnValueUnsupported()) {
+      // Unsupported scalar return value: populate it with an undef.
+      for (ReturnInst *Returned : Returns) {
+        B.SetInsertPoint(Returned);
+        B.CreateRet(UndefValue::get(NewReturnType));
+        Returned->eraseFromParent();
+      }
+      break;
+    }
+
     Type *OldReturnType = OldFunction.getReturnType();
 
     if (OldReturnType != NewReturnType) {
@@ -1724,6 +1742,13 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
   bool MessageEmitted = false;
   for (auto &&[LLVMType, ModelArgument] :
        llvm::zip(LLVMArgumentTypes, Layout.Arguments)) {
+
+    if (ModelArgument.isUnsupported()) {
+      // Unsupported argument: populate it with an undef.
+      Arguments.push_back(UndefValue::get(LLVMType));
+      continue;
+    }
+
     uint64_t NewSize = *ModelArgument.Type->size();
 
     switch (ModelArgument.Kind) {
@@ -1987,6 +2012,12 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
   } break;
 
   case ReturnMethod::Scalar:
+    if (Layout.isReturnValueUnsupported()) {
+      // Unsupported return value should *not* have been handled by
+      // the `enforce-abi`.
+      revng_assert(OldCall->use_empty());
+      break;
+    }
 
     if (OldReturnType != NewReturnType and OldReturnType->isIntegerTy()
         and NewReturnType->isIntegerTy()) {
