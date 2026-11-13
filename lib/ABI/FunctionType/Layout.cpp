@@ -71,6 +71,36 @@ public:
   combinedStackArgumentSize(const model::CABIFunctionDefinition &) const;
 };
 
+namespace {
+
+model::UpcastableType
+makePortionPrimitive(const model::Register::Portion &Portion) {
+  constexpr auto Float = model::PrimitiveKind::Float;
+  constexpr auto Generic = model::PrimitiveKind::Generic;
+
+  if (model::Register::getPrimitiveKind(Portion.Register) == Float
+      and model::PrimitiveType::isSizeValid(Float, Portion.Size)) {
+    // If we have a matching floating point type - use it.
+    return model::PrimitiveType::makeFloat(Portion.Size);
+
+  } else if (model::PrimitiveType::isSizeValid(Generic, Portion.Size)) {
+    // If we have a matching generic type - use it.
+    return model::PrimitiveType::makeGeneric(Portion.Size);
+
+  } else if (uint64_t NextPowerOfTwo = llvm::PowerOf2Ceil(Portion.Size);
+             NextPowerOfTwo != Portion.Size
+             and model::PrimitiveType::isSizeValid(Generic, NextPowerOfTwo)) {
+    // If the next power of two makes a valid primitive - use it.
+    return model::PrimitiveType::makeGeneric(NextPowerOfTwo);
+
+  } else {
+    // Otherwise, use the size of the entire register.
+    return model::PrimitiveType::makeGeneric(Portion.Register);
+  }
+}
+
+} // namespace
+
 model::UpcastableType
 ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
                         TupleTree<model::Binary> &Binary) const {
@@ -112,15 +142,18 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
 
         const model::UpcastableType &ReturnType = FunctionType.ReturnType();
         if (ReturnValue.Registers.size() > 1) {
-          Converted.Type() = model::PrimitiveType::makeGeneric(Register);
+          Converted.Type() = makePortionPrimitive(Portion);
+
         } else if (ReturnValue.UsesPointerToCopy == true) {
           revng_assert(*ReturnType->size() > ABI.getPointerSize());
           Converted.Type() = model::PointerType::make(ReturnType.copy(),
                                                       ABI.getArchitecture());
+
         } else if (ReturnType->isScalar()) {
           Converted.Type() = ReturnType.copy();
+
         } else {
-          Converted.Type() = model::PrimitiveType::make(Register);
+          Converted.Type() = makePortionPrimitive(Portion);
         }
 
         revng_log(Log,
@@ -207,15 +240,18 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
         const auto &ArgumentType = FunctionType.Arguments().at(Index).Type();
         uint64_t ArgumentSize = *ArgumentType->size();
         if (Distributed.Registers.size() > 1 || Distributed.SizeOnStack != 0) {
-          Argument.Type() = model::PrimitiveType::makeGeneric(Register);
+          Argument.Type() = makePortionPrimitive(Portion);
+
         } else if (Distributed.UsesPointerToCopy == true) {
           revng_assert(ArgumentSize > ABI.getPointerSize());
           Argument.Type() = model::PointerType::make(ArgumentType.copy(),
                                                      ABI.getArchitecture());
+
         } else if (ArgumentType->isScalar()) {
           Argument.Type() = ArgumentType;
+
         } else {
-          Argument.Type() = model::PrimitiveType::make(Register);
+          Argument.Type() = makePortionPrimitive(Portion);
         }
 
         revng_log(Log, "Adding an argument register:\n" << toString(Register));
