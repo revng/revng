@@ -115,10 +115,6 @@ When this option is set to true, such a struct would still be allowed to use reg
 
 Specifies who is responsible for cleaning the stack after the function call. If equal to `true`, it's the callee, otherwise it the caller.
 
-## `FloatsUseGPRs` (`bool`)
-
-Setting this to true disables usage of float registers entirely, think "soft" float architectures.
-
 ## `PackStackArguments` (`bool`)
 
 Most ABIs extend each stack argument to a GPR-sized slot. Setting this option to true, allows them occupy less space by behaving more like fields in a regular struct would.
