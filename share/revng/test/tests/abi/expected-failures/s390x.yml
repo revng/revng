@@ -99,6 +99,9 @@
     - needle_in_a_haystack_float_struct_union_argument_on_stack
     - nested_float_struct_argument_on_stack
     - nested_float_struct_union_argument_on_stack
+    - deeply_nested_struct_argument_on_stack
+    - nested_struct_argument_on_stack
+    - nested_struct_union_argument_on_stack
     - padded_double_on_stack
     - padded_double_struct_on_stack
     - padded_eight_byte_scalar_on_stack
