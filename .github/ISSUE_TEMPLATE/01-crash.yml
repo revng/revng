@@ -1,0 +1,85 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+name: Crash
+description: rev.ng crashes, aborts or fails an assertion.
+labels: ["crash"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **A reproducer binary is mandatory: issues without one will be closed.**
+
+  - type: input
+    id: version
+    attributes:
+      label: rev.ng version
+      placeholder: revng --version
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - Binary distribution (install.sh)
+        - Docker image (revng/revng)
+        - orchestra
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Reproducer
+      description: Zip the binary and attach it, or email it to `info@rev.ng`.
+      placeholder: Drop reproducer.zip here
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem description
+    validations:
+      required: true
+
+  - type: textarea
+    id: commands
+    attributes:
+      label: Commands
+      placeholder: revng quick artifact emit-c-as-single-file ./program -o program.c
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Error message and full stack trace.
+      render: text
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: recap
+    attributes:
+      label: Final recap
+      options:
+        - label: "This is a bug, not a question or a support request (those go on [Discord](https://discord.gg/wEQtgKJxcX) or [Discourse](https://discuss.rev.ng/))."
+          required: true
+        - label: "This is not a duplicate of an [existing issue](https://github.com/revng/revng/issues?q=is%3Aissue)."
+          required: true
+        - label: "I installed rev.ng [as documented](https://docs.rev.ng/user-manual/initial-setup/) (binary distribution, Docker image or orchestra)."
+          required: true
+        - label: "The problem still happens with the latest version of rev.ng."
+          required: true
+        - label: "This issue reports a single problem."
+          required: true
+        - label: "I attached the binary or emailed it to info@rev.ng. Links open without logging in. Issues without a reproducer will be closed."
+          required: true
+        - label: "Commands and output are text, not screenshots."
+          required: true
