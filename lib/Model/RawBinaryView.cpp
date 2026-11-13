@@ -31,13 +31,8 @@ RawBinaryView::getStringByAddress(MetaAddress Address, uint64_t Size) const {
   return llvm::StringRef(reinterpret_cast<const char *>(Bytes.data()), Size);
 }
 
-std::optional<uint64_t> RawBinaryView::readInteger(MetaAddress Address,
-                                                   uint64_t Size,
-                                                   bool IsLittleEndian) const {
-  auto MaybeData = getByAddress(Address, Size);
-  if (not MaybeData)
-    return std::nullopt;
-
+static uint64_t decodeInteger(llvm::ArrayRef<uint8_t> Bytes,
+                              bool IsLittleEndian) {
   llvm::support::endianness Endianness;
   if (IsLittleEndian) {
     Endianness = llvm::support::little;
@@ -45,18 +40,51 @@ std::optional<uint64_t> RawBinaryView::readInteger(MetaAddress Address,
     Endianness = llvm::support::big;
   }
 
-  switch (Size) {
+  switch (Bytes.size()) {
   case 1:
-    return (*MaybeData)[0];
+    return Bytes[0];
   case 2:
-    return llvm::support::endian::read16(MaybeData->data(), Endianness);
+    return llvm::support::endian::read16(Bytes.data(), Endianness);
   case 4:
-    return llvm::support::endian::read32(MaybeData->data(), Endianness);
+    return llvm::support::endian::read32(Bytes.data(), Endianness);
   case 8:
-    return llvm::support::endian::read64(MaybeData->data(), Endianness);
+    return llvm::support::endian::read64(Bytes.data(), Endianness);
   default:
     revng_abort("Unexpected read size");
   }
+}
+
+std::optional<uint64_t> RawBinaryView::readInteger(MetaAddress Address,
+                                                   uint64_t Size,
+                                                   bool IsLittleEndian) const {
+  auto MaybeData = getByAddress(Address, Size);
+  if (not MaybeData)
+    return std::nullopt;
+
+  return decodeInteger(*MaybeData, IsLittleEndian);
+}
+
+uint64_t RawBinaryView::Table::read(uint64_t Index) const {
+  revng_assert(Index < size());
+  return decodeInteger(Data.slice(Index * EntrySize, EntrySize),
+                       IsLittleEndian);
+}
+
+std::optional<RawBinaryView::Table>
+RawBinaryView::getTable(MetaAddress Start,
+                        uint64_t Count,
+                        uint64_t EntrySize) const {
+  auto Size = OverflowSafeInt(Count) * EntrySize;
+  if (Start.isInvalid() or not Size)
+    return std::nullopt;
+
+  auto MaybeData = getByAddress(Start, *Size);
+  if (not MaybeData)
+    return std::nullopt;
+
+  auto Architecture = Binary.Architecture();
+  bool IsLittleEndian = model::Architecture::isLittleEndian(Architecture);
+  return Table(*MaybeData, EntrySize, IsLittleEndian);
 }
 
 std::optional<uint64_t> RawBinaryView::readInteger(MetaAddress Address,
