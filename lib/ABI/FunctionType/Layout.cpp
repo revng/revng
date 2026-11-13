@@ -518,7 +518,8 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
       else
         Current.Kind = ArgumentKind::ReferenceToAggregate;
 
-      if (not Distributed.ShouldBeIgnored) {
+      if (not Distributed.ShouldBeIgnored
+          and not FirstUnsupportedIndex.has_value()) {
         Current.Registers = toPortions(Distributed);
         if (Distributed.SizeOnStack != 0) {
           // The argument has a part (or is placed entirely) on the stack.
