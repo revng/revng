@@ -400,9 +400,8 @@ void VH::arguments(const abi::runtime_test::ArgumentTest &Test) const {
   // Do final checks to make sure no unverified state is still remaining.
   if (!Remaining.Registers.empty()) {
     fail("There are leftover registers - the argument type size is "
-         "inconsistent "
-         "(model value differs from the real one) or the layout is straight up "
-         "broken.");
+         "inconsistent (model value differs from the real one) or the layout is"
+         "straight up broken.");
     return;
   }
 

@@ -218,7 +218,7 @@ python3 "${SCRIPT_DIRECTORY}/filter-failures.py" \
     "${UNIVERSAL_FAILURES[@]}" "${RFT_STAGE_FAILURES[@]}" \
   | tee "${OUTPUT_DIRECTORY}/filtered/4-downgraded-upgraded-downgraded-reference-binary.yml"
 
-# Check there are no differences
+# Check there are no differences between both RFT stages
 revng \
     ensure-rft-equivalence \
     "${OUTPUT_DIRECTORY}/models/2-downgraded-reference-binary.yml" \

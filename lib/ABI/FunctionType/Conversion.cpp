@@ -770,8 +770,7 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
         return std::nullopt;
       }
     } else {
-      // It could be either a struct or a scalar, go the conservative route
-      // and make a struct for it.
+      // It could be a struct, go the conservative route and make one for it.
       auto &&[Definition, ReturnType] = Bucket.makeStructDefinition();
       for (model::Register::Values Register : Ordered) {
         // Make a separate field for each register.
