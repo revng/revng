@@ -59,6 +59,8 @@
     - single_array_union_return_value
     - single_big_struct_return_value
     - single_big_union_return_value
+    - single_deeply_nested_struct_return_value
+    - single_deeply_nested_struct_union_return_value
     - single_eight_byte_struct_return_value
     - single_eight_byte_struct_union_with_a_bigger_scalar_return_value
     - single_eight_byte_struct_union_with_a_smaller_scalar_return_value
@@ -68,6 +70,8 @@
     - single_gpr_return_value
     - single_huge_struct_return_value
     - single_huge_union_return_value
+    - single_nested_struct_return_value
+    - single_nested_struct_union_return_value
     - single_one_byte_struct_return_value
     - single_one_byte_struct_union_with_a_bigger_scalar_return_value
     - single_one_byte_struct_union_with_a_smaller_scalar_return_value
@@ -352,6 +356,9 @@
     - apple_padded_four_byte_aligned_primitive_on_stack
     - apple_reverse_four_byte_aligned_aggregate_on_stack
     - apple_reverse_four_byte_aligned_primitive_on_stack
+    - deeply_nested_struct_argument_on_stack
+    - nested_struct_argument_on_stack
+    - nested_struct_union_argument_on_stack
     - padded_eight_byte_scalar_on_stack
     - padded_eight_byte_struct_on_stack
     - padded_eight_byte_union_on_stack
