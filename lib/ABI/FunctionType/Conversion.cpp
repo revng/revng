@@ -4,6 +4,7 @@
 
 #include <vector>
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 
 #include "revng/ABI/FunctionType/Conversion.h"
@@ -753,7 +754,101 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
     // Multiple registers, it's either a struct or a big scalar.
 
     // First, check if it can possibly be a struct.
-    if (ABI.MaximumGPRsPerAggregateReturnValue() < Ordered.size()) {
+    bool CanBeAStruct = true;
+    if (ABI.MaximumHFAFieldCount() != 0) {
+      auto IsRegisterNonFloat = std::views::filter([this](const auto &R) {
+        return not llvm::is_contained(ABI.FloatReturnValueRegisters(), R);
+      });
+      if (Ordered.size() > ABI.MaximumHFAFieldCount()
+          or not std::ranges::empty(Ordered | IsRegisterNonFloat)) {
+        // Either there are too many registers or there are non-floats in
+        // the mix. Both mean HFA logic does not apply.
+        const uint64_t RegisterLimit = ABI.MaximumGPRsPerAggregateReturnValue();
+        CanBeAStruct = RegisterLimit >= Ordered.size();
+
+      } else {
+        std::optional<uint64_t> FieldSize;
+        llvm::SmallVector<model::UpcastableType, 8> Fields;
+        for (model::Register::Values Register : Ordered) {
+          auto Iterator = Registers.find(Register);
+          if (Iterator != Registers.end()) {
+            auto &FT = Fields.emplace_back(model::copyType(*Iterator->Type()));
+            revng_assert(FT->isScalar(),
+                         "Aggregates as RFT arguments/return-values are not "
+                         "supported.");
+
+            // NOTE: all the registers here are guaranteed to be floating point,
+            //       see `std::ranges::empty(Ordered | IsRegisterNonFloat)`
+            //       guard above.
+            if (auto R = refineGenericType(model::PrimitiveKind::Float, *FT))
+              FT = std::move(*R);
+
+            // For this to turn into a HFA, all the fields must be floating
+            // point primitives of the same size.
+            if (not FT->isFloatPrimitive()
+                or (FieldSize and *FieldSize != *FT->size())) {
+              FieldSize = std::nullopt;
+              break;
+            }
+
+            FieldSize = *FT->size();
+
+          } else {
+            // Use `nullptr` to mark typeless registers. If this is indeed
+            // a HFA, we'll place a primitive on the appropriate size in its
+            // place later.
+            Fields.emplace_back(nullptr);
+          }
+        }
+
+        if (FieldSize.has_value()) {
+          // This is a HFA, let's build it.
+          revng_assert(model::PrimitiveType::isFloatSizeValid(*FieldSize));
+          auto &&[Equivalent, ReturnType] = Bucket.makeStructDefinition();
+          for (const model::UpcastableType &FieldType : Fields) {
+            if (not FieldType.isEmpty()) {
+              Equivalent.addField(Equivalent.Size(), FieldType.copy());
+              Equivalent.Size() += *FieldType->size();
+
+            } else {
+              Equivalent.addField(Equivalent.Size(),
+                                  model::PrimitiveType::makeFloat(*FieldSize));
+              Equivalent.Size() += *FieldSize;
+            }
+          }
+
+          // HFA should be valid according to both implementations.
+          revng_assert(asHomogeneousFloatAggregate(Equivalent,
+                                                   ABI.MaximumHFAFieldCount()));
+
+          // HFAs can only be returned if a dedicated register strategy is used.
+          const auto Strategy = ABI.FloatingPointReturnValueStrategy();
+          namespace FPS = FloatingPointStrategy;
+          if (Strategy != FPS::NextRegisterFromTheDedicatedSet) {
+            revng_log(Log,
+                      "FAIL: a HFA return value requires a dedicated floating "
+                      "point register set. Instead `"
+                        << model::ABI::getName(ABI.ABI()) << "` uses `"
+                        << toString(Strategy) << "` strategy.");
+            return std::nullopt;
+          }
+
+          return std::move(ReturnType);
+
+        } else {
+          // Not a HFA, fall back to the usual aggregate handling.
+          uint64_t RegisterLimit = ABI.MaximumGPRsPerAggregateReturnValue();
+          CanBeAStruct = RegisterLimit >= Ordered.size();
+        }
+      }
+
+    } else {
+      // For other ABIs we just need to check if the number of registers is
+      // within the limit.
+      CanBeAStruct = ABI.MaximumGPRsPerAggregateReturnValue() >= Ordered.size();
+    }
+
+    if (not CanBeAStruct) {
       // It cannot be a struct, it's bigger than allowed.
       if (ABI.MaximumGPRsPerScalarReturnValue() < Ordered.size()) {
         // It cannot be a scalar either.
@@ -802,7 +897,8 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
             Field.Type() = std::move(*Refined);
         }
 
-        if (not canRepresentReturnValue(ABI, *Field.Type())) {
+        if (ABI.MaximumHFAFieldCount() == 0
+            and not canRepresentReturnValue(ABI, *Field.Type())) {
           revng_log(Log,
                     "FAIL: the return value in `"
                       << model::Register::getRegisterName(Register)
