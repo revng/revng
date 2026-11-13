@@ -1,0 +1,114 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+name: Performance problem
+description: rev.ng is too slow or runs out of memory.
+labels: ["performance"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **A reproducer binary is mandatory: issues without one will be closed.**
+
+  - type: input
+    id: version
+    attributes:
+      label: rev.ng version
+      placeholder: revng --version
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - Binary distribution (install.sh)
+        - Docker image (revng/revng)
+        - orchestra
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Reproducer
+      description: Zip the binary and attach it, or email it to `info@rev.ng`.
+      placeholder: Drop reproducer.zip here
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem description
+    validations:
+      required: true
+
+  - type: textarea
+    id: commands
+    attributes:
+      label: Commands
+      placeholder: revng quick artifact emit-c-as-single-file ./program -o program.c
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: binary-size
+    attributes:
+      label: Binary size
+      description: "`wc -c < BINARY`"
+      placeholder: 5242880 bytes
+    validations:
+      required: true
+
+  - type: input
+    id: code-size
+    attributes:
+      label: Code size
+      description: "ELF: `size -A -d BINARY`, PE/COFF: `llvm-size -A -d BINARY`, Mach-O: `size -m BINARY`"
+      placeholder: ".text: 102400 bytes"
+    validations:
+      required: true
+
+  - type: textarea
+    id: resources
+    attributes:
+      label: Time and memory
+      description: Wall-clock time, peak memory, CPU and RAM.
+      placeholder: |
+        Stopped after 24 hours, using 9.8 GiB of memory.
+        AMD Ryzen 9 3900X, 64 GiB of RAM.
+    validations:
+      required: true
+
+  - type: textarea
+    id: trace
+    attributes:
+      label: Trace
+      description: Append `-- --trace=trace.json` to the command (Ctrl-C still saves it), then gzip and attach it. It opens in [Perfetto](https://ui.perfetto.dev).
+      placeholder: Drop trace.json.gz here
+
+  - type: checkboxes
+    id: recap
+    attributes:
+      label: Final recap
+      options:
+        - label: "This is a bug, not a question or a support request (those go on [Discord](https://discord.gg/wEQtgKJxcX) or [Discourse](https://discuss.rev.ng/))."
+          required: true
+        - label: "This is not a duplicate of an [existing issue](https://github.com/revng/revng/issues?q=is%3Aissue)."
+          required: true
+        - label: "I installed rev.ng [as documented](https://docs.rev.ng/user-manual/initial-setup/) (binary distribution, Docker image or orchestra)."
+          required: true
+        - label: "The problem still happens with the latest version of rev.ng."
+          required: true
+        - label: "This issue reports a single problem."
+          required: true
+        - label: "I attached the binary or emailed it to info@rev.ng. Links open without logging in. Issues without a reproducer will be closed."
+          required: true
+        - label: "I reported the binary size and the code size."
+          required: true
+        - label: "Commands and output are text, not screenshots."
+          required: true

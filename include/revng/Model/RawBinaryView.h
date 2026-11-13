@@ -14,6 +14,7 @@
 #include "revng/BasicAnalyses/MaterializedValue.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
+#include "revng/Support/Assert.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/OverflowSafeInt.h"
 
@@ -21,6 +22,30 @@
 class RawBinaryView {
 private:
   using OverflowSafeInt = OverflowSafeInt<uint64_t>;
+
+public:
+  /// A sequence of integers of the same size, entirely available in the file
+  class Table {
+  private:
+    llvm::ArrayRef<uint8_t> Data;
+    uint64_t EntrySize = 0;
+    bool IsLittleEndian = true;
+
+  public:
+    Table(llvm::ArrayRef<uint8_t> Data,
+          uint64_t EntrySize,
+          bool IsLittleEndian) :
+      Data(Data), EntrySize(EntrySize), IsLittleEndian(IsLittleEndian) {
+      revng_assert(EntrySize == 1 or EntrySize == 2 or EntrySize == 4
+                   or EntrySize == 8);
+    }
+
+  public:
+    uint64_t size() const { return Data.size() / EntrySize; }
+
+    /// \return the entry at \p Index, which must be lower than size()
+    uint64_t read(uint64_t Index) const;
+  };
 
 private:
   const model::Binary &Binary;
@@ -50,6 +75,11 @@ public:
   readInteger(MetaAddress Address, uint64_t Size, bool IsLittleEndian) const;
 
   std::optional<uint64_t> readInteger(MetaAddress Address, uint64_t Size) const;
+
+  /// \return the table of \p Count integers of \p EntrySize bytes at \p Start,
+  ///         if it is entirely available in the file
+  std::optional<Table>
+  getTable(MetaAddress Start, uint64_t Count, uint64_t EntrySize) const;
 
   std::optional<llvm::ArrayRef<uint8_t>>
   getFromAddressOn(MetaAddress Address) const;

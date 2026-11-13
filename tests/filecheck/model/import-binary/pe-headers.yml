@@ -1,0 +1,48 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# The loader maps the headers at the image base, read-only, over SizeOfHeaders
+# rounded up to SectionAlignment. Check that they get a segment, unless a
+# section is already there.
+#
+# RUN: yaml2obj %s -o %t.dll -DVA=0x1000
+# RUN: %root/bin/revng quick analyze --analyses=parse-binary %t.dll | FileCheck %s
+# RUN: yaml2obj %s -o %t.overlap.dll -DVA=0x200
+# RUN: %root/bin/revng quick analyze --analyses=parse-binary %t.overlap.dll | FileCheck %s --check-prefix=OVERLAP
+# RUN: %root/bin/revng quick analyze --analyses=parse-binary %t.overlap.dll -o /dev/null -- --debug-log=pecoff-importer 2>&1 | FileCheck %s --check-prefix=LOG
+
+# CHECK:      Segments:
+# CHECK-NEXT:   - Binary: "/Binaries/0"
+# CHECK-NEXT:     StartAddress: "0x10000000:Generic32"
+# CHECK-NEXT:     VirtualSize: 4096
+# CHECK-NEXT:     FileSize: 512
+# CHECK-NEXT:     IsReadable: true
+# CHECK-NEXT:     Type:
+# CHECK:        - Binary: "/Binaries/0"
+# CHECK-NEXT:     StartAddress: "0x10001000:Generic32"
+
+# OVERLAP:      Segments:
+# OVERLAP-NEXT:   - Binary: "/Binaries/0"
+# OVERLAP-NEXT:     StartAddress: "0x10000200:Generic32"
+# OVERLAP-NOT:      StartAddress:
+# OVERLAP:      TypeDefinitions:
+
+# LOG: The headers, from 0x10000000:Generic32 to 0x10001000:Generic32, overlap the segment at 0x10000200:Generic32. Not mapping them.
+
+---
+!COFF
+OptionalHeader:
+  AddressOfEntryPoint: 0
+  ImageBase: 0x10000000
+  SectionAlignment: 0x1000
+  FileAlignment: 0x200
+header:
+  Machine: IMAGE_FILE_MACHINE_I386
+  Characteristics: [IMAGE_FILE_EXECUTABLE_IMAGE, IMAGE_FILE_32BIT_MACHINE, IMAGE_FILE_DLL]
+sections:
+  - Name: .text
+    Characteristics: [IMAGE_SCN_CNT_CODE, IMAGE_SCN_MEM_EXECUTE, IMAGE_SCN_MEM_READ]
+    VirtualAddress: [[VA]]
+    VirtualSize: 1
+    SectionData: C3
+symbols: []
