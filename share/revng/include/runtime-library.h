@@ -11,6 +11,7 @@
 //
 
 void rr_imm_impl(void *out, size_t size, char const *literal);
+void rr_fimm_impl(void *out, size_t size, char const *literal);
 
 void rr_zext_impl(const void *in, size_t in_size, void *out, size_t out_size);
 void rr_sext_impl(const void *in, size_t in_size, void *out, size_t out_size);
@@ -18,6 +19,12 @@ void rr_truncate_impl(const void *in,
                       size_t in_size,
                       void *out,
                       size_t out_size);
+
+void rr_stof_impl(const void *in, size_t in_size, void *out, size_t out_size);
+void rr_utof_impl(const void *in, size_t in_size, void *out, size_t out_size);
+void rr_ftos_impl(const void *in, size_t in_size, void *out, size_t out_size);
+void rr_ftou_impl(const void *in, size_t in_size, void *out, size_t out_size);
+void rr_ftof_impl(const void *in, size_t in_size, void *out, size_t out_size);
 
 void rr_neg_impl(void *in_out, size_t size);
 void rr_add_impl(void *in_out, const void *in, size_t size);
@@ -27,6 +34,12 @@ void rr_sdiv_impl(void *in_out, const void *in, size_t size);
 void rr_udiv_impl(void *in_out, const void *in, size_t size);
 void rr_srem_impl(void *in_out, const void *in, size_t size);
 void rr_urem_impl(void *in_out, const void *in, size_t size);
+
+void rr_fneg_impl(void *in_out, size_t size);
+void rr_fadd_impl(void *in_out, const void *in, size_t size);
+void rr_fsub_impl(void *in_out, const void *in, size_t size);
+void rr_fmul_impl(void *in_out, const void *in, size_t size);
+void rr_fdiv_impl(void *in_out, const void *in, size_t size);
 
 void rr_shl_impl(void *in_out, const void *in, size_t size);
 void rr_shr_impl(void *in_out, const void *in, size_t size);
@@ -44,16 +57,17 @@ int rr_test_impl(const void *in, size_t size);
 int rr_ecmp_impl(const void *lhs, const void *rhs, size_t size);
 int rr_scmp_impl(const void *lhs, const void *rhs, size_t size);
 int rr_ucmp_impl(const void *lhs, const void *rhs, size_t size);
+int rr_fcmp_impl(const void *lhs, const void *rhs, size_t size);
 
 //
 // Operator implementation macros
 //
 
-#define rr_operator_imm(type, constant)            \
-  (__extension__({                                 \
-    type rr_r;                                     \
-    rr_##imm_impl(&rr_r, sizeof(rr_r), #constant); \
-    rr_r;                                          \
+#define rr_operator_imm(operator, type, constant)         \
+  (__extension__({                                        \
+    type rr_r;                                            \
+    rr_##operator##_impl(&rr_r, sizeof(rr_r), #constant); \
+    rr_r;                                                 \
   }))
 
 #define rr_operator_cast(operator, type, x)                         \
@@ -111,11 +125,18 @@ int rr_ucmp_impl(const void *lhs, const void *rhs, size_t size);
 // User-facing operator macros
 //
 
-#define rr_imm(type, x) rr_operator_imm(type, x)
+#define rr_imm(type, x) rr_operator_imm(imm, type, x)
+#define rr_fimm(type, x) rr_operator_imm(fimm, type, x)
 
 #define rr_zext(type, x) rr_operator_cast(zext, type, x)
 #define rr_sext(type, x) rr_operator_cast(sext, type, x)
 #define rr_truncate(type, x) rr_operator_cast(truncate, type, x)
+
+#define rr_stof(type, x) rr_operator_cast(stof, type, x)
+#define rr_utof(type, x) rr_operator_cast(utof, type, x)
+#define rr_ftos(type, x) rr_operator_cast(ftos, type, x)
+#define rr_ftou(type, x) rr_operator_cast(ftou, type, x)
+#define rr_ftof(type, x) rr_operator_cast(ftof, type, x)
 
 #define rr_neg(x) rr_operator_1(neg, x)
 #define rr_add(x, y) rr_operator_2(add, x, y)
@@ -125,6 +146,12 @@ int rr_ucmp_impl(const void *lhs, const void *rhs, size_t size);
 #define rr_sdiv(x, y) rr_operator_2(sdiv, x, y)
 #define rr_srem(x, y) rr_operator_2(srem, x, y)
 #define rr_urem(x, y) rr_operator_2(urem, x, y)
+
+#define rr_fneg(x) rr_operator_1(fneg, x)
+#define rr_fadd(x, y) rr_operator_2(fadd, x, y)
+#define rr_fsub(x, y) rr_operator_2(fsub, x, y)
+#define rr_fmul(x, y) rr_operator_2(fmul, x, y)
+#define rr_fdiv(x, y) rr_operator_2(fdiv, x, y)
 
 #define rr_shl(x, y) rr_operator_2(shl, x, y)
 #define rr_shr(x, y) rr_operator_2(shr, x, y)
@@ -153,3 +180,10 @@ int rr_ucmp_impl(const void *lhs, const void *rhs, size_t size);
 #define rr_ule(x, y) (rr_operator_cmp(ucmp, x, y) <= 0)
 #define rr_sge(x, y) (rr_operator_cmp(scmp, x, y) >= 0)
 #define rr_uge(x, y) (rr_operator_cmp(ucmp, x, y) >= 0)
+
+#define rr_feq(x, y) (rr_operator_cmp(fcmp, x, y) == 0)
+#define rr_fne(x, y) (rr_operator_cmp(fcmp, x, y) != 0)
+#define rr_flt(x, y) (rr_operator_cmp(fcmp, x, y) < 0)
+#define rr_fgt(x, y) (rr_operator_cmp(fcmp, x, y) > 0)
+#define rr_fle(x, y) (rr_operator_cmp(fcmp, x, y) <= 0)
+#define rr_fge(x, y) (rr_operator_cmp(fcmp, x, y) >= 0)

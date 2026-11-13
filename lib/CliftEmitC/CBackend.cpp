@@ -175,6 +175,21 @@ public:
     rc_return;
   }
 
+  RecursiveCoroutine<void>
+  emitIntrinsicFloatingPointImmediateExpression(FImmediateOp E) {
+    emitIntrinsicMacro(getIntrinsicIdentifier(E));
+    Tokens.emitOperator(CTE::Operator::LeftParenthesis);
+
+    emitType(E.getType());
+    Tokens.emitPunctuator(CTE::Punctuator::Comma);
+
+    Tokens.emitFloatingPointLiteral(E.getValue(), /*Suffix=*/std::nullopt);
+
+    Tokens.emitOperator(CTE::Operator::RightParenthesis);
+
+    rc_return;
+  }
+
   RecursiveCoroutine<void> emitIntrinsicCastExpression(CastOpInterface E) {
     revng_assert((mlir::isa<BoolExtendOp,
                             ZeroExtendOp,
@@ -217,6 +232,9 @@ public:
     if (auto E = mlir::dyn_cast<ImmediateOp>(Op))
       return emitIntrinsicImmediateExpression(E);
 
+    if (auto E = mlir::dyn_cast<FImmediateOp>(Op))
+      return emitIntrinsicFloatingPointImmediateExpression(E);
+
     if (auto E = mlir::dyn_cast<CastOpInterface>(Op)) {
       if (not mlir::isa<TestOp>(Op))
         return emitIntrinsicCastExpression(E);
@@ -224,11 +242,16 @@ public:
 
     revng_assert((mlir::isa<TestOp,
                             NegOp,
+                            FNegOp,
                             AddOp,
+                            FAddOp,
                             SubOp,
+                            FSubOp,
                             MulOp,
+                            FMulOp,
                             SDivOp,
                             UDivOp,
+                            FDivOp,
                             SRemOp,
                             URemOp,
                             ShlOp,
@@ -243,15 +266,21 @@ public:
                             PostIncrementOp,
                             PostDecrementOp,
                             CmpEqOp,
+                            FCmpEqOp,
                             CmpNeOp,
+                            FCmpNeOp,
                             SCmpLtOp,
                             UCmpLtOp,
+                            FCmpLtOp,
                             SCmpGtOp,
                             UCmpGtOp,
+                            FCmpGtOp,
                             SCmpLeOp,
                             UCmpLeOp,
+                            FCmpLeOp,
                             SCmpGeOp,
-                            UCmpGeOp>(Op)));
+                            UCmpGeOp,
+                            FCmpGeOp>(Op)));
 
     return emitUsualIntrinsicExpression(Op);
   }
@@ -263,16 +292,6 @@ public:
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
 
     rc_return;
-  }
-
-  static bool isNullPointerConstant(ImmediateOp E) {
-    if (E.getValue() != 0)
-      return false;
-
-    if (auto Cast = getOnlyUser<BitCastOp>(E))
-      return clift::unwrapped_isa<PointerType>(Cast.getType());
-
-    return false;
   }
 
   RecursiveCoroutine<void> emitImmediateExpression(mlir::Value V) {
@@ -300,6 +319,23 @@ public:
                        IntType.isSigned(),
                        CType,
                        getConstantRadix(E));
+
+    rc_return;
+  }
+
+  RecursiveCoroutine<void> emitFloatingPointImmediateExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<FImmediateOp>();
+    auto Type = clift::unwrapped_cast<FloatType>(E.getType());
+
+    auto Range = DataModel.getStandardFloatingPointRange(Type.getSize());
+    revng_assert(Range, "Floating point immediate not representable in C.");
+
+    auto CType = Range->first;
+    if (CStandardType::Double <= Range->first
+        and Range->second <= CStandardType::Double)
+      CType = CStandardType::Double;
+
+    Tokens.emitFloatingPointLiteral(E.getValue(), CType);
 
     rc_return;
   }
@@ -544,13 +580,13 @@ public:
   }
 
   static CTE::Operator getOperator(mlir::Operation *Op) {
-    if (mlir::isa<NegOp, SubOp, PtrSubOp, PtrDiffOp>(Op))
+    if (mlir::isa<NegOp, FNegOp, SubOp, FSubOp, PtrSubOp, PtrDiffOp>(Op))
       return CTE::Operator::Minus;
-    if (mlir::isa<AddOp, PtrAddOp>(Op))
+    if (mlir::isa<AddOp, FAddOp, PtrAddOp>(Op))
       return CTE::Operator::Plus;
-    if (mlir::isa<MulOp, IndirectionOp>(Op))
+    if (mlir::isa<MulOp, FMulOp, IndirectionOp>(Op))
       return CTE::Operator::Star;
-    if (mlir::isa<SDivOp, UDivOp>(Op))
+    if (mlir::isa<SDivOp, UDivOp, FDivOp>(Op))
       return CTE::Operator::Slash;
     if (mlir::isa<SRemOp, URemOp>(Op))
       return CTE::Operator::Percent;
@@ -701,6 +737,13 @@ public:
       };
     }
 
+    if (auto Immediate = mlir::dyn_cast<FImmediateOp>(E.getOperation())) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CliftToCEmitter::emitFloatingPointImmediateExpression,
+      };
+    }
+
     if (auto Null = mlir::dyn_cast<NullOp>(E.getOperation())) {
       return {
         .Precedence = OperatorPrecedence::Primary,
@@ -790,6 +833,7 @@ public:
     }
 
     if (mlir::isa<NegOp,
+                  FNegOp,
                   BitwiseNotOp,
                   LogicalNotOp,
                   IncrementOp,
@@ -802,14 +846,20 @@ public:
       };
     }
 
-    if (mlir::isa<MulOp, SDivOp, UDivOp, SRemOp, URemOp>(E)) {
+    if (mlir::isa<MulOp, FMulOp, SDivOp, UDivOp, FDivOp, SRemOp, URemOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Multiplicative,
         .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
-    if (mlir::isa<AddOp, SubOp, PtrAddOp, PtrSubOp, PtrDiffOp>(E)) {
+    if (mlir::isa<AddOp, //
+                  FAddOp,
+                  SubOp,
+                  FSubOp,
+                  PtrAddOp,
+                  PtrSubOp,
+                  PtrDiffOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Additive,
         .Emit = &CliftToCEmitter::emitInfixExpression,

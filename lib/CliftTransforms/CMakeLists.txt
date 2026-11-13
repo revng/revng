@@ -14,6 +14,7 @@ revng_add_library_internal(
   EmitFieldAccesses/PointerArithmetic.cpp
   Expressions.cpp
   ExpressionPostProcessing.cpp
+  FloatingPointPromotion.cpp
   ImmediateRadixDeduction.cpp
   ImplicitCastElision.cpp
   LabelMerging.cpp
@@ -21,6 +22,7 @@ revng_add_library_internal(
   LoopDetection.cpp
   PatternRewriter.cpp
   PromoteBreakContinue.cpp
+  QEMUHelperTranslation.cpp
   RewriteHelpers.cpp
   Statements.cpp
   TerminalBranchHoisting.cpp

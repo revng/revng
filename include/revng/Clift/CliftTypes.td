@@ -114,6 +114,12 @@ def Clift_FloatType
     `<` $size `>`
   }];
 
+  let extraClassDeclaration = [{
+    [[nodiscard]] mlir::FloatType getBuiltinFloatType();
+
+    [[nodiscard]] const llvm::fltSemantics &getFloatSemantics();
+  }];
+
   let genVerifyDecl = 1;
 }
 

@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
@@ -244,6 +245,10 @@ public:
   void emitIntegerLiteral(llvm::APInt Value,
                           std::optional<IntegerSuffix> Suffix,
                           uint64_t Radix = 10);
+
+  /// \pre \param Radix must be one of 10 or 16.
+  void emitFloatingPointLiteral(llvm::APFloat Value,
+                                std::optional<CStandardType> Suffix);
 
   void emitStringLiteral(llvm::StringRef Content);
 

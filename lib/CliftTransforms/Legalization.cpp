@@ -508,6 +508,23 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
   }
 };
 
+// Introduces casts around null constants whose type is not pointer to void.
+struct NullCastPattern : mlir::OpRewritePattern<NullOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(NullOp Op, mlir::PatternRewriter &Rewriter) const override {
+    auto Type = PointerType::get(VoidType::get(Rewriter.getContext()),
+                                 /*PointerSize=*/getObjectSize(Op.getType()));
+
+    if (Op.getType() == Type)
+      return mlir::failure();
+
+    modifyResultType(Rewriter, Op, Type);
+    return mlir::success();
+  }
+};
+
 //===----------------------------- Intrinsics -----------------------------===//
 
 static mlir::Type getOperationType(ImmediateOp Immediate) {
@@ -545,12 +562,46 @@ struct IntrinsicPattern : mlir::OpRewritePattern<OpT> {
 };
 
 template<typename OpT>
+struct FloatingPointIntrinsicPattern : mlir::OpRewritePattern<OpT> {
+  const CDataModel &DataModel;
+
+  explicit FloatingPointIntrinsicPattern(mlir::MLIRContext *Context,
+                                         const CDataModel &DataModel) :
+    mlir::OpRewritePattern<OpT>(Context), DataModel(DataModel) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
+    if (Op->hasAttr("clift.intrinsic"))
+      return mlir::failure();
+
+    mlir::Type Type = getOperationType(Op);
+    if (DataModel.isSupportedFloatingPointSize(getObjectSize(Type)))
+      return mlir::failure();
+
+    Op->setAttr("clift.intrinsic", mlir::UnitAttr::get(Op->getContext()));
+    return mlir::success();
+  }
+};
+
+template<typename OpT>
 struct IntrinsicCastPattern : mlir::OpRewritePattern<OpT> {
   const CDataModel &DataModel;
 
   explicit IntrinsicCastPattern(mlir::MLIRContext *Context,
                                 const CDataModel &DataModel) :
     mlir::OpRewritePattern<OpT>(Context), DataModel(DataModel) {}
+
+  [[nodiscard]] bool isSupportedType(mlir::Type Type) const {
+    Type = unwrapTypedefs(Type);
+
+    if (mlir::isa<IntegralType>(Type))
+      return DataModel.isSupportedIntegerSize(getObjectSize(Type));
+
+    if (mlir::isa<FloatType>(Type))
+      return DataModel.isSupportedFloatingPointSize(getObjectSize(Type));
+
+    revng_abort("Unsupported cast type");
+  }
 
   mlir::LogicalResult
   matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
@@ -560,8 +611,7 @@ struct IntrinsicCastPattern : mlir::OpRewritePattern<OpT> {
     mlir::Type SourceType = Op.getValueType();
     mlir::Type TargetType = Op.getType();
 
-    if (DataModel.isSupportedIntegerSize(getObjectSize(SourceType))
-        and DataModel.isSupportedIntegerSize(getObjectSize(TargetType)))
+    if (isSupportedType(SourceType) and isSupportedType(TargetType))
       return mlir::failure();
 
     Op->setAttr("clift.intrinsic", mlir::UnitAttr::get(Op->getContext()));
@@ -666,6 +716,7 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     mlir::RewritePatternSet Set(Context);
 
     Set.add<ImmediateCastPattern>(Context, DataModel);
+    Set.add<NullCastPattern>(Context);
     Set.add<BooleanCanonicalizationPattern>(Context, DataModel);
 
     auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
@@ -712,9 +763,28 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
     Set.add<IntrinsicPattern<TestOp>>(Context, DataModel);
     Set.add<IntrinsicPattern<BoolExtendOp>>(Context, DataModel);
 
+    Set.add<FloatingPointIntrinsicPattern<FImmediateOp>>(Context, DataModel);
+    Set.add<FloatingPointIntrinsicPattern<FNegOp>>(Context, DataModel);
+    Set.add<FloatingPointIntrinsicPattern<FAddOp>>(Context, DataModel);
+    Set.add<FloatingPointIntrinsicPattern<FSubOp>>(Context, DataModel);
+    Set.add<FloatingPointIntrinsicPattern<FMulOp>>(Context, DataModel);
+    Set.add<FloatingPointIntrinsicPattern<FDivOp>>(Context, DataModel);
+    Set.add<FloatingPointIntrinsicPattern<FCmpEqOp>>(Context, DataModel);
+    Set.add<FloatingPointIntrinsicPattern<FCmpNeOp>>(Context, DataModel);
+    Set.add<FloatingPointIntrinsicPattern<FCmpLtOp>>(Context, DataModel);
+    Set.add<FloatingPointIntrinsicPattern<FCmpGtOp>>(Context, DataModel);
+    Set.add<FloatingPointIntrinsicPattern<FCmpLeOp>>(Context, DataModel);
+    Set.add<FloatingPointIntrinsicPattern<FCmpGeOp>>(Context, DataModel);
+
     Set.add<IntrinsicCastPattern<ZeroExtendOp>>(Context, DataModel);
     Set.add<IntrinsicCastPattern<SignExtendOp>>(Context, DataModel);
     Set.add<IntrinsicCastPattern<TruncateOp>>(Context, DataModel);
+
+    Set.add<IntrinsicCastPattern<SignedToFloatOp>>(Context, DataModel);
+    Set.add<IntrinsicCastPattern<UnsignedToFloatOp>>(Context, DataModel);
+    Set.add<IntrinsicCastPattern<FloatToSignedOp>>(Context, DataModel);
+    Set.add<IntrinsicCastPattern<FloatToUnsignedOp>>(Context, DataModel);
+    Set.add<IntrinsicCastPattern<FloatToFloatOp>>(Context, DataModel);
 
     auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
     if (mlir::applyPatternsAndFoldGreedily(Function, Patterns).failed())
