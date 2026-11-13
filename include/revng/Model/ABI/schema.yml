@@ -58,12 +58,6 @@ definitions:
         type: bool
         default: false
 
-      - name: FloatsUseGPRs
-        doc: |
-          See `revng/share/doc/revng/references/abi-definition.md` for details.
-        type: bool
-        default: false
-
       - name: PackStackArguments
         doc: |
           See `revng/share/doc/revng/references/abi-definition.md` for details.

@@ -11,7 +11,6 @@ BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: false
 AllowPackedTypesInRegisters: false
 CalleeIsResponsibleForStackCleanup: false
-FloatsUseGPRs: true
 PackStackArguments: false
 TreatAllAggregatesAsPacked: false
 
