@@ -60,6 +60,11 @@ public:
 
 private:
   Error parseSectionsHeaders();
+
+  /// Map the headers as the loader does: read-only, at the image base, over
+  /// SizeOfHeaders rounded up to SectionAlignment.
+  void parseHeadersSegment(uint64_t SizeOfHeaders, uint64_t SectionAlignment);
+
   /// Parse static symbols from the file.
   void parseSymbols();
 
@@ -102,9 +107,13 @@ Error PECOFFImporter::parseSectionsHeaders() {
   const object::pe32_header *PE32Header = TheBinary.ObjectFile.getPE32Header();
 
   // Identify ImageBase
+  uint64_t SizeOfHeaders = 0;
+  uint64_t SectionAlignment = 0;
   if (PE32Header) {
     // TODO: ImageBase should aligned to 4kb pages, should we check that?
     ImageBase = fromGeneric(PE32Header->ImageBase);
+    SizeOfHeaders = PE32Header->SizeOfHeaders;
+    SectionAlignment = PE32Header->SectionAlignment;
   } else {
     const pe32plus_header *PE32PlusHeader = TheBinary.ObjectFile
                                               .getPE32PlusHeader();
@@ -113,6 +122,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
 
     // PE32+ Header
     ImageBase = fromGeneric(PE32PlusHeader->ImageBase);
+    SizeOfHeaders = PE32PlusHeader->SizeOfHeaders;
+    SectionAlignment = PE32PlusHeader->SectionAlignment;
   }
 
   // Read sections
@@ -162,6 +173,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
     Model->Segments().insert(std::move(Segment));
   }
 
+  parseHeadersSegment(SizeOfHeaders, SectionAlignment);
+
   processSegments();
 
   // Identify EntryPoint
@@ -185,6 +198,49 @@ Error PECOFFImporter::parseSectionsHeaders() {
     setEntryPoint(EntryPoint);
 
   return Error::success();
+}
+
+void PECOFFImporter::parseHeadersSegment(uint64_t SizeOfHeaders,
+                                         uint64_t SectionAlignment) {
+  if (SizeOfHeaders == 0) {
+    revng_log(Log, "SizeOfHeaders is 0, not mapping the headers.");
+    return;
+  }
+
+  uint64_t Size = alignTo(SizeOfHeaders,
+                          std::max<uint64_t>(SectionAlignment, 1));
+  MetaAddress End = ImageBase + Size;
+  if (End.isInvalid()) {
+    revng_log(Log, "The headers do not fit in the address space. Ignoring.");
+    return;
+  }
+
+  for (const model::Segment &Segment : Model->Segments()) {
+    if (Segment.StartAddress().addressLowerThan(End)) {
+      revng_log(Log,
+                "The headers, from " << ImageBase.toString() << " to "
+                                     << End.toString()
+                                     << ", overlap the segment at "
+                                     << Segment.StartAddress().toString()
+                                     << ". Not mapping them.");
+      return;
+    }
+  }
+
+  uint64_t FileSize = TheBinary.ObjectFile.getData().size();
+
+  model::Segment Headers(ImageBase);
+  Headers.VirtualSize() = Size;
+  Headers.Binary() = TheBinary.Reference;
+  Headers.StartOffset() = 0;
+  Headers.FileSize() = std::min(SizeOfHeaders, FileSize);
+  Headers.IsReadable() = true;
+
+  auto &&[Struct, Type] = Model->makeStructDefinition(Size);
+  Struct.IsSingleton() = true;
+  Headers.Type() = std::move(Type);
+
+  Model->Segments().insert(std::move(Headers));
 }
 
 void PECOFFImporter::parseSymbols() {
