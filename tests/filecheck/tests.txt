@@ -476,3 +476,4 @@ model/drop-types/DropStructField.yml
 model/drop-types/DropViaPointer.yml
 model/drop-types/UnionCascade.yml
 model/drop-types/UnionPartialDrop.yml
+model/import-binary/pe-exports.yml

@@ -1,0 +1,59 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# A DLL without symbols or an entry point exposes its functions only through
+# the export table. Its ordinals are:
+#
+#   1: alpha and alias_alpha, two names for the same entry
+#   2-6, 8, 10, 11: unused
+#   7: a function exported by ordinal only
+#   9: exported_data, which is not code
+#   12: beta
+#   13: forwarded, which points to KERNEL32.GetCurrentProcessId
+#
+# RUN: yaml2obj %s -o %t.dll
+# RUN: %root/bin/revng quick analyze --analyses=parse-binary %t.dll | FileCheck %s
+
+# CHECK:      Functions:
+# CHECK-NEXT:   - Entry: "0x10001000:Code_x86"
+# CHECK-NEXT:     Name: alias_alpha
+# CHECK-NEXT:     ExportedNames:
+# CHECK-NEXT:       - alias_alpha
+# CHECK-NEXT:       - alpha
+# CHECK-NEXT:   - Entry: "0x10001010:Code_x86"
+# CHECK-NEXT:     Name: beta
+# CHECK-NEXT:     ExportedNames:
+# CHECK-NEXT:       - beta
+# CHECK-NEXT:   - Entry: "0x10001020:Code_x86"
+# CHECK-NEXT: TypeDefinitions:
+
+---
+!COFF
+OptionalHeader:
+  AddressOfEntryPoint: 0
+  ImageBase: 0x10000000
+  SectionAlignment: 0x1000
+  FileAlignment: 0x200
+  ExportTable:
+    RelativeVirtualAddress: 0x2000
+    Size: 217
+header:
+  Machine: IMAGE_FILE_MACHINE_I386
+  Characteristics: [IMAGE_FILE_EXECUTABLE_IMAGE, IMAGE_FILE_32BIT_MACHINE, IMAGE_FILE_DLL]
+sections:
+  - Name: .text
+    Characteristics: [IMAGE_SCN_CNT_CODE, IMAGE_SCN_MEM_EXECUTE, IMAGE_SCN_MEM_READ]
+    VirtualAddress: 0x1000
+    VirtualSize: 38
+    SectionData: B811000000C3662E0F1F840000000000B817000000C3662E0F1F840000000000B81F000000C3
+  - Name: .rdata
+    Characteristics: [IMAGE_SCN_CNT_INITIALIZED_DATA, IMAGE_SCN_MEM_READ]
+    VirtualAddress: 0x2000
+    VirtualSize: 217
+    SectionData: 00000000000000000000000028200000010000000D000000050000003A2000006E200000822000006578706F72745F6D61747269782E646C6C00001000000000000000000000000000000000000000000000201000000000000000300000000000000000000010100000BB2000008C200000982000009E200000A3200000B1200000000000000B0008000C00616C6961735F616C70686100616C7068610062657461006578706F727465645F6461746100666F72776172646564005F4B45524E454C33322E47657443757272656E7450726F63657373496400
+  - Name: .data
+    Characteristics: [IMAGE_SCN_CNT_INITIALIZED_DATA, IMAGE_SCN_MEM_READ, IMAGE_SCN_MEM_WRITE]
+    VirtualAddress: 0x3000
+    VirtualSize: 4
+    SectionData: "07000000"
+symbols: []

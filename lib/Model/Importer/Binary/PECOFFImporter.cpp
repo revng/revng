@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Error.h"
@@ -19,6 +20,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/Error.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/OverflowSafeInt.h"
 
 #include "FindMissingTypes.h"
 #include "Importers.h"
@@ -60,6 +62,12 @@ private:
   Error parseSectionsHeaders();
   /// Parse static symbols from the file.
   void parseSymbols();
+
+  /// Register the targets of the export address table as functions.
+  void parseExports();
+
+  /// Read the NUL-terminated string at \p RVA.
+  std::optional<llvm::StringRef> readString(uint64_t RVA) const;
 
   /// Parse dynamic symbols from the file.
   void parseImportedSymbols();
@@ -200,6 +208,127 @@ void PECOFFImporter::parseSymbols() {
 
     if (auto *Function = registerFunctionEntry(Address))
       Function->Name() = *MaybeName;
+  }
+}
+
+std::optional<llvm::StringRef> PECOFFImporter::readString(uint64_t RVA) const {
+  MetaAddress Address = ImageBase + RVA;
+  if (Address.isInvalid())
+    return std::nullopt;
+
+  auto MaybeData = File.getFromAddressOn(Address);
+  if (not MaybeData)
+    return std::nullopt;
+
+  StringRef Data = toStringRef(*MaybeData);
+  size_t End = Data.find('\0');
+  if (End == StringRef::npos)
+    return std::nullopt;
+
+  return Data.take_front(End);
+}
+
+/// Add \p Names to the exported names of \p Function, naming it after the first
+/// one if it has no name yet.
+static void addExportedNames(model::Function &Function,
+                             llvm::ArrayRef<llvm::StringRef> Names) {
+  for (llvm::StringRef Name : Names) {
+    if (Function.Name().empty())
+      Function.Name() = Name.str();
+    Function.ExportedNames().insert(Name.str());
+  }
+}
+
+void PECOFFImporter::parseExports() {
+  const COFFObjectFile &Object = TheBinary.ObjectFile;
+  const export_directory_table_entry *Directory = Object.getExportTable();
+  if (Directory == nullptr)
+    return;
+
+  // export_directories reads the export address table without checking that
+  // it lies within the file
+  uint64_t Count = Directory->AddressTableEntries;
+  MetaAddress AddressesStart = ImageBase
+                               + u64(Directory->ExportAddressTableRVA);
+  if (not File.getTable(AddressesStart, Count, 4).has_value()) {
+    revng_log(Log, "The export address table is not in the file. Ignoring.");
+    return;
+  }
+
+  // Collect the names of each entry, which can have several, or none. LLVM
+  // only provides the first one.
+  std::map<uint64_t, std::vector<StringRef>> NamesByIndex;
+  uint64_t NamesCount = Directory->NumberOfNamePointers;
+  if (NamesCount > 0) {
+    MetaAddress NamesStart = ImageBase + u64(Directory->NamePointerRVA);
+    MetaAddress OrdinalsStart = ImageBase + u64(Directory->OrdinalTableRVA);
+    auto Names = File.getTable(NamesStart, NamesCount, 4);
+    auto Ordinals = File.getTable(OrdinalsStart, NamesCount, 2);
+    if (Names.has_value() and Ordinals.has_value()) {
+      for (uint64_t NameIndex = 0; NameIndex < NamesCount; ++NameIndex) {
+        uint64_t Index = Ordinals->read(NameIndex);
+        std::optional<StringRef> Name = readString(Names->read(NameIndex));
+        if (Index >= Count or not Name.has_value() or Name->empty()) {
+          revng_log(Log,
+                    "Invalid export name number " << NameIndex
+                                                  << ". Ignoring.");
+          continue;
+        }
+
+        NamesByIndex[Index].push_back(*Name);
+      }
+    } else {
+      revng_log(Log, "The export names are not in the file. Ignoring them.");
+    }
+  }
+
+  uint64_t NextIndex = 0;
+  for (const ExportDirectoryEntryRef &Entry : Object.export_directories()) {
+    uint64_t Index = NextIndex++;
+    uint32_t RVA = 0;
+    if (auto Error = Entry.getExportRVA(RVA)) {
+      revng_log(Log,
+                "Cannot read export number " << Index << ": "
+                                             << toString(std::move(Error))
+                                             << ". Ignoring.");
+      continue;
+    }
+
+    // Unused ordinal
+    if (RVA == 0)
+      continue;
+
+    bool IsForwarder = false;
+    if (auto Error = Entry.isForwarder(IsForwarder)) {
+      revng_log(Log,
+                "Cannot read export number " << Index << ": "
+                                             << toString(std::move(Error))
+                                             << ". Ignoring.");
+      continue;
+    }
+
+    if (IsForwarder) {
+      revng_log(Log,
+                "Export number " << Index
+                                 << " is forwarded to another DLL. Ignoring.");
+      continue;
+    }
+
+    MetaAddress Address = ImageBase + u64(RVA);
+    MetaAddress PC = Address.isValid() ? toPC(Address) : Address;
+    if (PC.isInvalid()) {
+      revng_log(Log, "Export number " << Index << " is invalid. Ignoring.");
+      continue;
+    }
+
+    // Exported data is not executable and is rejected here
+    model::Function *Function = registerFunctionEntry(PC);
+    if (Function == nullptr)
+      continue;
+
+    auto NamesIterator = NamesByIndex.find(Index);
+    if (NamesIterator != NamesByIndex.end())
+      addExportedNames(*Function, NamesIterator->second);
   }
 }
 
@@ -472,6 +601,9 @@ Error PECOFFImporter::import(const ImporterOptions &Options) {
 
   // Parse the symbol table.
   parseSymbols();
+
+  // Parse the export table.
+  parseExports();
 
   // Parse dynamic symbol table.
   parseImportedSymbols();
