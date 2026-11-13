@@ -749,7 +749,79 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
     // Multiple registers, it's either a struct or a big scalar.
 
     // First, check if it can possibly be a struct.
-    if (ABI.MaximumGPRsPerAggregateReturnValue() < Ordered.size()) {
+    bool CanBeAStruct = true;
+
+    const uint64_t MaximumHomogeneousAggregateFields = // formatting
+      ABI.OnlyHomogeneousStructsWithThisManyFieldsUseFloatingPointRegisters();
+    if (MaximumHomogeneousAggregateFields != 0) {
+      auto IsRegisterNonFloat = std::views::filter([](const auto &Register) {
+        namespace PK = model::PrimitiveKind;
+        return model::Register::getPrimitiveKind(Register) != PK::Float;
+      });
+      if (not std::ranges::empty(Ordered | IsRegisterNonFloat)) {
+        // If not all the registers attached to this return value are floating
+        // point, then it cannot be a HFA, so make the call on whether
+        // this can be a struct or not based on the number of registers.
+        const uint64_t RegisterLimit = ABI.MaximumGPRsPerAggregateReturnValue();
+        CanBeAStruct = RegisterLimit >= Ordered.size();
+
+      } else if (Ordered.size() != Registers.size()) {
+        // At least one of the registers is missing (i.e. we got v0+v2 without
+        // v1) - the struct cannot be homogeneous.
+        CanBeAStruct = false;
+
+      } else {
+        // Build the equivalent struct.
+        auto &&[Equivalent, ReturnType] = Bucket.makeStructDefinition();
+        for (model::Register::Values Register : Ordered) {
+          auto Iterator = Registers.find(Register);
+          revng_assert(Iterator != Registers.end());
+          auto FieldType = model::copyType(*Iterator->Type());
+
+          // Attempt to refine the type (a 64-bit generic in v0 is to be treated
+          // as `double`).
+          if (std::optional Refined = refineGenericType(ABI,
+                                                        Register,
+                                                        *FieldType))
+            FieldType = std::move(*Refined);
+
+          if (not canRepresentReturnValue(ABI, *FieldType)) {
+            revng_log(Log,
+                      "FAIL: the return value in `"
+                        << model::Register::getRegisterName(Register)
+                        << "` cannot be represented under `"
+                        << model::ABI::getName(ABI.ABI())
+                        << "`, whose floating point strategy is `Ignored`.");
+            return std::nullopt;
+          }
+
+          const uint64_t Offset = Equivalent.Size();
+          Equivalent.Size() += *FieldType->size();
+          Equivalent.addField(Offset, std::move(FieldType));
+        }
+
+        // If the equivalent struct is homogeneous, we can just use it as is.
+        auto H = asHomogeneousFloatAggregate(Equivalent,
+                                             MaximumHomogeneousAggregateFields);
+        if (H.has_value()) {
+          revng_assert(Equivalent.Size() != 0
+                       and not Equivalent.Fields().empty());
+          return std::move(ReturnType);
+        }
+
+        // Otherwise, this return value cannot be a struct - it looks like a HFA
+        // but is not one.
+        CanBeAStruct = false;
+        Bucket.pop();
+      }
+
+    } else {
+      // For other ABIs we just need to check if the number of registers is
+      // within the limit.
+      CanBeAStruct = ABI.MaximumGPRsPerAggregateReturnValue() >= Ordered.size();
+    }
+
+    if (not CanBeAStruct) {
       // It cannot be a struct, it's bigger than allowed.
       if (ABI.MaximumGPRsPerScalarReturnValue() < Ordered.size()) {
         // It cannot be a scalar either.
