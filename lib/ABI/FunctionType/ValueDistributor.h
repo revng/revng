@@ -13,6 +13,31 @@
 
 namespace abi::FunctionType {
 
+/// The information necessary to pass an aggregate that consists solely of
+/// floating point members of the same type.
+///
+/// \note This is all the information we need, as all the fields must be
+///       the same.
+struct HomogeneousFloatAggregate {
+  uint64_t FieldSize = 0;
+  uint64_t FieldCount = 0;
+};
+
+/// Determines whether \p Type is an aggregate that consists solely of floating
+/// point members of the same type and has no padding in it.
+///
+/// \note Such aggregates are what `aarch64` specification calls "Homogeneous
+///       Floating-point Aggregates (HFA)". How many members such an aggregate
+///       is allowed to have is up to the ABI, see `MaximumHFAFieldCount`.
+/// @{
+std::optional<HomogeneousFloatAggregate>
+asHomogeneousFloatAggregate(const model::Type &Type,
+                            uint64_t MaximumFieldCount);
+std::optional<HomogeneousFloatAggregate>
+asHomogeneousFloatAggregate(const model::TypeDefinition &Type,
+                            uint64_t MaximumFieldCount);
+/// @}
+
 using RegisterPortions = llvm::SmallVector<model::Register::Portion, 2>;
 using RegisterPortionSpan = std::span<const model::Register::Portion>;
 
@@ -211,22 +236,32 @@ public:
       abi::Definition::AlignmentCache Cache;
       uint64_t Alignment = *ABI.alignment(Type, Cache);
       bool IsNatural = *ABI.hasNaturalAlignment(Type, Cache);
+
+      // When the ABI requires special handling of the homogeneous structs,
+      // ensure the correct context is extracted from the type.
+      std::optional<HomogeneousFloatAggregate> HFA;
+      if (ABI.MaximumHFAFieldCount() and not Type.isScalar())
+        HFA = asHomogeneousFloatAggregate(Type, ABI.MaximumHFAFieldCount());
+
       return nonPositionBased(Type.isScalar(),
                               floatingPointKind(Type),
                               *Type.size(),
                               Alignment,
-                              IsNatural);
+                              IsNatural,
+                              HFA);
     }
   }
 
 private:
   DistributedValues positionBased(FloatingPointKind FloatingPoint,
                                   uint64_t Size);
-  DistributedValues nonPositionBased(bool IsScalar,
-                                     FloatingPointKind FloatingPoint,
-                                     uint64_t Size,
-                                     uint64_t Alignment,
-                                     bool HasNaturalAlignment);
+  DistributedValues
+  nonPositionBased(bool IsScalar,
+                   FloatingPointKind FloatingPoint,
+                   uint64_t Size,
+                   uint64_t Alignment,
+                   bool HasNaturalAlignment,
+                   const std::optional<HomogeneousFloatAggregate> &HFA);
 
 private:
   size_t nextPositionBasedIndex() const {
