@@ -11,9 +11,11 @@ BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: false
 AllowPackedTypesInRegisters: false
 CalleeIsResponsibleForStackCleanup: false
-FloatsUseGPRs: false
 PackStackArguments: false
 TreatAllAggregatesAsPacked: false
+
+FloatingPointArgumentStrategy: Ignored
+FloatingPointReturnValueStrategy: Ignored
 
 StackAlignment: 16
 MinimumStackArgumentSize: 8
@@ -68,6 +70,10 @@ ScalarTypes:
     Size: 8
   - Kind: Integer
     Size: 16
+  - Kind: Integer
+    Size: 32 # `ymm` register-sized generic
+  - Kind: Integer
+    Size: 64 # `zmm` register-sized generic
   - Kind: FloatingPoint
     Size: 4 # IEEE Binary32
   - Kind: FloatingPoint

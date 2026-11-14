@@ -11,9 +11,11 @@ BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: true
 AllowPackedTypesInRegisters: true
 CalleeIsResponsibleForStackCleanup: false
-FloatsUseGPRs: false
 PackStackArguments: false
 TreatAllAggregatesAsPacked: false
+
+FloatingPointArgumentStrategy: Ignored
+FloatingPointReturnValueStrategy: Ignored
 
 StackAlignment: 8
 MinimumStackArgumentSize: 4

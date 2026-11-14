@@ -840,8 +840,8 @@ struct PointersMetadata {
 static PointersMetadata getPointerMetadata(const abi::FunctionType::Layout &L) {
   PointersMetadata Result;
 
-  for (const auto &R : L.ReturnValues)
-    if (L.returnMethod() != abi::FunctionType::ReturnMethod::ModelAggregate)
+  if (L.returnMethod() != abi::FunctionType::ReturnMethod::ModelAggregate)
+    for (const auto &R : L.ReturnValues)
       Result.ReturnValues.push_back(R.Type->isPointer());
 
   for (const auto &R : L.Arguments)
@@ -981,6 +981,8 @@ private:
                                                      Architecture,
                                                      Layout);
 
+    const auto &[PointerReturns, PointerArguments] = getPointerMetadata(Layout);
+
     // NOTE: all the model *must* be read above this line!
     //       If we don't do this, we will break invalidation tracking
     //       information.
@@ -990,7 +992,6 @@ private:
 
     // Create the new function, stealing the name
     Function &NewFunction = recreateWithoutBody(*OldFunction, NewType);
-    const auto &[PointerReturns, PointerArguments] = getPointerMetadata(Layout);
     setPointersMetadata(&NewFunction, PointerReturns, PointerArguments);
 
     // Record the old-to-new mapping
@@ -1271,20 +1272,12 @@ void SegregateFunctionStack::prepareReturnValueStorage() {
 }
 
 void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
-  using namespace abi::FunctionType;
-  using namespace abi::FunctionType::ArgumentKind;
-
-  // The SPTAR argument was handled in prepareReturnValueStorage; drop it
-  // from the list of arguments we still need to lower.
-  auto ModelArguments = llvm::make_range(Layout.Arguments.begin(),
-                                         Layout.Arguments.end());
-  if (Layout.returnMethod() == ReturnMethod::ModelAggregate
-      and Layout.hasSPTAR()) {
-    ModelArguments = llvm::drop_begin(ModelArguments);
-  }
-
   for (auto &&[ModelArgument, NewArgument] :
-       zip(ModelArguments, NewFunction->args())) {
+       zip(Layout.argumentsForC(), NewFunction->args())) {
+
+    // Unsupported arguments have no location: they are mere placeholders.
+    if (ModelArgument.isUnsupported())
+      continue;
 
     unsigned OffsetInNewArgument = 0;
     Type *NewArgumentType = NewArgument.getType();
@@ -1293,6 +1286,7 @@ void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
     llvm::Value *ToRecordSpan = nullptr;
     bool UsesStack = ModelArgument.Stack.has_value();
 
+    using namespace abi::FunctionType::ArgumentKind;
     if (ModelArgument.Kind == PointerToCopy) {
       auto Architecture = SSA.Binary.Architecture();
       auto PointerSize = model::Architecture::getPointerSize(Architecture);
@@ -1392,7 +1386,7 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
     for (ReturnInst *Ret : Returns) {
       B.SetInsertPoint(Ret);
 
-      if (not Layout.hasSPTAR()) {
+      if (not Layout.hasSPTAR() and not Layout.isReturnValueUnsupported()) {
         // We have an aggregate returned through registers, fill in the
         // struct using stores
         revng_assert(Layout.returnValueRegisterCount() > 0);
@@ -1427,6 +1421,16 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
   } break;
 
   case ReturnMethod::Scalar: {
+    if (Layout.isReturnValueUnsupported()) {
+      // Unsupported scalar return value: populate it with an undef.
+      for (ReturnInst *Ret : Returns) {
+        B.SetInsertPoint(Ret);
+        B.CreateRet(UndefValue::get(NewReturnType));
+        Ret->eraseFromParent();
+      }
+      break;
+    }
+
     Type *OldReturnType = OldFunction.getReturnType();
 
     if (OldReturnType != NewReturnType) {
@@ -1732,6 +1736,13 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
   bool MessageEmitted = false;
   for (auto &&[LLVMType, ModelArgument] :
        llvm::zip(LLVMArgumentTypes, Layout.Arguments)) {
+
+    if (ModelArgument.isUnsupported()) {
+      // Unsupported argument: populate it with an undef.
+      Arguments.push_back(UndefValue::get(LLVMType));
+      continue;
+    }
+
     uint64_t NewSize = *ModelArgument.Type->size();
 
     switch (ModelArgument.Kind) {
@@ -1799,7 +1810,7 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
         }
       } else if (ModelArgument.Stack) {
         unsigned OldSize = ModelArgument.Stack->Size;
-        revng_assert(OldSize <= 128 / 8);
+        revng_assert(OldSize != 0);
         revng_assert(MaybeStackOffsetAtCallSite);
 
         // Create an alloca
@@ -1995,6 +2006,12 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
   } break;
 
   case ReturnMethod::Scalar:
+    if (Layout.isReturnValueUnsupported()) {
+      // Unsupported return value should *not* have been handled by
+      // the `enforce-abi`.
+      revng_assert(OldCall->use_empty());
+      break;
+    }
 
     if (OldReturnType != NewReturnType and OldReturnType->isIntegerTy()
         and NewReturnType->isIntegerTy()) {
@@ -2067,8 +2084,15 @@ void SegregateStackAccesses::run() {
     eraseFromParent(I);
 
   // Erase original functions
-  for (auto &&[OldFunction, NewFunction] : OldToNew)
+  for (auto &&[OldFunction, NewFunction] : OldToNew) {
+    // If an argument that was real at some point is now unsupported, we need
+    // to explicitly remove it, otherwise we get an assertion.
+    for (Argument &OldArgument : OldFunction->args())
+      if (not OldArgument.use_empty())
+        OldArgument.replaceAllUsesWith(UndefValue::get(OldArgument.getType()));
+
     eraseFromParent(OldFunction);
+  }
 }
 
 namespace revng::pypeline::piperuns {

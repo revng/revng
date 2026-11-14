@@ -25,6 +25,28 @@
     - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 2 uses neither the expected stack part nor the expected registers.
     - Argument 3 uses neither the expected stack part nor the expected registers.
+    - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
+
+# The floating-point cases for `AAPCS_softfloat`, previously blanket-disabled
+# through `floating-point.yml`.
+- ABIs:
+    - AAPCS_softfloat
+  tests:
+    - mixed_double_float_arguments
+    - mixed_double_float_struct_arguments
+    - mixed_double_int_32_arguments
+    - mixed_double_struct_32_arguments
+    - mixed_double_struct_float_arguments
+    - mixed_float_huge_struct_arguments
+    - mixed_int_64_float_arguments
+    - mixed_struct_64_float_arguments
+  errors:
+    - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
+    - Argument 0 uses neither the expected stack part nor the expected registers.
+    - Argument 1 uses neither the expected stack part nor the expected registers.
+    - Argument 2 uses neither the expected stack part nor the expected registers.
+    - Argument 17 uses neither the expected stack part nor the expected registers.
+    - Argument 20 uses neither the expected stack part nor the expected registers.
 
 # These failures are related to how the `abi::Definition::PackStackArguments`
 # boolean is handled.

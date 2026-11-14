@@ -15,6 +15,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/TupleTree/NamedEnumScalarTraits.h"
 
+#include "FloatingPointStrategy.h"
 #include "ValueDistributor.h"
 
 static Logger Log("function-type-conversion-to-raw");
@@ -95,7 +96,11 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
   bool UsesSPTAR = false;
   if (!FunctionType.ReturnType().isEmpty()) {
     auto ReturnValue = distributeReturnValue(*FunctionType.ReturnType());
-    if (!ReturnValue.Registers.empty()) {
+    if (ReturnValue.ShouldBeIgnored) {
+      // We do not have the means to handle this return value - ignore it.
+      revng_log(Log, "Return value is ignored.\n");
+
+    } else if (!ReturnValue.Registers.empty()) {
       revng_assert(ReturnValue.SizeOnStack == 0);
 
       // The return value uses registers: pass them through to the new type.
@@ -178,6 +183,18 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
   auto Arguments = distributeArguments(FunctionType.Arguments(), UsesSPTAR);
   uint64_t Index = 0;
   for (const DistributedValue &Distributed : Arguments) {
+    if (Distributed.ShouldBeIgnored) {
+      // We do not have the means to handle this argument - ignore it.
+      //
+      // IMPORTANT: this likely means that following arguments will not be
+      //            placed correctly either. Layout produced for this function
+      //            is not trustworthy.
+      revng_log(Log, "Ignoring an argument.");
+
+      ++Index;
+      continue;
+    }
+
     if (!Distributed.RepresentsPadding) {
       // Transfer the register arguments first.
       for (model::Register::Values Register : Distributed.Registers) {
@@ -355,15 +372,16 @@ ToRawConverter::distributeArguments(CFTArguments Arguments,
                       std::back_inserter(Result));
 
   if (ABI.PackStackArguments()) {
-    for (auto &&[Current, Next] : zip_pairs(Result)) {
-      if (Current.SizeOnStack && Next.SizeOnStack) {
-        if (Current.OffsetOnStack + Current.SizeOnStack > Next.OffsetOnStack) {
-          Current.SizeOnStack -= Current.PostPaddingSize;
-          Current.PostPaddingSize = 0;
+    auto StackArguments = Result | std::views::filter([](const auto &Value) {
+                            return Value.SizeOnStack != 0;
+                          });
+    for (auto &&[Current, Next] : zip_pairs(StackArguments)) {
+      if (Current.OffsetOnStack + Current.SizeOnStack > Next.OffsetOnStack) {
+        Current.SizeOnStack -= Current.PostPaddingSize;
+        Current.PostPaddingSize = 0;
 
-          uint64_t NewOffset = Current.OffsetOnStack + Current.SizeOnStack;
-          revng_assert(NewOffset <= Next.OffsetOnStack);
-        }
+        uint64_t NewOffset = Current.OffsetOnStack + Current.SizeOnStack;
+        revng_assert(NewOffset <= Next.OffsetOnStack);
       }
     }
 
@@ -418,7 +436,16 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
   bool UsesSPTAR = false;
   if (!Function.ReturnType().isEmpty()) {
     auto RV = Converter.distributeReturnValue(*Function.ReturnType());
-    if (RV.SizeOnStack == 0) {
+    if (RV.ShouldBeIgnored) {
+      // We do not have the means to handle this return value.
+      //
+      // Keep it in the layout as a placeholder with no registers, so that
+      // the consumers of the layout can make their own decisions on how to
+      // handle this.
+      revng_log(Log, "Return value is ignored.\n");
+      ReturnValues.emplace_back(Function.ReturnType().copy());
+
+    } else if (RV.SizeOnStack == 0) {
       if (Function.ReturnType().isEmpty()) {
         // This function returns `void`: no need to do anything special.
       } else {
@@ -428,7 +455,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
       }
     } else {
       revng_assert(RV.Registers.empty(),
-                   "Register and stack return values should never be present "
+                   "Register and SPTAR return values should never be present "
                    "at the same time.");
 
       // Add an argument to represent the pointer to the return value location.
@@ -475,6 +502,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
   revng_assert(Converted.size() >= Function.Arguments().size());
   uint64_t Index = 0;
   uint64_t StackStructSize = 0;
+  std::optional<uint64_t> FirstUnsupportedIndex;
   for (const DistributedValue &Distributed : Converted) {
     if (!Distributed.RepresentsPadding) {
       auto &CurrentType = Function.Arguments().at(Index).Type();
@@ -490,24 +518,34 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
       else
         Current.Kind = ArgumentKind::ReferenceToAggregate;
 
-      Current.Registers = toPortions(Distributed);
-      if (Distributed.SizeOnStack != 0) {
-        // The argument has a part (or is placed entirely) on the stack.
-        Current.Stack = Layout::Argument::StackSpan{
-          .Offset = Distributed.OffsetOnStack, .Size = Distributed.SizeOnStack
-        };
+      if (not Distributed.ShouldBeIgnored
+          and not FirstUnsupportedIndex.has_value()) {
+        Current.Registers = toPortions(Distributed);
+        if (Distributed.SizeOnStack != 0) {
+          // The argument has a part (or is placed entirely) on the stack.
+          Current.Stack = Layout::Argument::StackSpan{
+            .Offset = Distributed.OffsetOnStack, .Size = Distributed.SizeOnStack
+          };
 
-        StackStructSize = Distributed.OffsetOnStack + Distributed.SizeOnStack;
+          StackStructSize = Distributed.OffsetOnStack + Distributed.SizeOnStack;
+        }
+
+      } else {
+        // The ABI has no means of describing where this argument is passed.
+        // Keep the argument in the layout nonetheless, so that the layout
+        // stays in a one-to-one correspondence with `Function.Arguments()`,
+        // but leave it without any location. It's unsupported: no IR will
+        // ever refer to it, as there's no way of obtaining its value.
+        if (not FirstUnsupportedIndex.has_value())
+          FirstUnsupportedIndex = Index;
       }
 
       ++Index;
     }
   }
 
-  if (UsesSPTAR)
-    revng_assert(Arguments.size() == Function.Arguments().size() + 1);
-  else
-    revng_assert(Arguments.size() == Function.Arguments().size());
+  uint64_t Expected = Function.Arguments().size() + (UsesSPTAR ? 1 : 0);
+  revng_assert(Arguments.size() == Expected);
 
   CalleeSavedRegisters.resize(ABI.CalleeSavedRegisters().size());
   llvm::copy(ABI.CalleeSavedRegisters(), CalleeSavedRegisters.begin());
@@ -517,6 +555,14 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
   revng_log(LayoutLog,
             "Layout of " + toString(Function.key()) + " is:\n"
               << toString(*this));
+  if (FirstUnsupportedIndex.has_value()) {
+    std::string Message = "WARNING: argument "
+                          + std::to_string(*FirstUnsupportedIndex)
+                          + " cannot be placed correctly correctly.\n"
+                            "No argument placement after it can "
+                            "be trusted because of that.\n";
+    revng_log(LayoutLog, Message);
+  }
 
   revng_assert(verify());
 }
@@ -682,6 +728,10 @@ bool Layout::verify() const {
   using namespace abi::FunctionType::ArgumentKind;
   uint64_t PointerSize = model::Architecture::getPointerSize(Architecture);
   for (auto &&[Index, Argument] : llvm::enumerate(Arguments)) {
+    // No use verifying explicitly unsupported arguments.
+    if (Argument.isUnsupported())
+      continue;
+
     uint64_t Size = *Argument.Type->size();
     if (Argument.Kind == PointerToCopy)
       Size = PointerSize;
@@ -699,9 +749,8 @@ bool Layout::verify() const {
   }
 
   for (auto &&[Index, ReturnValue] : llvm::enumerate(ReturnValues)) {
-    // The distributor drops floating point return values on ABIs without
-    // float return value registers
-    if (ReturnValue.Registers.empty())
+    // No use verifying explicitly unsupported return values.
+    if (ReturnValue.isUnsupported())
       continue;
 
     uint64_t Size = *ReturnValue.Type->size();
@@ -850,8 +899,13 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
   // Iterate over arguments until we are sure no further argument can use
   // any registers.
   for (const model::Argument &Argument : Function.Arguments().asVector()) {
+    // An argument the ABI's floating point strategy drops occupies no
+    // register.
     auto Distributed = Distributor.nextArgument(*Argument.Type());
     for (DistributedValue SingleArg : Distributed) {
+      if (SingleArg.ShouldBeIgnored)
+        continue;
+
       if (!SingleArg.RepresentsPadding)
         Result.Arguments.append(toPortions(SingleArg));
     }
