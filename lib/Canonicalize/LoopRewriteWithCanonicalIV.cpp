@@ -2,12 +2,15 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/IVUsers.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
@@ -151,15 +154,55 @@ public:
     if (LRIV.run(*L, &IU, &SE, &DT)) {
       revng_assert(DT.verify(DominatorTree::VerificationLevel::Full));
 
-      // Clean up the code after induction variable canonicalization.
+      bool Changed = false;
+
       SmallVector<WeakTrackingVH, 16> DeadInsts;
-      simplifyLoopIVs(L, &SE, &DT, &LI, &TheTargetTransformInfo, DeadInsts);
+      Changed |= simplifyLoopIVs(L,
+                                 &SE,
+                                 &DT,
+                                 &LI,
+                                 &TheTargetTransformInfo,
+                                 DeadInsts);
+
+      // Clean up the code after induction variable canonicalization.
       RecursivelyDeleteTriviallyDeadInstructions(DeadInsts);
 
-      for (BasicBlock *BB : L->getBlocks())
-        SimplifyInstructionsInBlock(BB);
+      // `SimplifyInstructionsInBlock` can't break LCSSA for `L`, because it
+      // only changes blocks inside `L`, never its exit blocks.
+      // A block in `L`, though, can be the exit blocks of another loop, nested
+      // inside `L`. This can cause a PHINode in that block to be folded away,
+      // breaking LCSAA for the inner loop.
+      // Here we collect the loops whose exit blocks were simplified, and we
+      // later rebuild LCSAA form for them. This avoid calling the recursive
+      // `formLCSAARecusrsively`, which may be expensive.
+      SmallSetVector<Loop *, 4> ToRebuild;
+      for (BasicBlock *BB : L->getBlocks()) {
+        if (not SimplifyInstructionsInBlock(BB))
+          continue;
 
-      return true;
+        Changed = true;
+
+        // `BB` is an exit of every a loop whenever one of it's predecessors
+        // belongs to a loop that doesn't contain B.
+        for (BasicBlock *Predecessor : predecessors(BB)) {
+          for (Loop *Exited = LI.getLoopFor(Predecessor);
+               Exited != nullptr and not Exited->contains(BB);
+               Exited = Exited->getParentLoop())
+            ToRebuild.insert(Exited);
+        }
+      }
+
+      // Sort innermost loops first, because `formLCSSA` expects all the
+      // subloops of the loop it runs on to be in LCSSA already.
+      SmallVector<Loop *, 4> Ordered(ToRebuild.takeVector());
+      llvm::stable_sort(Ordered, [](const Loop *LHS, const Loop *RHS) {
+        return LHS->getLoopDepth() > RHS->getLoopDepth();
+      });
+
+      for (Loop *Exited : Ordered)
+        Changed |= formLCSSA(*Exited, DT, &LI, &SE);
+
+      return Changed;
     }
 
     return false;
