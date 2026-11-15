@@ -15,6 +15,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -59,7 +60,9 @@ public:
 private:
   void buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca);
 
-  void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs);
+  void
+  replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
+                             const SmallPtrSet<BasicBlock *, 8> &StoreBlocks);
 };
 
 struct IncomingInfo {
@@ -312,6 +315,84 @@ static std::vector<SetVector<PHINode *>> getPHIEquivalenceClasses(Function &F) {
   return Result;
 }
 
+/// Computes the blocks where the variable of a class of PHIs can be stored to
+/// directly.
+///
+/// An edge whose incoming is a PHI of the class expects the variable to still
+/// hold its value, so no store can be placed on a path leading to it. A store
+/// in a block affects all its outgoing edges, therefore it is allowed only if
+/// no outgoing edge leads to such an edge.
+class StoreBlocksAnalysis {
+private:
+  const SetVector<PHINode *> &PHIs;
+
+  /// All the PHIs of a class in the same block have the same incomings, so
+  /// one per block is enough
+  SmallDenseMap<BasicBlock *, PHINode *, 8> PHIInBlock;
+
+  /// Blocks without PHIs of the class where the variable holds a value that
+  /// will be read
+  SmallPtrSet<BasicBlock *, 8> LiveIn;
+
+  SmallPtrSet<BasicBlock *, 8> StoreBlocks;
+
+  SmallVector<BasicBlock *, 8> Worklist;
+
+public:
+  StoreBlocksAnalysis(const SetVector<PHINode *> &PHIs) : PHIs(PHIs) {}
+
+public:
+  SmallPtrSet<BasicBlock *, 8> run() {
+    for (PHINode *PHI : PHIs)
+      PHIInBlock.try_emplace(PHI->getParent(), PHI);
+
+    // Start assuming that all the blocks with an incoming that is not
+    // internal to the class can store
+    for (PHINode *PHI : PHIs) {
+      for (unsigned I = 0; I < PHI->getNumIncomingValues(); ++I) {
+        Value *Incoming = PHI->getIncomingValue(I);
+        if (not isa<UndefValue>(Incoming) and not isInternal(Incoming))
+          StoreBlocks.insert(PHI->getIncomingBlock(I));
+      }
+    }
+
+    // The edges with an internal incoming need the variable to be preserved:
+    // propagate this backward
+    for (PHINode *PHI : PHIs)
+      for (unsigned I = 0; I < PHI->getNumIncomingValues(); ++I)
+        if (isInternal(PHI->getIncomingValue(I)))
+          markLiveSuccessor(PHI->getIncomingBlock(I));
+
+    while (not Worklist.empty()) {
+      BasicBlock *Block = Worklist.pop_back_val();
+      for (BasicBlock *Predecessor : predecessors(Block))
+        markLiveSuccessor(Predecessor);
+    }
+
+    return StoreBlocks;
+  }
+
+private:
+  bool isInternal(Value *Incoming) const {
+    auto *IncomingPHI = dyn_cast<PHINode>(Incoming);
+    return IncomingPHI != nullptr and PHIs.contains(IncomingPHI);
+  }
+
+  /// Record that \p Block has a successor expecting the variable to be
+  /// preserved: a store in \p Block would clobber it
+  void markLiveSuccessor(BasicBlock *Block) {
+    StoreBlocks.erase(Block);
+
+    // A block defining the variable through a PHI does not propagate
+    // liveness to its predecessors
+    if (PHIInBlock.count(Block) != 0)
+      return;
+
+    if (LiveIn.insert(Block).second)
+      Worklist.push_back(Block);
+  }
+};
+
 static bool isIncomingValueUseInPHI(const Use &U) {
   auto *PHIUser = dyn_cast<PHINode>(U.getUser());
   if (nullptr == PHIUser)
@@ -461,7 +542,9 @@ void ExitSSAPass::buildStore(BasicBlock *StoreBlock,
   }
 }
 
-void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
+void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
+                                             const SmallPtrSet<BasicBlock *, 8>
+                                               &StoreBlocks) {
 
   revng_log(Log, "New PHIGroup ================");
   LoggerIndent FirstIndent{ Log };
@@ -489,9 +572,15 @@ void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
     for (auto &[IncomingBlock, EntriesInBlock] : IncomingUsesByBlock) {
       revng_assert(not EntriesInBlock.empty());
       // We handle the first element in the range separately, since it's the
-      // one with the highest number of uses.
+      // one with the highest number of uses. It is stored in IncomingBlock,
+      // unless another successor still needs the current value. A block can
+      // be missing from StoreBlocks because processing another class turned
+      // one of its incomings from a PHI of this class into a load: with a
+      // single successor, storing in the block is still correct.
       // TODO: do we really sort the EntriesInBlock in the best way?
-      {
+      bool StoreInBlock = StoreBlocks.contains(IncomingBlock)
+                          or IncomingBlock->getSingleSuccessor() != nullptr;
+      if (StoreInBlock) {
         auto &[Incoming, IncomingUses] = EntriesInBlock.front();
         revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
         revng_log(Log, "Incoming: " << dumpToString(Incoming));
@@ -500,14 +589,15 @@ void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
 
       SmallMap<std::pair<BasicBlock *, BasicBlock *>, Value *, 4> HandledCases;
 
-      for (auto &[Incoming, IncomingUses] : llvm::drop_begin(EntriesInBlock)) {
+      for (auto &[Incoming, IncomingUses] :
+           llvm::drop_begin(EntriesInBlock, StoreInBlock ? 1 : 0)) {
         revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
         revng_log(Log, "Incoming: " << dumpToString(Incoming));
-        // For all the entries after the first, we cannot inject the Store in
-        // the same Block as IncomingBlock, because they would conflict with
-        // the other we've just inserted. Hence we have to create a new
-        // BasicBlock from IncomingBlock to the proper PHI, where we will
-        // inject the Store.
+        // For all the other entries, we cannot inject the Store in the same
+        // Block as IncomingBlock, because they would conflict with the other
+        // we've just inserted or with the value expected by a successor.
+        // Hence we have to create a new BasicBlock from IncomingBlock to the
+        // proper PHI, where we will inject the Store.
 
         LoggerIndent UsesIndent{ Log };
         for (Use *U : IncomingUses) {
@@ -535,8 +625,8 @@ void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
 
           // The incoming block cannot have only a single successor, because
           // that would mean that the whole PHIs equivalence class may only have
-          // a single incoming from that block, which means we should have
-          // already handled it.
+          // a single incoming from that block, which can always be stored in
+          // the block itself.
           revng_assert(nullptr == IncomingBlock->getSingleSuccessor());
 
           BasicBlock *StoreBlock = nullptr;
@@ -637,8 +727,16 @@ bool ExitSSAPass::runOnFunction(Function &F) {
   // Informally, all the PHINodes in a group hold the same value, and we want to
   // create a single local variable for each DAG.
   const auto PHIClasses = getPHIEquivalenceClasses(*CurrentFunction);
+
+  // Compute where stores can go before splitting any edge. Processing a class
+  // can only turn incomings of other classes from PHIs into loads, which makes
+  // this conservative.
+  std::vector<SmallPtrSet<BasicBlock *, 8>> StoreBlocks;
   for (const auto &PHIGroup : PHIClasses)
-    replacePHIEquivalenceClass(PHIGroup);
+    StoreBlocks.push_back(StoreBlocksAnalysis(PHIGroup).run());
+
+  for (const auto &[PHIGroup, Blocks] : llvm::zip(PHIClasses, StoreBlocks))
+    replacePHIEquivalenceClass(PHIGroup, Blocks);
 
   return not PHIClasses.empty();
 }
