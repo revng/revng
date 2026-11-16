@@ -18,10 +18,7 @@
 # to manually exclude such cases.
 
 - ABIs:
-    - AAPCS64
     - AAPCS_hardfloat
-    - Apple_AAPCS64
-    - Microsoft_AAPCS64
     - Microsoft_x86_64_vectorcall
     - Microsoft_x86_cdecl
     - Microsoft_x86_fastcall
