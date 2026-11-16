@@ -21,11 +21,11 @@ revng_add_library_internal(
   LoopDetection.cpp
   PatternRewriter.cpp
   PromoteBreakContinue.cpp
+  ReturnConversion.cpp
   RewriteHelpers.cpp
   Statements.cpp
   TerminalBranchHoisting.cpp
   TightenVariableScopes.cpp
-  TrivialReturnElimination.cpp
   TypeRefinement.cpp
   TypeRefinementWithEFA.cpp
   UniqueFallthroughBranchHoisting.cpp

@@ -480,7 +480,7 @@ branches:
             #
             # This phase is composed of early one-off rewrites, applied in
             # order to enable or simplify later transformations.
-            - trivial-return-elimination
+            - convert-void-return-to-goto
             - label-merging
             - loop-detection
 
@@ -540,6 +540,7 @@ branches:
             # context-free rewrites, because doing so would push more
             # unnecessary complexity into context-free transformations, forcing
             # them to reason about context in order to preserve semantics.
+            - convert-jump-to-void-return
             - tighten-variable-scopes
             - hoist-variable-initializers
             - promote-break-continue
