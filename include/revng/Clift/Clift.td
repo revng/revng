@@ -316,7 +316,7 @@ class Clift_LoopStatementOp<string mnemonic, list<Trait> traits = []>
   ];
 }
 
-def Clift_MakeLabelOp : Clift_StatementOp<"make_label"> {
+def Clift_MakeLabelOp : Clift_StatementOp<"make_label", [Clift_NopStatement]> {
   let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$name,
                        DefaultValuedStrAttr<StrAttr, "">:$handle);
 
@@ -344,7 +344,8 @@ def Clift_MakeLabelOp : Clift_StatementOp<"make_label"> {
 
 def Clift_AssignLabelOp
   : Clift_BasicStatementOp<"assign_label",
-                           DeclareOpInterfaceMethods<Clift_LabelAssignmentOpInterface>> {
+                           DeclareOpInterfaceMethods<Clift_LabelAssignmentOpInterface>,
+                           [Clift_NopStatement]> {
 
   let arguments = (ins Clift_LabelType:$label);
 
@@ -520,7 +521,7 @@ def Clift_ReturnOp
   let hasVerifier = 1;
 }
 
-def Clift_RequireOp : Clift_StatementOp<"require"> {
+def Clift_RequireOp : Clift_StatementOp<"require", [Clift_NopStatement]> {
   let arguments = (ins AnyType:$local);
 
   let assemblyFormat = [{
