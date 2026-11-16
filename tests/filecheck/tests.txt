@@ -401,6 +401,9 @@ clift/operations/switch-without-condition.mlir
 clift/operations/while-without-condition.mlir
 clift/reformat/normalization.mlir
 clift/reformat/tag-preservation.mlir
+clift/return-conversion/break-to-void-return.mlir
+clift/return-conversion/goto-to-void-return.mlir
+clift/return-conversion/void-return-to-goto.mlir
 clift/serialization/const.mlir
 clift/statement-rewrites/branch-equalization.mlir
 clift/statement-rewrites/do-while-conversion-iterative.mlir
@@ -430,7 +433,6 @@ clift/statement-rewrites/promote-break-continue-nested-loop.mlir
 clift/statement-rewrites/promote-break-continue-switch.mlir
 clift/statement-rewrites/promote-break-continue.mlir
 clift/statement-rewrites/trivial-jump-elimination.mlir
-clift/statement-rewrites/trivial-return-elimination-double.mlir
 clift/statement-rewrites/trivial-return-elimination-early.mlir
 clift/statement-rewrites/trivial-return-elimination-loop.mlir
 clift/statement-rewrites/trivial-return-elimination.mlir
