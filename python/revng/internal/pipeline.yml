@@ -455,6 +455,10 @@ branches:
             - inline-divergent-scopes
             - enforce-single-exit
             - materialize-trivial-goto
+            # inline-divergent-scopes splits a switch across one block per
+            # round; put the pieces back together now that it has run for the
+            # last time
+            - remove-ids-artifacts
             - strip-dead-prototypes
             - compute-alloca-lifetime-start
         artifacts:

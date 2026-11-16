@@ -14,6 +14,7 @@ revng_add_analyses_library_internal(
   GenericRegionPass.cpp
   InlineDivergentScopesPass.cpp
   MaterializeTrivialGotoPass.cpp
+  RemoveIDSArtifactsPass.cpp
   ScopeGraphAlgorithms.cpp
   ScopeGraphLoggerPass.cpp
   SelectScopePass.cpp)

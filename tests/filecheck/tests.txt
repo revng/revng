@@ -491,6 +491,7 @@ llvm-passes/mark-inline-helpers-up-to.ll
 llvm-passes/materialize-trivial-goto.ll
 llvm-passes/peephole-opt-for-decompilation.ll
 llvm-passes/remove-extractvalues.ll
+llvm-passes/remove-ids-artifacts.ll
 llvm-passes/scope-graph-dumper.ll
 llvm-passes/select-scope.ll
 llvm-passes/simplify-comparisons.ll
