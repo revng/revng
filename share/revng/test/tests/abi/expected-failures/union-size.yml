@@ -16,6 +16,7 @@
     - SystemV_x86_64
   tests:
     - single_deeply_nested_struct_union_return_value
+    - single_deeply_nested_float_struct_union_return_value
   errors:
     - Unable to find some parts of the return value. Should some additional registers be mentioned in the definition of SystemV_x86_64 abi?
     - Unable to find some parts of the return value. Should some additional registers be mentioned in the definition of AAPCS64 abi?

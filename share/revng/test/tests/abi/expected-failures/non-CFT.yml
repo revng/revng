@@ -21,10 +21,37 @@
     - Apple_AAPCS64
     - Microsoft_AAPCS64
   tests:
+    - single_big_double_struct_return_value
+    - single_big_float_struct_return_value
     - single_big_struct_return_value
     - single_big_union_return_value
+    - single_double_float_double_struct_return_value
+    - single_double_int_double_struct_return_value
+    - single_double_struct_with_a_sixteen_byte_field_at_the_end_return_value
+    - single_double_struct_with_a_sixteen_byte_field_at_the_start_return_value
+    - single_double_union_with_a_sixteen_byte_field_at_the_end_return_value
+    - single_double_union_with_a_sixteen_byte_field_at_the_start_return_value
+    - single_eight_float_struct_return_value
+    - single_five_double_struct_return_value
+    - single_five_float_struct_return_value
+    - single_float_double_double_struct_return_value
+    - single_float_double_float_struct_return_value
+    - single_float_int_float_struct_return_value
+    - single_float_int_int_struct_return_value
+    - single_float_struct_with_a_sixteen_byte_field_at_the_end_return_value
+    - single_float_struct_with_a_sixteen_byte_field_at_the_start_return_value
+    - single_float_union_with_a_sixteen_byte_field_at_the_end_return_value
+    - single_float_union_with_a_sixteen_byte_field_at_the_start_return_value
+    - single_huge_double_struct_return_value
+    - single_huge_float_struct_return_value
     - single_huge_struct_return_value
     - single_huge_union_return_value
+    - single_int_double_double_struct_return_value
+    - single_int_double_int_struct_return_value
+    - single_int_float_int_struct_return_value
+    - single_nine_float_struct_return_value
+    - single_seven_float_struct_return_value
+    - single_six_float_struct_return_value
     - single_struct_with_a_sixteen_byte_field_at_the_end_return_value
     - single_struct_with_a_sixteen_byte_field_at_the_start_return_value
     - single_union_with_a_sixteen_byte_field_at_the_end_return_value
