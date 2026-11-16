@@ -56,7 +56,8 @@ private:
   bool dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes,
                                 std::vector<std::byte> &Out) const;
   uint64_t checkRegister(llvm::ArrayRef<std::byte> RegisterBytes,
-                         llvm::ArrayRef<std::byte> ArgumentBytes) const;
+                         llvm::ArrayRef<std::byte> ArgumentBytes,
+                         const model::Register::Portion &Portion) const;
 
   struct LeftToVerify {
     llvm::SmallVector<model::Register::Portion, 32> Registers;
@@ -238,7 +239,20 @@ bool VH::tryToVerifyStack(llvm::ArrayRef<std::byte> &Bytes,
 }
 
 uint64_t VH::checkRegister(llvm::ArrayRef<std::byte> RegisterBytes,
-                           llvm::ArrayRef<std::byte> ArgumentBytes) const {
+                           llvm::ArrayRef<std::byte> ArgumentBytes,
+                           const model::Register::Portion &Portion) const {
+  // A portion covers only a part of its register, and its offset is measured
+  // from the low-order end of it. On a big-endian machine the low-order bytes
+  // sit at the back of the captured array, so the offset has to be mirrored.
+  revng_assert(Portion.Size != 0
+               and Portion.StartOffset + Portion.Size <= RegisterBytes.size());
+
+  uint64_t StartOffset = Portion.StartOffset;
+  if (not IsLittleEndian)
+    StartOffset = RegisterBytes.size() - StartOffset - Portion.Size;
+
+  RegisterBytes = RegisterBytes.slice(StartOffset, Portion.Size);
+
   uint64_t RegisterSize = RegisterBytes.size();
   if (ArgumentBytes.size() > RegisterSize)
     ArgumentBytes = ArgumentBytes.take_front(RegisterSize);
@@ -297,7 +311,9 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
       }
 
       llvm::ArrayRef Bytes = Iterator->second.Bytes;
-      if (uint64_t MatchedByteCount = checkRegister(Bytes, ArgumentBytes)) {
+      if (uint64_t MatchedByteCount = checkRegister(Bytes,
+                                                    ArgumentBytes,
+                                                    Portion)) {
         // Current register value matches: drop found bytes and start looking
         // for the rest.
         ArgumentBytes = ArgumentBytes.drop_front(MatchedByteCount);
@@ -623,8 +639,11 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
         const auto &RegState = Test.StateAfterTheReturn.Registers.at(Register);
         llvm::ArrayRef Bytes = RegState.Bytes;
 
-        uint64_t CheckedByteCount = std::min(Bytes.size(),
-                                             ReturnValueBytes.size());
+        uint64_t CheckedByteCount = std::min({ Bytes.size(),
+                                               ReturnValueBytes.size(),
+                                               Portion.Size });
+        revng_assert(CheckedByteCount > 0);
+
         Bytes = Bytes.take_front(CheckedByteCount);
         if (!ReturnValueBytes.take_front(CheckedByteCount).equals(Bytes)) {
           fail("A piece of the return value found in the "
