@@ -59,7 +59,7 @@ private:
                          llvm::ArrayRef<std::byte> ArgumentBytes) const;
 
   struct LeftToVerify {
-    llvm::ArrayRef<model::Register::Values> Registers;
+    llvm::SmallVector<model::Register::Portion, 32> Registers;
     llvm::ArrayRef<std::byte> Stack;
     bool HasError = false;
   };
@@ -201,9 +201,11 @@ VH::LeftToVerify VH::adjustForSPTAR(LeftToVerify Remaining) const {
       // It's in a register, drop one if needed.
       model::Register::Values Register = ShadowArgument.Registers[0].Register;
       revng_assert(Register == ABI.ReturnValueLocationRegister());
-      if (!Remaining.Registers.empty())
-        if (Remaining.Registers.front() == ABI.ReturnValueLocationRegister())
-          Remaining.Registers = Remaining.Registers.drop_front();
+      if (!Remaining.Registers.empty()) {
+        const auto Front = Remaining.Registers.front().Register;
+        if (Front == ABI.ReturnValueLocationRegister())
+          Remaining.Registers.erase(Remaining.Registers.begin());
+      }
 
     } else {
       // It's on the stack, drop enough bytes for a pointer from the front.
@@ -266,16 +268,17 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
       UsesPointerToCopy = true;
   }
   if (UsesPointerToCopy && !Remaining.Registers.empty()) {
-    auto Iterator = State.Registers.find(Remaining.Registers[0]);
+    model::Register::Values Register = Remaining.Registers.front().Register;
+    auto Iterator = State.Registers.find(Register);
     if (Iterator == State.Registers.end()) {
-      fail("Register " + model::Register::getName(Remaining.Registers[0]).str()
+      fail("Register " + model::Register::getName(Register).str()
            + " is not known.");
       return LeftToVerify{ .HasError = true };
     }
 
     llvm::ArrayRef Bytes = Iterator->second.Bytes;
     if (Bytes.equals(Argument.AddressBytes)) {
-      Remaining.Registers = Remaining.Registers.drop_front();
+      Remaining.Registers.erase(Remaining.Registers.begin());
       return Remaining;
     }
   }
@@ -285,10 +288,10 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
   while (!ArgumentBytes.empty()) {
     // If there are still unverified registers, try to verify the next one.
     if (!Remaining.Registers.empty()) {
-      auto Iterator = State.Registers.find(Remaining.Registers[0]);
+      const model::Register::Portion &Portion = Remaining.Registers.front();
+      auto Iterator = State.Registers.find(Portion.Register);
       if (Iterator == State.Registers.end()) {
-        fail("Register "
-             + model::Register::getName(Remaining.Registers[0]).str()
+        fail("Register " + model::Register::getName(Portion.Register).str()
              + " is not known.");
         return LeftToVerify{ .HasError = true };
       }
@@ -298,7 +301,7 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
         // Current register value matches: drop found bytes and start looking
         // for the rest.
         ArgumentBytes = ArgumentBytes.drop_front(MatchedByteCount);
-        Remaining.Registers = Remaining.Registers.drop_front();
+        Remaining.Registers.erase(Remaining.Registers.begin());
         continue;
       }
     }
@@ -371,18 +374,35 @@ void VH::arguments(const abi::runtime_test::ArgumentTest &Test) const {
   // pending verification.
   // NOTE: they are going to be consumed piece by piece during the verification
   //       process.
-  llvm::SmallVector<model::Register::Values> ArgumentRegisters;
+  std::unordered_map<model::Register::Values, model::Register::Portion>
+    RegisterToPortionMap;
   for (const model::Register::Portion &Portion :
        FunctionLayout.argumentRegisters()) {
-    ArgumentRegisters.push_back(Portion.Register);
+    auto [_, Success] = RegisterToPortionMap.try_emplace(Portion.Register,
+                                                         Portion);
+    revng_assert(Success);
   }
-  auto Registers = ABI.sortArguments(ArgumentRegisters);
+
+  auto DiscardPortions = [](const model::Register::Portion &Portion) {
+    return Portion.Register;
+  };
+  auto RestorePortions = [&RegisterToPortionMap](const auto &Register) {
+    return RegisterToPortionMap.at(Register);
+  };
+
+  auto Ordered = ABI.sortArguments(FunctionLayout.argumentRegisters()
+                                   | std::views::transform(DiscardPortions));
+  auto Portions = Ordered | std::views::transform(RestorePortions);
 
   std::vector<std::byte> Stack;
   if (not dropInterArgumentPadding(Test.StateBeforeTheCall.Stack, Stack))
     return;
 
-  LeftToVerify Remaining{ .Registers = Registers, .Stack = Stack };
+  LeftToVerify Remaining{
+    .Registers = Portions
+                 | revng::to<llvm::SmallVector<model::Register::Portion, 32>>(),
+    .Stack = Stack
+  };
 
   // In case of SPTAR, handle the "extra" argument.
   Remaining = adjustForSPTAR(Remaining);
