@@ -15,6 +15,10 @@ mlir::LogicalResult verifyAssignsLoopLabelsTrait(mlir::Operation *Op);
 } // namespace impl
 
 template<typename ConcreteType>
+class NopStatement
+  : public mlir::OpTrait::TraitBase<ConcreteType, NopStatement> {};
+
+template<typename ConcreteType>
 class NoFallthrough
   : public mlir::OpTrait::TraitBase<ConcreteType, NoFallthrough> {
   using Base = mlir::OpTrait::TraitBase<ConcreteType, NoFallthrough>;
