@@ -14,15 +14,17 @@ def Clift_LabelAssignmentOpInterface
   let methods = [
     InterfaceMethod<
       /*desc=*/"Returns the number of jump labels assigned by this operation.",
-      "unsigned", "getAssignedLabelCount", (ins),
-      /*methodBody=*/[{}],
-      /*defaultImplementation=*/ [{}]
+      "unsigned", "getAssignedLabelCount", (ins)
     >,
     InterfaceMethod<
       /*desc=*/"Returns the specified jump label assigned by this operation.",
-      "mlir::Value", "getAssignedLabel", (ins "unsigned":$Index),
-      /*methodBody=*/[{}],
-      /*defaultImplementation=*/ [{}]
+      "mlir::Value", "getAssignedLabel", (ins "unsigned":$Index)
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns the label assigned by this operation, where execution "
+               "continues as if after falling through, or null if no such "
+               "label is assigned.",
+      "mlir::Value", "getTrailingLabel", (ins)
     >,
   ];
 }

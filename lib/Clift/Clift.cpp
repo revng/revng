@@ -606,6 +606,10 @@ mlir::Value AssignLabelOp::getAssignedLabel(unsigned Index) {
   return getLabel();
 }
 
+mlir::Value AssignLabelOp::getTrailingLabel() {
+  return getLabel();
+}
+
 MakeLabelOp AssignLabelOp::getLabelOp() {
   return getLabel().getDefiningOp<MakeLabelOp>();
 }
