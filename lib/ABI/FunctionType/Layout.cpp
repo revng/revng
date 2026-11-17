@@ -518,6 +518,8 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) :
       else
         Current.Kind = ArgumentKind::ReferenceToAggregate;
 
+      // TODO: consider marking as unsupported all the arguments after the first
+      //       unsupported one due to alignment issues.
       if (not Distributed.ShouldBeIgnored) {
         Current.Registers = toPortions(Distributed);
         if (Distributed.SizeOnStack != 0) {
