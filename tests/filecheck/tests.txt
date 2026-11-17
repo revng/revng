@@ -240,6 +240,12 @@ clift/expressions/truncate.mlir
 clift/expressions/unsigned-to-float-to-const.mlir
 clift/expressions/use-global-variable.mlir
 clift/expressions/use-nonexistent-global-variable.mlir
+clift/floating-point-promotion/arithmetic.mlir
+clift/floating-point-promotion/comparison.mlir
+clift/floating-point-promotion/float-to-float.mlir
+clift/floating-point-promotion/float-to-int.mlir
+clift/floating-point-promotion/int-to-float.mlir
+clift/floating-point-promotion/mismatched-signature.mlir
 clift/helper-translation/float32_add.mlir
 clift/implicit-cast-elision/add.mlir
 clift/implicit-cast-elision/assign.mlir
