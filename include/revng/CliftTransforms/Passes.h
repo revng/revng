@@ -16,6 +16,7 @@ using PassPtr = std::unique_ptr<mlir::OperationPass<OpT>>;
 #define GEN_PASS_DECL
 #include "revng/CliftTransforms/Passes.h.inc"
 
+PassPtr<mlir::ModuleOp> createHelperTranslationPass();
 PassPtr<clift::FunctionOp> createTrivialReturnEliminationPass();
 
 PassPtr<clift::FunctionOp> createLabelMergingPass();
