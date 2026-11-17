@@ -464,3 +464,63 @@ Exit:
 ; CHECK-NEXT: store i64 42, ptr [[ALLOCA]]
 ; CHECK-NEXT: br label %Exit
 }
+
+;
+; CHECK-LABEL: define i64 @undefined_on_loop_entry(i1 %c, i64 %n)
+;
+; %previous is undefined when entering Loop. Entry passes nothing else to the
+; variable and its other successor does not read it: undef is stored there.
+define i64 @undefined_on_loop_entry(i1 %c, i64 %n) {
+; CHECK: Entry:
+; CHECK-NEXT: [[ALLOCA:%[a-zA-Z0-9_]+]] = alloca i64
+; CHECK-NEXT: store i64 undef, ptr [[ALLOCA]]
+; CHECK-NEXT: br i1 %c, label %Loop, label %Exit
+Entry:
+  br i1 %c, label %Loop, label %Exit
+
+Loop:
+  %previous = phi i64 [ undef, %Entry ], [ %current, %Loop ]
+  %current = add i64 %previous, %n
+  %done = icmp eq i64 %current, 100
+  br i1 %done, label %Exit, label %Loop
+
+Exit:
+  ret i64 %n
+}
+
+;
+; CHECK-LABEL: define i64 @undefined_where_value_is_needed(i64 %a, i1 %c0, i1 %c1, i1 %c2)
+;
+; %acc, %next and %result share a variable. Latch passes %next to Header
+; unchanged and undef to Exit: storing undef in Latch would clobber the
+; accumulator, and no edge is split for an undefined value.
+define i64 @undefined_where_value_is_needed(i64 %a, i1 %c0, i1 %c1, i1 %c2) {
+Entry:
+  br label %Header
+
+Header:
+  %acc = phi i64 [ %a, %Entry ], [ %next, %Latch ]
+  br i1 %c0, label %Exit, label %Body
+
+Body:
+  br i1 %c1, label %Add, label %Negate
+
+Add:
+  %add = add i64 %acc, 1
+  br label %Latch
+
+Negate:
+  %negate = sub i64 0, %acc
+  br label %Latch
+
+; CHECK: Latch:
+; CHECK-NEXT: br i1 %c2, label %Exit, label %Header
+; CHECK-NOT: Latch-to-Exit
+Latch:
+  %next = phi i64 [ %add, %Add ], [ %negate, %Negate ]
+  br i1 %c2, label %Exit, label %Header
+
+Exit:
+  %result = phi i64 [ %acc, %Header ], [ undef, %Latch ]
+  ret i64 %result
+}

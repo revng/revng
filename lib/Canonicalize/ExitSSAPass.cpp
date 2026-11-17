@@ -351,7 +351,7 @@ public:
     for (PHINode *PHI : PHIs) {
       for (unsigned I = 0; I < PHI->getNumIncomingValues(); ++I) {
         Value *Incoming = PHI->getIncomingValue(I);
-        if (not isa<UndefValue>(Incoming) and not isInternal(Incoming))
+        if (not isInternal(Incoming))
           StoreBlocks.insert(PHI->getIncomingBlock(I));
       }
     }
@@ -660,6 +660,30 @@ void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
             DT.addNewBlock(StoreBlock, IncomingBlock);
           }
           buildStore(StoreBlock, Incoming, Alloca);
+        }
+      }
+    }
+
+    // An undefined incoming still defines the variable on its edge: store it,
+    // so that the variable is declared before that edge, e.g., before the loop
+    // whose iterations carry it. The store is needed only if its block has no
+    // other store, and only if it can go in the block: otherwise, other
+    // accesses already place the declaration before the edge.
+    SmallPtrSet<BasicBlock *, 4> UndefStoreBlocks;
+    for (PHINode *PHI : PHIs) {
+      for (unsigned I = 0; I < PHI->getNumIncomingValues(); ++I) {
+        Value *Incoming = PHI->getIncomingValue(I);
+        BasicBlock *IncomingBlock = PHI->getIncomingBlock(I);
+        if (not isa<UndefValue>(Incoming)
+            or IncomingUsesByBlock.count(IncomingBlock) != 0)
+          continue;
+
+        bool StoreInBlock = StoreBlocks.contains(IncomingBlock)
+                            or IncomingBlock->getSingleSuccessor() != nullptr;
+        if (StoreInBlock and UndefStoreBlocks.insert(IncomingBlock).second) {
+          revng_log(Log,
+                    "Undefined incoming from " << IncomingBlock->getName());
+          buildStore(IncomingBlock, Incoming, Alloca);
         }
       }
     }
