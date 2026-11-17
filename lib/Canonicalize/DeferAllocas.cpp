@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
@@ -55,11 +56,20 @@ bool DeferAllocasPass::runOnFunction(llvm::Function &F) {
                                       llvm::BasicBlock::iterator>;
 
   llvm::SmallVector<DeferrableAlloca> DeferrableAllocas;
+  llvm::SmallVector<llvm::StoreInst *> UndefStores;
   for (llvm::BasicBlock &BB : F) {
     for (llvm::Instruction &I : BB) {
       auto Alloca = llvm::dyn_cast<llvm::AllocaInst>(&I);
       if (not Alloca or hasStackFrameMetadata(Alloca))
         continue;
+
+      for (llvm::User *User : Alloca->users()) {
+        auto *Store = llvm::dyn_cast<llvm::StoreInst>(User);
+        if (Store != nullptr and Store->getPointerOperand() == Alloca
+            and llvm::isa<llvm::UndefValue>(Store->getValueOperand())) {
+          UndefStores.push_back(Store);
+        }
+      }
 
       llvm::BasicBlock *NewBB = findUseDominator(DT, Alloca);
       if (NewBB != nullptr) {
@@ -78,7 +88,13 @@ bool DeferAllocasPass::runOnFunction(llvm::Function &F) {
   for (auto [Alloca, NewBB, NewPos] : DeferrableAllocas)
     Alloca->moveBefore(*NewBB, NewPos);
 
-  return not DeferrableAllocas.empty();
+  // A store of undef provides no value, it only marks where the variable is
+  // defined, which is now reflected by the position of the alloca. Dropping
+  // it is correct: a load after it could return any value.
+  for (llvm::StoreInst *Store : UndefStores)
+    Store->eraseFromParent();
+
+  return not DeferrableAllocas.empty() or not UndefStores.empty();
 }
 
 static llvm::RegisterPass<DeferAllocasPass> X("defer-allocas",

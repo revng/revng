@@ -446,6 +446,7 @@ clift/unique-fallthrough-branch-hoisting/hoist-else.mlir
 clift/unique-fallthrough-branch-hoisting/hoist-then.mlir
 llvm-passes/arithmetic-to-gep.ll
 llvm-passes/dagify.ll
+llvm-passes/defer-allocas.ll
 llvm-passes/detect-uninlinable-helpers.ll
 llvm-passes/early-type-shrinking.ll
 llvm-passes/enforce-single-exit.ll
