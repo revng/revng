@@ -85,6 +85,19 @@ public:
 
     ReturnValue() = default;
     ReturnValue(model::UpcastableType &&Type) : Type(std::move(Type)) {}
+
+    /// \returns `true` if this return value is not supported.
+    ///
+    /// Specifically, this happens when our ABI implementation is lacking
+    /// support in the specific corner case - leading to the inability to
+    /// clearly decide where to place the value.
+    ///
+    /// Treat these as placeholders ensuring each CFT argument/return-value has
+    /// a corresponding layout entry.
+    ///
+    /// IMPORTANT: the IR must *not* use such arguments. Them appearing
+    /// in the function bodies is a bug.
+    bool isUnsupported() const { return Registers.empty(); }
   };
 
   struct Argument : public ReturnValue {
@@ -102,6 +115,21 @@ public:
   public:
     std::optional<StackSpan> Stack;
     ArgumentKind::Values Kind = ArgumentKind::Scalar;
+
+    /// \returns `true` if this argument is not supported.
+    ///
+    /// Specifically, this happens when our ABI implementation is lacking
+    /// support in the specific corner case - leading to the inability to
+    /// clearly decide where to place the value.
+    ///
+    /// Treat these as placeholders ensuring each CFT argument/return-value has
+    /// a corresponding layout entry.
+    ///
+    /// IMPORTANT: the IR must *not* use such arguments. Them appearing
+    /// in the function bodies is a bug.
+    bool isUnsupported() const {
+      return ReturnValue::isUnsupported() and not Stack.has_value();
+    }
   };
 
 public:
@@ -138,31 +166,32 @@ public:
   llvm::SmallVector<model::Register::Portion> argumentRegisters() const;
   llvm::SmallVector<model::Register::Portion> returnValueRegisters() const;
 
-  auto returnValueTypes() {
-    return ReturnValues
-           | std::views::transform([](ReturnValue &RV) { return RV.Type; });
-  }
-
-  auto returnValueTypes() const {
-    return ReturnValues | std::views::transform([](const ReturnValue &RV) {
-             return RV.Type;
-           });
-  }
-
-  auto argumentTypes() {
-    return Arguments
-           | std::views::transform([](Argument &A) { return A.Type; });
-  }
-
-  auto argumentTypes() const {
-    return Arguments
-           | std::views::transform([](const Argument &A) { return A.Type; });
-  }
-
   bool hasSPTAR() const {
     using namespace abi::FunctionType::ArgumentKind;
     auto SPTAR = ShadowPointerToAggregateReturnValue;
     return (Arguments.size() >= 1 and Arguments[0].Kind == SPTAR);
+  }
+
+  /// The arguments as they appear in the C prototype.
+  llvm::ArrayRef<Argument> argumentsForC() const {
+    // There are quite a few places that explicitly ignore the SPTAR.
+    //
+    // TODO: look into whether it's better to separate it from
+    //      the `Layout::Arguments` altogether.
+
+    llvm::ArrayRef Result = Arguments;
+    if (hasSPTAR())
+      Result = Result.drop_front();
+    return Result;
+  }
+
+  /// \returns `true` if the return value is not supported.
+  ///
+  /// See \ref ReturnValue::isUnsupported.
+  bool isReturnValueUnsupported() const {
+    return llvm::any_of(ReturnValues, [](const ReturnValue &RV) {
+      return RV.isUnsupported();
+    });
   }
 
   ReturnMethod::Values returnMethod() const {

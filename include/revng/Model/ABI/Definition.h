@@ -147,12 +147,44 @@ private:
     if (RVL != Invalid && !llvm::is_contained(GPRs, RVL))
       Result.emplace_back(RVL);
 
-    for (auto Register : GPRs)
-      if (!llvm::is_contained(Result, Register))
+    // Under the position-based ABIs we can actually restore the original order
+    // of register arguments by simply interleaving different register kinds.
+    //
+    // Namely (Macros are omitted for brevity):
+    // ```cpp
+    // // original (compiled to MSVC x64, which is position-based)
+    // void original(float f, int i);
+    //
+    // // ArgumentsArePositionBased: false
+    // void function_0x1000_Code_x86_64(generic64_t argument_0,
+    //                                  float64_t argument_1);
+    //
+    // // ArgumentsArePositionBased: true
+    // void function_0x1000_Code_x86_64(float64_t argument_0,
+    //                                  generic64_t argument_1);
+    // ```
+    if (ArgumentsArePositionBased()) {
+      for (auto [G, V] : llvm::zip_longest(GPRs, FloatArgumentRegisters())) {
+        if (G.has_value()) {
+          revng_assert(!llvm::is_contained(Result, *G));
+          Result.emplace_back(*G);
+        }
+        if (V.has_value()) {
+          revng_assert(!llvm::is_contained(Result, *V));
+          Result.emplace_back(*V);
+        }
+      }
+
+    } else {
+      for (auto Register : GPRs) {
+        revng_assert(!llvm::is_contained(Result, Register));
         Result.emplace_back(Register);
-    for (auto Register : FloatArgumentRegisters())
-      if (!llvm::is_contained(Result, Register))
+      }
+      for (auto Register : FloatArgumentRegisters()) {
+        revng_assert(!llvm::is_contained(Result, Register));
         Result.emplace_back(Register);
+      }
+    }
 
     return Result;
   }

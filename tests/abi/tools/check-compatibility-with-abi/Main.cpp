@@ -22,13 +22,16 @@
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Signals.h"
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/TypeDefinitionKind.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/InitRevng.h"
+#include "revng/Support/YAMLTraits.h"
 
 #include "ABIRuntimeTestResultParser.h"
 #include "Verify.h"
@@ -43,9 +46,9 @@ template<size_t... Indices>
 static auto packValues(std::integer_sequence<size_t, Indices...>) {
   using namespace llvm::cl;
   using namespace model::ABI;
-  return values(OptionEnumValue{ getName(Values(Indices)),
-                                 int(Indices),
-                                 getDescription(Values(Indices)) }...);
+  return values(OptionEnumValue{ getName(Values(Indices + 1)),
+                                 int(Indices + 1),
+                                 getDescription(Values(Indices + 1)) }...);
 }
 
 constexpr auto ABIList = std::make_index_sequence<model::ABI::Count - 1>{};
@@ -69,6 +72,14 @@ static opt<std::string> Artifact(Positional,
                                  Required,
                                  desc("<runtime abi artifact name>"),
                                  cat(ThisToolCategory));
+
+constexpr const char *SaveLayoutsDescription = "Save the ABI layout of every "
+                                               "tested function to the given "
+                                               "YAML file.";
+static opt<std::string> SaveLayouts("save-layouts",
+                                    desc(SaveLayoutsDescription),
+                                    value_desc("<output file name>"),
+                                    cat(ThisToolCategory));
 
 } // namespace Options
 
@@ -114,5 +125,23 @@ int main(int argc, char *argv[]) {
     revng_abort(Error.c_str());
   }
 
-  verifyABI(*Deserialized, Artifact, Options::TargetABI, ExpectedPrototypeKind);
+  std::optional<std::vector<FunctionLayoutEntry>> Layouts;
+  if (Options::SaveLayouts.getNumOccurrences() != 0)
+    Layouts.emplace();
+
+  verifyABI(*Deserialized,
+            Artifact,
+            Options::TargetABI,
+            ExpectedPrototypeKind,
+            Layouts);
+
+  if (Layouts) {
+    auto Error = serializeToFile(*Layouts, Options::SaveLayouts);
+    if (Error) {
+      std::string Message = "Unable to save the layouts to `"
+                            + Options::SaveLayouts
+                            + "`: " + consumeToString(std::move(Error)) + ".";
+      revng_abort(Message.c_str());
+    }
+  }
 }

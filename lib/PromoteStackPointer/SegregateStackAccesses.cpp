@@ -840,8 +840,8 @@ struct PointersMetadata {
 static PointersMetadata getPointerMetadata(const abi::FunctionType::Layout &L) {
   PointersMetadata Result;
 
-  for (const auto &R : L.ReturnValues)
-    if (L.returnMethod() != abi::FunctionType::ReturnMethod::ModelAggregate)
+  if (L.returnMethod() != abi::FunctionType::ReturnMethod::ModelAggregate)
+    for (const auto &R : L.ReturnValues)
       Result.ReturnValues.push_back(R.Type->isPointer());
 
   for (const auto &R : L.Arguments)
@@ -981,16 +981,19 @@ private:
                                                      Architecture,
                                                      Layout);
 
+    const auto &[PointerReturns, PointerArguments] = getPointerMetadata(Layout);
+
     // NOTE: all the model *must* be read above this line!
     //       If we don't do this, we will break invalidation tracking
     //       information.
+
+    // TODO: move the code below to a function with no access to the model.
     auto It = OldToNew.find(OldFunction);
     if (It != OldToNew.end())
       return { It->second, Layout };
 
     // Create the new function, stealing the name
     Function &NewFunction = recreateWithoutBody(*OldFunction, NewType);
-    const auto &[PointerReturns, PointerArguments] = getPointerMetadata(Layout);
     setPointersMetadata(&NewFunction, PointerReturns, PointerArguments);
 
     // Record the old-to-new mapping
@@ -1227,8 +1230,8 @@ void SegregateFunctionStack::checkReturnMethod() {
   case ReturnMethod::RegisterSet:
     // Assert each return instruction is using a StructInitializer
     for (BasicBlock &BB : *NewFunction) {
-      if (auto *Ret = dyn_cast<ReturnInst>(BB.getTerminator())) {
-        auto *Call = cast<CallInst>(Ret->getReturnValue());
+      if (auto *Returned = dyn_cast<ReturnInst>(BB.getTerminator())) {
+        auto *Call = cast<CallInst>(Returned->getReturnValue());
         auto *Callee = getCalledFunction(Call);
         revng_assert(Call != nullptr);
         revng_assert(FunctionTags::StructInitializer.isTagOf(Callee));
@@ -1271,20 +1274,12 @@ void SegregateFunctionStack::prepareReturnValueStorage() {
 }
 
 void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
-  using namespace abi::FunctionType;
-  using namespace abi::FunctionType::ArgumentKind;
-
-  // The SPTAR argument was handled in prepareReturnValueStorage; drop it
-  // from the list of arguments we still need to lower.
-  auto ModelArguments = llvm::make_range(Layout.Arguments.begin(),
-                                         Layout.Arguments.end());
-  if (Layout.returnMethod() == ReturnMethod::ModelAggregate
-      and Layout.hasSPTAR()) {
-    ModelArguments = llvm::drop_begin(ModelArguments);
-  }
-
   for (auto &&[ModelArgument, NewArgument] :
-       zip(ModelArguments, NewFunction->args())) {
+       zip(Layout.argumentsForC(), NewFunction->args())) {
+
+    // Unsupported arguments have no location: they are mere placeholders.
+    if (ModelArgument.isUnsupported())
+      continue;
 
     unsigned OffsetInNewArgument = 0;
     Type *NewArgumentType = NewArgument.getType();
@@ -1293,6 +1288,7 @@ void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
     llvm::Value *ToRecordSpan = nullptr;
     bool UsesStack = ModelArgument.Stack.has_value();
 
+    using namespace abi::FunctionType::ArgumentKind;
     if (ModelArgument.Kind == PointerToCopy) {
       auto Architecture = SSA.Binary.Architecture();
       auto PointerSize = model::Architecture::getPointerSize(Architecture);
@@ -1377,8 +1373,8 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
 
   llvm::SmallVector<ReturnInst *, 4> Returns;
   for (BasicBlock &BB : *NewFunction) {
-    if (auto *Ret = dyn_cast<ReturnInst>(BB.getTerminator()))
-      Returns.push_back(Ret);
+    if (auto *Returned = dyn_cast<ReturnInst>(BB.getTerminator()))
+      Returns.push_back(Returned);
   }
 
   for (BasicBlock &BB : *NewFunction) {
@@ -1389,20 +1385,22 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
   case ReturnMethod::ModelAggregate: {
     // Replace return instructions with returning a copy of the local variable
     // representing the return value
-    for (ReturnInst *Ret : Returns) {
-      B.SetInsertPoint(Ret);
+    for (ReturnInst *Returned : Returns) {
+      B.SetInsertPoint(Returned);
 
-      if (not Layout.hasSPTAR()) {
-        // We have an aggregate returned through registers, fill in the
-        // struct using stores
+      if (Layout.hasSPTAR() or Layout.isReturnValueUnsupported()) {
+        // Do not emit any stores for SPTAR and unsupported arguments,
+
+      } else {
+        // But *do* emit them for regular aggregates.
         revng_assert(Layout.returnValueRegisterCount() > 0);
 
         llvm::SmallVector<llvm::Value *, 4> ReturnValues;
-        Value *RetValue = Ret->getReturnValue();
+        Value *RetValue = Returned->getReturnValue();
         if (Layout.returnValueRegisterCount() == 1) {
           ReturnValues.push_back(RetValue);
         } else {
-          auto *Call = cast<CallInst>(Ret->getReturnValue());
+          auto *Call = cast<CallInst>(Returned->getReturnValue());
           auto *Callee = getCalledFunction(Call);
           revng_assert(Call != nullptr);
           revng_assert(FunctionTags::StructInitializer.isTagOf(Callee));
@@ -1417,35 +1415,47 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
         }
       }
 
+      // Loads are emitted for all the return values - supported or not.
+
       revng_assert(ReturnValueAllocation);
       revng_assert(ReturnValueIntAddress);
       // TODO: we should review all the CreateLoad alignments
       Value *ToReturn = B.CreateLoad(NewReturnType, ReturnValueAllocation);
       B.CreateRet(ToReturn);
-      Ret->eraseFromParent();
+      Returned->eraseFromParent();
     }
   } break;
 
   case ReturnMethod::Scalar: {
+    if (Layout.isReturnValueUnsupported()) {
+      // Unsupported scalar return value: populate it with an undef.
+      for (ReturnInst *Returned : Returns) {
+        B.SetInsertPoint(Returned);
+        B.CreateRet(UndefValue::get(NewReturnType));
+        Returned->eraseFromParent();
+      }
+      break;
+    }
+
     Type *OldReturnType = OldFunction.getReturnType();
 
     if (OldReturnType != NewReturnType) {
       if (OldReturnType->isIntegerTy() and NewReturnType->isIntegerTy()) {
         // Handle return values smaller than the original function
-        for (ReturnInst *Ret : Returns) {
-          B.SetInsertPoint(Ret);
-          B.CreateRet(B.CreateTrunc(Ret->getReturnValue(), NewReturnType));
-          Ret->eraseFromParent();
+        for (ReturnInst *Returned : Returns) {
+          B.SetInsertPoint(Returned);
+          B.CreateRet(B.CreateTrunc(Returned->getReturnValue(), NewReturnType));
+          Returned->eraseFromParent();
         }
       } else if (OldReturnType->isStructTy() and NewReturnType->isIntegerTy()) {
         // Turn struct_initializer into an integer
-        for (ReturnInst *Ret : Returns) {
-          auto *Call = cast<CallInst>(Ret->getReturnValue());
+        for (ReturnInst *Returned : Returns) {
+          auto *Call = cast<CallInst>(Returned->getReturnValue());
           auto *Callee = getCalledFunction(Call);
           revng_assert(Call != nullptr);
           revng_assert(FunctionTags::StructInitializer.isTagOf(Callee));
 
-          B.SetInsertPoint(Ret);
+          B.SetInsertPoint(Returned);
           Value *Accumulator = ConstantInt::get(NewReturnType, 0);
           uint64_t ShiftAmount = 0;
           for (Value *Argument : Call->args()) {
@@ -1455,7 +1465,7 @@ void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
             ShiftAmount += Argument->getType()->getIntegerBitWidth();
           }
           B.CreateRet(Accumulator);
-          Ret->eraseFromParent();
+          Returned->eraseFromParent();
           Call->eraseFromParent();
         }
       }
@@ -1732,6 +1742,13 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
   bool MessageEmitted = false;
   for (auto &&[LLVMType, ModelArgument] :
        llvm::zip(LLVMArgumentTypes, Layout.Arguments)) {
+
+    if (ModelArgument.isUnsupported()) {
+      // Unsupported argument: populate it with an undef.
+      Arguments.push_back(UndefValue::get(LLVMType));
+      continue;
+    }
+
     uint64_t NewSize = *ModelArgument.Type->size();
 
     switch (ModelArgument.Kind) {
@@ -1799,7 +1816,7 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
         }
       } else if (ModelArgument.Stack) {
         unsigned OldSize = ModelArgument.Stack->Size;
-        revng_assert(OldSize <= 128 / 8);
+        revng_assert(OldSize != 0);
         revng_assert(MaybeStackOffsetAtCallSite);
 
         // Create an alloca
@@ -1995,6 +2012,12 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
   } break;
 
   case ReturnMethod::Scalar:
+    if (Layout.isReturnValueUnsupported()) {
+      // Unsupported return value should *not* have been handled by
+      // the `enforce-abi`.
+      revng_assert(OldCall->use_empty());
+      break;
+    }
 
     if (OldReturnType != NewReturnType and OldReturnType->isIntegerTy()
         and NewReturnType->isIntegerTy()) {
