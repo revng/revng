@@ -24,3 +24,6 @@ opencode:
   user_prompt_args: [--prompt, $user_prompt]
   environment:
     OPENCODE_CONFIG_CONTENT: '{"instructions": ["${instructions_file}"]}'
+pi:
+  command: [pi, --append-system-prompt, $instructions]
+  user_prompt_args: [$user_prompt]
