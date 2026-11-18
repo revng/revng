@@ -400,15 +400,23 @@ getIncomingUsesOfValuesFromBlocks(const SetVector<PHINode *> &PHIs) {
       Value *Incoming = IncomingUse;
       if (isa<llvm::UndefValue>(Incoming))
         continue;
-      // If the incoming is internal to the equivalence class (PHIs) we ignore
-      // it.
+
+      // If the incoming is internal to the equivalence class (PHIs) we use a
+      // nullptr placeholder. This enables us later to sort them before all the
+      // others, and to avoid ever having to inject an edge-splitting blocks for
+      // edges that are internal to the class. Completely avoiding to insert an
+      // entry for these into `Grouped` (as old code used to do), causes failure
+      // to detect necessary edge splitting in some cases.
       if (auto *PHIIncoming = dyn_cast<PHINode>(Incoming);
           PHIIncoming and PHIs.contains(PHIIncoming)
-          and isIncomingValueUseInPHI(IncomingUse))
-        continue;
+          and isIncomingValueUseInPHI(IncomingUse)) {
+        Incoming = nullptr;
+      }
 
       BasicBlock *IncomingBlock = PHI->getIncomingBlock(IncomingUse);
-      Grouped[IncomingBlock][Incoming].insert(&IncomingUse);
+      UseSet &IncomingUses = Grouped[IncomingBlock][Incoming];
+      if (nullptr != Incoming)
+        IncomingUses.insert(&IncomingUse);
     }
   }
 
@@ -432,6 +440,16 @@ getIncomingUsesOfValuesFromBlocks(const SetVector<PHINode *> &PHIs) {
     llvm::stable_sort(Entries,
                       [](const std::pair<Value *, UseSet> &LHS,
                          const std::pair<Value *, UseSet> &RHS) {
+                        // Sort enties with nullptr incoming value first, so
+                        // they get picked first from
+                        // `replacePHIEquivalenceClass`, and they never cause
+                        // edge splitting. Two of them never compare, there
+                        // being at most one per block, but saying so keeps
+                        // this a strict weak ordering.
+                        if (LHS.first == nullptr)
+                          return RHS.first != nullptr;
+                        if (RHS.first == nullptr)
+                          return false;
                         return LHS.second.size() > RHS.second.size();
                       });
     Result[Block] = std::move(Entries);
@@ -552,7 +570,14 @@ void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
         auto &[Incoming, IncomingUses] = EntriesInBlock.front();
         revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
         revng_log(Log, "Incoming: " << dumpToString(Incoming));
-        buildStore(IncomingBlock, Incoming, Alloca);
+        // We only need to inject a store when the Incoming is present.
+        // If Incoming is nullptr, it means these are edges internal to the
+        // class: the store would be a self assignment, FIXME
+        if (Incoming) {
+          buildStore(IncomingBlock, Incoming, Alloca);
+        } else {
+          revng_log(Log, "Internal edge");
+        }
       }
 
       SmallSet<IncomingInfo, 4> HandledCases;

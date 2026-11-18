@@ -419,3 +419,56 @@ Exit:                 ; preds = %Loop
   ; CHECK: ret i64 [[LOAD2]]
   ret i64 %0
 }
+
+;
+; CHECK-LABEL: define i64 @latch_with_exit_value(i64 %a, i1 %c0, i1 %c1, i1 %c2)
+;
+; %acc, %next and %result share a variable. Latch passes %next to Header
+; unchanged and 42 to Exit, so the store of 42 must go on the Latch-Exit edge:
+; in Latch it would clobber the accumulator on the back edge.
+define i64 @latch_with_exit_value(i64 %a, i1 %c0, i1 %c1, i1 %c2) {
+
+; CHECK: Entry:
+; CHECK: [[ALLOCA:%[a-zA-Z0-9_]+]] = alloca i64
+; CHECK-NOT: alloca
+; CHECK: store i64 %a, ptr [[ALLOCA]]
+Entry:
+  br label %Header
+
+; CHECK: Header:
+; CHECK: load i64, ptr [[ALLOCA]]
+Header:
+  %acc = phi i64 [ %a, %Entry ], [ %next, %Latch ]
+  br i1 %c0, label %Exit, label %Body
+
+Body:
+  br i1 %c1, label %Add, label %Negate
+
+; CHECK: Add:
+; CHECK: store i64 %add, ptr [[ALLOCA]]
+Add:
+  %add = add i64 %acc, 1
+  br label %Latch
+
+; CHECK: Negate:
+; CHECK: store i64 %negate, ptr [[ALLOCA]]
+Negate:
+  %negate = sub i64 0, %acc
+  br label %Latch
+
+; CHECK: Latch:
+; CHECK-NOT: store
+; CHECK: br i1 %c2, label %Latch-to-Exit, label %Header
+Latch:
+  %next = phi i64 [ %add, %Add ], [ %negate, %Negate ]
+  br i1 %c2, label %Exit, label %Header
+
+; CHECK: Exit:
+; CHECK: load i64, ptr [[ALLOCA]]
+Exit:
+  %result = phi i64 [ %acc, %Header ], [ 42, %Latch ]
+  ret i64 %result
+
+; CHECK: Latch-to-Exit:
+; CHECK: store i64 42, ptr [[ALLOCA]]
+}
