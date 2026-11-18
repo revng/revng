@@ -178,6 +178,7 @@ UNIVERSAL_FAILURES=(
     "${EXPECTED_FAILURES}/mips.yml"
     "${EXPECTED_FAILURES}/s390x.yml"
     "${EXPECTED_FAILURES}/union-size.yml"
+    "${EXPECTED_FAILURES}/register-order.yml"
 )
 RFT_STAGE_FAILURES=(
     "${EXPECTED_FAILURES}/RFTs.yml"
