@@ -73,9 +73,9 @@ bool clift::isImplicitlyConvertibleInC(mlir::Type Source, mlir::Type Target) {
   Source = unwrapTypedefs(Source);
   Target = unwrapTypedefs(Target);
 
-  // All conversions between boolean and integer types are implicit.
-  if (mlir::isa<BoolType, IntegralType>(Source)
-      and mlir::isa<BoolType, IntegralType>(Target))
+  // Conversions among boolean and arithmetic types are implicit.
+  if (mlir::isa<BoolType, IntegralType, FloatType>(Source)
+      and mlir::isa<BoolType, IntegralType, FloatType>(Target))
     return true;
 
   // Conversions from any scalar type to boolean are implicit.

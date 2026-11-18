@@ -10,12 +10,8 @@ using namespace clift;
 
 static bool isNoreturnCall(mlir::Operation *Op) {
   if (auto Call = mlir::dyn_cast<CallOp>(Op)) {
-    if (auto Use = Call.getCallee().getDefiningOp<UseOp>()) {
-      if (mlir::Operation *Global = Use.getUsedGlobal()) {
-        if (auto Function = mlir::dyn_cast<FunctionOp>(Global))
-          return static_cast<bool>(Function.getNoreturn());
-      }
-    }
+    if (auto Function = Call.getCalledFunction())
+      return static_cast<bool>(Function.getNoreturn());
   }
   return false;
 }
