@@ -474,6 +474,7 @@ llvm-passes/detect-uninlinable-helpers.ll
 llvm-passes/early-type-shrinking.ll
 llvm-passes/enforce-single-exit.ll
 llvm-passes/example.ll
+llvm-passes/exit-ssa-lifetime-start.ll
 llvm-passes/exit-ssa.ll
 llvm-passes/extractvalue-to-gep.ll
 llvm-passes/generic-region-info.ll
