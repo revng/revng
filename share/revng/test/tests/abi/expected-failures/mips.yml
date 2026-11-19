@@ -251,7 +251,6 @@
     - mixed_struct_32_huge_struct_arguments
     - mixed_struct_64_huge_struct_arguments
     - mixed_struct_64_int_32_arguments
-    - padded_sixteen_byte_scalar_in_registers
     - padded_sixteen_byte_scalar_on_stack
     - padded_struct_of_structs_on_stack
     - padded_struct_with_a_sixteen_byte_field_at_the_end_on_stack
@@ -287,7 +286,6 @@
     - unnaturally_aligned_union_32_in_registers
     - unnaturally_aligned_union_64_in_registers
   errors:
-    - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
     - Argument 0 uses neither the expected stack part nor the expected registers.
     - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 2 uses neither the expected stack part nor the expected registers.
@@ -304,9 +302,6 @@
   tests:
     - deeply_nested_float_struct_argument_on_stack
     - float_then_five_double_struct_arguments
-    - float_then_four_double_struct_arguments
-    - float_then_three_double_struct_arguments
-    - float_then_two_double_struct_arguments
     - float_then_two_four_double_struct_arguments
     - lots_of_eight_byte_float_arguments
     - lots_of_four_byte_float_arguments
@@ -340,7 +335,6 @@
     - unnaturally_aligned_float_struct_in_registers
     - unnaturally_aligned_float_union_in_registers
   errors:
-    - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
     - Argument 0 uses neither the expected stack part nor the expected registers.
     - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 2 uses neither the expected stack part nor the expected registers.
@@ -386,7 +380,6 @@
     - single_primitive_on_the_stack
     - two_primitives_on_the_stack
   errors:
-    - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
     - Argument 8 uses neither the expected stack part nor the expected registers.
     - Argument 9 uses neither the expected stack part nor the expected registers.
 

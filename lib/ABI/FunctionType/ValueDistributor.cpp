@@ -266,6 +266,8 @@ ValueDistributor::distribute(uint64_t Size,
 
         // The padding register does not count towards the limit
         ++LastRegister;
+        if (LastRegister > Registers.size())
+          LastRegister = Registers.size();
       }
 
       ConsideredRegisterCounter = OccupiedRegisterCount;
