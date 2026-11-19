@@ -114,32 +114,16 @@ public:
   [[nodiscard]] std::optional<Converted>
   tryConvert(const model::RawFunctionDefinition &FunctionType) {
     // Register arguments first.
-    auto Arguments = tryConvertingRegisterArguments(FunctionType.Arguments());
-    if (!Arguments.has_value()) {
+    auto Registers = tryConvertingRegisterArguments(FunctionType.Arguments());
+    if (!Registers.has_value()) {
       revng_log(Log, "Unable to convert register arguments.");
       Bucket.drop();
       return std::nullopt;
     }
 
-    // Count used registers.
-    ArgumentDistributor Distributor(ABI);
-    Distributor.ArgumentIndex = Arguments->size();
-    for (const auto &NTRegister : FunctionType.Arguments()) {
-      auto Kind = model::Register::getPrimitiveKind(NTRegister.Location());
-      if (Kind == model::PrimitiveKind::Values::PointerOrNumber)
-        ++Distributor.UsedGeneralPurposeRegisterCount;
-      else if (Kind == model::PrimitiveKind::Float)
-        ++Distributor.UsedFloatRegisterCount;
-      else
-        revng_abort(("Register ("
-                     + model::Register::getName(NTRegister.Location()).str()
-                     + ") is not supported as an argument.")
-                      .c_str());
-    }
-
     // Then stack ones.
     auto Stack = tryConvertingStackArguments(FunctionType.StackArgumentsType(),
-                                             Distributor);
+                                             Registers->Distributor);
     if (!Stack.has_value()) {
       revng_log(Log, "Unable to convert stack arguments.");
       Bucket.drop();
@@ -156,21 +140,27 @@ public:
 
     // Conversion successful, return the result.
     Bucket.commit();
-    return Converted{ std::move(*Arguments),
+    return Converted{ std::move(Registers->Arguments),
                       std::move(*Stack),
                       std::move(*ReturnType) };
   }
 
 private:
+  /// The return value or \ref tryConvertingRegisterArguments
+  struct ConvertedRegisterArguments {
+    llvm::SmallVector<model::Argument, 8> Arguments;
+    ArgumentDistributor Distributor;
+  };
+
   /// Helper used for converting register arguments to the c-style
   /// representation
   ///
   /// \param Registers a set of registers confirmed to be in use by
   ///        the function in question.
   ///
-  /// \return a list of arguments if the conversion was successful,
-  ///         `std::nullopt` otherwise.
-  std::optional<llvm::SmallVector<model::Argument, 8>>
+  /// \returns `std::nullopt` if the conversion failed. Otherwise, both
+  ///          the list of CFT arguments and a pre-seeded `ArgumentDistributor`.
+  std::optional<ConvertedRegisterArguments>
   tryConvertingRegisterArguments(RFTArguments Registers);
 
   /// Helper used for converting stack argument struct into
@@ -287,7 +277,7 @@ tryConvertToCABI(const model::RawFunctionDefinition &FunctionType,
 }
 
 using TCC = ToCABIConverter;
-std::optional<llvm::SmallVector<model::Argument, 8>>
+std::optional<TCC::ConvertedRegisterArguments>
 TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   // Rely onto the register state deduction to make sure no "holes" are
   // present in-between the argument registers.
@@ -307,6 +297,7 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   // order them properly.
   auto Ordered = ABI.sortArguments(std::move(Deduced));
 
+  ArgumentDistributor Distributor(ABI);
   llvm::SmallVector<model::Argument, 8> Result;
   for (model::Register::Values Register : Ordered) {
     auto CurrentRegisterIterator = Registers.find(Register);
@@ -341,13 +332,29 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
       using Primitive = model::PrimitiveType;
       Result.emplace_back().Type() = Primitive::makeGeneric(Register);
     }
+
+    // The register is consumed either way, so it is unavailable to the stack
+    // arguments.
+    auto Kind = model::Register::getPrimitiveKind(Register);
+    if (Kind == model::PrimitiveKind::Values::PointerOrNumber)
+      ++Distributor.UsedGeneralPurposeRegisterCount;
+    else if (Kind == model::PrimitiveKind::Values::Float)
+      ++Distributor.UsedFloatRegisterCount;
+    else
+      revng_abort(("Register (" + model::Register::getName(Register).str()
+                   + ") is not supported as an argument.")
+                    .c_str());
   }
 
   // Rewrite all the indices to make sure they are consistent.
   for (auto Pair : llvm::enumerate(Result))
     Pair.value().Index() = Pair.index();
+  Distributor.ArgumentIndex = Result.size();
 
-  return Result;
+  return ConvertedRegisterArguments{
+    .Arguments = std::move(Result),
+    .Distributor = std::move(Distributor),
+  };
 }
 
 struct ArgumentProperties {
