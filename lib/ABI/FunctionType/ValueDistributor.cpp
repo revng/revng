@@ -269,6 +269,7 @@ ValueDistributor::distribute(uint64_t Size,
 
         // The padding register does not count towards the limit
         ++LastRegister;
+        LastRegister = std::min(LastRegister, Registers.size());
       }
 
       ConsideredRegisterCounter = OccupiedRegisterCount;
