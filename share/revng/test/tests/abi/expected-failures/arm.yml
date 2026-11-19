@@ -32,6 +32,11 @@
 - ABIs:
     - AAPCS_softfloat
   tests:
+    - float_then_five_double_struct_arguments
+    - float_then_four_double_struct_arguments
+    - float_then_three_double_struct_arguments
+    - float_then_two_double_struct_arguments
+    - float_then_two_four_double_struct_arguments
     - mixed_double_float_arguments
     - mixed_double_float_struct_arguments
     - mixed_double_int_32_arguments
@@ -60,12 +65,15 @@
     - apple_four_byte_aligned_aggregate_on_stack
     - apple_padded_eight_byte_aligned_aggregate_on_stack
     - apple_padded_four_byte_aligned_aggregate_on_stack
+    - apple_reverse_mixed_aggregates_on_stack
     - apple_two_byte_aligned_aggregate_on_stack
+    - padded_unnaturally_sized_forteen_byte_struct_on_stack
   errors:
     - Argument 10 uses neither the expected stack part nor the expected registers.
     - Argument 11 uses neither the expected stack part nor the expected registers.
     - Argument 12 uses neither the expected stack part nor the expected registers.
     - Argument 15 uses neither the expected stack part nor the expected registers.
     - Argument 16 uses neither the expected stack part nor the expected registers.
+    - There are 7 unconsumed stack bytes - the layout shows the need for more stack bytes than necessary.
     - There are 8 unconsumed stack bytes - the layout shows the need for more stack bytes than necessary.
     - There are 16 unconsumed stack bytes - the layout shows the need for more stack bytes than necessary.

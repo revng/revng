@@ -39,6 +39,7 @@
     - SystemV_MIPSEL_o32_softfloat
     - SystemV_MIPS_o32_softfloat
   tests:
+    - float_then_double_struct_arguments
     - mixed_float_double_arguments
     - mixed_float_double_struct_arguments
     - mixed_float_int_64_arguments
