@@ -14,7 +14,9 @@ class Value;
 namespace revng {
 
 /// True if the clifter emits no Clift operation for \p I: the scope-graph
-/// markers, which only carry the structure of the scope graph.
+/// markers, which only carry the structure of the scope graph, and
+/// `llvm.lifetime.end`, whose effect C expresses through the scope a
+/// declaration sits in rather than through a statement.
 ///
 /// This is about the instruction, not its effect. A goto marker emits nothing
 /// itself, but still makes the terminator of its block a `goto` rather than a

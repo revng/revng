@@ -52,6 +52,7 @@
 #include "revng/ADT/SmallMap.h"
 #include "revng/Canonicalize/AllocaKillPoint.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
+#include "revng/LocalVariables/LifetimeHelpers.h"
 #include "revng/LocalVariables/LocalVariableBuilder.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
@@ -119,6 +120,14 @@ static bool storedValueCanBeMadeAvailable(StoreInst *Store) {
 //
 
 static bool doesNotAccessMemory(const Instruction *I) {
+  // A lifetime marker carries the point where a local variable is declared
+  // and nothing else. LLVM models it as a write to that variable, which would
+  // make us believe the value there is clobbered, and not available.
+  // This can result in forcing an unnecessary additional local variable.
+  // For this reason we treat lifetime markers as if they didn't access memory.
+  if (isLifetimeStart(*I) or isLifetimeEnd(*I))
+    return true;
+
   // We have to hardcode OpaqueExtractValue and StructInitializer because
   // SegregateStackAccesses marks them as functions that read inaccessible
   // memory, in order to prevent some LLVM optimizations.

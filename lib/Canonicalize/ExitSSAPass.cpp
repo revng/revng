@@ -16,6 +16,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugLoc.h"
@@ -29,6 +30,7 @@
 
 #include "revng/ADT/SmallMap.h"
 #include "revng/ADT/ZipMapIterator.h"
+#include "revng/LocalVariables/LifetimeHelpers.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
@@ -693,6 +695,35 @@ void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
     }
   }
 
+  // Mark where the variable becomes live. This is what the clifter uses to
+  // decide where to declare it.
+  //
+  // Beside the accesses, which the marker has to come before, it has to be
+  // live on every edge reaching a PHI of the class: an undefined incoming
+  // produces no store, so going by the accesses alone would sink the marker
+  // into whatever loop holds them, and the variable would be declared there
+  // and pick up an indeterminate value on every iteration. Hence the
+  // terminators of the incoming blocks.
+  //
+  // This runs once the class has been replaced, so that the accesses exist,
+  // and before the PHIs are erased, both because they are what the incoming
+  // blocks are read from and because `PHIDebugLoc` refers to one of them.
+  SmallVector<Instruction *> IncomingTerminators;
+  for (PHINode *PHI : PHIs)
+    for (BasicBlock *IncomingBlock : PHI->blocks())
+      IncomingTerminators.push_back(IncomingBlock->getTerminator());
+
+  CallInst *LifetimeStart = emitLifetimeStart(Alloca,
+                                              IncomingTerminators,
+                                              DT,
+                                              PHIDebugLoc);
+  revng_assert(LifetimeStart != nullptr,
+               "a class of PHIs always has an incoming block");
+  revng_log(Log,
+            "Created lifetime.start: "
+              << dumpToString(LifetimeStart)
+              << " in Block: " << LifetimeStart->getParent()->getName());
+
   // Finally we remove all the PHIs
   {
     revng_log(Log, "Cleaning Up");
@@ -719,6 +750,7 @@ bool ExitSSAPass::runOnFunction(Function &F) {
   // Informally, all the PHINodes in a group hold the same value, and we want to
   // create a single local variable for each DAG.
   const auto PHIClasses = getPHIEquivalenceClasses(*CurrentFunction);
+
   for (const auto &PHIGroup : PHIClasses)
     replacePHIEquivalenceClass(PHIGroup);
 

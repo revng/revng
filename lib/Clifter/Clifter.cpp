@@ -19,6 +19,7 @@
 #include "revng/Clift/CliftTypes.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/Clifter/Clifter.h"
+#include "revng/LocalVariables/LifetimeHelpers.h"
 #include "revng/LocalVariables/LocalVariableHelpers.h"
 #include "revng/LocalVariables/Statements.h"
 #include "revng/Model/Architecture.h"
@@ -102,6 +103,12 @@ static SortedVector<MetaAddress> getUserAddressSet(const llvm::Instruction *I) {
     const auto *UserInstruction = llvm::dyn_cast<llvm::Instruction>(User);
     if (UserInstruction == nullptr)
       return {};
+
+    // The lifetime marker carries where the variable is declared, it is not an
+    // access to it, so it has no business identifying it. Letting it in would
+    // also empty the whole set whenever it has no address to extract.
+    if (isLifetimeStart(*UserInstruction))
+      continue;
 
     auto Address = tryExtractAddress(*UserInstruction);
     if (not Address.has_value())
@@ -1693,7 +1700,40 @@ private:
         // Create a clift.require operation to indicate the position dominating
         // all uses of this local variable. This prevents the local variable
         // from being later moved past this point during scope tightening.
-        Builder.create<RequireOp>(Loc, Op);
+        //
+        // When the variable carries a `llvm.lifetime.start`, that marker is
+        // where it becomes live, and it is both more precise than the alloca,
+        // which sits in the entry block, and better placed than the dominator
+        // of the accesses, which for a variable carried across a loop would be
+        // inside the loop. The require operation is emitted there instead, see
+        // below.
+        // Without a marker the declaration goes where the alloca sits. That is
+        // what the stack frame wants, being live for the whole function, and it
+        // is also the safe answer for a variable nothing marked: a declaration
+        // that is too wide does not change what the function computes, while
+        // one that is too narrow does.
+        if (not hasLifetimeStart(A))
+          Builder.create<RequireOp>(Loc, Op);
+
+        continue;
+      }
+
+      // A `llvm.lifetime.start` carries the point where a local variable
+      // becomes live, which is where it has to be declared.
+      if (isLifetimeStart(I)) {
+        EmittedStatement = true;
+
+        const auto *LifetimeStart = llvm::cast<llvm::IntrinsicInst>(&I);
+        const llvm::AllocaInst
+          *Variable = getLifetimeStartVariable(LifetimeStart);
+
+        // The marker is dominated by the alloca it refers to, and the alloca is
+        // in the entry block, so it has already been emitted
+        auto Iterator = AllocaMapping.find(Variable);
+        revng_assert(Iterator != AllocaMapping.end(),
+                     "a lifetime.start was reached before the alloca it marks");
+
+        Builder.create<RequireOp>(C.getLocation(&I), Iterator->second);
 
         continue;
       }

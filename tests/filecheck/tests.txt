@@ -469,11 +469,13 @@ clift/types/union-with-pointer-recursion.mlir
 clift/unique-fallthrough-branch-hoisting/hoist-else.mlir
 clift/unique-fallthrough-branch-hoisting/hoist-then.mlir
 llvm-passes/arithmetic-to-gep.ll
+llvm-passes/compute-alloca-lifetime-start.ll
 llvm-passes/dagify.ll
 llvm-passes/detect-uninlinable-helpers.ll
 llvm-passes/early-type-shrinking.ll
 llvm-passes/enforce-single-exit.ll
 llvm-passes/example.ll
+llvm-passes/exit-ssa-lifetime-start.ll
 llvm-passes/exit-ssa.ll
 llvm-passes/extractvalue-to-gep.ll
 llvm-passes/generic-region-info.ll

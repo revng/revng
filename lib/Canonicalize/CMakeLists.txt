@@ -5,7 +5,7 @@
 revng_add_analyses_library_internal(
   revngCanonicalize
   ArithmeticToGEP.cpp
-  DeferAllocas.cpp
+  ComputeAllocaLifetimeStart.cpp
   ExitSSAPass.cpp
   ExtractValueToGEP.cpp
   FixPointerSize.cpp
