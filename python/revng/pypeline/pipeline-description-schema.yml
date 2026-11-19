@@ -159,7 +159,8 @@ properties:
         - name
         - savepoint_id
         - container
-        - category
+        - show_by_default
+        - tags
         - pipe_dependencies
         - defined_locations
         - preferred_artifacts
@@ -181,20 +182,14 @@ properties:
             configuration, which keys effect the artifact.
           items:
             type: string
-        category:
-          type: object
-          required:
-            - name
-            - show_by_default
-          properties:
-            name:
-              type: string
-              description: The name of the category
-            show_by_default:
-              type: boolean
-              description: >
-                Setting this to true will show the artifacts of this category
-                by default
+        show_by_default:
+          type: boolean
+          description: Setting this to true will show the artifact by default
+        tags:
+          type: array
+          description: The tags of the artifact
+          items:
+            type: string
         filename:
           type: string
           description: The filename to use when representing this artifact

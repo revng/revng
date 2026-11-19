@@ -37,7 +37,7 @@ def get_container_type(data, container: str):
 def parse_artifacts(data) -> dict[str, list[ArtifactData]]:
     result: dict[str, list[ArtifactData]] = defaultdict(list)
     for entry in data["artifacts"]:
-        if not entry["category"]["show_by_default"]:
+        if not entry["show_by_default"]:
             continue
 
         container_type = get_container_type(data, entry["container"])

@@ -37,7 +37,7 @@ class ArtifactGroup(click.Group):
         else:
             result = [*base]
             for artifact_name, artifact in pipeline.artifacts.items():
-                if artifact.category.show_by_default:
+                if artifact.show_by_default:
                     result.append(artifact_name)
             return sorted(result)
 
