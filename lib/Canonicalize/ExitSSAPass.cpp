@@ -62,13 +62,73 @@ private:
   void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs);
 };
 
-struct IncomingInfo {
-  BasicBlock *PHIBlock = nullptr;
-  BasicBlock *IncomingBlock = nullptr;
-  Value *IncomingValue = nullptr;
+class IncomingInfo {
+  // Holds a BasicBlock *
+  uintptr_t IncomingBlock = reinterpret_cast<uintptr_t>(nullptr);
+  // Holds a BasicBlock *
+  uintptr_t PHIBlock = reinterpret_cast<uintptr_t>(nullptr);
+  // Holds a Value *
+  uintptr_t IncomingValue = reinterpret_cast<uintptr_t>(nullptr);
+
+private:
+  IncomingInfo(BasicBlock *IB, BasicBlock *PB, uintptr_t IV) :
+    IncomingBlock(reinterpret_cast<uintptr_t>(IB)),
+    PHIBlock(reinterpret_cast<uintptr_t>(PB)),
+    IncomingValue(IV) {}
+
+public:
+  IncomingInfo(BasicBlock *IB, BasicBlock *PB, Value *IV) :
+    IncomingInfo(IB, PB, reinterpret_cast<uintptr_t>(IV)) {}
+  IncomingInfo() : IncomingInfo(nullptr, nullptr, nullptr) {}
+
+  IncomingInfo(const IncomingInfo &) = default;
+  IncomingInfo(IncomingInfo &&) = default;
+  IncomingInfo &operator=(const IncomingInfo &) = default;
+  IncomingInfo &operator=(IncomingInfo &&) = default;
+  ~IncomingInfo() = default;
+
+public:
+  static IncomingInfo lower(BasicBlock *IB, BasicBlock *PB) {
+    return IncomingInfo(IB, PB, std::numeric_limits<uintptr_t>::min());
+  }
+  static IncomingInfo upper(BasicBlock *IB, BasicBlock *PB) {
+    return IncomingInfo(IB, PB, std::numeric_limits<uintptr_t>::max());
+  }
+
   bool operator==(const IncomingInfo &) const = default;
   std::strong_ordering operator<=>(const IncomingInfo &) const = default;
+
+  template<std::size_t N>
+  decltype(auto) get() const {
+    if constexpr (N == 0)
+      return reinterpret_cast<BasicBlock *>(IncomingBlock);
+    else if constexpr (N == 1)
+      return reinterpret_cast<BasicBlock *>(PHIBlock);
+    else if constexpr (N == 2)
+      return reinterpret_cast<Value *>(IncomingValue);
+  }
+
+  BasicBlock *incomingBlock() const {
+    return reinterpret_cast<BasicBlock *>(IncomingBlock);
+  }
+  BasicBlock *phiBlock() const {
+    return reinterpret_cast<BasicBlock *>(PHIBlock);
+  }
+  Value *incomingValue() const {
+    return reinterpret_cast<Value *>(IncomingValue);
+  }
 };
+
+namespace std {
+template<>
+struct tuple_size<IncomingInfo> : std::integral_constant<std::size_t, 3> {};
+
+template<std::size_t N>
+struct tuple_element<N, IncomingInfo> {
+  using type = decltype(std::declval<IncomingInfo>().get<N>());
+};
+
+} // namespace std
 
 static bool haveIncompatibleIncomings(const std::set<IncomingInfo> &LHS,
                                       const std::set<IncomingInfo> &RHS,
@@ -76,13 +136,13 @@ static bool haveIncompatibleIncomings(const std::set<IncomingInfo> &LHS,
   if (Log.isEnabled()) {
     {
       revng_log(Log, "LHS: {");
-      for (const auto &[PHIBlock, IncomingBlock, IncomingValue] : LHS) {
+      for (const auto &[IncomingBlock, PHIBlock, IncomingValue] : LHS) {
         LoggerIndent LHSIndent{ Log };
         revng_log(Log, "{");
         {
           LoggerIndent MoreIndent{ Log };
-          revng_log(Log, "PHIBlock: " << PHIBlock->getName());
           revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
+          revng_log(Log, "PHIBlock: " << PHIBlock->getName());
           revng_log(Log, "IncomingValue: " << dumpToString(IncomingValue, MST));
         }
         revng_log(Log, "}");
@@ -91,13 +151,13 @@ static bool haveIncompatibleIncomings(const std::set<IncomingInfo> &LHS,
     }
     {
       revng_log(Log, "RHS: {");
-      for (const auto &[PHIBlock, IncomingBlock, IncomingValue] : RHS) {
+      for (const auto &[IncomingBlock, PHIBlock, IncomingValue] : RHS) {
         LoggerIndent LHSIndent{ Log };
         revng_log(Log, "{");
         {
           LoggerIndent MoreIndent{ Log };
-          revng_log(Log, "PHIBlock: " << PHIBlock->getName());
           revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
+          revng_log(Log, "PHIBlock: " << PHIBlock->getName());
           revng_log(Log, "IncomingValue: " << dumpToString(IncomingValue, MST));
         }
         revng_log(Log, "}");
@@ -106,23 +166,20 @@ static bool haveIncompatibleIncomings(const std::set<IncomingInfo> &LHS,
     }
   }
   revng_log(Log, "Evaluating incompatibility");
-  for (const auto &[PHIBlock, IncomingBlock, IncomingValue] : LHS) {
+  for (const auto &[IncomingBlock, PHIBlock, IncomingValue] : LHS) {
     LoggerIndent IndentIncompatibilityCheck{ Log };
     {
       revng_log(Log, "LHS: {");
       {
         LoggerIndent MoreIndent{ Log };
-        revng_log(Log, "PHIBlock: " << PHIBlock->getName());
         revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
+        revng_log(Log, "PHIBlock: " << PHIBlock->getName());
         revng_log(Log, "IncomingValue: " << dumpToString(IncomingValue, MST));
       }
       revng_log(Log, "}");
     }
-    auto It = RHS.lower_bound(IncomingInfo{ PHIBlock, IncomingBlock, nullptr });
-    auto End = RHS.upper_bound(IncomingInfo{
-      PHIBlock,
-      IncomingBlock,
-      (Value *) std::numeric_limits<intptr_t>::max() });
+    auto It = RHS.lower_bound(IncomingInfo::lower(IncomingBlock, PHIBlock));
+    auto End = RHS.upper_bound(IncomingInfo::upper(IncomingBlock, PHIBlock));
     // If RHS contains a PHI that is in the same block as PHIBlock, and has a
     // different incoming value on the same incoming block, the two are
     // incompatible, because they would assign two different values to the same
@@ -131,14 +188,14 @@ static bool haveIncompatibleIncomings(const std::set<IncomingInfo> &LHS,
       revng_log(Log, "RHS: {");
       {
         LoggerIndent MoreIndent{ Log };
-        revng_log(Log, "It->PHIBlock: " << It->PHIBlock->getName());
-        revng_log(Log, "It->IncomingBlock: " << It->IncomingBlock->getName());
+        revng_log(Log, "It->IncomingBlock: " << It->incomingBlock()->getName());
+        revng_log(Log, "It->PHIBlock: " << It->phiBlock()->getName());
         revng_log(Log,
-                  "It->IncomingValue: " << dumpToString(It->IncomingValue,
+                  "It->IncomingValue: " << dumpToString(It->incomingValue(),
                                                         MST));
       }
       revng_log(Log, "}");
-      if (IncomingValue != It->IncomingValue) {
+      if (IncomingValue != It->incomingValue()) {
         revng_log(Log, "conflicting!");
         return true;
       }
@@ -187,8 +244,8 @@ static std::vector<SetVector<PHINode *>> getPHIEquivalenceClasses(Function &F) {
     for (unsigned I = 0U; I < NumIncomings; ++I) {
       Value *IncomingValue = PHI->getIncomingValue(I);
       BasicBlock *IncomingBlock = PHI->getIncomingBlock(I);
-      auto NewIncomingInfo = IncomingInfo{ PHIBlock,
-                                           IncomingBlock,
+      auto NewIncomingInfo = IncomingInfo{ IncomingBlock,
+                                           PHIBlock,
                                            IncomingValue };
       CurrentIncomingInfo.insert(std::move(NewIncomingInfo));
       revng_log(Log, "I = " << I << ": " << dumpToString(IncomingValue, MST));
@@ -343,15 +400,23 @@ getIncomingUsesOfValuesFromBlocks(const SetVector<PHINode *> &PHIs) {
       Value *Incoming = IncomingUse;
       if (isa<llvm::UndefValue>(Incoming))
         continue;
-      // If the incoming is internal to the equivalence class (PHIs) we ignore
-      // it.
+
+      // If the incoming is internal to the equivalence class (PHIs) we use a
+      // nullptr placeholder. This enables us later to sort them before all the
+      // others, and to avoid ever having to inject an edge-splitting blocks for
+      // edges that are internal to the class. Completely avoiding to insert an
+      // entry for these into `Grouped` (as old code used to do), causes failure
+      // to detect necessary edge splitting in some cases.
       if (auto *PHIIncoming = dyn_cast<PHINode>(Incoming);
           PHIIncoming and PHIs.contains(PHIIncoming)
-          and isIncomingValueUseInPHI(IncomingUse))
-        continue;
+          and isIncomingValueUseInPHI(IncomingUse)) {
+        Incoming = nullptr;
+      }
 
       BasicBlock *IncomingBlock = PHI->getIncomingBlock(IncomingUse);
-      Grouped[IncomingBlock][Incoming].insert(&IncomingUse);
+      UseSet &IncomingUses = Grouped[IncomingBlock][Incoming];
+      if (nullptr != Incoming)
+        IncomingUses.insert(&IncomingUse);
     }
   }
 
@@ -375,6 +440,16 @@ getIncomingUsesOfValuesFromBlocks(const SetVector<PHINode *> &PHIs) {
     llvm::stable_sort(Entries,
                       [](const std::pair<Value *, UseSet> &LHS,
                          const std::pair<Value *, UseSet> &RHS) {
+                        // Sort enties with nullptr incoming value first, so
+                        // they get picked first from
+                        // `replacePHIEquivalenceClass`, and they never cause
+                        // edge splitting. Two of them never compare, there
+                        // being at most one per block, but saying so keeps
+                        // this a strict weak ordering.
+                        if (LHS.first == nullptr)
+                          return RHS.first != nullptr;
+                        if (RHS.first == nullptr)
+                          return false;
                         return LHS.second.size() > RHS.second.size();
                       });
     Result[Block] = std::move(Entries);
@@ -495,10 +570,17 @@ void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
         auto &[Incoming, IncomingUses] = EntriesInBlock.front();
         revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
         revng_log(Log, "Incoming: " << dumpToString(Incoming));
-        buildStore(IncomingBlock, Incoming, Alloca);
+        // We only need to inject a store when the Incoming is present.
+        // If Incoming is nullptr, it means these are edges internal to the
+        // class: the store would be a self assignment, FIXME
+        if (Incoming) {
+          buildStore(IncomingBlock, Incoming, Alloca);
+        } else {
+          revng_log(Log, "Internal edge");
+        }
       }
 
-      SmallMap<std::pair<BasicBlock *, BasicBlock *>, Value *, 4> HandledCases;
+      SmallSet<IncomingInfo, 4> HandledCases;
 
       for (auto &[Incoming, IncomingUses] : llvm::drop_begin(EntriesInBlock)) {
         revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
@@ -522,14 +604,13 @@ void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
           // the same Incoming (because of how classes are constructed), so the
           // Store is already in place, and we don't want two of them.
 
-          auto BlockToPHIBlock = std::make_pair(IncomingBlock, PHIBlock);
-          auto BlocksToIncoming = std::make_pair(std::move(BlockToPHIBlock),
-                                                 Incoming);
-          const auto &[It,
-                       New] = HandledCases.insert(std::move(BlocksToIncoming));
+          const auto &[HandledIt,
+                       New] = HandledCases.insert(IncomingInfo(IncomingBlock,
+                                                               PHIBlock,
+                                                               Incoming));
           if (not New) {
             revng_log(Log, "Already handled for this equivalence class");
-            revng_assert(It->second == Incoming);
+            revng_assert((*HandledIt).incomingValue() == Incoming);
             continue;
           }
 
@@ -540,6 +621,7 @@ void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
           revng_assert(nullptr == IncomingBlock->getSingleSuccessor());
 
           BasicBlock *StoreBlock = nullptr;
+          auto BlockToPHIBlock = std::make_pair(IncomingBlock, PHIBlock);
           if (auto It = NewBlocks.find(BlockToPHIBlock);
               It != NewBlocks.end()) {
             revng_log(Log,
