@@ -778,11 +778,11 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
       }
     } else {
       // It could be a struct, go the conservative route and make one for it.
-      auto &&[Definition, ReturnType] = Bucket.makeStructDefinition();
-      for (model::Register::Values Register : Ordered) {
+      auto &&[Struct, ReturnType] = Bucket.makeStructDefinition();
+      for (auto &&[Index, Register] : llvm::enumerate(Ordered)) {
         // Make a separate field for each register.
         model::StructField Field;
-        Field.Offset() = Definition.Size();
+        Field.Offset() = Struct.Size();
 
         // Take the type the register currently describes, if any.
         if (auto Iter = Registers.find(Register); Iter != Registers.end())
@@ -813,19 +813,24 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
         revng_assert(FieldSize.has_value() && FieldSize.value() != 0);
 
         // Round the next offset based on the natural alignment.
-        Definition
-          .Size() = llvm::alignToPowerOf2(Definition.Size(),
-                                          *ABI.alignment(*Field.Type()));
+        Struct.Size() = llvm::alignToPowerOf2(Struct.Size(),
+                                              *ABI.alignment(*Field.Type()));
 
         // Insert the field
-        Definition.Fields().insert(std::move(Field));
+        Struct.Fields().insert(std::move(Field));
 
-        // Update the total struct size: insert some padding if necessary.
-        Definition.Size() += paddedSizeOnStack(FieldSize.value(),
-                                               ABI.MinimumStackArgumentSize());
+        // Update the total struct size: insert some padding, except for
+        // the last field - intentionally don't assume trailing padding here.
+        if (Index + 1 == Ordered.size()) {
+          Struct.Size() += FieldSize.value();
+
+        } else {
+          Struct.Size() += paddedSizeOnStack(FieldSize.value(),
+                                             ABI.MinimumStackArgumentSize());
+        }
       }
 
-      revng_assert(Definition.Size() != 0 && !Definition.Fields().empty());
+      revng_assert(Struct.Size() != 0 && !Struct.Fields().empty());
       return std::move(ReturnType);
     }
   }
