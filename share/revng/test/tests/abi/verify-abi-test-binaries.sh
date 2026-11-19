@@ -182,11 +182,11 @@ UNIVERSAL_FAILURES=(
     "${EXPECTED_FAILURES}/microsoft.yml"
     "${EXPECTED_FAILURES}/mips.yml"
     "${EXPECTED_FAILURES}/s390x.yml"
+    "${EXPECTED_FAILURES}/union-size.yml"
 )
 RFT_STAGE_FAILURES=(
     "${EXPECTED_FAILURES}/RFTs.yml"
     "${EXPECTED_FAILURES}/apple.yml"
-    "${EXPECTED_FAILURES}/union-size.yml"
 )
 CFT_STAGE_FAILURES=(
     "${EXPECTED_FAILURES}/RFTs.yml"
