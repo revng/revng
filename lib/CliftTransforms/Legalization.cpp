@@ -360,9 +360,19 @@ struct SignMatchingPattern : mlir::OpRewritePattern<OpT> {
 
   using mlir::OpRewritePattern<OpT>::OpRewritePattern;
 
+  // Patterns that rewrite any operand take the reference type from the first
+  // operand, because the rewrite assigns the same type to every rewritten
+  // operand as well as to the result. Patterns that only rewrite the result
+  // must instead take it from the result: in the float to integer conversions
+  // the first operand is a floating point type, which is never signed in the
+  // sense of isSigned, so matching on it would make the pattern apply over and
+  // over on its own output.
+  static constexpr bool MatchOperandType = RewriteLHS or RewriteRHS;
+
   mlir::LogicalResult
   matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
-    mlir::Type OldType = Op->getOperand(0).getType();
+    mlir::Type OldType = MatchOperandType ? Op->getOperand(0).getType() :
+                                            Op->getResult(0).getType();
 
     if (isSigned(OldType) == IsSigned)
       return mlir::failure();

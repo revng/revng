@@ -45,6 +45,8 @@ clift/backend/ternary.mlir
 clift/backend/types.mlir
 clift/backend/while.mlir
 clift/c-legalization/add-i16.mlir
+clift/c-legalization/ftos-sign.mlir
+clift/c-legalization/ftou-sign.mlir
 clift/c-legalization/imm-enum.mlir
 clift/c-legalization/imm-i8.mlir
 clift/c-legalization/imm-legal.mlir
