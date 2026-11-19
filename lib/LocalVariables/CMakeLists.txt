@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-revng_add_analyses_library_internal(revngLocalVariables
+revng_add_analyses_library_internal(revngLocalVariables LifetimeHelpers.cpp
                                     LocalVariableBuilder.cpp Statements.cpp)
 
 target_link_libraries(revngLocalVariables revngABI revngModel revngSupport
