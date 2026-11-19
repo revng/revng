@@ -5,13 +5,26 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 
+#include "revng/LocalVariables/LifetimeHelpers.h"
 #include "revng/LocalVariables/Statements.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/Tag.h"
 
 bool revng::isNotEmitted(const llvm::Instruction &I) {
-  return isCallToTagged(&I, FunctionTags::GotoBlockMarker)
-         or isCallToTagged(&I, FunctionTags::ScopeCloserMarker);
+  // The scope-graph markers only carry the structure of the scope graph.
+  if (isCallToTagged(&I, FunctionTags::GotoBlockMarker)
+      or isCallToTagged(&I, FunctionTags::ScopeCloserMarker)) {
+    return true;
+  }
+
+  // A `llvm.lifetime.end` says the variable is dead from that point on, which
+  // C expresses through the scope its declaration sits in and not through a
+  // statement, so there is nothing to emit for it.
+  //
+  // Its sibling `llvm.lifetime.start` is deliberately not here: that one
+  // carries the point where the variable is declared, and the clifter emits a
+  // `clift.require` for it.
+  return isLifetimeEnd(I);
 }
 
 bool revng::isStatement(const llvm::Instruction &I) {
