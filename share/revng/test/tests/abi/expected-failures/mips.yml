@@ -429,6 +429,8 @@
     - single_unnaturally_sized_forteen_byte_struct_with_a_smaller_scalar_argument
     - single_unnaturally_sized_nine_byte_struct_argument
     - single_unnaturally_sized_nine_byte_struct_union_with_a_smaller_scalar_argument
+    - single_unnaturally_sized_seven_byte_struct_argument
+    - single_unnaturally_sized_seven_byte_union_with_a_smaller_scalar_argument
     - single_unnaturally_sized_six_byte_struct_argument
     - single_unnaturally_sized_three_byte_struct_argument
     - single_unnaturally_sized_three_byte_union_with_a_smaller_scalar_argument

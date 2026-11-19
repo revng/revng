@@ -450,23 +450,23 @@ convertToRaw(const model::CABIFunctionDefinition &FunctionType,
 
 static Logger LayoutLog("function-type-layout");
 
-/// Sanitizes the portions reported by `ValueDistributor` for the sake of
-/// the consumers, which can only represent a value that either takes
-/// a portion of a single register or one or more full registers.
+/// Converts the portions reported by `ValueDistributor` for the sake of the
+/// consumers.
+///
+/// A distributed C ABI value is described either by a portion of a single
+/// register or by one or more registers, each of which can hold only a piece
+/// of it.
 static llvm::SmallVector<model::Register::Portion, 2>
 toPortions(const DistributedValue &Value) {
   revng_assert(not Value.RepresentsPadding);
 
   llvm::SmallVector<model::Register::Portion, 2> Result;
 
-  if (Value.Registers.size() == 1 and Value.SizeOnStack == 0) {
+  if (Value.Registers.size() == 1 and Value.SizeOnStack == 0)
     revng_assert(Value.Registers[0].Size == Value.Size);
-    Result.emplace_back(Value.Registers[0]);
-  } else {
-    for (const model::Register::Portion &Portion : Value.Registers)
-      Result.emplace_back(Portion.Register,
-                          model::Register::getSize(Portion.Register));
-  }
+
+  for (const model::Register::Portion &Portion : Value.Registers)
+    Result.emplace_back(Portion);
 
   return Result;
 }
@@ -692,13 +692,14 @@ static bool verifyValue(llvm::ArrayRef<model::Register::Portion> Registers,
     return true;
   }
 
-  // TODO: some ABIs pass a value in portions of multiple registers. For
-  //       instance, on hard-float AAPCS, the second argument of
-  //       `void f(struct { float A, B; }, struct { float A, B, C; })` takes
-  //       s2, s3 and s4: the second half of q0 and a quarter of q1.
+  // A value can take portions of multiple registers. For instance, on
+  // hard-float AAPCS, the second argument of
+  // `void f(struct { float A, B; }, struct { float A, B, C; })` takes s2, s3
+  // and s4: the second half of q0 and a quarter of q1.
   uint64_t RegistersSize = 0;
   for (const model::Register::Portion &Portion : Registers) {
-    if (Portion.Size != model::Register::getSize(Portion.Register)) {
+    if (Portion.Size == 0
+        or Portion.Size > model::Register::getSize(Portion.Register)) {
       revng_log(LayoutLog,
                 "A value in multiple locations takes "
                   << Portion.Size << " bytes of "
@@ -710,9 +711,7 @@ static bool verifyValue(llvm::ArrayRef<model::Register::Portion> Registers,
   }
 
   if (StackSize == 0) {
-    // Every register but the last one is used in its entirety
-    uint64_t LastSize = Registers.back().Size;
-    if (RegistersSize < Size or RegistersSize - LastSize >= Size) {
+    if (RegistersSize < Size) {
       revng_log(LayoutLog,
                 "A value of " << Size << " bytes takes " << RegistersSize
                               << " bytes of registers");
@@ -720,7 +719,7 @@ static bool verifyValue(llvm::ArrayRef<model::Register::Portion> Registers,
     }
   } else {
     // The registers hold the start of the value, the stack the rest
-    if (RegistersSize >= Size or RegistersSize + StackSize < Size) {
+    if (RegistersSize + StackSize < Size) {
       revng_log(LayoutLog,
                 "A value of " << Size << " bytes takes " << RegistersSize
                               << " bytes of registers and " << StackSize
