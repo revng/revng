@@ -9,10 +9,19 @@
 namespace clift {
 namespace impl {
 
+/// Returns the break or continue label value (if any), depending on the
+/// specified index. (Index=0 for break, Index=1 for continue).
+mlir::Value getLoopLabel(mlir::Operation *Op, unsigned Index);
+void setLoopLabel(mlir::Operation *Op, unsigned Index, mlir::Value Label);
+
 mlir::LogicalResult verifyNoFallthroughTrait(mlir::Operation *Op);
 mlir::LogicalResult verifyAssignsLoopLabelsTrait(mlir::Operation *Op);
 
 } // namespace impl
+
+template<typename ConcreteType>
+class NopStatement
+  : public mlir::OpTrait::TraitBase<ConcreteType, NopStatement> {};
 
 template<typename ConcreteType>
 class NoFallthrough
@@ -42,6 +51,10 @@ public:
 
   mlir::Value getAssignedLabel(unsigned Index) {
     return this->getOperation()->getOperand(Index);
+  }
+
+  mlir::Value getTrailingLabel() {
+    return impl::getLoopLabel(this->getOperation(), 0);
   }
 };
 

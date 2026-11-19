@@ -13,6 +13,7 @@ class Clift_NativeOpTrait<string name, list<Trait> traits = []>
   let cppNamespace = "clift";
 }
 
+def Clift_NopStatement : Clift_NativeOpTrait<"NopStatement">;
 def Clift_NoFallthrough : Clift_NativeOpTrait<"NoFallthrough">;
 def Clift_AssignsLoopLabels : Clift_NativeOpTrait<"AssignsLoopLabels">;
 

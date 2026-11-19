@@ -33,11 +33,20 @@ def CliftFloatingPointPromotion
   let constructor = "clift::createFloatingPointPromotionPass()";
 }
 
-def CliftTrivialReturnElimination : Clift_Pass<"trivial-return-elimination"> {
-  let summary = "Remove any void return statements where control falls through "
-                "to the end of the function.";
+def CliftVoidReturnToGotoConversion
+  : Clift_Pass<"convert-void-return-to-goto"> {
 
-  let constructor = "clift::createTrivialReturnEliminationPass()";
+  let summary = "Convert return statements into gotos in functions returning "
+                "void.";
+  let constructor = "clift::createVoidReturnToGotoConversionPass()";
+}
+
+def CliftJumpToVoidReturnConversion
+  : Clift_Pass<"convert-jump-to-void-return"> {
+
+  let summary = "Convert unconditional jumps whose target is the end of the "
+                "function into return statements in functions returning void.";
+  let constructor = "clift::createJumpToVoidReturnConversionPass()";
 }
 
 def CliftLoopDetection : Clift_Pass<"loop-detection"> {

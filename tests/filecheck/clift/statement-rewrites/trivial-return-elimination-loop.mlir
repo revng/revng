@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng clift-opt %s --trivial-return-elimination | FileCheck %s
+// RUN: %root/bin/revng clift-opt %s --convert-void-return-to-goto --optimize-statements=enable-patterns=trivial-jump-elimination --convert-jump-to-void-return | FileCheck %s
 
 !void = !clift.void
 !int32_t = !clift.int<signed 4>
