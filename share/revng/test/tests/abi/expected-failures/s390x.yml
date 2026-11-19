@@ -59,6 +59,18 @@
     - apple_two_byte_aligned_primitive_on_stack
     - deeply_nested_float_struct_argument_on_stack
     - five_float_arguments
+    - float_then_double_struct_arguments
+    - float_then_five_double_struct_arguments
+    - float_then_five_float_struct_arguments
+    - float_then_float_struct_arguments
+    - float_then_four_double_struct_arguments
+    - float_then_four_float_struct_arguments
+    - float_then_three_double_struct_arguments
+    - float_then_three_float_struct_arguments
+    - float_then_two_double_struct_arguments
+    - float_then_two_float_struct_arguments
+    - float_then_two_four_double_struct_arguments
+    - float_then_two_four_float_struct_arguments
     - huge_struct_on_the_stack
     - lots_of_aggregate_arguments
     - lots_of_four_byte_arguments
