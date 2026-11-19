@@ -26,6 +26,11 @@
 #   128-bit one is likely a separate issue, but there are already other known
 #   problems with 128-bit primitive handling on other architectures - so this
 #   one should be looked into as part of that effort.
+#
+# - Floating point sub-register placement
+#   The s390x ABI is not consistent as to which part of the register specific
+#   primitives occupy. Specifically, general purpose registers use the low part
+#   of the register, while floating point registers use the high part.
 
 #
 # Stack problems
@@ -208,3 +213,18 @@
   errors:
     - A piece of the return value found in the r2_systemz register doesn't match the expected value.
     - Verification of the return value location register (r2_systemz) failed.
+
+#
+# Floating point sub-register placement
+#
+- ABIs:
+    - SystemZ_s390x
+  tests:
+    - mixed_double_float_arguments
+    - mixed_float_double_arguments
+    - single_float_argument
+    - three_float_arguments
+    - two_float_arguments
+  errors:
+    - Argument 0 uses neither the expected stack part nor the expected registers.
+    - Argument 1 uses neither the expected stack part nor the expected registers.
