@@ -114,32 +114,16 @@ public:
   [[nodiscard]] std::optional<Converted>
   tryConvert(const model::RawFunctionDefinition &FunctionType) {
     // Register arguments first.
-    auto Arguments = tryConvertingRegisterArguments(FunctionType.Arguments());
-    if (!Arguments.has_value()) {
+    auto Registers = tryConvertingRegisterArguments(FunctionType.Arguments());
+    if (!Registers.has_value()) {
       revng_log(Log, "Unable to convert register arguments.");
       Bucket.drop();
       return std::nullopt;
     }
 
-    // Count used registers.
-    ArgumentDistributor Distributor(ABI);
-    Distributor.ArgumentIndex = Arguments->size();
-    for (const auto &NTRegister : FunctionType.Arguments()) {
-      auto Kind = model::Register::getPrimitiveKind(NTRegister.Location());
-      if (Kind == model::PrimitiveKind::Values::PointerOrNumber)
-        ++Distributor.UsedGeneralPurposeRegisterCount;
-      else if (Kind == model::PrimitiveKind::Float)
-        ++Distributor.UsedFloatRegisterCount;
-      else
-        revng_abort(("Register ("
-                     + model::Register::getName(NTRegister.Location()).str()
-                     + ") is not supported as an argument.")
-                      .c_str());
-    }
-
     // Then stack ones.
     auto Stack = tryConvertingStackArguments(FunctionType.StackArgumentsType(),
-                                             Distributor);
+                                             Registers->Distributor);
     if (!Stack.has_value()) {
       revng_log(Log, "Unable to convert stack arguments.");
       Bucket.drop();
@@ -156,21 +140,27 @@ public:
 
     // Conversion successful, return the result.
     Bucket.commit();
-    return Converted{ std::move(*Arguments),
+    return Converted{ std::move(Registers->Arguments),
                       std::move(*Stack),
                       std::move(*ReturnType) };
   }
 
 private:
+  /// The return value or \ref tryConvertingRegisterArguments
+  struct ConvertedRegisterArguments {
+    llvm::SmallVector<model::Argument, 8> Arguments;
+    ArgumentDistributor Distributor;
+  };
+
   /// Helper used for converting register arguments to the c-style
   /// representation
   ///
   /// \param Registers a set of registers confirmed to be in use by
   ///        the function in question.
   ///
-  /// \return a list of arguments if the conversion was successful,
-  ///         `std::nullopt` otherwise.
-  std::optional<llvm::SmallVector<model::Argument, 8>>
+  /// \returns `std::nullopt` if the conversion failed. Otherwise, both
+  ///          the list of CFT arguments and a pre-seeded `ArgumentDistributor`.
+  std::optional<ConvertedRegisterArguments>
   tryConvertingRegisterArguments(RFTArguments Registers);
 
   /// Helper used for converting stack argument struct into
@@ -287,7 +277,7 @@ tryConvertToCABI(const model::RawFunctionDefinition &FunctionType,
 }
 
 using TCC = ToCABIConverter;
-std::optional<llvm::SmallVector<model::Argument, 8>>
+std::optional<TCC::ConvertedRegisterArguments>
 TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   // Rely onto the register state deduction to make sure no "holes" are
   // present in-between the argument registers.
@@ -307,6 +297,7 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   // order them properly.
   auto Ordered = ABI.sortArguments(std::move(Deduced));
 
+  ArgumentDistributor Distributor(ABI);
   llvm::SmallVector<model::Argument, 8> Result;
   for (model::Register::Values Register : Ordered) {
     auto CurrentRegisterIterator = Registers.find(Register);
@@ -341,13 +332,29 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
       using Primitive = model::PrimitiveType;
       Result.emplace_back().Type() = Primitive::makeGeneric(Register);
     }
+
+    // The register is consumed either way, so it is unavailable to the stack
+    // arguments.
+    auto Kind = model::Register::getPrimitiveKind(Register);
+    if (Kind == model::PrimitiveKind::Values::PointerOrNumber)
+      ++Distributor.UsedGeneralPurposeRegisterCount;
+    else if (Kind == model::PrimitiveKind::Values::Float)
+      ++Distributor.UsedFloatRegisterCount;
+    else
+      revng_abort(("Register (" + model::Register::getName(Register).str()
+                   + ") is not supported as an argument.")
+                    .c_str());
   }
 
   // Rewrite all the indices to make sure they are consistent.
   for (auto Pair : llvm::enumerate(Result))
     Pair.value().Index() = Pair.index();
+  Distributor.ArgumentIndex = Result.size();
 
-  return Result;
+  return ConvertedRegisterArguments{
+    .Arguments = std::move(Result),
+    .Distributor = std::move(Distributor),
+  };
 }
 
 struct ArgumentProperties {
@@ -742,7 +749,79 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
     // Multiple registers, it's either a struct or a big scalar.
 
     // First, check if it can possibly be a struct.
-    if (ABI.MaximumGPRsPerAggregateReturnValue() < Ordered.size()) {
+    bool CanBeAStruct = true;
+
+    const uint64_t MaximumHomogeneousAggregateFields = // formatting
+      ABI.OnlyHomogeneousStructsWithThisManyFieldsUseFloatingPointRegisters();
+    if (MaximumHomogeneousAggregateFields != 0) {
+      auto IsRegisterNonFloat = std::views::filter([](const auto &Register) {
+        namespace PK = model::PrimitiveKind;
+        return model::Register::getPrimitiveKind(Register) != PK::Float;
+      });
+      if (not std::ranges::empty(Ordered | IsRegisterNonFloat)) {
+        // If not all the registers attached to this return value are floating
+        // point, then it cannot be a HFA, so make the call on whether
+        // this can be a struct or not based on the number of registers.
+        const uint64_t RegisterLimit = ABI.MaximumGPRsPerAggregateReturnValue();
+        CanBeAStruct = RegisterLimit >= Ordered.size();
+
+      } else if (Ordered.size() != Registers.size()) {
+        // At least one of the registers is missing (i.e. we got v0+v2 without
+        // v1) - the struct cannot be homogeneous.
+        CanBeAStruct = false;
+
+      } else {
+        // Build the equivalent struct.
+        auto &&[Equivalent, ReturnType] = Bucket.makeStructDefinition();
+        for (model::Register::Values Register : Ordered) {
+          auto Iterator = Registers.find(Register);
+          revng_assert(Iterator != Registers.end());
+          auto FieldType = model::copyType(*Iterator->Type());
+
+          // Attempt to refine the type (a 64-bit generic in v0 is to be treated
+          // as `double`).
+          if (std::optional Refined = refineGenericType(ABI,
+                                                        Register,
+                                                        *FieldType))
+            FieldType = std::move(*Refined);
+
+          if (not canRepresentReturnValue(ABI, *FieldType)) {
+            revng_log(Log,
+                      "FAIL: the return value in `"
+                        << model::Register::getRegisterName(Register)
+                        << "` cannot be represented under `"
+                        << model::ABI::getName(ABI.ABI())
+                        << "`, whose floating point strategy is `Ignored`.");
+            return std::nullopt;
+          }
+
+          const uint64_t Offset = Equivalent.Size();
+          Equivalent.Size() += *FieldType->size();
+          Equivalent.addField(Offset, std::move(FieldType));
+        }
+
+        // If the equivalent struct is homogeneous, we can just use it as is.
+        auto H = asHomogeneousFloatAggregate(Equivalent,
+                                             MaximumHomogeneousAggregateFields);
+        if (H.has_value()) {
+          revng_assert(Equivalent.Size() != 0
+                       and not Equivalent.Fields().empty());
+          return std::move(ReturnType);
+        }
+
+        // Otherwise, this return value cannot be a struct - it looks like a HFA
+        // but is not one.
+        CanBeAStruct = false;
+        Bucket.pop();
+      }
+
+    } else {
+      // For other ABIs we just need to check if the number of registers is
+      // within the limit.
+      CanBeAStruct = ABI.MaximumGPRsPerAggregateReturnValue() >= Ordered.size();
+    }
+
+    if (not CanBeAStruct) {
       // It cannot be a struct, it's bigger than allowed.
       if (ABI.MaximumGPRsPerScalarReturnValue() < Ordered.size()) {
         // It cannot be a scalar either.
@@ -770,13 +849,12 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
         return std::nullopt;
       }
     } else {
-      // It could be either a struct or a scalar, go the conservative route
-      // and make a struct for it.
-      auto &&[Definition, ReturnType] = Bucket.makeStructDefinition();
-      for (model::Register::Values Register : Ordered) {
+      // It could be a struct, go the conservative route and make one for it.
+      auto &&[Struct, ReturnType] = Bucket.makeStructDefinition();
+      for (auto &&[Index, Register] : llvm::enumerate(Ordered)) {
         // Make a separate field for each register.
         model::StructField Field;
-        Field.Offset() = Definition.Size();
+        Field.Offset() = Struct.Size();
 
         // Take the type the register currently describes, if any.
         if (auto Iter = Registers.find(Register); Iter != Registers.end())
@@ -807,19 +885,24 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
         revng_assert(FieldSize.has_value() && FieldSize.value() != 0);
 
         // Round the next offset based on the natural alignment.
-        Definition
-          .Size() = llvm::alignToPowerOf2(Definition.Size(),
-                                          *ABI.alignment(*Field.Type()));
+        Struct.Size() = llvm::alignToPowerOf2(Struct.Size(),
+                                              *ABI.alignment(*Field.Type()));
 
         // Insert the field
-        Definition.Fields().insert(std::move(Field));
+        Struct.Fields().insert(std::move(Field));
 
-        // Update the total struct size: insert some padding if necessary.
-        Definition.Size() += paddedSizeOnStack(FieldSize.value(),
-                                               ABI.MinimumStackArgumentSize());
+        // Update the total struct size: insert some padding, except for
+        // the last field - intentionally don't assume trailing padding here.
+        if (Index + 1 == Ordered.size()) {
+          Struct.Size() += FieldSize.value();
+
+        } else {
+          Struct.Size() += paddedSizeOnStack(FieldSize.value(),
+                                             ABI.MinimumStackArgumentSize());
+        }
       }
 
-      revng_assert(Definition.Size() != 0 && !Definition.Fields().empty());
+      revng_assert(Struct.Size() != 0 && !Struct.Fields().empty());
       return std::move(ReturnType);
     }
   }

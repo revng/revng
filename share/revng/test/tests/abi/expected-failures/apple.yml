@@ -25,7 +25,9 @@
     - apple_padded_two_byte_aligned_primitive_on_stack
     - padded_four_byte_scalar_on_stack
     - padded_two_byte_primitive_on_stack
+    - padded_float_on_stack
   errors:
     - Argument 9 uses neither the expected stack part nor the expected registers.
     - Argument 11 uses neither the expected stack part nor the expected registers.
     - Argument 15 uses neither the expected stack part nor the expected registers.
+    - Argument 17 uses neither the expected stack part nor the expected registers.

@@ -225,6 +225,22 @@ Specifies whether functions whose return value is saved in a memory area pointed
 
 This is only relevant if either [`ReturnValueLocationRegister`](#returnvaluelocationregister-register) or [`ReturnValueLocationOnStack`](#returnvaluelocationonstack-bool) is enabled.
 
+## `OnlyHomogeneousStructsWithThisManyFieldsUseFloatingPointRegisters` (`uint64_t`)
+
+States how many fields an aggregate is allowed to have for the dedicated floating point register set (`FloatArgumentRegisters` / `FloatReturnValueRegisters`) to be used for it, provided all of its members are floating point values of the *same* type and the aggregate has no padding.
+
+For example (assuming the value is set to `4`, as ARM-64 does):
+- `struct { double a; };` - homogeneous - uses float registers.
+- `struct { double a, b; };` - homogeneous - uses float registers.
+- `struct { double a, b, c; };` - homogeneous - uses float registers.
+- `struct { double a, b, c, d; };` - homogeneous - uses float registers.
+- `struct { double a, b, c, d, e; };` - homogeneous *but* does *not* use float registers, as the field count is above the set value.
+- `struct { float a, b, c, d; };` - homogeneous - uses float registers.
+- `struct { float a, b, c, d, e; };` - homogeneous *but* does *not* use float registers.
+- `struct { float a; double b; };` - not homogeneous - does *not* use float registers.
+
+IMPORTANT: when set to `0`, the related logic does *not* apply and *all* the structs are allowed to use floating point registers.
+
 # Type information
 
 ## `ScalarTypes` (`list of scalar types`)

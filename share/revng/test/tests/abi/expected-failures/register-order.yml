@@ -1,0 +1,57 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# These are the failures that appear *only* because of the order in which the
+# checker walks the registers.
+#
+# `check-compatibility-with-abi` consumes the registers in the ABI's allocation
+# order (`abi::Definition::sortArguments`) and hands each argument the next
+# register in that sequence. The testing suite, on the other hand, records each
+# argument at its own position in the C prototype.
+#
+# On the non-position-based ABIs the two disagree as soon as general purpose
+# and vector registers are interleaved:
+# ```cpp
+#     void f(float, int, float);
+# ```
+
+# Argument 0 is in a float register.
+- ABIs:
+    - AAPCS64
+    - Apple_AAPCS64
+    - Microsoft_AAPCS64
+  tests:
+    - float_then_five_double_struct_arguments
+    - float_then_five_float_struct_arguments
+    - mixed_double_huge_struct_arguments
+    - mixed_double_int_32_arguments
+    - mixed_double_int_64_arguments
+    - mixed_double_struct_32_arguments
+    - mixed_double_struct_64_arguments
+    - mixed_float_huge_struct_arguments
+    - mixed_float_int_32_arguments
+    - mixed_float_int_64_arguments
+    - mixed_float_struct_32_arguments
+    - mixed_float_struct_64_arguments
+  errors:
+    - Argument 0 uses neither the expected stack part nor the expected registers.
+
+# Argument 1 is in a float register.
+- ABIs:
+    - AAPCS64
+    - Apple_AAPCS64
+    - Microsoft_AAPCS64
+  tests:
+    - mixed_huge_struct_double_arguments
+    - mixed_huge_struct_float_arguments
+    - mixed_int_32_double_arguments
+    - mixed_int_32_float_arguments
+    - mixed_int_64_double_arguments
+    - mixed_int_64_float_arguments
+    - mixed_struct_32_double_arguments
+    - mixed_struct_32_float_arguments
+    - mixed_struct_64_double_arguments
+    - mixed_struct_64_float_arguments
+  errors:
+    - Argument 1 uses neither the expected stack part nor the expected registers.

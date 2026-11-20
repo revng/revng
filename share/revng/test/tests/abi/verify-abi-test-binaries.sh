@@ -29,7 +29,7 @@ set -euo pipefail
 #   |     `failed-tests: [{<function>: <reason>, ...}]`.
 #   |     Does *not* take `expected-failures/` into account.
 #   |
-#   `-- filtered/ (*) (**)
+#   `-- filtered/ (*)
 #         The test failures that still remain active after `expected-failures/`
 #         *are* taken into account.
 #
@@ -52,11 +52,6 @@ set -euo pipefail
 #     - `4-downgraded-upgraded-downgraded-reference-binary.yml`
 #       This corresponds to the model after the second iteration of `cft->rft`
 #       is applied.
-#
-# (**) Unlike other (*)-marked directories that always contain four files
-#      (unless a crash occurred, in which case the entire directory is not
-#      reliable anyway), this one contains *up-to* four files, as the first
-#      non-empty `filtered` output fails the test.
 
 ABI_NAME="$1"
 RUNTIME_ABI_ANALYSIS_RESULT="$2"
@@ -182,6 +177,8 @@ UNIVERSAL_FAILURES=(
     "${EXPECTED_FAILURES}/microsoft.yml"
     "${EXPECTED_FAILURES}/mips.yml"
     "${EXPECTED_FAILURES}/s390x.yml"
+    "${EXPECTED_FAILURES}/union-size.yml"
+    "${EXPECTED_FAILURES}/register-order.yml"
 )
 RFT_STAGE_FAILURES=(
     "${EXPECTED_FAILURES}/RFTs.yml"
@@ -218,7 +215,21 @@ python3 "${SCRIPT_DIRECTORY}/filter-failures.py" \
     "${UNIVERSAL_FAILURES[@]}" "${RFT_STAGE_FAILURES[@]}" \
   | tee "${OUTPUT_DIRECTORY}/filtered/4-downgraded-upgraded-downgraded-reference-binary.yml"
 
-# Check there are no differences
+# All the stages has been filtered, what's left is to verify whether the test
+# passed or not.
+#
+# The commands above already print error messages, what's left is to produce
+# the non-zero exit code.
+for FILTERED_OUTPUT in \
+    "${OUTPUT_DIRECTORY}/filtered/1-reference-binary.yml" \
+    "${OUTPUT_DIRECTORY}/filtered/2-downgraded-reference-binary.yml" \
+    "${OUTPUT_DIRECTORY}/filtered/3-upgraded-downgraded-reference-binary.yml" \
+    "${OUTPUT_DIRECTORY}/filtered/4-downgraded-upgraded-downgraded-reference-binary.yml"
+do
+    test ! -s "${FILTERED_OUTPUT}" || exit 1
+done
+
+# Check there are no differences between both RFT stages
 revng \
     ensure-rft-equivalence \
     "${OUTPUT_DIRECTORY}/models/2-downgraded-reference-binary.yml" \

@@ -178,6 +178,19 @@ definitions:
         type: FloatingPointStrategy
         default: Invalid
 
+      - name: OnlyHomogeneousStructsWithThisManyFieldsUseFloatingPointRegisters
+        doc: |
+          Determines the limit for the homogeneous aggregate field count.
+
+          No struct with the field count above this is allowed to use
+          floating point registers.
+
+          When this is set to 0, the homogeneous-struct-only logic does *not*
+          apply and *all* the structs are allowed to use floating point
+          registers.
+        type: uint64_t
+        default: 0
+
       - name: ScalarTypes
         doc: |
           See `revng/share/doc/revng/references/abi-definition.md` for details.

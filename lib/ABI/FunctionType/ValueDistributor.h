@@ -13,13 +13,40 @@
 
 namespace abi::FunctionType {
 
-using RegisterVector = llvm::SmallVector<model::Register::Values, 2>;
+/// The information necessary to pass an aggregate that consists solely of
+/// floating point members of the same type.
+///
+/// \note This is all the information we need, as all the fields must be
+///       the same.
+struct HomogeneousFloatAggregate {
+  uint64_t FieldSize = 0;
+  uint64_t FieldCount = 0;
+};
+
+/// Determines whether \p Type is an aggregate that consists solely of floating
+/// point members of the same type and has no padding in it.
+///
+/// \note Such aggregates are what `aarch64` specification calls "Homogeneous
+///       Floating-point Aggregates (HFA)". How many members such an aggregate
+///       is allowed to have is up to the ABI, see
+///       `OnlyHomogeneousStructsWithThisManyFieldsUseFloatingPointRegisters`.
+/// @{
+std::optional<HomogeneousFloatAggregate>
+asHomogeneousFloatAggregate(const model::Type &Type,
+                            uint64_t MaximumFieldCount);
+std::optional<HomogeneousFloatAggregate>
+asHomogeneousFloatAggregate(const model::TypeDefinition &Type,
+                            uint64_t MaximumFieldCount);
+/// @}
+
+using RegisterPortions = llvm::SmallVector<model::Register::Portion, 2>;
+using RegisterPortionSpan = std::span<const model::Register::Portion>;
 
 /// The internal representation of the argument shared between both
 /// the to-raw conversion and the layout.
 struct DistributedValue {
-  /// A list of registers the argument uses.
-  RegisterVector Registers = {};
+  /// A list of portions of the registers this argument uses.
+  RegisterPortions Registers = {};
 
   /// The total size of the argument in bytes WITHOUT any padding.
   uint64_t Size = 0;
@@ -102,8 +129,6 @@ struct DistributedValue {
 };
 using DistributedValues = llvm::SmallVector<DistributedValue, 8>;
 
-using RegisterSpan = std::span<const model::Register::Values>;
-
 class ValueDistributor {
 public:
   const abi::Definition &ABI;
@@ -141,7 +166,7 @@ protected:
   /// \param Size The size of the object.
   /// \param Alignment The alignment of the object.
   /// \param IsNaturallyAligned `true` if the object is aligned naturally.
-  /// \param Registers The list of registers allowed for usage for the type.
+  /// \param Registers The list of register portions available.
   /// \param OccupiedRegisterCount The count of registers in \ref Registers
   ///        Container that are already occupied.
   /// \param AllowedRegisterLimit The maximum number of registers available to
@@ -159,7 +184,7 @@ protected:
   distribute(uint64_t Size,
              uint64_t Alignment,
              bool IsNaturallyAligned,
-             RegisterSpan Registers,
+             RegisterPortionSpan Registers,
              uint64_t OccupiedRegisterCount,
              uint64_t AllowedRegisterLimit,
              bool ForbidSplittingBetweenRegistersAndStack);
@@ -167,7 +192,7 @@ protected:
   template<model::AnyType AnyType>
   std::pair<DistributedValues, uint64_t>
   distribute(const AnyType &Type,
-             RegisterSpan Registers,
+             RegisterPortionSpan Registers,
              uint64_t OccupiedRegisterCount,
              uint64_t AllowedRegisterLimit,
              bool ForbidSplittingBetweenRegistersAndStack) {
@@ -212,22 +237,35 @@ public:
       abi::Definition::AlignmentCache Cache;
       uint64_t Alignment = *ABI.alignment(Type, Cache);
       bool IsNatural = *ABI.hasNaturalAlignment(Type, Cache);
+
+      // When the ABI requires special handling of the homogeneous structs,
+      // ensure the correct context is extracted from the type.
+      const uint64_t MaximumHomogeneousAggregateMembers = // formatting
+        ABI.OnlyHomogeneousStructsWithThisManyFieldsUseFloatingPointRegisters();
+      std::optional<HomogeneousFloatAggregate> HFA;
+      if (MaximumHomogeneousAggregateMembers and not Type.isScalar())
+        HFA = asHomogeneousFloatAggregate(Type,
+                                          MaximumHomogeneousAggregateMembers);
+
       return nonPositionBased(Type.isScalar(),
                               floatingPointKind(Type),
                               *Type.size(),
                               Alignment,
-                              IsNatural);
+                              IsNatural,
+                              HFA);
     }
   }
 
 private:
   DistributedValues positionBased(FloatingPointKind FloatingPoint,
                                   uint64_t Size);
-  DistributedValues nonPositionBased(bool IsScalar,
-                                     FloatingPointKind FloatingPoint,
-                                     uint64_t Size,
-                                     uint64_t Alignment,
-                                     bool HasNaturalAlignment);
+  DistributedValues
+  nonPositionBased(bool IsScalar,
+                   FloatingPointKind FloatingPoint,
+                   uint64_t Size,
+                   uint64_t Alignment,
+                   bool HasNaturalAlignment,
+                   const std::optional<HomogeneousFloatAggregate> &HFA);
 
 private:
   size_t nextPositionBasedIndex() const {

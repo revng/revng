@@ -71,6 +71,36 @@ public:
   combinedStackArgumentSize(const model::CABIFunctionDefinition &) const;
 };
 
+namespace {
+
+model::UpcastableType
+makePortionPrimitive(const model::Register::Portion &Portion) {
+  constexpr auto Float = model::PrimitiveKind::Float;
+  constexpr auto Generic = model::PrimitiveKind::Generic;
+
+  if (model::Register::getPrimitiveKind(Portion.Register) == Float
+      and model::PrimitiveType::isSizeValid(Float, Portion.Size)) {
+    // If we have a matching floating point type - use it.
+    return model::PrimitiveType::makeFloat(Portion.Size);
+
+  } else if (model::PrimitiveType::isSizeValid(Generic, Portion.Size)) {
+    // If we have a matching generic type - use it.
+    return model::PrimitiveType::makeGeneric(Portion.Size);
+
+  } else if (uint64_t NextPowerOfTwo = llvm::PowerOf2Ceil(Portion.Size);
+             NextPowerOfTwo != Portion.Size
+             and model::PrimitiveType::isSizeValid(Generic, NextPowerOfTwo)) {
+    // If the next power of two makes a valid primitive - use it.
+    return model::PrimitiveType::makeGeneric(NextPowerOfTwo);
+
+  } else {
+    // Otherwise, use the size of the entire register.
+    return model::PrimitiveType::makeGeneric(Portion.Register);
+  }
+}
+
+} // namespace
+
 model::UpcastableType
 ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
                         TupleTree<model::Binary> &Binary) const {
@@ -104,21 +134,26 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
       revng_assert(ReturnValue.SizeOnStack == 0);
 
       // The return value uses registers: pass them through to the new type.
-      for (model::Register::Values Register : ReturnValue.Registers) {
+      for (const model::Register::Portion &Portion : ReturnValue.Registers) {
+        const model::Register::Values Register = Portion.Register;
+
         model::NamedTypedRegister Converted;
         Converted.Location() = Register;
 
         const model::UpcastableType &ReturnType = FunctionType.ReturnType();
         if (ReturnValue.Registers.size() > 1) {
-          Converted.Type() = model::PrimitiveType::makeGeneric(Register);
+          Converted.Type() = makePortionPrimitive(Portion);
+
         } else if (ReturnValue.UsesPointerToCopy == true) {
           revng_assert(*ReturnType->size() > ABI.getPointerSize());
           Converted.Type() = model::PointerType::make(ReturnType.copy(),
                                                       ABI.getArchitecture());
+
         } else if (ReturnType->isScalar()) {
           Converted.Type() = ReturnType.copy();
+
         } else {
-          Converted.Type() = model::PrimitiveType::make(Register);
+          Converted.Type() = makePortionPrimitive(Portion);
         }
 
         revng_log(Log,
@@ -197,21 +232,26 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
 
     if (!Distributed.RepresentsPadding) {
       // Transfer the register arguments first.
-      for (model::Register::Values Register : Distributed.Registers) {
+      for (const model::Register::Portion &Portion : Distributed.Registers) {
+        const model::Register::Values Register = Portion.Register;
+
         model::NamedTypedRegister Argument(Register);
 
         const auto &ArgumentType = FunctionType.Arguments().at(Index).Type();
         uint64_t ArgumentSize = *ArgumentType->size();
         if (Distributed.Registers.size() > 1 || Distributed.SizeOnStack != 0) {
-          Argument.Type() = model::PrimitiveType::makeGeneric(Register);
+          Argument.Type() = makePortionPrimitive(Portion);
+
         } else if (Distributed.UsesPointerToCopy == true) {
           revng_assert(ArgumentSize > ABI.getPointerSize());
           Argument.Type() = model::PointerType::make(ArgumentType.copy(),
                                                      ABI.getArchitecture());
+
         } else if (ArgumentType->isScalar()) {
           Argument.Type() = ArgumentType;
+
         } else {
-          Argument.Type() = model::PrimitiveType::make(Register);
+          Argument.Type() = makePortionPrimitive(Portion);
         }
 
         revng_log(Log, "Adding an argument register:\n" << toString(Register));
@@ -268,7 +308,9 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
       revng_assert(Distributed.SizeOnStack == 0,
                    "Only padding register arguments are supported here. "
                    "Stack padding is represented as normal struct padding.");
-      for (model::Register::Values Register : Distributed.Registers) {
+      for (const model::Register::Portion &Portion : Distributed.Registers) {
+        const model::Register::Values Register = Portion.Register;
+
         model::NamedTypedRegister Argument(Register);
         Argument.Type() = model::PrimitiveType::makeGeneric(Register);
 
@@ -406,20 +448,23 @@ convertToRaw(const model::CABIFunctionDefinition &FunctionType,
 
 static Logger LayoutLog("function-type-layout");
 
-/// A value either takes a portion of a single register or one or more full
-/// registers
+/// Converts the portions reported by `ValueDistributor` for the sake of the
+/// consumers.
+///
+/// A distributed C ABI value is described either by a portion of a single
+/// register or by one or more registers, each of which can hold only a piece
+/// of it.
 static llvm::SmallVector<model::Register::Portion, 2>
 toPortions(const DistributedValue &Value) {
   revng_assert(not Value.RepresentsPadding);
 
   llvm::SmallVector<model::Register::Portion, 2> Result;
 
-  if (Value.Registers.size() == 1 and Value.SizeOnStack == 0) {
-    Result.emplace_back(Value.Registers[0], Value.Size);
-  } else {
-    for (model::Register::Values Register : Value.Registers)
-      Result.emplace_back(Register, model::Register::getSize(Register));
-  }
+  if (Value.Registers.size() == 1 and Value.SizeOnStack == 0)
+    revng_assert(Value.Registers[0].Size == Value.Size);
+
+  for (const model::Register::Portion &Portion : Value.Registers)
+    Result.emplace_back(Portion);
 
   return Result;
 }
@@ -645,13 +690,14 @@ static bool verifyValue(llvm::ArrayRef<model::Register::Portion> Registers,
     return true;
   }
 
-  // TODO: some ABIs pass a value in portions of multiple registers. For
-  //       instance, on hard-float AAPCS, the second argument of
-  //       `void f(struct { float A, B; }, struct { float A, B, C; })` takes
-  //       s2, s3 and s4: the second half of q0 and a quarter of q1.
+  // A value can take portions of multiple registers. For instance, on
+  // hard-float AAPCS, the second argument of
+  // `void f(struct { float A, B; }, struct { float A, B, C; })` takes s2, s3
+  // and s4: the second half of q0 and a quarter of q1.
   uint64_t RegistersSize = 0;
   for (const model::Register::Portion &Portion : Registers) {
-    if (Portion.Size != model::Register::getSize(Portion.Register)) {
+    if (Portion.Size == 0
+        or Portion.Size > model::Register::getSize(Portion.Register)) {
       revng_log(LayoutLog,
                 "A value in multiple locations takes "
                   << Portion.Size << " bytes of "
@@ -663,9 +709,7 @@ static bool verifyValue(llvm::ArrayRef<model::Register::Portion> Registers,
   }
 
   if (StackSize == 0) {
-    // Every register but the last one is used in its entirety
-    uint64_t LastSize = Registers.back().Size;
-    if (RegistersSize < Size or RegistersSize - LastSize >= Size) {
+    if (RegistersSize < Size) {
       revng_log(LayoutLog,
                 "A value of " << Size << " bytes takes " << RegistersSize
                               << " bytes of registers");
@@ -673,7 +717,7 @@ static bool verifyValue(llvm::ArrayRef<model::Register::Portion> Registers,
     }
   } else {
     // The registers hold the start of the value, the stack the rest
-    if (RegistersSize >= Size or RegistersSize + StackSize < Size) {
+    if (RegistersSize + StackSize < Size) {
       revng_log(LayoutLog,
                 "A value of " << Size << " bytes takes " << RegistersSize
                               << " bytes of registers and " << StackSize
