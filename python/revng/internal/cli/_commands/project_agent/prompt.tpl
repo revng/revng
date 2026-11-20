@@ -56,4 +56,7 @@ revng project analyze edit-c-type -o /dev/null -c edit.yml
 
 Prefer this to editing `revng.yml` by hand. Editing the YAML is the fallback, for what `edit-c-type` will not express and for the fields no analysis writes: the `Comment` of a function itself, and the `Comment` of each of its arguments, which is emitted with the function's definition.
 
-Do not do anything yet or run any command, wait for the user to supply which operation to run.
+{%- if system_prompt_append is not none %}
+
+{{ system_prompt_append }}
+{%- endif %}
