@@ -18,6 +18,7 @@ revng_add_library_internal(
   EmitAbort.cpp
   ExplicitSpecializations.cpp
   FileSystem.cpp
+  GlobalToLocalPromoter.cpp
   InitRevng.cpp
   IRHelpers.cpp
   MetaAddress.cpp
