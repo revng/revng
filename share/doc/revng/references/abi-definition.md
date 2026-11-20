@@ -115,6 +115,14 @@ When this option is set to true, such a struct would still be allowed to use reg
 
 Specifies who is responsible for cleaning the stack after the function call. If equal to `true`, it's the callee, otherwise it the caller.
 
+## `UseSystemVx86_64RegisterSelectionLogic` (`bool`)
+
+Enables a special compatibility mode for the `SystemV_x86_64` ABI. When `true`, the placement of all the arguments and return values is evaluated one eightbyte at a time. Then, each eightbyte is independently placed into a matching register from either `GeneralPurposeArgumentRegisters` or `FloatArgumentRegisters` (or the return value equivalents).
+
+This allows a single aggregate to occupy registers from both sets at the same time, e.g. `struct { int A[2]; float B; }` is passed in `rdi` *and* `xmm0`.
+
+Aggregates larger than two eightbytes, as well as those that are not naturally aligned, are passed on the stack (or via a pointer to a copy when returned).
+
 ## `PackStackArguments` (`bool`)
 
 Most ABIs extend each stack argument to a GPR-sized slot. Setting this option to true, allows them occupy less space by behaving more like fields in a regular struct would.
