@@ -1,6 +1,7 @@
 # One lit test per line, relative to this directory. Read by CMakeLists.txt;
 # check-conventions fails on a test carrying a RUN line that is missing here.
 clift/attributes/c-attribute-list.mlir
+clift/attributes/c-dialect.mlir
 clift/attributes/data-model.mlir
 clift/attributes/switch.mlir
 clift/backend-transforms/immediate-radix-switch.mlir
@@ -251,6 +252,11 @@ clift/floating-point-promotion/mismatched-signature.mlir
 clift/helper-translation/float32_add.mlir
 clift/implicit-cast-elision/add.mlir
 clift/implicit-cast-elision/assign.mlir
+clift/implicit-cast-elision/dialect-explicit.mlir
+clift/implicit-cast-elision/dialect-explicit-incompatible-pointer-conversions.mlir
+clift/implicit-cast-elision/dialect-explicit-pointer-sign-conversions.mlir
+clift/implicit-cast-elision/dialect-explicit-qualifier-discarding-conversions.mlir
+clift/implicit-cast-elision/dialect-explicit-void-pointer-conversions.mlir
 clift/implicit-cast-elision/if.mlir
 clift/implicit-cast-elision/call.mlir
 clift/implicit-cast-elision/neg.mlir

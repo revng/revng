@@ -115,7 +115,7 @@ commands:
     suffix: /
     command: |-
       cp -Tar "$INPUT" "$OUTPUT";
-      revng -C "$OUTPUT" project artifact emit-recompilable-archive > "$OUTPUT/recompilable-archive.tar.gz";
+      revng -C "$OUTPUT" project artifact emit-recompilable-archive --configure-function-c-dialect-configuration="{'implicit-incompatible-pointer-conversions':false,'implicit-pointer-sign-conversions':false,'implicit-qualifier-discarding-conversions':false,'implicit-void-pointer-conversions':false}" > "$OUTPUT/recompilable-archive.tar.gz";
 
       mkdir -p "$OUTPUT";
       tar -xzf "$OUTPUT/recompilable-archive.tar.gz" -C "$OUTPUT";

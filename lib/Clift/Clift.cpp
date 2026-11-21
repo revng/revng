@@ -124,6 +124,8 @@ bool clift::isCliftModule(mlir::ModuleOp Module) {
   return Module->hasAttrOfType<mlir::UnitAttr>(AttrName);
 }
 
+//===---------------------------- C data model ----------------------------===//
+
 const CDataModel &clift::getDataModel(mlir::ModuleOp Module) {
   if (auto Attr = Module->getAttr(CliftDialect::getDataModelAttrName()))
     return mlir::cast<DataModelAttr>(Attr).getDataModel();
@@ -150,6 +152,28 @@ void clift::setDataModel(mlir::ModuleOp Module, const CDataModel &DataModel) {
   Module->setAttr(CliftDialect::getDataModelAttrName(),
                   DataModelAttr::get(Module.getContext(), DataModel));
 }
+
+//===------------------------------ C dialect -----------------------------===//
+
+const CDialect &clift::getCDialect(mlir::ModuleOp Module) {
+  if (auto Attr = Module->getAttr(CliftDialect::getCDialectAttrName()))
+    return mlir::cast<CDialectAttr>(Attr).getDialect();
+
+  return CDialect::Default;
+}
+
+const CDialect &clift::getCDialect(mlir::Operation *Op) {
+  auto Module = Op->getParentOfType<mlir::ModuleOp>();
+  revng_assert(Module, "The operation must be contained within a module.");
+  return getCDialect(Module);
+}
+
+void clift::setCDialect(mlir::ModuleOp Module, const CDialect &Dialect) {
+  Module->setAttr(CliftDialect::getCDialectAttrName(),
+                  CDialectAttr::get(Module.getContext(), Dialect));
+}
+
+//===------------------------------ Utilities -----------------------------===//
 
 YieldOp clift::getExpressionYieldOp(mlir::Region &R) {
   if (R.empty())
@@ -1455,7 +1479,14 @@ mlir::LogicalResult TestOp::canonicalize(TestOp Op,
 //===--------------------------- ImplicitCastOp ---------------------------===//
 
 mlir::LogicalResult ImplicitCastOp::verify() {
-  if (!isImplicitlyConvertibleInC(getValue().getType(), getType()))
+  CDialect Dialect = getCDialect(getOperation());
+
+  // Conversion from void pointer to another pointer type is always considered
+  // implicit when the converted expression is a null pointer constant.
+  if (isNullPointerConstantInC(getValue()))
+    Dialect.ImplicitVoidPointerConversions = true;
+
+  if (!isImplicitlyConvertibleInC(getValue().getType(), getType(), Dialect))
     return emitOpError() << getOperationName()
                          << " conversion is not implicit.";
 
