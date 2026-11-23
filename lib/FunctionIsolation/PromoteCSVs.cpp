@@ -347,7 +347,6 @@ void PromoteCSVs::promoteCSVs(Function *F) {
   QuickMetadata QMD(F->getParent()->getContext());
 
   // Get/create initializers
-  std::map<Function *, GlobalVariable *> CSVForInitializer;
   std::map<GlobalVariable *, Function *> InitializerForCSV;
   for (GlobalVariable *CSV : CSVs) {
     // Initialize all allocas with opaque, CSV-specific values
@@ -367,7 +366,6 @@ void PromoteCSVs::promoteCSVs(Function *F) {
                                  QMD.tuple(getName(Register)));
       }
 
-      CSVForInitializer[Initializer] = CSV;
       InitializerForCSV[CSV] = Initializer;
     }
   }
