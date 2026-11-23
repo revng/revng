@@ -613,9 +613,15 @@ RootAnalyzer::promoteCSVsToAlloca(Function *OptimizedFunction) {
   for (GlobalVariable *CSV : JTM.programCounterHandler()->pcCSVs())
     CSVs.insert(CSV);
 
-  // Create and initialize an alloca per CSV (except for the PC-affecting ones)
+  // Create and initialize an alloca per CSV
+  //
+  // The allocas go at the top of the entry block, the initializing stores at
+  // its end, after the stores that set the initial program counter: the
+  // program counter has to end up holding a load of its CSV, not the constant
+  // those stores write.
   BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
-  revng::IRBuilder AllocaBuilder(&*EntryBB->begin());
+  revng::IRBuilder AllocaBuilder(OptimizedFunction->getContext());
+  AllocaBuilder.SetInsertPointPastAllocas(OptimizedFunction);
   revng::IRBuilder InitBuilder(EntryBB->getTerminator());
 
   for (GlobalVariable *CSV : toSortedByName(CSVs)) {
