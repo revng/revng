@@ -10,6 +10,7 @@
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/PointerUnion.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -57,7 +58,13 @@ static void setMetadata(VariableManager &Variables,
   QuickMetadata QMD(getContext(&F));
   SmallVector<Metadata *, 2> CSVList;
 
-  for (auto [Offset, Size] : Offsets) {
+  // A `DenseSet` iterates in an order that depends on the order it was filled
+  // in, and what fills these is not stable from one run to the next. Sort, so
+  // that the metadata this writes does not depend on either.
+  SmallVector<aua::OffsetAndSize, 8> Sorted(Offsets.begin(), Offsets.end());
+  llvm::sort(Sorted);
+
+  for (auto [Offset, Size] : Sorted) {
     int32_t RemainingSize = Size;
     while (RemainingSize != 0) {
       auto [CSV,
@@ -287,8 +294,14 @@ void AccessFixer::handle(Instruction &I,
     Phi = PHINode::Create(I.getType(), Targets.size(), "", &*After->begin());
 
   // For each target, create a basic block, add a case to the switch and an
-  // incoming to the phi
-  for (auto &&[Offset, Size] : Targets) {
+  // incoming to the phi. Sorted for the same reason the metadata is: a
+  // `DenseSet` iterates in an order that depends on how it was filled, and
+  // the order of the cases this builds would inherit it.
+  SmallVector<aua::OffsetAndSize, 8> SortedTargets(Targets.begin(),
+                                                   Targets.end());
+  llvm::sort(SortedTargets);
+
+  for (auto &&[Offset, Size] : SortedTargets) {
     BasicBlock *OffsetCase = BasicBlock::Create(Context, "", F, DefaultCase);
     Builder.SetInsertPoint(OffsetCase);
     Value *Result = emit<Type>(I, Offset, Size);

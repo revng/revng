@@ -288,15 +288,15 @@ $ cat libtcg-helpers-full-x86_64-optimized.ll \
 define void @helper_addsd(ptr noundef %0, ptr noundef %1, ptr noundef %2, ptr noundef %3) section "revng_inline" {
   %5 = ptrtoint ptr %2 to i64
   switch i64 %5, label %39 [
-    i64 u0x2f10, label %6
-    i64 u0x2f50, label %7
-    i64 u0x2e90, label %8
-    i64 u0x2e50, label %9
-    i64 u0x3010, label %10
-    i64 u0x2b10, label %11
-    i64 u0x3150, label %12
-    i64 u0x2bd0, label %13
-    i64 u0x3050, label %14
+    i64 u0x2b10, label %6
+    i64 u0x2b50, label %7
+    i64 u0x2b90, label %8
+    i64 u0x2bd0, label %9
+    i64 u0x2c10, label %10
+    i64 u0x2c50, label %11
+    i64 u0x2c90, label %12
+    i64 u0x2cd0, label %13
+    i64 u0x2d10, label %14
 ```
 
 Each case label corresponds to the offset of a different XMM register (e.g. `0x2b10` is `xmm_regs[0]`, `0x2b50` is `xmm_regs[1]`, etc., stepping by 64 bytes).

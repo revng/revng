@@ -4,6 +4,7 @@
 
 #include <optional>
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Function.h"
 
@@ -19,8 +20,14 @@ Annotation::serializeToMetadata(llvm::LLVMContext &Context) const {
   QuickMetadata QMD(Context);
 
   auto ToTuple = [&QMD](const OffsetAndSizeSet &Set) {
+    // A `DenseSet` iterates in an order that depends on the order it was
+    // filled in, and what fills these is not stable from one run to the next.
+    // Sort, so that what gets written out does not depend on either.
+    SmallVector<OffsetAndSize, 8> Sorted(Set.begin(), Set.end());
+    llvm::sort(Sorted);
+
     SmallVector<llvm::Metadata *, 2> Entries;
-    for (auto &[Offset, Size] : Set)
+    for (auto &[Offset, Size] : Sorted)
       Entries.push_back(QMD.tuple({ QMD.get(Offset), QMD.get(Size) }));
     return QMD.tuple(Entries);
   };
