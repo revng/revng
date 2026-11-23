@@ -7,10 +7,8 @@
 #include "llvm/ADT/STLExtras.h"
 
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
-#include "revng/Model/FunctionTags.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
-#include "revng/Support/OpaqueRegisterUser.h"
 
 using namespace llvm;
 
