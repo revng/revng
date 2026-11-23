@@ -574,7 +574,7 @@ void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
         revng_log(Log, "Incoming: " << dumpToString(Incoming));
         // We only need to inject a store when the Incoming is present.
         // If Incoming is nullptr, it means these are edges internal to the
-        // class: the store would be a self assignment, FIXME
+        // class: the store would be a self assignment.
         if (Incoming) {
           buildStore(IncomingBlock, Incoming, Alloca);
         } else {
