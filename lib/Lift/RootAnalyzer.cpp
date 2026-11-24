@@ -32,6 +32,7 @@
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/Model/ABI/Definition.h"
 #include "revng/Support/FunctionCallMarker.h"
+#include "revng/Support/GlobalToLocalPromoter.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/NewPC.h"
@@ -605,14 +606,6 @@ RootAnalyzer::GlobalToAllocaTy
 RootAnalyzer::promoteCSVsToAlloca(Function *OptimizedFunction) {
   GlobalToAllocaTy CSVMap;
 
-  // Collect all the non-PC affecting CSVs
-  DenseSet<GlobalVariable *> CSVs;
-  for (GlobalVariable &CSV : FunctionTags::CSV.globals(&TheModule))
-    CSVs.insert(&CSV);
-
-  for (GlobalVariable *CSV : JTM.programCounterHandler()->pcCSVs())
-    CSVs.insert(CSV);
-
   // Create and initialize an alloca per CSV
   //
   // The allocas go at the top of the entry block, the initializing stores at
@@ -620,20 +613,15 @@ RootAnalyzer::promoteCSVsToAlloca(Function *OptimizedFunction) {
   // program counter has to end up holding a load of its CSV, not the constant
   // those stores write.
   BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
-  revng::IRBuilder AllocaBuilder(OptimizedFunction->getContext());
-  AllocaBuilder.SetInsertPointPastAllocas(OptimizedFunction);
   revng::IRBuilder InitBuilder(EntryBB->getTerminator());
 
-  for (GlobalVariable *CSV : toSortedByName(CSVs)) {
-    Type *CSVType = CSV->getValueType();
-    auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
-    CSVMap[CSV] = Alloca;
-
-    // Replace all uses of the CSV within OptimizedFunction with the alloca
-    replaceAllUsesInFunctionWith(OptimizedFunction, CSV, Alloca);
-
-    // Initialize the alloca
+  const auto &IsCSV =
+    [PCH = JTM.programCounterHandler()](const GlobalVariable &GV) {
+      return FunctionTags::CSV.isTagOf(&GV) or PCH->isPCCSV(GV);
+    };
+  for (auto [CSV, Alloca] : promoteGlobalsToLocals(*OptimizedFunction, IsCSV)) {
     InitBuilder.CreateStore(InitBuilder.createLoad(CSV), Alloca);
+    CSVMap[CSV] = Alloca;
   }
 
   return CSVMap;
