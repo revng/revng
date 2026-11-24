@@ -119,22 +119,21 @@ static bool isArgumentModelPointer(const llvm::Argument *A) {
     PointerArguments = getPointerOperandsMetadata(F);
   // The metadata can be missing, if for some reason A is an argument of an
   // llvm::Function that doesn't represent something coming from the binary
-  // (e.g. a QEMU helper, or an LLVM intrinsic). But if it's present, the ArgNo
-  // must be in range, otherwise something severely wrong is going on.
-  revng_assert(not PointerArguments.has_value()
-               or A->getArgNo() < PointerArguments.value().size());
-  return PointerArguments.has_value()
-         and PointerArguments.value()[A->getArgNo()];
+  // (e.g. a QEMU helper, or an LLVM intrinsic).
+  if (not PointerArguments.has_value())
+    return false;
+
+  // But if the metadata is present, the ArgNo must be in range, otherwise
+  // something severely wrong is going on.
+  revng_assert(A->getArgNo() < PointerArguments.value().size());
+  return PointerArguments.value()[A->getArgNo()];
 }
 
 static bool isNthArgumentModelPointer(const llvm::CallInst *Call,
                                       uint64_t ArgumentIndex) {
-  // The index counts the arguments of the call, and the model can describe a
-  // call site with a prototype of its own, different from the one of the
-  // callee. So when the call carries the metadata, that is the one indexed the
-  // same way: going through the callee would answer about a different argument,
-  // and be out of range altogether when the two prototypes disagree on how many
-  // there are.
+  // The model can describe a call site with a prototype of its own, different
+  // from the one of the callee. So when the call carries the metadata we should
+  // look at that and not at the callee's.
   std::optional<llvm::SmallVector<bool>>
     PointerArguments = getPointerOperandsMetadata(Call);
   if (PointerArguments.has_value()) {
@@ -142,18 +141,11 @@ static bool isNthArgumentModelPointer(const llvm::CallInst *Call,
     return PointerArguments.value()[ArgumentIndex];
   }
 
-  // The metadata cannot be missing on an indirect call, because those can only
-  // call llvm::Functions that represent something coming from the binary.
+  // If the metadata is missing on the Call, this must be a direct call. The
+  // metadata cannot be missing on an indirect call, because those can only call
+  // llvm::Functions that represent something coming from the binary.
   const llvm::Function *Callee = getCallee(Call);
   revng_assert(Callee != nullptr);
-
-  // Without metadata on the call this is not something coming from the binary
-  // (e.g. a QEMU helper, or an LLVM intrinsic), and the callee is free to
-  // disagree with the call on the number of arguments. There is no model
-  // information about such an argument, which is exactly what
-  // `isArgumentModelPointer` reports when the metadata is missing.
-  if (ArgumentIndex >= Callee->arg_size())
-    return false;
 
   return isArgumentModelPointer(Callee->getArg(ArgumentIndex));
 }
@@ -161,26 +153,35 @@ static bool isNthArgumentModelPointer(const llvm::CallInst *Call,
 static bool returnsModelPointer(const llvm::Function *F) {
   std::optional<llvm::SmallVector<bool>>
     PointerReturnValues = getPointerValuesMetadata(F);
-  // The metadata can be missing, if for some reason F is an
-  // llvm::Function that doesn't represent something coming from the binary
-  // (e.g. a QEMU helper, or an LLVM intrinsic).
-  return PointerReturnValues.has_value()
-         and PointerReturnValues.value().size() == 1
+  // The metadata can be missing, if for some reason F is an llvm::Function that
+  // doesn't represent something coming from the binary (e.g. a QEMU helper, or
+  // an LLVM intrinsic).
+  if (not PointerReturnValues.has_value())
+    return false;
+
+  return PointerReturnValues.value().size() == 1
          and PointerReturnValues.value()[0];
 }
 
 static bool returnsModelPointer(const llvm::CallInst *Call) {
-  if (const llvm::Function *Callee = getCallee(Call))
-    return returnsModelPointer(Callee);
 
+  // The model can describe a call site with a prototype of its own, different
+  // from the one of the callee. So when the call carries the metadata we should
+  // look at that and not at the callee's.
   std::optional<llvm::SmallVector<bool>>
     PointerReturnValues = getPointerValuesMetadata(Call);
-  // The metadata cannot be missing, because this is an indirect call, and
-  // indirect calls can only call llvm::Functions that represent something
-  // coming from the binary, hence the metadata must be there.
-  revng_assert(PointerReturnValues.has_value());
-  return PointerReturnValues.value().size() == 1
-         and PointerReturnValues.value()[0];
+  if (PointerReturnValues.has_value()) {
+    return PointerReturnValues.value().size() == 1
+           and PointerReturnValues.value()[0];
+  }
+
+  // If the metadata is missing on the Call, this must be a direct call. The
+  // metadata cannot be missing on an indirect call, because those can only call
+  // llvm::Functions that represent something coming from the binary.
+  const llvm::Function *Callee = getCallee(Call);
+  revng_assert(Callee != nullptr);
+
+  return returnsModelPointer(Callee);
 }
 
 static bool isNthReturnValueModelPointer(const llvm::Function *F,
@@ -188,27 +189,34 @@ static bool isNthReturnValueModelPointer(const llvm::Function *F,
   std::optional<llvm::SmallVector<bool>>
     PointerReturnValues = getPointerValuesMetadata(F);
   // The metadata can be missing, if F doesn't represent a model::Function nor a
-  // model::DynamicFunction. Otherwise it must be well formed.
-  revng_assert(not PointerReturnValues.has_value()
-               or ReturnValueIndex < PointerReturnValues.value().size());
-  return PointerReturnValues.has_value()
-         and PointerReturnValues.value()[ReturnValueIndex];
+  // model::DynamicFunction.
+  if (not PointerReturnValues)
+    return false;
+
+  // If the metadata is present the index must be consistent.
+  revng_assert(ReturnValueIndex < PointerReturnValues.value().size());
+  return PointerReturnValues.value()[ReturnValueIndex];
 }
 
 static bool isNthReturnValueModelPointer(const llvm::CallInst *Call,
                                          unsigned ReturnValueIndex) {
-  if (const llvm::Function *Callee = getCallee(Call))
-    return isNthReturnValueModelPointer(Callee, ReturnValueIndex);
-
+  // The model can describe a call site with a prototype of its own, different
+  // from the one of the callee. So when the call carries the metadata we should
+  // look at that and not at the callee's.
   std::optional<llvm::SmallVector<bool>>
     PointerReturnValues = getPointerValuesMetadata(Call);
-  // The metadata cannot be missing, because this is an indirect call, and
-  // indirect calls can only call llvm::Functions that represent something
-  // coming from the binary, hence the metadata must be there.
-  revng_assert(PointerReturnValues.has_value());
-  revng_assert(ReturnValueIndex < PointerReturnValues.value().size());
-  return PointerReturnValues.has_value()
-         and PointerReturnValues.value()[ReturnValueIndex];
+  if (PointerReturnValues.has_value()) {
+    revng_assert(ReturnValueIndex < PointerReturnValues.value().size());
+    return PointerReturnValues.value()[ReturnValueIndex];
+  }
+
+  // If the metadata is missing on the Call, this must be a direct call. The
+  // metadata cannot be missing on an indirect call, because those can only call
+  // llvm::Functions that represent something coming from the binary.
+  const llvm::Function *Callee = getCallee(Call);
+  revng_assert(Callee != nullptr);
+
+  return isNthReturnValueModelPointer(Callee, ReturnValueIndex);
 }
 
 static bool isExtractedValueModelPointer(const llvm::Value &V) {
