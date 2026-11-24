@@ -4,6 +4,8 @@
 
 #include <optional>
 
+#include "llvm/ADT/SmallPtrSet.h"
+
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpImplementation.h"
@@ -78,31 +80,45 @@ class ModuleVerifier : public ModuleVisitor<ModuleVerifier> {
   };
 
 public:
+  /// State of one walk looking for a class type that contains itself
+  struct RecursionWalk {
+    /// The root, with const removed once rather than at every step
+    mlir::Type RootKey;
+
+    /// The class types already checked during this walk. A class type
+    /// reachable by more than one path through the fields is checked once:
+    /// without this the walk enumerates paths instead of nodes, which is
+    /// exponential in the depth of the type graph.
+    llvm::SmallPtrSet<mlir::Type, 16> Visited;
+  };
+
   // Visit a field type of a class type attribute.
-  // RootType is the root class type attribute and is used to detect recursion.
-  mlir::LogicalResult visitFieldType(mlir::Type FieldType, ClassType RootType) {
+  // Walk.RootKey identifies the root class type and is used to detect
+  // recursion.
+  mlir::LogicalResult visitFieldType(mlir::Type FieldType,
+                                     RecursionWalk &Walk) {
     FieldType = unwrapTypedefs(FieldType);
 
     if (auto T = mlir::dyn_cast<ClassType>(FieldType)) {
-      if (equivalent(T, RootType))
+      if (removeConst(mlir::Type(T)) == Walk.RootKey)
         return getCurrentOp()->emitError() << "Clift ModuleOp contains a "
                                               "recursive class type.";
 
-      return visitClassType(T, RootType);
+      return visitClassType(T, Walk);
     }
 
     return mlir::success();
   }
 
-  mlir::LogicalResult visitClassType(ClassType Type,
-                                     ClassType RootType,
-                                     bool CheckRecursion = true) {
-    if (not CheckRecursion or not equivalent(Type, RootType)) {
-      for (FieldAttr Field : Type.getFields()) {
-        if (visitFieldType(Field.getType(), RootType).failed())
-          return mlir::failure();
-      }
+  mlir::LogicalResult visitClassType(ClassType Type, RecursionWalk &Walk) {
+    if (not Walk.Visited.insert(Type).second)
+      return mlir::success();
+
+    for (FieldAttr Field : Type.getFields()) {
+      if (visitFieldType(Field.getType(), Walk).failed())
+        return mlir::failure();
     }
+
     return mlir::success();
   }
 
@@ -119,7 +135,8 @@ public:
                                          << UnqualifiedType.getHandle() << '\'';
 
     if (auto Class = mlir::dyn_cast<ClassType>(Type)) {
-      if (visitClassType(Class, Class, /*CheckRecursion=*/false).failed())
+      RecursionWalk Walk = { .RootKey = removeConst(mlir::Type(Class)) };
+      if (visitClassType(Class, Walk).failed())
         return mlir::failure();
 
       ClassTypes.insert(Class);
