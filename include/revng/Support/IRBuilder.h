@@ -149,17 +149,6 @@ public:
     revng_abort("Either GlobalVariable or AllocaInst expected");
   }
 
-  void setInsertPointToFirstNonAlloca(llvm::Function &F) {
-    using namespace llvm;
-    for (Instruction &I : F.getEntryBlock()) {
-      if (not isa<AllocaInst>(&I)) {
-        SetInsertPoint(&I);
-        return;
-      }
-    }
-    revng_abort();
-  }
-
   llvm::SmallVector<llvm::Value *, 4> unpack(llvm::Value *V) {
     using namespace llvm;
     Type *T = V->getType();

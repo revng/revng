@@ -16,16 +16,16 @@ class PromoteGlobalToLocalPass
   : public llvm::PassInfoMixin<PromoteGlobalToLocalPass> {
 
 public:
-  /// Which CSVs to promote. An empty filter promotes all of them.
-  using Filter = std::function<bool(const llvm::GlobalVariable &)>;
+  /// Which CSVs to promote. An empty predicate promotes all of them.
+  using SelectToPromote = std::function<bool(const llvm::GlobalVariable &)>;
 
 private:
-  Filter ShouldPromote;
+  SelectToPromote ShouldPromote;
 
 public:
   PromoteGlobalToLocalPass() = default;
 
-  explicit PromoteGlobalToLocalPass(Filter ShouldPromote) :
+  explicit PromoteGlobalToLocalPass(SelectToPromote ShouldPromote) :
     ShouldPromote(std::move(ShouldPromote)) {}
 
   llvm::PreservedAnalyses run(llvm::Function &F,
