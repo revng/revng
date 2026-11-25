@@ -80,44 +80,42 @@ class ModuleVerifier : public ModuleVisitor<ModuleVerifier> {
   };
 
 public:
-  /// State of one walk looking for a class type that contains itself
-  struct RecursionWalk {
-    /// The root, with const removed once rather than at every step
-    mlir::Type RootKey;
-
-    /// The class types already checked during this walk. A class type
-    /// reachable by more than one path through the fields is checked once:
-    /// without this the walk enumerates paths instead of nodes, which is
-    /// exponential in the depth of the type graph.
-    llvm::SmallPtrSet<mlir::Type, 16> Visited;
-  };
-
-  // Visit a field type of a class type attribute.
-  // Walk.RootKey identifies the root class type and is used to detect
-  // recursion.
-  mlir::LogicalResult visitFieldType(mlir::Type FieldType,
-                                     RecursionWalk &Walk) {
+  /// Visit a field type, descending into it if it is a class type
+  mlir::LogicalResult visitFieldType(mlir::Type FieldType) {
     FieldType = unwrapTypedefs(FieldType);
 
-    if (auto T = mlir::dyn_cast<ClassType>(FieldType)) {
-      if (removeConst(mlir::Type(T)) == Walk.RootKey)
-        return getCurrentOp()->emitError() << "Clift ModuleOp contains a "
-                                              "recursive class type.";
-
-      return visitClassType(T, Walk);
-    }
+    if (auto T = mlir::dyn_cast<ClassType>(FieldType))
+      return visitClassType(T);
 
     return mlir::success();
   }
 
-  mlir::LogicalResult visitClassType(ClassType Type, RecursionWalk &Walk) {
-    if (not Walk.Visited.insert(Type).second)
+  /// \return failure if \p Type contains itself through a chain of fields
+  ///
+  /// Recursion is found by coming back to a class type that is still on the
+  /// chain being walked, rather than by comparing against the type the walk
+  /// started from. Lying on a cycle is a property of the type graph alone, so
+  /// what one walk settles holds for every later one, and a class type is
+  /// walked once per module instead of once per class type that can reach it.
+  /// Returning to the chain also finds a cycle that the type the walk started
+  /// from is not part of.
+  mlir::LogicalResult visitClassType(ClassType Type) {
+    mlir::Type Key = removeConst(mlir::Type(Type));
+
+    if (AcyclicClassTypes.contains(Key))
       return mlir::success();
 
+    if (not ClassTypesOnPath.insert(Key).second)
+      return getCurrentOp()->emitError() << "Clift ModuleOp contains a "
+                                            "recursive class type.";
+
     for (FieldAttr Field : Type.getFields()) {
-      if (visitFieldType(Field.getType(), Walk).failed())
+      if (visitFieldType(Field.getType()).failed())
         return mlir::failure();
     }
+
+    ClassTypesOnPath.erase(Key);
+    AcyclicClassTypes.insert(Key);
 
     return mlir::success();
   }
@@ -135,8 +133,7 @@ public:
                                          << UnqualifiedType.getHandle() << '\'';
 
     if (auto Class = mlir::dyn_cast<ClassType>(Type)) {
-      RecursionWalk Walk = { .RootKey = removeConst(mlir::Type(Class)) };
-      if (visitClassType(Class, Walk).failed())
+      if (visitClassType(Class).failed())
         return mlir::failure();
 
       ClassTypes.insert(Class);
@@ -213,6 +210,12 @@ public:
 private:
   llvm::DenseMap<llvm::StringRef, DefinedType> Definitions;
   llvm::DenseSet<ClassType> ClassTypes;
+
+  /// The class types on the chain of fields currently being walked
+  llvm::SmallPtrSet<mlir::Type, 16> ClassTypesOnPath;
+
+  /// The class types already shown not to contain themselves
+  llvm::SmallPtrSet<mlir::Type, 16> AcyclicClassTypes;
 };
 
 static mlir::LogicalResult verifyModuleAttr(mlir::Operation *Op,
