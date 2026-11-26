@@ -391,10 +391,20 @@ class LocalStorageProvider(StorageProvider):
         self._model_type = get_singleton(Model)  # type: ignore[type-abstract]
 
         self._connection = sqlite3.connect(db_path, autocommit=False)
+        self._configure_connection()
         self._init_tables()
         self.epoch = self._get_epoch()
 
         self._check_version_and_pipeline_hash(pipeline_hash)
+
+    def _configure_connection(self):
+        # By default sqlite has a memory page cache of 2MB. Testing with
+        # real-world binaries shows that this is not ideal since the
+        # `dependencies` table can be much larger, causing a lot of reads.
+        # Increase the cache to 128MB, which is still an acceptable amount of
+        # RAM usage and shows a speedup of about 20%. The value is negative,
+        # which means kibibytes rather than pages.
+        self._connection.execute(f"PRAGMA cache_size = -{128 * 1024}")
 
     def _cursor(self) -> CursorWrapper:
         return CursorWrapper(self._connection)
