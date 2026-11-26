@@ -52,6 +52,8 @@ RangeFromContainer<ContainerT> make_range(ContainerT &&Container) {
 
 template<typename T, typename OutputIterator>
 void copy(Range<T> Source, OutputIterator Destination) {
-  for (auto Element : Source)
-    *Destination++ = Element;
+  for (auto Element : Source) {
+    *Destination = Element;
+    ++Destination;
+  }
 }

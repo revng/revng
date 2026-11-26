@@ -63,10 +63,8 @@ static SortedVector<yield::TaggedString>
 embedContentIntoTags(const std::vector<yield::Instruction::RawTag> &Tags,
                      llvm::StringRef Text) {
   SortedVector<yield::TaggedString> Result;
-
-  uint64_t Index = 0;
-  for (const yield::Instruction::RawTag &T : Tags) {
-    auto &&[New, S] = Result.emplace(Index++, T.Type, Text.slice(T.From, T.To));
+  for (const auto &[Index, T] : llvm::enumerate(Tags)) {
+    auto &&[New, S] = Result.emplace(Index, T.Type, Text.slice(T.From, T.To));
     revng_assert(S);
 
     if (New->Type() == yield::TagType::Whitespace)
@@ -402,7 +400,7 @@ handleSpecialCases(SortedVector<yield::TaggedString> &&Input,
       auto Address = absoluteAddressFromPCRelativeImmediate(*Iterator,
                                                             Instruction);
 
-      uint64_t CurrentIndex = ++Iterator->Index() - 1;
+      uint64_t CurrentIndex = Iterator->Index()++;
       Result.emplace(CurrentIndex, yield::TagType::Helper, "offset_to(");
       Result.emplace(emitAddress(std::move(*Iterator),
                                  Address,

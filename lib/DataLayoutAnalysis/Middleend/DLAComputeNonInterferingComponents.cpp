@@ -178,7 +178,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
             CurrComp.EndByte = std::max(CurrComp.EndByte,
                                         ChildBeginByte + ChildSize);
             CurrComp.EndChildIt = std::next(ChildIt);
-            ++(CurrComp.NumChildren);
+            ++CurrComp.NumChildren;
           }
         }
       }

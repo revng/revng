@@ -445,7 +445,9 @@ public:
   {
     std::remove_const_t<key_type> Index = 0;
     while (Index < Content.size()) {
-      const_pointer MaybeElement = tryGet(Index++);
+      const_pointer MaybeElement = tryGet(Index);
+      ++Index;
+
       revng_assert(MaybeElement != nullptr);
       co_yield *MaybeElement;
     }

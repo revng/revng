@@ -102,9 +102,11 @@ ValueDistributor::distribute(uint64_t Size,
 
         // Add an extra "padding" argument to represent this.
         DistributedValue &Padding = Result.emplace_back();
-        Padding.Registers = { Registers[OccupiedRegisterCount++] };
+        Padding.Registers = { Registers[OccupiedRegisterCount] };
         Padding.Size = PointerSize;
         Padding.RepresentsPadding = true;
+
+        ++OccupiedRegisterCount;
 
         // The padding register does not count towards the limit
         ++LastRegister;
@@ -122,8 +124,10 @@ ValueDistributor::distribute(uint64_t Size,
              && ConsideredRegisterCounter < LastRegister;
     };
     while (ShouldContinue()) {
-      const auto CurrentRegister = Registers[ConsideredRegisterCounter++];
+      const auto CurrentRegister = Registers[ConsideredRegisterCounter];
       SizeCounter += model::Register::getSize(CurrentRegister);
+
+      ++ConsideredRegisterCounter;
     }
   }
 
@@ -260,8 +264,9 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
       //       registers are used together.
       DistributedValue Result;
       Result.Size = Size;
-      Result.Registers.emplace_back(RegisterList[(*RegisterCounter)++]);
+      Result.Registers.emplace_back(RegisterList[*RegisterCounter]);
 
+      ++(*RegisterCounter);
       ++ArgumentIndex;
       return { Result };
     } else {
