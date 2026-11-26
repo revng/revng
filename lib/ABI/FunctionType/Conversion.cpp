@@ -295,7 +295,17 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
     auto CurrentRegisterIterator = Registers.find(Register);
     if (CurrentRegisterIterator != Registers.end()) {
       revng_assert(!CurrentRegisterIterator->Type().isEmpty());
-      if (not canRepresentArgument(ABI, *CurrentRegisterIterator->Type())) {
+
+      // Before triggering the strategy logic, attempt to refine the type
+      // (a 64-bit generic in zmm0 is to be treated as `double`).
+      model::UpcastableType Type = CurrentRegisterIterator->Type().copy();
+      if (llvm::is_contained(ABI.FloatArgumentRegisters(), Register)) {
+        namespace PK = model::PrimitiveKind;
+        if (auto R = refineGenericType(PK::Float, *Type))
+          Type = std::move(*R);
+      }
+
+      if (not canRepresentArgument(ABI, *Type)) {
         revng_log(Log,
                   "FAIL: the argument in `"
                     << model::Register::getRegisterName(Register)
@@ -309,9 +319,7 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
       // an argument while preserving its type and metadata.
       model::Argument &Current = Result.emplace_back();
       Current.Name() = CurrentRegisterIterator->Name();
-
-      revng_assert(!CurrentRegisterIterator->Type().isEmpty());
-      Current.Type() = CurrentRegisterIterator->Type().copy();
+      Current.Type() = std::move(Type);
     } else {
       // This register is unused but we still have to create an argument
       // for it. Otherwise the resulting function will be semantically different
