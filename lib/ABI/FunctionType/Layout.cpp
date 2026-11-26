@@ -762,16 +762,15 @@ bool Layout::verify() const {
     if (!VerificationHelper(Portion.Register))
       return false;
 
+  // Verify callee saved registers
+  for (model::Register::Values Register : CalleeSavedRegisters)
+    if (!VerificationHelper(Register))
+      return false;
+
   // Verify return values
   LookupHelper.clear();
   for (const model::Register::Portion &Portion : returnValueRegisters())
     if (!VerificationHelper(Portion.Register))
-      return false;
-
-  // Verify callee saved registers
-  LookupHelper.clear();
-  for (model::Register::Values Register : CalleeSavedRegisters)
-    if (!VerificationHelper(Register))
       return false;
 
   using namespace abi::FunctionType::ArgumentKind;
