@@ -391,10 +391,20 @@ class LocalStorageProvider(StorageProvider):
         self._model_type = get_singleton(Model)  # type: ignore[type-abstract]
 
         self._connection = sqlite3.connect(db_path, autocommit=False)
+        self._configure_connection()
         self._init_tables()
         self.epoch = self._get_epoch()
 
         self._check_version_and_pipeline_hash(pipeline_hash)
+
+    def _configure_connection(self):
+        # By default sqlite has a memory page cache of 2MB. Testing with
+        # real-world binaries shows that this is not ideal since the
+        # `dependencies` table can be much larger, causing a lot of reads.
+        # Increase the cache to 128MB, which is still an acceptable amount of
+        # RAM usage and shows a speedup of about 20%. The value is negative,
+        # which means kibibytes rather than pages.
+        self._connection.execute(f"PRAGMA cache_size = -{128 * 1024}")
 
     def _cursor(self) -> CursorWrapper:
         return CursorWrapper(self._connection)
@@ -492,10 +502,12 @@ class LocalStorageProvider(StorageProvider):
             # Save dependencies
             for dependency in dependencies:
                 # Save ordinary dependencies
-                for container_id, object_id, model_path in dependency.dependencies:
+                for _, object_id, _ in dependency.dependencies:
                     check_object_id_supported_by_sql(object_id)
-                    cursor.execute(
-                        PUT_DEPENDENCIES_QUERY,
+
+                cursor.executemany(
+                    PUT_DEPENDENCIES_QUERY,
+                    (
                         (
                             dependency.savepoints_range.start,
                             dependency.savepoints_range.end,
@@ -503,28 +515,32 @@ class LocalStorageProvider(StorageProvider):
                             dependency.configuration,
                             object_id.to_bytes(),
                             model_path,
-                        ),
-                    )
+                        )
+                        for container_id, object_id, model_path in dependency.dependencies
+                    ),
+                )
 
                 # Save custom dependencies
-                for index, container_data in enumerate(dependency.custom_invalidation):
-                    for object_id, invalidation_blob in container_data:
-                        cursor.execute(
-                            "REPLACE INTO custom_dependencies VALUES (?, ?, ?, ?, ?)",
-                            (
-                                dependency.pipe_id,
-                                dependency.configuration,
-                                index,
-                                object_id.to_bytes(),
-                                bytes(invalidation_blob),
-                            ),
+                cursor.executemany(
+                    "REPLACE INTO custom_dependencies VALUES (?, ?, ?, ?, ?)",
+                    (
+                        (
+                            dependency.pipe_id,
+                            dependency.configuration,
+                            index,
+                            object_id.to_bytes(),
+                            bytes(invalidation_blob),
                         )
+                        for index, container_data in enumerate(dependency.custom_invalidation)
+                        for object_id, invalidation_blob in container_data
+                    ),
+                )
 
             # Save objects
             for location, objects_set in objects.items():
-                for object_id, content in objects_set.items():
-                    cursor.execute(
-                        PUT_QUERY,
+                cursor.executemany(
+                    PUT_QUERY,
+                    (
                         (
                             location.savepoint_id,
                             location.container_id,
@@ -532,8 +548,10 @@ class LocalStorageProvider(StorageProvider):
                             object_id.to_bytes(),
                             object_id.serialize(),
                             bytes(content),
-                        ),
-                    )
+                        )
+                        for object_id, content in objects_set.items()
+                    ),
+                )
 
             # Write metadata
             self._write_metadata(cursor, _MetadataUpdate.OBJECT_SAVE)
@@ -558,8 +576,10 @@ class LocalStorageProvider(StorageProvider):
             #     invalidated. This is used internally by the queries.
             cursor.executescript(CREATE_TABLE_INVALIDATE.format(uuid=table_uuid))
             # Pour our input data into the temporary tables
-            for path in invalidation_list:
-                cursor.execute(f"REPLACE INTO model_paths_{table_uuid} VALUES (?)", (path,))
+            cursor.executemany(
+                f"REPLACE INTO model_paths_{table_uuid} VALUES (?)",
+                ((path,) for path in invalidation_list),
+            )
             for object_set in additional_objects:
                 for object_ in object_set.objects:
                     cursor.execute(
