@@ -50,20 +50,14 @@ static bool canRepresentReturnValue(const abi::Definition &ABI,
 /// This helper attempts to refine a type of something known to be passed in
 /// a float-presenting register even if it is labeled as `Generic`.
 ///
+/// \param Kind the primitive kind to refine the generic type into.
 /// \param Type the type in the model.
 ///
 /// \returns return a new type if the refinement was successful.
 ///          Otherwise it returns `std::nullopt` to indicate that the original
 ///          type should be used.
 static std::optional<model::UpcastableType>
-refineGenericType(const abi::Definition &ABI,
-                  model::Register::Values Register,
-                  const model::Type &Type) {
-  // Only do this if the register is floating-point presenting.
-  const auto RegisterKind = model::Register::getPrimitiveKind(Register);
-  if (RegisterKind != model::PrimitiveKind::Float)
-    return std::nullopt;
-
+refineGenericType(model::PrimitiveKind::Values Kind, const model::Type &Type) {
   const auto *Primitive = Type.getPrimitive();
 
   // Not a primitive - do not touch.
@@ -75,10 +69,8 @@ refineGenericType(const abi::Definition &ABI,
     return std::nullopt;
 
   size_t Size = *Type.size();
-  revng_assert(Size <= model::Register::getSize(Register));
-
-  if (model::PrimitiveType::isSizeValid(model::PrimitiveKind::Float, Size))
-    return model::PrimitiveType::makeFloat(Size);
+  if (model::PrimitiveType::isSizeValid(Kind, Size))
+    return model::PrimitiveType::make(Kind, Size);
 
   return std::nullopt;
 }
@@ -721,21 +713,25 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
   auto Ordered = ABI.sortReturnValues(std::move(Deduced));
 
   if (Ordered.size() == 1) {
-    if (auto Iter = Registers.find(*Ordered.begin()); Iter != Registers.end()) {
+    model::Register::Values Register = *Ordered.begin();
+    if (auto Iter = Registers.find(Register); Iter != Registers.end()) {
       // Before triggering the strategy logic, attempt to refine the type
       // (a 64-bit generic in zmm0 is to be treated as `double`).
-      if (auto R = refineGenericType(ABI, *Ordered.begin(), *Iter->Type())) {
-        if (not canRepresentReturnValue(ABI, **R)) {
-          revng_log(Log,
-                    "FAIL: the return value in `"
-                      << model::Register::getRegisterName(*Ordered.begin())
-                      << "` cannot be represented under `"
-                      << model::ABI::getName(ABI.ABI())
-                      << "`, whose floating point strategy is `Ignored`.");
-          return std::nullopt;
-        }
+      if (llvm::is_contained(ABI.FloatReturnValueRegisters(), Register)) {
+        namespace PK = model::PrimitiveKind;
+        if (auto R = refineGenericType(PK::Float, *Iter->Type())) {
+          if (not canRepresentReturnValue(ABI, **R)) {
+            revng_log(Log,
+                      "FAIL: the return value in `"
+                        << model::Register::getRegisterName(Register)
+                        << "` cannot be represented under `"
+                        << model::ABI::getName(ABI.ABI())
+                        << "`, whose floating point strategy is `Ignored`.");
+            return std::nullopt;
+          }
 
-        return R;
+          return R;
+        }
       }
 
       // Only one register is used, just return its type.
@@ -792,10 +788,11 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
 
         // Before triggering the strategy logic, attempt to refine the type
         // (a 64-bit generic in zmm0 is to be treated as `double`).
-        if (std::optional Refined = refineGenericType(ABI,
-                                                      Register,
-                                                      *Field.Type()))
-          Field.Type() = std::move(*Refined);
+        if (llvm::is_contained(ABI.FloatReturnValueRegisters(), Register)) {
+          namespace PK = model::PrimitiveKind;
+          if (auto Refined = refineGenericType(PK::Float, *Field.Type()))
+            Field.Type() = std::move(*Refined);
+        }
 
         if (not canRepresentReturnValue(ABI, *Field.Type())) {
           revng_log(Log,
