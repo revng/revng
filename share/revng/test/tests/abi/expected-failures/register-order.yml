@@ -56,3 +56,17 @@
     - mixed_struct_64_float_arguments
   errors:
     - Argument 1 uses neither the expected stack part nor the expected registers.
+
+# These are also due to register order (we check rax + xmm0) while the testing
+# artifact lists the returned struct as (xmm0 + rax).
+#
+# NOTE: `can-succeed: true` is used because this succeeds at the initial CFT and
+#       only starts failing after we lose the struct as we convert it into an RFT.
+- ABIs:
+    - SystemV_x86_64
+  tests:
+    - single_double_int_struct_return_value
+    - single_double_int_int_struct_return_value
+  errors:
+    - "A piece of the return value found in the rax_x86_64 register doesn't match the expected value."
+  can-succeed: true

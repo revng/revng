@@ -14,8 +14,9 @@ CalleeIsResponsibleForStackCleanup: false
 PackStackArguments: false
 TreatAllAggregatesAsPacked: false
 
-FloatingPointArgumentStrategy: Ignored
-FloatingPointReturnValueStrategy: Ignored
+FloatingPointArgumentStrategy: NextRegisterFromTheDedicatedSet
+FloatingPointReturnValueStrategy: NextRegisterFromTheDedicatedSet
+UseSystemVx86_64RegisterSelectionLogic: true
 
 StackAlignment: 16
 MinimumStackArgumentSize: 8
