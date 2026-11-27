@@ -57,9 +57,9 @@ namespace revng::pypeline::analyses {
 /// so two of them used only by the same instructions cannot be told apart. An
 /// edit aimed at one of those is rejected: applying it would edit whichever of
 /// them rev.ng reaches first, which need not be the one it was written for.
-class EditCBody {
+class AnnotateCBody {
 public:
-  static constexpr llvm::StringRef Name = "edit-c-body";
+  static constexpr llvm::StringRef Name = "annotate-c-body";
 
   llvm::Error run(Model &Model,
                   const Request &Incoming,

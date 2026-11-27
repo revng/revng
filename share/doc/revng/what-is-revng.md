@@ -20,4 +20,4 @@ In terms of design choices, its distinctive characteristics are:
   Note that we never emulate any code, we simply use QEMU as a lifter.
 * **Based on LLVM**: all of our analyses are LLVM passes.
   This enables to use existing, powerful analyses and optimizations and ensures scalability.
-* **Client/server Architecture**: scripting and automation takes place in your favorite environment by connecting to a GraphQL API over the network or locally, possibly through our wrappers.
+* **Client/server Architecture**: scripting and automation takes place in your favorite environment by connecting to an HTTP API over the network or locally, possibly through our wrappers.

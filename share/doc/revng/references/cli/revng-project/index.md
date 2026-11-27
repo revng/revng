@@ -43,6 +43,9 @@ COMMANDS
 [`daemon`](daemon.md)
 : Start the HTTP daemon serving the project.
 
+[`agent`](agent.md)
+: Run a coding agent against the project's daemon.
+
 OPTIONS
 -------
 
@@ -70,4 +73,4 @@ The available schemes are:
 SEE ALSO
 --------
 
-[`revng`](../index.md), [`revng-project-init`](init.md), [`revng-project-analyze`](analyze.md), [`revng-project-artifact`](artifact.md), [`revng-project-daemon`](daemon.md)
+[`revng`](../index.md), [`revng-project-init`](init.md), [`revng-project-analyze`](analyze.md), [`revng-project-artifact`](artifact.md), [`revng-project-daemon`](daemon.md), [`revng-project-agent`](agent.md)

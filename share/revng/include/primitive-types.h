@@ -183,7 +183,7 @@ extern void const *undef_value(size_t size);
 
 // __typeof__ is required for properly implementing a generic bitcast primitive
 // that only needs the destination type.
-#if defined(__GNUC__) // For Clang and GCC, they both have __typeof__
+#if defined(__GNUC__) || defined(IS_PYCPARSER) // Clang, GCC and pycparser have __typeof__
 // Don't do anything, __typeof__ is already available
 #elif __STDC_VERSION__ >= 202311L // C23 has typeof
 // The macro is variadic so we can pass in expressions that contain commas.
@@ -196,7 +196,7 @@ extern void const *undef_value(size_t size);
 // bit_cast
 // The macro is variadic so we can pass in expressions that contain commas.
 //
-#if defined(__GNUC__)
+#if defined(__GNUC__) && !defined(IS_PYCPARSER)
 
 #if defined(__clang__)
 

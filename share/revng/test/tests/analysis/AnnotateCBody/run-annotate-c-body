@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-# Exercise the edit-c-body analysis end to end. The test functions decompile to a
+# Exercise the annotate-c-body analysis end to end. The test functions decompile to a
 # fixed, well-known shape, so each directive is placed by anchoring on a literal
 # name the decompiler is guaranteed to produce.
 #
@@ -25,7 +25,7 @@ set -euo pipefail
 # renders it, the re-emitted code.
 #
 # The rest covers the annotations that cannot be applied. Those are dropped and
-# reported on the `edit-c-body` logger, one at a time, leaving every other
+# reported on the `annotate-c-body` logger, one at a time, leaving every other
 # annotation in the same function alone: `RENAME:` only applies to a local
 # variable declaration, so the one placed on the `var_0` assignment is dropped,
 # while the plain comment on that very same statement still lands.
@@ -44,7 +44,7 @@ GOTO_COMMENT="A comment on a goto."
 DECL_COMMENT="A comment on a local variable declaration."
 
 fail() {
-  echo "edit-c-body: $1" >&2
+  echo "annotate-c-body: $1" >&2
   exit 1
 }
 
@@ -86,7 +86,7 @@ open(target, "w").write("\n".join(lines) + "\n")
 PYEOF
 }
 
-# Wrap an edited function into an edit-c-body configuration. The configuration
+# Wrap an edited function into an annotate-c-body configuration. The configuration
 # needs the function's entry address; read it from the model.
 make_configuration() {
   local address
@@ -102,11 +102,11 @@ make_configuration() {
   } > "$3"
 }
 
-# Run the analysis with the `edit-c-body` logger on, keeping its report of the
+# Run the analysis with the `annotate-c-body` logger on, keeping its report of the
 # annotations that could not be applied.
 analyze() {
-  revng -C "$PROJECT" project analyze edit-c-body -o /dev/null \
-    -c "$1" -- --debug-log=edit-c-body 2>&1 \
+  revng -C "$PROJECT" project analyze annotate-c-body -o /dev/null \
+    -c "$1" -- --debug-log=annotate-c-body 2>&1 \
     | tee "$2"
 }
 

@@ -395,6 +395,7 @@ add_custom_command(
           "share/doc/revng/references/cli/revng-pipeline/index.md"
           "share/doc/revng/references/cli/revng-pipeline/run-analysis.md"
           "share/doc/revng/references/cli/revng-pipeline/run-pipe.md"
+          "share/doc/revng/references/cli/revng-project/agent.md"
           "share/doc/revng/references/cli/revng-project/analyze.md"
           "share/doc/revng/references/cli/revng-project/artifact.md"
           "share/doc/revng/references/cli/revng-project/daemon.md"

@@ -4,7 +4,7 @@ This page describes the rev.ng Python scripting capabilities.
 
 ## Creating a project
 
-There are two project classes to use rev.ng from Python: `CLIProject`, which spawns `revng` as a subprocess for each command, and `DaemonProject`, which interacts with [`revng project daemon`](../references/cli/revng-project/daemon.md) over the network using the GraphQL API.
+There are two project classes to use rev.ng from Python: `CLIProject`, which spawns `revng` as a subprocess for each command, and `DaemonProject`, which interacts with [`revng project daemon`](../references/cli/revng-project/daemon.md) over the network using the HTTP API.
 Apart from this difference, they offer the same programming interface.
 
 First, import the project of choice:
@@ -73,6 +73,18 @@ LLVM modules can be parsed and explored via the `llvmcpy` python module:
 ...     for bb in function.iter_basic_blocks():
 ...         for instruction in bb.iter_instructions():
 ...             instruction.dump()
+```
+
+There's also a `emit-recompilable-archive` artifact, which can be inspected with `pycparser`:
+
+```{python ignoreoutput=7}
+>>> archive = project.model.get_artifact("emit-recompilable-archive")["/binary"]
+>>> ast = archive.parse()
+>>> from pycparser import c_ast
+>>> class FuncDefVisitor(c_ast.NodeVisitor):
+...     def visit_FuncDef(self, node):
+...         print(node.decl.name)
+>>> FuncDefVisitor().visit(ast)
 ```
 
 ## Interacting with the model

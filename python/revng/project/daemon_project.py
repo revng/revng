@@ -25,8 +25,24 @@ class DaemonProject(Project):
 
     def __init__(self, url: str, project_id: str | None = None, token: str | None = None):
         self._base_url = urlparse(url)
+        transport = None
+        if self._base_url.netloc == "!unix":
+            if "/-/" in self._base_url.path:
+                parts = self._base_url.path.split("/-/", 1)
+                unix_path = parts[0]
+                path = f"/{parts[1]}"
+            else:
+                unix_path = self._base_url.path
+                path = ""
+
+            self._base_url = self._base_url._replace(netloc="localhost", path=path)
+            transport = httpx2.HTTPTransport(uds=unix_path)
+
         self._session = httpx2.Client(
-            http2=True, timeout=None, event_hooks={"response": [self._response_hook]}
+            http2=True,
+            timeout=None,
+            transport=transport,
+            event_hooks={"response": [self._response_hook]},
         )
         if project_id is not None:
             self._session.headers["x-project-id"] = project_id

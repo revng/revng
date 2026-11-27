@@ -14,7 +14,7 @@ target_link_libraries(
   revngClift
   revngCliftPipes
   revngDataLayoutAnalysis
-  revngEditCBodyAnalysis
+  revngAnnotateCBodyAnalysis
   revngFunctionIsolation
   revngEditCTypeAnalysis
   revngLLMRenameAnalysis

@@ -51,6 +51,7 @@ nav:
                   - revng-project-analyze: references/cli/revng-project/analyze.md
                   - revng-project-artifact: references/cli/revng-project/artifact.md
                   - revng-project-daemon: references/cli/revng-project/daemon.md
+                  - revng-project-agent: references/cli/revng-project/agent.md
               - revng-quick:
                   - references/cli/revng-quick/index.md
                   - revng-quick-analyze: references/cli/revng-quick/analyze.md
