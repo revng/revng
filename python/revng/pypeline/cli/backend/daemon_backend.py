@@ -187,10 +187,10 @@ class DaemonBackendFactory(BackendFactory):
 
         self._unix_path: str | None = None
         if parsed.netloc == "!unix":
-            if "/-" in parsed.path:
-                parts = parsed.path.split("/-", 1)
+            if "/-/" in parsed.path:
+                parts = parsed.path.split("/-/", 1)
                 unix_path = parts[0]
-                path = parts[1]
+                path = f"/{parts[1]}"
             else:
                 unix_path = parsed.path
                 path = ""
