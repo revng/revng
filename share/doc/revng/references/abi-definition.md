@@ -115,6 +115,14 @@ When this option is set to true, such a struct would still be allowed to use reg
 
 Specifies who is responsible for cleaning the stack after the function call. If equal to `true`, it's the callee, otherwise it the caller.
 
+## `UseSystemVx86_64RegisterSelectionLogic` (`bool`)
+
+Enables a special compatibility mode for the `SystemV_x86_64` ABI. When `true`, the placement of all the arguments and return values is evaluated one eightbyte at a time. Then, each eightbyte is independently placed into a matching register from either `GeneralPurposeArgumentRegisters` or `FloatArgumentRegisters` (or the return value equivalents).
+
+This allows a single aggregate to occupy registers from both sets at the same time, e.g. `struct { int A[2]; float B; }` is passed in `rdi` *and* `xmm0`.
+
+Aggregates larger than two eightbytes, as well as those that are not naturally aligned, are passed on the stack (or via a pointer to a copy when returned).
+
 ## `PackStackArguments` (`bool`)
 
 Most ABIs extend each stack argument to a GPR-sized slot. Setting this option to true, allows them occupy less space by behaving more like fields in a regular struct would.
@@ -224,6 +232,16 @@ This is only relevant if [`ReturnValueLocationRegister`](#returnvaluelocationreg
 Specifies whether functions whose return value is saved in a memory area pointed by an argument passed by the caller (SPTAR) should also return such pointer using the first return value register.
 
 This is only relevant if either [`ReturnValueLocationRegister`](#returnvaluelocationregister-register) or [`ReturnValueLocationOnStack`](#returnvaluelocationonstack-bool) is enabled.
+
+## `MaximumHFAFieldCount` (`uint64_t`)
+
+HFA stands for "Homogeneous Floating-point Aggregate" as described by the "Procedure Call Standard" documents for both 32-bit and 64-bit ARM calling conventions.
+
+When this option is set to 0, the homogeneous-struct-only logic does *not* apply and *all* the structs are allowed to use floating point registers.
+
+When this is set to any other value, *only* aggregates that are considered homogeneous (see below) *and* have total number of *fields* less or equal to the value of this option can use dedicated floating point registers.
+
+See doxygen comments for more detail on what is considered a HFA or not.
 
 # Type information
 

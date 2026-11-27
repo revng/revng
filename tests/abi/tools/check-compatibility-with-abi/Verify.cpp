@@ -27,9 +27,6 @@ public:
   llvm::StringRef FunctionName;
   abi::FunctionType::Layout FunctionLayout;
 
-private:
-  mutable uint64_t PotentialPadding = 0;
-
 public:
   struct Error {
     std::string FunctionName;
@@ -42,13 +39,18 @@ public:
                      const bool IsLittleEndian) :
     Architecture(Architecture), ABI(ABI), IsLittleEndian(IsLittleEndian) {}
 
-  void arguments(const abi::runtime_test::ArgumentTest &Test) const;
+  void arguments(const abi::runtime_test::ArgumentTest &Test,
+                 llvm::SmallVector<uint64_t, 8> Widths) const;
   void returnValue(const abi::runtime_test::ReturnValueTest &Test) const;
 
   void printResults() const;
 
-  std::optional<abi::FunctionType::Layout>
-  getPrototypeLayout(const model::Function &Function) const;
+  struct LayoutWithExtras {
+    abi::FunctionType::Layout Layout;
+    llvm::SmallVector<uint64_t, 8> StackArgumentWidths;
+  };
+  std::optional<LayoutWithExtras>
+  getAdjustedLayout(const model::Function &Function) const;
 
 private:
   void verifyValuePreservation(llvm::ArrayRef<std::byte> ExpectedBytes,
@@ -56,21 +58,25 @@ private:
   bool dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes,
                                 std::vector<std::byte> &Out) const;
   uint64_t checkRegister(llvm::ArrayRef<std::byte> RegisterBytes,
-                         llvm::ArrayRef<std::byte> ArgumentBytes) const;
+                         llvm::ArrayRef<std::byte> ArgumentBytes,
+                         const model::Register::Portion &Portion) const;
 
   struct LeftToVerify {
-    llvm::ArrayRef<model::Register::Values> Registers;
+    llvm::SmallVector<model::Register::Portion, 32> Registers;
     llvm::ArrayRef<std::byte> Stack;
     bool HasError = false;
   };
-  LeftToVerify adjustForSPTAR(LeftToVerify Remaining) const;
+  LeftToVerify adjustForSPTAR(LeftToVerify Remaining,
+                              llvm::SmallVector<uint64_t, 8> &Widths) const;
   LeftToVerify verifyAnArgument(const abi::runtime_test::State &State,
                                 const abi::runtime_test::Argument &Argument,
                                 LeftToVerify Remaining,
-                                uint64_t Index) const;
+                                uint64_t Index,
+                                llvm::SmallVector<uint64_t, 8> &Widths) const;
 
   bool tryToVerifyStack(llvm::ArrayRef<std::byte> &Bytes,
-                        llvm::ArrayRef<std::byte> ExpectedBytes) const;
+                        llvm::ArrayRef<std::byte> ExpectedBytes,
+                        llvm::SmallVector<uint64_t, 8> &Widths) const;
   uint64_t valueFromBytes(llvm::ArrayRef<std::byte> Input) const;
 
 public:
@@ -190,7 +196,9 @@ bool VH::dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes,
   return true;
 }
 
-VH::LeftToVerify VH::adjustForSPTAR(LeftToVerify Remaining) const {
+VH::LeftToVerify
+VH::adjustForSPTAR(LeftToVerify Remaining,
+                   llvm::SmallVector<uint64_t, 8> &Widths) const {
   if (FunctionLayout.hasSPTAR()) {
     // Account for the shadow pointer to the return value.
     revng_assert(not FunctionLayout.Arguments.empty());
@@ -201,13 +209,17 @@ VH::LeftToVerify VH::adjustForSPTAR(LeftToVerify Remaining) const {
       // It's in a register, drop one if needed.
       model::Register::Values Register = ShadowArgument.Registers[0].Register;
       revng_assert(Register == ABI.ReturnValueLocationRegister());
-      if (!Remaining.Registers.empty())
-        if (Remaining.Registers.front() == ABI.ReturnValueLocationRegister())
-          Remaining.Registers = Remaining.Registers.drop_front();
+      if (!Remaining.Registers.empty()) {
+        const auto Front = Remaining.Registers.front().Register;
+        if (Front == ABI.ReturnValueLocationRegister())
+          Remaining.Registers.erase(Remaining.Registers.begin());
+      }
 
     } else {
-      // It's on the stack, drop enough bytes for a pointer from the front.
-      Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
+      // It's on the stack, ignore the next stack argument.
+      revng_assert(not Widths.empty());
+      Remaining.Stack = Remaining.Stack.drop_front(Widths.front());
+      Widths.erase(Widths.begin());
     }
   }
 
@@ -215,28 +227,43 @@ VH::LeftToVerify VH::adjustForSPTAR(LeftToVerify Remaining) const {
 }
 
 bool VH::tryToVerifyStack(llvm::ArrayRef<std::byte> &Bytes,
-                          llvm::ArrayRef<std::byte> ExpectedBytes) const {
-  if (Bytes.take_front(ExpectedBytes.size()).equals(ExpectedBytes)) {
-    uint64_t PaddedSize = ABI.paddedSizeOnStack(ExpectedBytes.size());
+                          llvm::ArrayRef<std::byte> ExpectedBytes,
+                          llvm::SmallVector<uint64_t, 8> &Widths) const {
+  if (not Bytes.take_front(ExpectedBytes.size()).equals(ExpectedBytes))
+    return false;
 
-    uint64_t BytesToDrop = PaddedSize;
-    if (ABI.PackStackArguments())
-      BytesToDrop = ExpectedBytes.size();
-    if (Bytes.size() >= BytesToDrop)
-      Bytes = Bytes.drop_front(BytesToDrop);
-    else
-      Bytes = {};
+  uint64_t BytesToDrop = 0;
+  while (BytesToDrop < ExpectedBytes.size()) {
+    if (Widths.empty())
+      return false;
 
-    PotentialPadding = PaddedSize - BytesToDrop;
-
-    return true;
+    BytesToDrop += Widths.front();
+    Widths.erase(Widths.begin());
   }
 
-  return false;
+  if (Bytes.size() >= BytesToDrop)
+    Bytes = Bytes.drop_front(BytesToDrop);
+  else
+    Bytes = {};
+
+  return true;
 }
 
 uint64_t VH::checkRegister(llvm::ArrayRef<std::byte> RegisterBytes,
-                           llvm::ArrayRef<std::byte> ArgumentBytes) const {
+                           llvm::ArrayRef<std::byte> ArgumentBytes,
+                           const model::Register::Portion &Portion) const {
+  // A portion covers only a part of its register, and its offset is measured
+  // from the low-order end of it. On a big-endian machine the low-order bytes
+  // sit at the back of the captured array, so the offset has to be mirrored.
+  revng_assert(Portion.Size != 0
+               and Portion.StartOffset + Portion.Size <= RegisterBytes.size());
+
+  uint64_t StartOffset = Portion.StartOffset;
+  if (not IsLittleEndian)
+    StartOffset = RegisterBytes.size() - StartOffset - Portion.Size;
+
+  RegisterBytes = RegisterBytes.slice(StartOffset, Portion.Size);
+
   uint64_t RegisterSize = RegisterBytes.size();
   if (ArgumentBytes.size() > RegisterSize)
     ArgumentBytes = ArgumentBytes.take_front(RegisterSize);
@@ -251,10 +278,12 @@ uint64_t VH::checkRegister(llvm::ArrayRef<std::byte> RegisterBytes,
     return LHSTop.equals(RHS) || LHSBottom.equals(RHS) ? ComparedByteCount : 0;
 }
 
-VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
-                                      const runtime_test::Argument &Argument,
-                                      LeftToVerify Remaining,
-                                      uint64_t Index) const {
+VH::LeftToVerify
+VH::verifyAnArgument(const runtime_test::State &State,
+                     const runtime_test::Argument &Argument,
+                     LeftToVerify Remaining,
+                     uint64_t Index,
+                     llvm::SmallVector<uint64_t, 8> &Widths) const {
   // Make sure the value is the same both before and after the call.
   verifyValuePreservation(Argument.ExpectedBytes, Argument.FoundBytes);
 
@@ -266,16 +295,17 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
       UsesPointerToCopy = true;
   }
   if (UsesPointerToCopy && !Remaining.Registers.empty()) {
-    auto Iterator = State.Registers.find(Remaining.Registers[0]);
+    model::Register::Values Register = Remaining.Registers.front().Register;
+    auto Iterator = State.Registers.find(Register);
     if (Iterator == State.Registers.end()) {
-      fail("Register " + model::Register::getName(Remaining.Registers[0]).str()
+      fail("Register " + model::Register::getName(Register).str()
            + " is not known.");
       return LeftToVerify{ .HasError = true };
     }
 
     llvm::ArrayRef Bytes = Iterator->second.Bytes;
     if (Bytes.equals(Argument.AddressBytes)) {
-      Remaining.Registers = Remaining.Registers.drop_front();
+      Remaining.Registers.erase(Remaining.Registers.begin());
       return Remaining;
     }
   }
@@ -285,20 +315,22 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
   while (!ArgumentBytes.empty()) {
     // If there are still unverified registers, try to verify the next one.
     if (!Remaining.Registers.empty()) {
-      auto Iterator = State.Registers.find(Remaining.Registers[0]);
+      const model::Register::Portion &Portion = Remaining.Registers.front();
+      auto Iterator = State.Registers.find(Portion.Register);
       if (Iterator == State.Registers.end()) {
-        fail("Register "
-             + model::Register::getName(Remaining.Registers[0]).str()
+        fail("Register " + model::Register::getName(Portion.Register).str()
              + " is not known.");
         return LeftToVerify{ .HasError = true };
       }
 
       llvm::ArrayRef Bytes = Iterator->second.Bytes;
-      if (uint64_t MatchedByteCount = checkRegister(Bytes, ArgumentBytes)) {
+      if (uint64_t MatchedByteCount = checkRegister(Bytes,
+                                                    ArgumentBytes,
+                                                    Portion)) {
         // Current register value matches: drop found bytes and start looking
         // for the rest.
         ArgumentBytes = ArgumentBytes.drop_front(MatchedByteCount);
-        Remaining.Registers = Remaining.Registers.drop_front();
+        Remaining.Registers.erase(Remaining.Registers.begin());
         continue;
       }
     }
@@ -319,41 +351,8 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
       ArgumentBytes = Argument.AddressBytes;
     }
 
-    if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
+    if (tryToVerifyStack(Remaining.Stack, ArgumentBytes, Widths)) {
       // Stack matches, go to the next argument.
-      break;
-    }
-
-    if (ABI.PackStackArguments()) {
-      if (PotentialPadding) {
-        // Drop the potential padding from the "still-to-be-matched" stack span.
-        // If the padding exceeds the part of the stack layout reports as used,
-        // just zero the rest out, letting `tryToVerifyStack` report any missing
-        // arguments we might have displaced.
-        if (Remaining.Stack.size() < PotentialPadding)
-          Remaining.Stack = {};
-        else
-          Remaining.Stack = Remaining.Stack.drop_front(PotentialPadding);
-
-        if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
-          // Stack matches after accounting for extra padding.
-          break;
-        }
-      }
-    }
-
-    auto &BiggestScalarType = ABI.getWidestIntegerType();
-    if (BiggestScalarType.alignedAt() != ABI.getPointerSize()) {
-      // If the ABI supports unusual alignment, try to account for it,
-      // by dropping an conflicting part of the stack data.
-      if (Remaining.Stack.size() < ABI.getPointerSize())
-        Remaining.Stack = {};
-      else
-        Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
-    }
-
-    if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
-      // Stack matches after accounting for alignment.
       break;
     }
 
@@ -366,33 +365,52 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
   return Remaining;
 }
 
-void VH::arguments(const abi::runtime_test::ArgumentTest &Test) const {
+void VH::arguments(const abi::runtime_test::ArgumentTest &Test,
+                   llvm::SmallVector<uint64_t, 8> Widths) const {
   // List all the things (currently registers and stack bytes) that are still
   // pending verification.
   // NOTE: they are going to be consumed piece by piece during the verification
   //       process.
-  llvm::SmallVector<model::Register::Values> ArgumentRegisters;
+  std::unordered_map<model::Register::Values, model::Register::Portion>
+    RegisterToPortionMap;
   for (const model::Register::Portion &Portion :
        FunctionLayout.argumentRegisters()) {
-    ArgumentRegisters.push_back(Portion.Register);
+    auto [_, Success] = RegisterToPortionMap.try_emplace(Portion.Register,
+                                                         Portion);
+    revng_assert(Success);
   }
-  auto Registers = ABI.sortArguments(ArgumentRegisters);
+
+  auto DiscardPortions = [](const model::Register::Portion &Portion) {
+    return Portion.Register;
+  };
+  auto RestorePortions = [&RegisterToPortionMap](const auto &Register) {
+    return RegisterToPortionMap.at(Register);
+  };
+
+  auto Ordered = ABI.sortArguments(FunctionLayout.argumentRegisters()
+                                   | std::views::transform(DiscardPortions));
+  auto Portions = Ordered | std::views::transform(RestorePortions);
 
   std::vector<std::byte> Stack;
   if (not dropInterArgumentPadding(Test.StateBeforeTheCall.Stack, Stack))
     return;
 
-  LeftToVerify Remaining{ .Registers = Registers, .Stack = Stack };
+  LeftToVerify Remaining{
+    .Registers = Portions
+                 | revng::to<llvm::SmallVector<model::Register::Portion, 32>>(),
+    .Stack = Stack
+  };
 
   // In case of SPTAR, handle the "extra" argument.
-  Remaining = adjustForSPTAR(Remaining);
+  Remaining = adjustForSPTAR(Remaining, Widths);
 
   // Verify each argument separately.
   for (uint64_t Index = 0; Index < Test.Arguments.size(); ++Index) {
     Remaining = verifyAnArgument(Test.StateBeforeTheCall,
                                  Test.Arguments[Index],
                                  Remaining,
-                                 Index);
+                                 Index,
+                                 Widths);
     if (Remaining.HasError)
       return;
   }
@@ -400,9 +418,8 @@ void VH::arguments(const abi::runtime_test::ArgumentTest &Test) const {
   // Do final checks to make sure no unverified state is still remaining.
   if (!Remaining.Registers.empty()) {
     fail("There are leftover registers - the argument type size is "
-         "inconsistent "
-         "(model value differs from the real one) or the layout is straight up "
-         "broken.");
+         "inconsistent (model value differs from the real one) or the layout is"
+         "straight up broken.");
     return;
   }
 
@@ -604,8 +621,11 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
         const auto &RegState = Test.StateAfterTheReturn.Registers.at(Register);
         llvm::ArrayRef Bytes = RegState.Bytes;
 
-        uint64_t CheckedByteCount = std::min(Bytes.size(),
-                                             ReturnValueBytes.size());
+        uint64_t CheckedByteCount = std::min({ Bytes.size(),
+                                               ReturnValueBytes.size(),
+                                               Portion.Size });
+        revng_assert(CheckedByteCount > 0);
+
         Bytes = Bytes.take_front(CheckedByteCount);
         if (!ReturnValueBytes.take_front(CheckedByteCount).equals(Bytes)) {
           fail("A piece of the return value found in the "
@@ -627,8 +647,8 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
   }
 }
 
-std::optional<abi::FunctionType::Layout>
-VH::getPrototypeLayout(const model::Function &Function) const {
+std::optional<VH::LayoutWithExtras>
+VH::getAdjustedLayout(const model::Function &Function) const {
   if (const auto *CABI = Function.cabiPrototype()) {
     if (ABI.ABI() != CABI->ABI()) {
       std::string Error = "ABI mismatch. Passed argument indicates that "
@@ -639,40 +659,67 @@ VH::getPrototypeLayout(const model::Function &Function) const {
       revng_abort(Error.c_str());
     }
 
-    return abi::FunctionType::Layout(*CABI);
+    LayoutWithExtras Result;
+    Result.Layout = abi::FunctionType::Layout(*CABI);
+    for (const auto &Argument : Result.Layout.Arguments) {
+      if (Argument.Stack.has_value())
+        Result.StackArgumentWidths.push_back(Argument.Stack->Size);
+    }
+
+    return Result;
 
   } else if (const auto *Raw = Function.rawPrototype()) {
-    abi::FunctionType::Layout Result = abi::FunctionType::Layout(*Raw);
+    LayoutWithExtras Result;
+    Result.Layout = abi::FunctionType::Layout(*Raw);
 
     const model::StructDefinition *Stack = Raw->stackArgumentsType();
     if (!Stack || Stack->Fields().empty())
       return Result;
 
     uint64_t FirstOffset = ABI.UnusedStackArgumentBytes();
-    if (not FirstOffset)
-      return Result;
-
     if (FirstOffset > Stack->Fields().begin()->Offset()) {
       fail("Broken RFT layout - stack arguments overlap the shadow space.");
       return std::nullopt;
     }
 
-    // Because RFT layouts are not ABI aware, there's no way for it to detect
-    // the shadow argument space. To work around that, just subtract
-    // the difference here.
-    auto &LastArgument = *std::prev(Result.Arguments.end());
-    if (!LastArgument.Stack || LastArgument.Stack->Offset != 0) {
-      fail("Broken RFT layout - the last argument has no stack slot.");
-      return std::nullopt;
+    auto &LastArgument = *std::prev(Result.Layout.Arguments.end());
+    if (FirstOffset > 0) {
+      // Because RFT layouts are not ABI aware, there's no way for it to detect
+      // the shadow argument space. To work around that, just subtract
+      // the difference here.
+      if (!LastArgument.Stack || LastArgument.Stack->Offset != 0) {
+        fail("Broken RFT layout - the last argument has no stack slot.");
+        return std::nullopt;
+      }
+
+      if (LastArgument.Stack->Size <= FirstOffset) {
+        fail("Broken RFT layout - the last argument does not fit.");
+        return std::nullopt;
+      }
+
+      LastArgument.Stack->Offset = FirstOffset;
+      LastArgument.Stack->Size -= FirstOffset;
     }
 
-    if (LastArgument.Stack->Size <= FirstOffset) {
-      fail("Broken RFT layout - the last argument does not fit.");
-      return std::nullopt;
+    // An RFT layout has a single span for all the arguments.
+    // That is not good enough for the checkers, so we have to split it into
+    // pieces based on the stack struct's fields.
+    //
+    // IMPORTANT: this only works because we start from valid CFTs, we'd need
+    // to solve this problem in some other way if we ever want to run this
+    // checker on function prototypes that started from `detect-abi`.
+    const uint64_t End = FirstOffset + LastArgument.Stack->Size;
+    uint64_t PreviousStart = FirstOffset;
+    for (const model::StructField &Field : Stack->Fields()) {
+      if (Field.Offset() < PreviousStart or Field.Offset() >= End)
+        continue;
+
+      Result.StackArgumentWidths.push_back(Field.Offset() - PreviousStart);
+      PreviousStart = Field.Offset();
     }
 
-    LastArgument.Stack->Offset = FirstOffset;
-    LastArgument.Stack->Size -= FirstOffset;
+    if (End > PreviousStart)
+      Result.StackArgumentWidths.push_back(End - PreviousStart);
 
     return Result;
 
@@ -733,18 +780,18 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
         continue;
       }
 
-      std::optional MaybeLayout = Helper.getPrototypeLayout(Function);
+      std::optional MaybeLayout = Helper.getAdjustedLayout(Function);
       if (not MaybeLayout) {
-        // A `false` return means the layout is broken, the failure is already
-        // recorded, so just skip this test.
+        // A `std::nullopt` here means the layout is broken, but the failure is
+        // already recorded, so just skip this test.
         continue;
       }
 
-      Helper.FunctionLayout = std::move(*MaybeLayout);
+      Helper.FunctionLayout = std::move(MaybeLayout->Layout);
       RecordLayout(Helper.FunctionName, *Prototype, Helper.FunctionLayout);
 
       for (const abi::runtime_test::ArgumentTest &Iteration : Test->second)
-        Helper.arguments(Iteration);
+        Helper.arguments(Iteration, MaybeLayout->StackArgumentWidths);
 
     } else if (auto Test = Parsed.ReturnValueTests.find(Helper.FunctionName);
                Test != Parsed.ReturnValueTests.end()) {
@@ -763,14 +810,14 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
         continue;
       }
 
-      std::optional MaybeLayout = Helper.getPrototypeLayout(Function);
+      std::optional MaybeLayout = Helper.getAdjustedLayout(Function);
       if (not MaybeLayout) {
-        // A `false` return means the layout is broken, the failure is already
-        // recorded, so just skip this test.
+        // A `std::nullopt` here means the layout is broken, but the failure is
+        // already recorded, so just skip this test.
         continue;
       }
 
-      Helper.FunctionLayout = std::move(*MaybeLayout);
+      Helper.FunctionLayout = std::move(MaybeLayout->Layout);
       RecordLayout(Helper.FunctionName, *Prototype, Helper.FunctionLayout);
 
       for (const abi::runtime_test::ReturnValueTest &Iteration : Test->second)

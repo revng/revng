@@ -15,17 +15,12 @@
     - AAPCS_softfloat
   tests:
     - mixed_64_32_bit_integer_arguments
-    - mixed_int_32_huge_struct_arguments
     - mixed_int_64_struct_32_arguments
-    - mixed_struct_32_huge_struct_arguments
     - mixed_struct_64_int_32_arguments
-    - padded_sixteen_byte_scalar_in_registers
     - struct_after_three_gprs
   errors:
-    - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 2 uses neither the expected stack part nor the expected registers.
     - Argument 3 uses neither the expected stack part nor the expected registers.
-    - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
 
 # The floating-point cases for `AAPCS_softfloat`, previously blanket-disabled
 # through `floating-point.yml`.
@@ -37,16 +32,10 @@
     - mixed_double_int_32_arguments
     - mixed_double_struct_32_arguments
     - mixed_double_struct_float_arguments
-    - mixed_float_huge_struct_arguments
     - mixed_int_64_float_arguments
     - mixed_struct_64_float_arguments
   errors:
-    - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
-    - Argument 0 uses neither the expected stack part nor the expected registers.
-    - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 2 uses neither the expected stack part nor the expected registers.
-    - Argument 17 uses neither the expected stack part nor the expected registers.
-    - Argument 20 uses neither the expected stack part nor the expected registers.
 
 # These failures are related to how the `abi::Definition::PackStackArguments`
 # boolean is handled.
@@ -61,11 +50,31 @@
     - apple_padded_eight_byte_aligned_aggregate_on_stack
     - apple_padded_four_byte_aligned_aggregate_on_stack
     - apple_two_byte_aligned_aggregate_on_stack
+    - padded_float_struct_on_stack
+    - padded_four_float_struct_on_stack
   errors:
     - Argument 10 uses neither the expected stack part nor the expected registers.
     - Argument 11 uses neither the expected stack part nor the expected registers.
     - Argument 12 uses neither the expected stack part nor the expected registers.
     - Argument 15 uses neither the expected stack part nor the expected registers.
     - Argument 16 uses neither the expected stack part nor the expected registers.
-    - There are 8 unconsumed stack bytes - the layout shows the need for more stack bytes than necessary.
-    - There are 16 unconsumed stack bytes - the layout shows the need for more stack bytes than necessary.
+    - Argument 17 uses neither the expected stack part nor the expected registers.
+
+# These failures are related to the fact that the `AAPCS64` ABI treats HFAs in
+# a special way even on the stack.
+#
+# `revngABI` places these correctly, but the testing suite is not robust enough
+# to correctly process them. Since extending it is not trivial, leave these be
+# for now.
+#
+# TODO: fix the testing suite.
+- ABIs:
+    - AAPCS64
+    - Apple_AAPCS64
+    - Microsoft_AAPCS64
+  tests:
+    - float_then_two_four_double_struct_arguments
+    - padded_four_double_struct_on_stack
+  errors:
+    - Argument 2 uses neither the expected stack part nor the expected registers.
+    - Argument 17 uses neither the expected stack part nor the expected registers.

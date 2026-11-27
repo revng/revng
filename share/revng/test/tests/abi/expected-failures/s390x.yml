@@ -26,6 +26,11 @@
 #   128-bit one is likely a separate issue, but there are already other known
 #   problems with 128-bit primitive handling on other architectures - so this
 #   one should be looked into as part of that effort.
+#
+# - Floating point sub-register placement
+#   The s390x ABI is not consistent as to which part of the register specific
+#   primitives occupy. Specifically, general purpose registers use the low part
+#   of the register, while floating point registers use the high part.
 
 #
 # Stack problems
@@ -58,7 +63,21 @@
     - apple_two_byte_aligned_aggregate_on_stack
     - apple_two_byte_aligned_primitive_on_stack
     - deeply_nested_float_struct_argument_on_stack
+    - double_int_struct_with_occupied_fprs
+    - double_int_struct_with_occupied_gprs
     - five_float_arguments
+    - float_then_double_struct_arguments
+    - float_then_five_double_struct_arguments
+    - float_then_five_float_struct_arguments
+    - float_then_float_struct_arguments
+    - float_then_four_double_struct_arguments
+    - float_then_four_float_struct_arguments
+    - float_then_three_double_struct_arguments
+    - float_then_three_float_struct_arguments
+    - float_then_two_double_struct_arguments
+    - float_then_two_float_struct_arguments
+    - float_then_two_four_double_struct_arguments
+    - float_then_two_four_float_struct_arguments
     - huge_struct_on_the_stack
     - lots_of_aggregate_arguments
     - lots_of_four_byte_arguments
@@ -172,6 +191,7 @@
     - single_unnaturally_sized_six_byte_struct_argument
     - single_unnaturally_sized_three_byte_struct_argument
     - single_unnaturally_sized_three_byte_union_with_a_smaller_scalar_argument
+    - two_gpr_struct_with_one_gpr_left
     - two_primitives_on_the_stack
   errors:
     - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
@@ -179,6 +199,7 @@
     - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 4 uses neither the expected stack part nor the expected registers.
     - Argument 5 uses neither the expected stack part nor the expected registers.
+    - Argument 6 uses neither the expected stack part nor the expected registers.
     - Argument 8 uses neither the expected stack part nor the expected registers.
     - Argument 9 uses neither the expected stack part nor the expected registers.
 
@@ -196,3 +217,18 @@
   errors:
     - A piece of the return value found in the r2_systemz register doesn't match the expected value.
     - Verification of the return value location register (r2_systemz) failed.
+
+#
+# Floating point sub-register placement
+#
+- ABIs:
+    - SystemZ_s390x
+  tests:
+    - mixed_double_float_arguments
+    - mixed_float_double_arguments
+    - single_float_argument
+    - three_float_arguments
+    - two_float_arguments
+  errors:
+    - Argument 0 uses neither the expected stack part nor the expected registers.
+    - Argument 1 uses neither the expected stack part nor the expected registers.

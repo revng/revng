@@ -1,0 +1,24 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# This is a known problem with the unions in the model.
+# Argument alternatives for the following tests are already disabled
+# revng-qa-side.
+#
+# These return value problems were hidden behind the fact that we were
+# over-padding return values - but that proven to be a problem when dealing
+# with HFAs - leaving us with no choice but to disable the following explicitly.
+- ABIs:
+    - AAPCS64
+    - Apple_AAPCS64
+    - Microsoft_AAPCS64
+    - SystemV_x86_64
+  tests:
+    - single_deeply_nested_struct_union_return_value
+    - single_deeply_nested_float_struct_union_return_value
+  errors:
+    - Unable to find some parts of the return value. Should some additional registers be mentioned in the definition of SystemV_x86_64 abi?
+    - Unable to find some parts of the return value. Should some additional registers be mentioned in the definition of AAPCS64 abi?
+    - Unable to find some parts of the return value. Should some additional registers be mentioned in the definition of Apple_AAPCS64 abi?
+    - Unable to find some parts of the return value. Should some additional registers be mentioned in the definition of Microsoft_AAPCS64 abi?

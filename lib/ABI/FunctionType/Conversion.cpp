@@ -4,6 +4,7 @@
 
 #include <vector>
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 
 #include "revng/ABI/FunctionType/Conversion.h"
@@ -50,20 +51,14 @@ static bool canRepresentReturnValue(const abi::Definition &ABI,
 /// This helper attempts to refine a type of something known to be passed in
 /// a float-presenting register even if it is labeled as `Generic`.
 ///
+/// \param Kind the primitive kind to refine the generic type into.
 /// \param Type the type in the model.
 ///
 /// \returns return a new type if the refinement was successful.
 ///          Otherwise it returns `std::nullopt` to indicate that the original
 ///          type should be used.
 static std::optional<model::UpcastableType>
-refineGenericType(const abi::Definition &ABI,
-                  model::Register::Values Register,
-                  const model::Type &Type) {
-  // Only do this if the register is floating-point presenting.
-  const auto RegisterKind = model::Register::getPrimitiveKind(Register);
-  if (RegisterKind != model::PrimitiveKind::Float)
-    return std::nullopt;
-
+refineGenericType(model::PrimitiveKind::Values Kind, const model::Type &Type) {
   const auto *Primitive = Type.getPrimitive();
 
   // Not a primitive - do not touch.
@@ -75,10 +70,8 @@ refineGenericType(const abi::Definition &ABI,
     return std::nullopt;
 
   size_t Size = *Type.size();
-  revng_assert(Size <= model::Register::getSize(Register));
-
-  if (model::PrimitiveType::isSizeValid(model::PrimitiveKind::Float, Size))
-    return model::PrimitiveType::makeFloat(Size);
+  if (model::PrimitiveType::isSizeValid(Kind, Size))
+    return model::PrimitiveType::make(Kind, Size);
 
   return std::nullopt;
 }
@@ -114,32 +107,16 @@ public:
   [[nodiscard]] std::optional<Converted>
   tryConvert(const model::RawFunctionDefinition &FunctionType) {
     // Register arguments first.
-    auto Arguments = tryConvertingRegisterArguments(FunctionType.Arguments());
-    if (!Arguments.has_value()) {
+    auto Registers = tryConvertingRegisterArguments(FunctionType.Arguments());
+    if (!Registers.has_value()) {
       revng_log(Log, "Unable to convert register arguments.");
       Bucket.drop();
       return std::nullopt;
     }
 
-    // Count used registers.
-    ArgumentDistributor Distributor(ABI);
-    Distributor.ArgumentIndex = Arguments->size();
-    for (const auto &NTRegister : FunctionType.Arguments()) {
-      auto Kind = model::Register::getPrimitiveKind(NTRegister.Location());
-      if (Kind == model::PrimitiveKind::Values::PointerOrNumber)
-        ++Distributor.UsedGeneralPurposeRegisterCount;
-      else if (Kind == model::PrimitiveKind::Float)
-        ++Distributor.UsedFloatRegisterCount;
-      else
-        revng_abort(("Register ("
-                     + model::Register::getName(NTRegister.Location()).str()
-                     + ") is not supported as an argument.")
-                      .c_str());
-    }
-
     // Then stack ones.
     auto Stack = tryConvertingStackArguments(FunctionType.StackArgumentsType(),
-                                             Distributor);
+                                             Registers->Distributor);
     if (!Stack.has_value()) {
       revng_log(Log, "Unable to convert stack arguments.");
       Bucket.drop();
@@ -156,21 +133,27 @@ public:
 
     // Conversion successful, return the result.
     Bucket.commit();
-    return Converted{ std::move(*Arguments),
+    return Converted{ std::move(Registers->Arguments),
                       std::move(*Stack),
                       std::move(*ReturnType) };
   }
 
 private:
+  /// The return value or \ref tryConvertingRegisterArguments
+  struct ConvertedRegisterArguments {
+    llvm::SmallVector<model::Argument, 8> Arguments;
+    ArgumentDistributor Distributor;
+  };
+
   /// Helper used for converting register arguments to the c-style
   /// representation
   ///
   /// \param Registers a set of registers confirmed to be in use by
   ///        the function in question.
   ///
-  /// \return a list of arguments if the conversion was successful,
-  ///         `std::nullopt` otherwise.
-  std::optional<llvm::SmallVector<model::Argument, 8>>
+  /// \returns `std::nullopt` if the conversion failed. Otherwise, both
+  ///          the list of CFT arguments and a pre-seeded `ArgumentDistributor`.
+  std::optional<ConvertedRegisterArguments>
   tryConvertingRegisterArguments(RFTArguments Registers);
 
   /// Helper used for converting stack argument struct into
@@ -287,7 +270,7 @@ tryConvertToCABI(const model::RawFunctionDefinition &FunctionType,
 }
 
 using TCC = ToCABIConverter;
-std::optional<llvm::SmallVector<model::Argument, 8>>
+std::optional<TCC::ConvertedRegisterArguments>
 TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   // Rely onto the register state deduction to make sure no "holes" are
   // present in-between the argument registers.
@@ -307,12 +290,23 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   // order them properly.
   auto Ordered = ABI.sortArguments(std::move(Deduced));
 
+  ArgumentDistributor Distributor(ABI);
   llvm::SmallVector<model::Argument, 8> Result;
   for (model::Register::Values Register : Ordered) {
     auto CurrentRegisterIterator = Registers.find(Register);
     if (CurrentRegisterIterator != Registers.end()) {
       revng_assert(!CurrentRegisterIterator->Type().isEmpty());
-      if (not canRepresentArgument(ABI, *CurrentRegisterIterator->Type())) {
+
+      // Before triggering the strategy logic, attempt to refine the type
+      // (a 64-bit generic in zmm0 is to be treated as `double`).
+      model::UpcastableType Type = CurrentRegisterIterator->Type().copy();
+      if (llvm::is_contained(ABI.FloatArgumentRegisters(), Register)) {
+        namespace PK = model::PrimitiveKind;
+        if (auto R = refineGenericType(PK::Float, *Type))
+          Type = std::move(*R);
+      }
+
+      if (not canRepresentArgument(ABI, *Type)) {
         revng_log(Log,
                   "FAIL: the argument in `"
                     << model::Register::getRegisterName(Register)
@@ -326,9 +320,7 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
       // an argument while preserving its type and metadata.
       model::Argument &Current = Result.emplace_back();
       Current.Name() = CurrentRegisterIterator->Name();
-
-      revng_assert(!CurrentRegisterIterator->Type().isEmpty());
-      Current.Type() = CurrentRegisterIterator->Type().copy();
+      Current.Type() = std::move(Type);
     } else {
       // This register is unused but we still have to create an argument
       // for it. Otherwise the resulting function will be semantically different
@@ -341,13 +333,29 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
       using Primitive = model::PrimitiveType;
       Result.emplace_back().Type() = Primitive::makeGeneric(Register);
     }
+
+    // The register is consumed either way, so it is unavailable to the stack
+    // arguments.
+    auto Kind = model::Register::getPrimitiveKind(Register);
+    if (Kind == model::PrimitiveKind::Values::PointerOrNumber)
+      ++Distributor.UsedGeneralPurposeRegisterCount;
+    else if (Kind == model::PrimitiveKind::Values::Float)
+      ++Distributor.UsedFloatRegisterCount;
+    else
+      revng_abort(("Register (" + model::Register::getName(Register).str()
+                   + ") is not supported as an argument.")
+                    .c_str());
   }
 
   // Rewrite all the indices to make sure they are consistent.
   for (auto Pair : llvm::enumerate(Result))
     Pair.value().Index() = Pair.index();
+  Distributor.ArgumentIndex = Result.size();
 
-  return Result;
+  return ConvertedRegisterArguments{
+    .Arguments = std::move(Result),
+    .Distributor = std::move(Distributor),
+  };
 }
 
 struct ArgumentProperties {
@@ -714,35 +722,149 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
   auto Ordered = ABI.sortReturnValues(std::move(Deduced));
 
   if (Ordered.size() == 1) {
-    if (auto Iter = Registers.find(*Ordered.begin()); Iter != Registers.end()) {
+    // Only one register is used.
+    model::Register::Values Register = *Ordered.begin();
+    if (auto Iter = Registers.find(Register); Iter != Registers.end()) {
+      model::UpcastableType Result = model::copyType(*Iter->Type());
+
       // Before triggering the strategy logic, attempt to refine the type
       // (a 64-bit generic in zmm0 is to be treated as `double`).
-      if (auto R = refineGenericType(ABI, *Ordered.begin(), *Iter->Type())) {
-        if (not canRepresentReturnValue(ABI, **R)) {
-          revng_log(Log,
-                    "FAIL: the return value in `"
-                      << model::Register::getRegisterName(*Ordered.begin())
-                      << "` cannot be represented under `"
-                      << model::ABI::getName(ABI.ABI())
-                      << "`, whose floating point strategy is `Ignored`.");
-          return std::nullopt;
-        }
-
-        return R;
+      if (llvm::is_contained(ABI.FloatReturnValueRegisters(), Register)) {
+        namespace PK = model::PrimitiveKind;
+        if (auto Refined = refineGenericType(PK::Float, *Result))
+          Result = std::move(*Refined);
       }
 
-      // Only one register is used, just return its type.
-      return model::copyType(*Iter->Type());
+      if (not canRepresentReturnValue(ABI, *Result)) {
+        revng_log(Log,
+                  "FAIL: the return value in `"
+                    << model::Register::getRegisterName(Register)
+                    << "` cannot be represented under `"
+                    << model::ABI::getName(ABI.ABI())
+                    << "`, whose floating point strategy is `Ignored`.");
+        return std::nullopt;
+      }
+
+      return Result;
+
     } else {
-      // One register is used but its type cannot be obtained.
-      // Create a register sized return type instead.
+      // One register without a set type - make the type up.
+
+      // But first, make sure ignored strategy does not interfere.
+      const auto Kind = model::Register::getPrimitiveKind(Register);
+      const auto Strategy = ABI.FloatingPointReturnValueStrategy();
+      if (Kind == model::PrimitiveKind::Values::Float
+          and Strategy == FloatingPointStrategy::Ignored) {
+        revng_log(Log,
+                  "FAIL: the return value in `"
+                    << model::Register::getRegisterName(Register)
+                    << "` cannot be represented under `"
+                    << model::ABI::getName(ABI.ABI())
+                    << "`, whose floating point strategy is `Ignored`.");
+        return std::nullopt;
+      }
+
       return model::PrimitiveType::make(*Ordered.begin());
     }
   } else {
     // Multiple registers, it's either a struct or a big scalar.
 
     // First, check if it can possibly be a struct.
-    if (ABI.MaximumGPRsPerAggregateReturnValue() < Ordered.size()) {
+    bool CanBeAStruct = true;
+    if (ABI.MaximumHFAFieldCount() != 0) {
+      auto IsRegisterNonFloat = std::views::filter([this](const auto &R) {
+        return not llvm::is_contained(ABI.FloatReturnValueRegisters(), R);
+      });
+      if (Ordered.size() > ABI.MaximumHFAFieldCount()
+          or not std::ranges::empty(Ordered | IsRegisterNonFloat)) {
+        // Either there are too many registers or there are non-floats in
+        // the mix. Both mean HFA logic does not apply.
+        const uint64_t RegisterLimit = ABI.MaximumGPRsPerAggregateReturnValue();
+        CanBeAStruct = RegisterLimit >= Ordered.size();
+
+      } else {
+        std::optional<uint64_t> FieldSize;
+        llvm::SmallVector<model::UpcastableType, 8> Fields;
+        for (model::Register::Values Register : Ordered) {
+          auto Iterator = Registers.find(Register);
+          if (Iterator != Registers.end()) {
+            auto &FT = Fields.emplace_back(model::copyType(*Iterator->Type()));
+            revng_assert(FT->isScalar(),
+                         "Aggregates as RFT arguments/return-values are not "
+                         "supported.");
+
+            // NOTE: all the registers here are guaranteed to be floating point,
+            //       see `std::ranges::empty(Ordered | IsRegisterNonFloat)`
+            //       guard above.
+            if (auto R = refineGenericType(model::PrimitiveKind::Float, *FT))
+              FT = std::move(*R);
+
+            // For this to turn into a HFA, all the fields must be floating
+            // point primitives of the same size.
+            if (not FT->isFloatPrimitive()
+                or (FieldSize and *FieldSize != *FT->size())) {
+              FieldSize = std::nullopt;
+              break;
+            }
+
+            FieldSize = *FT->size();
+
+          } else {
+            // Use `nullptr` to mark typeless registers. If this is indeed
+            // a HFA, we'll place a primitive on the appropriate size in its
+            // place later.
+            Fields.emplace_back(nullptr);
+          }
+        }
+
+        if (FieldSize.has_value()) {
+          // This is a HFA, let's build it.
+          revng_assert(model::PrimitiveType::isFloatSizeValid(*FieldSize));
+          auto &&[Equivalent, ReturnType] = Bucket.makeStructDefinition();
+          for (const model::UpcastableType &FieldType : Fields) {
+            if (not FieldType.isEmpty()) {
+              Equivalent.addField(Equivalent.Size(), FieldType.copy());
+              Equivalent.Size() += *FieldType->size();
+
+            } else {
+              Equivalent.addField(Equivalent.Size(),
+                                  model::PrimitiveType::makeFloat(*FieldSize));
+              Equivalent.Size() += *FieldSize;
+            }
+          }
+
+          // HFA should be valid according to both implementations.
+          revng_assert(asHomogeneousFloatAggregate(Equivalent,
+                                                   ABI.MaximumHFAFieldCount()));
+
+          // HFAs can only be returned if a dedicated register strategy is used.
+          const auto Strategy = ABI.FloatingPointReturnValueStrategy();
+          namespace FPS = FloatingPointStrategy;
+          if (Strategy != FPS::NextRegisterFromTheDedicatedSet) {
+            revng_log(Log,
+                      "FAIL: a HFA return value requires a dedicated floating "
+                      "point register set. Instead `"
+                        << model::ABI::getName(ABI.ABI()) << "` uses `"
+                        << toString(Strategy) << "` strategy.");
+            return std::nullopt;
+          }
+
+          return std::move(ReturnType);
+
+        } else {
+          // Not a HFA, fall back to the usual aggregate handling.
+          uint64_t RegisterLimit = ABI.MaximumGPRsPerAggregateReturnValue();
+          CanBeAStruct = RegisterLimit >= Ordered.size();
+        }
+      }
+
+    } else {
+      // For other ABIs we just need to check if the number of registers is
+      // within the limit.
+      CanBeAStruct = ABI.MaximumGPRsPerAggregateReturnValue() >= Ordered.size();
+    }
+
+    if (not CanBeAStruct) {
       // It cannot be a struct, it's bigger than allowed.
       if (ABI.MaximumGPRsPerScalarReturnValue() < Ordered.size()) {
         // It cannot be a scalar either.
@@ -770,13 +892,12 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
         return std::nullopt;
       }
     } else {
-      // It could be either a struct or a scalar, go the conservative route
-      // and make a struct for it.
-      auto &&[Definition, ReturnType] = Bucket.makeStructDefinition();
-      for (model::Register::Values Register : Ordered) {
+      // It could be a struct, go the conservative route and make one for it.
+      auto &&[Struct, ReturnType] = Bucket.makeStructDefinition();
+      for (auto &&[Index, Register] : llvm::enumerate(Ordered)) {
         // Make a separate field for each register.
         model::StructField Field;
-        Field.Offset() = Definition.Size();
+        Field.Offset() = Struct.Size();
 
         // Take the type the register currently describes, if any.
         if (auto Iter = Registers.find(Register); Iter != Registers.end())
@@ -786,12 +907,14 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
 
         // Before triggering the strategy logic, attempt to refine the type
         // (a 64-bit generic in zmm0 is to be treated as `double`).
-        if (std::optional Refined = refineGenericType(ABI,
-                                                      Register,
-                                                      *Field.Type()))
-          Field.Type() = std::move(*Refined);
+        if (llvm::is_contained(ABI.FloatReturnValueRegisters(), Register)) {
+          namespace PK = model::PrimitiveKind;
+          if (auto Refined = refineGenericType(PK::Float, *Field.Type()))
+            Field.Type() = std::move(*Refined);
+        }
 
-        if (not canRepresentReturnValue(ABI, *Field.Type())) {
+        if (ABI.MaximumHFAFieldCount() == 0
+            and not canRepresentReturnValue(ABI, *Field.Type())) {
           revng_log(Log,
                     "FAIL: the return value in `"
                       << model::Register::getRegisterName(Register)
@@ -807,19 +930,24 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
         revng_assert(FieldSize.has_value() && FieldSize.value() != 0);
 
         // Round the next offset based on the natural alignment.
-        Definition
-          .Size() = llvm::alignToPowerOf2(Definition.Size(),
-                                          *ABI.alignment(*Field.Type()));
+        Struct.Size() = llvm::alignToPowerOf2(Struct.Size(),
+                                              *ABI.alignment(*Field.Type()));
 
         // Insert the field
-        Definition.Fields().insert(std::move(Field));
+        Struct.Fields().insert(std::move(Field));
 
-        // Update the total struct size: insert some padding if necessary.
-        Definition.Size() += paddedSizeOnStack(FieldSize.value(),
-                                               ABI.MinimumStackArgumentSize());
+        // Update the total struct size: insert some padding, except for
+        // the last field - intentionally don't assume trailing padding here.
+        if (Index + 1 == Ordered.size()) {
+          Struct.Size() += FieldSize.value();
+
+        } else {
+          Struct.Size() += paddedSizeOnStack(FieldSize.value(),
+                                             ABI.MinimumStackArgumentSize());
+        }
       }
 
-      revng_assert(Definition.Size() != 0 && !Definition.Fields().empty());
+      revng_assert(Struct.Size() != 0 && !Struct.Fields().empty());
       return std::move(ReturnType);
     }
   }

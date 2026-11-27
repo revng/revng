@@ -59,7 +59,7 @@ BOOST_AUTO_TEST_CASE(TestEnumerate) {
       revng_check(Value == Expected[I]);
       dbg << " " << Value;
       ++It;
-      I++;
+      ++I;
     }
 
     revng_check(I == Expected.size());

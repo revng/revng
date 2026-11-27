@@ -29,6 +29,13 @@
 #   indicate any issues these tests could be hiding, but it does matter a lot
 #   for the upcoming `s390x` tests, which are big-endian-only.
 #
+# - Misplaced aggregates in registers.
+#    On big endian mips, the sub-register-sized aggregates are placed
+#    in the high part of the register, despite the fact that a primitive of
+#    the same size would occupy the low part of the register.
+#    As in, primitives behave differently between the big and little endian
+#    variants of mips, but the 1-3-byte aggregates are the same.
+#
 # To summarize, the missing return values and the endianness related issues
 # are test-system specific and do not indicate any real problems with revng
 # (unless they are hiding other problems behind early failures) - they are
@@ -251,7 +258,6 @@
     - mixed_struct_32_huge_struct_arguments
     - mixed_struct_64_huge_struct_arguments
     - mixed_struct_64_int_32_arguments
-    - padded_sixteen_byte_scalar_in_registers
     - padded_sixteen_byte_scalar_on_stack
     - padded_struct_of_structs_on_stack
     - padded_struct_with_a_sixteen_byte_field_at_the_end_on_stack
@@ -287,7 +293,6 @@
     - unnaturally_aligned_union_32_in_registers
     - unnaturally_aligned_union_64_in_registers
   errors:
-    - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
     - Argument 0 uses neither the expected stack part nor the expected registers.
     - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 2 uses neither the expected stack part nor the expected registers.
@@ -303,6 +308,9 @@
     - SystemV_MIPS_o32_softfloat
   tests:
     - deeply_nested_float_struct_argument_on_stack
+    - double_int_struct_with_occupied_fprs
+    - float_then_five_double_struct_arguments
+    - float_then_two_four_double_struct_arguments
     - lots_of_eight_byte_float_arguments
     - lots_of_four_byte_float_arguments
     - mixed_double_float_arguments
@@ -335,7 +343,6 @@
     - unnaturally_aligned_float_struct_in_registers
     - unnaturally_aligned_float_union_in_registers
   errors:
-    - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
     - Argument 0 uses neither the expected stack part nor the expected registers.
     - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 2 uses neither the expected stack part nor the expected registers.
@@ -381,7 +388,6 @@
     - single_primitive_on_the_stack
     - two_primitives_on_the_stack
   errors:
-    - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
     - Argument 8 uses neither the expected stack part nor the expected registers.
     - Argument 9 uses neither the expected stack part nor the expected registers.
 
@@ -394,3 +400,41 @@
     - lots_of_small_aggregate_arguments
   errors:
     - Argument 4 uses neither the expected stack part nor the expected registers.
+
+# Despite this being the *big* endian MIPS o32, these aggregates behave as if
+# it was little endian.
+- ABIs:
+    - SystemV_MIPS_o32_hardfloat
+    - SystemV_MIPS_o32_softfloat
+  tests:
+    - lots_of_small_aggregate_arguments
+    - single_one_byte_struct_argument
+    - single_one_byte_struct_union_with_a_bigger_scalar_argument
+    - single_one_byte_struct_union_with_a_smaller_scalar_argument
+    - single_two_byte_struct_argument
+    - single_two_byte_struct_union_with_a_smaller_scalar_argument
+  errors:
+    - Argument 0 uses neither the expected stack part nor the expected registers.
+    - Argument 1 uses neither the expected stack part nor the expected registers.
+
+# NOTE: these are identical to above, except `cft->rft` conversion fixes them
+#       (if we do not have the matching primitive, we have no choice but to
+#       round the value up to the nearest power of two, hiding the issue in
+#       the process), hence the `can-succeed: true`.
+- ABIs:
+    - SystemV_MIPS_o32_hardfloat
+    - SystemV_MIPS_o32_softfloat
+  tests:
+    - single_struct_of_structs_argument
+    - single_unnaturally_sized_forteen_byte_struct_argument
+    - single_unnaturally_sized_forteen_byte_struct_with_a_smaller_scalar_argument
+    - single_unnaturally_sized_nine_byte_struct_argument
+    - single_unnaturally_sized_nine_byte_struct_union_with_a_smaller_scalar_argument
+    - single_unnaturally_sized_seven_byte_struct_argument
+    - single_unnaturally_sized_seven_byte_union_with_a_smaller_scalar_argument
+    - single_unnaturally_sized_six_byte_struct_argument
+    - single_unnaturally_sized_three_byte_struct_argument
+    - single_unnaturally_sized_three_byte_union_with_a_smaller_scalar_argument
+  errors:
+    - Argument 0 uses neither the expected stack part nor the expected registers.
+  can-succeed: true

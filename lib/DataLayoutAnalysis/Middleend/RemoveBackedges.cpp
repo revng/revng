@@ -134,8 +134,8 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
   if (Log.isEnabled()) {
     revng_log(Log, "Detected components:");
     LoggerIndent Indent{ Log };
-    for (auto I = Components.begin(), E = Components.end(); I != E;
-         ++I) { // Iterate over all of the equivalence sets.
+    for (auto I = Components.begin(), E = Components.end(); I != E; ++I) {
+      // Iterate over all of the equivalence sets.
 
       if (!I->isLeader()) {
         // Ignore non-leader sets.

@@ -99,8 +99,10 @@ inline void freeContainer(T &Container) {
 /// basic block, if it doesn't have any predecessors left.
 inline void purgeBranch(llvm::BasicBlock::iterator I) {
   auto *DeadBranch = llvm::dyn_cast<llvm::BranchInst>(I);
+  ++I;
+
   // We allow only a branch and nothing else
-  revng_assert(DeadBranch != nullptr && ++I == DeadBranch->getParent()->end());
+  revng_assert(DeadBranch != nullptr && I == DeadBranch->getParent()->end());
 
   std::set<llvm::BasicBlock *> Successors;
   for (unsigned C = 0; C < DeadBranch->getNumSuccessors(); C++)

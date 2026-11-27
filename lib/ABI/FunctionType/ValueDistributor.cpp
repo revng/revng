@@ -2,6 +2,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <optional>
+
+#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Binary.h"
 #include "revng/Support/AlignmentHelpers.h"
 #include "revng/Support/Debug.h"
@@ -15,11 +18,167 @@ static Logger Log("function-type-value-distributor");
 
 namespace abi::FunctionType {
 
+// TODO: currently the portion information is not preserved between arguments.
+//
+// Specifically, each `distribute()` call is supplied with `fullPortions()`
+// version of the available register list.
+//
+// This is sufficient for cases where arguments do not share registers.
+//
+// However, when we begin handling ARM-32, whose floating point arguments pack
+// together, leading to a single register used for multiple arguments, we would
+// need to extend the distributor state to keep track of which portion of which
+// register is already in use.
+
+namespace {
+
+/// Builds a portion that covers each of the registers in its entirety.
+RegisterPortions
+fullPortions(std::span<const model::Register::Values> Registers) {
+  RegisterPortions Result;
+  Result.reserve(Registers.size());
+
+  for (model::Register::Values Register : Registers)
+    Result.emplace_back(Register, model::Register::getSize(Register));
+
+  return Result;
+}
+
+template<model::AnyType AnyType>
+RecursiveCoroutine<std::optional<HomogeneousFloatAggregate>>
+computeHomogeneousFloatAggregate(const AnyType &Type,
+                                 uint64_t MaximumFieldCount) {
+  if constexpr (std::derived_from<AnyType, model::TypeDefinition>) {
+    if (const auto *S = llvm::dyn_cast<model::StructDefinition>(&Type)) {
+      std::optional<HomogeneousFloatAggregate> Result;
+
+      uint64_t ExpectedOffset = 0;
+      for (const model::StructField &Field : S->Fields()) {
+        // Any hole in-between the fields means padding, which disqualifies
+        // the aggregate.
+        if (Field.Offset() != ExpectedOffset)
+          rc_return std::nullopt;
+
+        auto FieldInfo = rc_recur
+          computeHomogeneousFloatAggregate(*Field.Type(), MaximumFieldCount);
+        if (not FieldInfo)
+          rc_return std::nullopt;
+
+        // All the leaf field have to be of the same floating point type.
+        if (Result and Result->FieldSize != FieldInfo->FieldSize)
+          rc_return std::nullopt;
+
+        if (not Result)
+          Result = FieldInfo;
+        else
+          Result->FieldCount += FieldInfo->FieldCount;
+
+        if (Result->FieldCount > MaximumFieldCount)
+          rc_return std::nullopt;
+
+        ExpectedOffset += *Field.Type()->size();
+      }
+
+      // Any trailing padding also disqualifies the aggregate.
+      if (not Result or ExpectedOffset != S->Size())
+        rc_return std::nullopt;
+
+      rc_return Result;
+
+    } else if (const auto *U = llvm::dyn_cast<model::UnionDefinition>(&Type)) {
+      std::optional<HomogeneousFloatAggregate> Result;
+      for (const model::UnionField &Field : U->Fields()) {
+        auto FieldInfo = rc_recur
+          computeHomogeneousFloatAggregate(*Field.Type(), MaximumFieldCount);
+        if (not FieldInfo)
+          rc_return std::nullopt;
+
+        // All the leaf fields have to be of the same floating point type.
+        if (Result and Result->FieldSize != FieldInfo->FieldSize)
+          rc_return std::nullopt;
+
+        // The widest union field dictates its final member count.
+        if (not Result or Result->FieldCount < FieldInfo->FieldCount)
+          Result = FieldInfo;
+      }
+
+      // Any trailing padding also disqualifies the aggregate.
+      if (Result)
+        if (*Type.size() != Result->FieldSize * Result->FieldCount)
+          rc_return std::nullopt;
+
+      rc_return Result;
+
+    } else if (auto *TD = llvm::dyn_cast<model::TypedefDefinition>(&Type)) {
+      rc_return rc_recur computeHomogeneousFloatAggregate(*TD->UnderlyingType(),
+                                                          MaximumFieldCount);
+
+    } else {
+      // Enums and function types do not have fields.
+      revng_assert(llvm::isa<model::EnumDefinition>(&Type)
+                     or llvm::isa<model::RawFunctionDefinition>(&Type)
+                     or llvm::isa<model::CABIFunctionDefinition>(&Type),
+                   "Unsupported type definition");
+
+      rc_return std::nullopt;
+    }
+
+  } else if constexpr (std::derived_from<AnyType, model::Type>) {
+    if (const auto *D = llvm::dyn_cast<model::DefinedType>(&Type)) {
+      rc_return rc_recur computeHomogeneousFloatAggregate(D->unwrap(),
+                                                          MaximumFieldCount);
+
+    } else if (const auto *A = Type.getArray()) {
+      auto Elem = rc_recur computeHomogeneousFloatAggregate(*A->ElementType(),
+                                                            MaximumFieldCount);
+      if (not Elem)
+        rc_return std::nullopt;
+
+      const uint64_t FieldCount = Elem->FieldCount * A->ElementCount();
+      if (FieldCount > MaximumFieldCount)
+        rc_return std::nullopt;
+
+      rc_return HomogeneousFloatAggregate{ .FieldSize = Elem->FieldSize,
+                                           .FieldCount = FieldCount };
+
+    } else if (const auto *P = Type.getPrimitive()) {
+      if (P->PrimitiveKind() != model::PrimitiveKind::Float)
+        rc_return std::nullopt;
+
+      rc_return HomogeneousFloatAggregate{ .FieldSize = *Type.size(),
+                                           .FieldCount = 1 };
+
+    } else if (Type.getPointer()) {
+      // No pointers are allowed in HFAs.
+      rc_return std::nullopt;
+    }
+
+    revng_abort("Unsupported type");
+
+  } else {
+    static_assert(type_always_false_v<AnyType>, "Unsupported type.");
+  }
+}
+
+} // namespace
+
+std::optional<HomogeneousFloatAggregate>
+asHomogeneousFloatAggregate(const model::Type &Type,
+                            uint64_t MaximumFieldCount) {
+  return rc_eval(computeHomogeneousFloatAggregate(Type, MaximumFieldCount));
+}
+
+std::optional<HomogeneousFloatAggregate>
+asHomogeneousFloatAggregate(const model::TypeDefinition &Type,
+                            uint64_t MaximumFieldCount) {
+  return rc_eval(computeHomogeneousFloatAggregate(Type, MaximumFieldCount));
+}
+
 std::pair<DistributedValues, uint64_t>
 ValueDistributor::distribute(uint64_t Size,
                              uint64_t Alignment,
                              bool HasNaturalAlignment,
-                             RegisterSpan Registers,
+                             RegisterPortionSpan Registers,
                              uint64_t OccupiedRegisterCount,
                              uint64_t AllowedRegisterLimit,
                              bool ForbidSplittingBetweenRegistersAndStack) {
@@ -102,12 +261,15 @@ ValueDistributor::distribute(uint64_t Size,
 
         // Add an extra "padding" argument to represent this.
         DistributedValue &Padding = Result.emplace_back();
-        Padding.Registers = { Registers[OccupiedRegisterCount++] };
+        Padding.Registers = { Registers[OccupiedRegisterCount] };
         Padding.Size = PointerSize;
         Padding.RepresentsPadding = true;
 
+        ++OccupiedRegisterCount;
+
         // The padding register does not count towards the limit
         ++LastRegister;
+        LastRegister = std::min(LastRegister, Registers.size());
       }
 
       ConsideredRegisterCounter = OccupiedRegisterCount;
@@ -122,8 +284,8 @@ ValueDistributor::distribute(uint64_t Size,
              && ConsideredRegisterCounter < LastRegister;
     };
     while (ShouldContinue()) {
-      const auto CurrentRegister = Registers[ConsideredRegisterCounter++];
-      SizeCounter += model::Register::getSize(CurrentRegister);
+      SizeCounter += Registers[ConsideredRegisterCounter].Size;
+      ++ConsideredRegisterCounter;
     }
   }
 
@@ -146,9 +308,24 @@ ValueDistributor::distribute(uint64_t Size,
   revng_assert(ConsideredRegisterCounter <= Registers.size());
   bool AllTheRegistersAreInUse = ConsideredRegisterCounter == LastRegister;
   if (SizeCounter >= Size && CanUseRegisters) {
-    // This a register-only argument, add the registers.
-    for (uint64_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
-      DA.Registers.emplace_back(Registers[I]);
+    // This a register-only argument, reserve portions of size matching
+    // the exact number of bytes the value takes up.
+    //
+    // NOTE: As of now, the distribution results in each register only used
+    //       *once* for the entire argument list.
+    //       This will change in the future, once we add support for ARM-32
+    //       floating point arguments.
+    uint64_t SizeLeft = Size;
+    for (auto I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I) {
+      const model::Register::Portion &Available = Registers[I];
+      const uint64_t PortionSize = std::min(Available.Size, SizeLeft);
+      revng_assert(PortionSize != 0);
+
+      DA.Registers.emplace_back(Available.Register, PortionSize);
+      SizeLeft -= PortionSize;
+    }
+
+    revng_assert(SizeLeft == 0);
     DA.SizeOnStack = 0;
   } else if (AllowSplitting && AllTheRegistersAreInUse && SizeCounter > 0) {
     // This argument is split among the registers and the stack.
@@ -198,8 +375,8 @@ ValueDistributor::distribute(uint64_t Size,
     if (!DA.Registers.empty()) {
       Message += " (";
       constexpr llvm::StringRef Separator = ", ";
-      for (auto Register : DA.Registers)
-        Message += model::Register::getRegisterName(Register).str()
+      for (const model::Register::Portion &Portion : DA.Registers)
+        Message += model::Register::getRegisterName(Portion.Register).str()
                    + Separator.str();
       Message.resize(Message.size() - Separator.size());
       Message += ")";
@@ -223,13 +400,15 @@ ValueDistributor::distribute(uint64_t Size,
   return { std::move(Result), ConsideredRegisterCounter };
 }
 
+using MaybeHFA = std::optional<HomogeneousFloatAggregate>;
 DistributedValues
 ArgumentDistributor::nonPositionBased(bool IsScalar,
                                       FloatingPointKind FPKind,
                                       uint64_t Size,
                                       uint64_t Alignment,
-                                      bool HasNaturalAlignment) {
-  const auto Strategy = argumentStrategy(ABI, FPKind);
+                                      bool HasNaturalAlignment,
+                                      const MaybeHFA &HFA) {
+  auto Strategy = argumentStrategy(ABI, FPKind);
   if (Strategy == abi::FloatingPointStrategy::Ignored) {
     revng_log(Log,
               "Ignoring an argument because the floating point strategy of `"
@@ -237,6 +416,16 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
 
     ++ArgumentIndex;
     return { DistributedValue::ignoredValuePlaceholder(Size) };
+  }
+
+  // Adjust the strategy for ABIs that only allow the dedicated floating point
+  // register set to be used for the aggregates that consist solely of floating
+  // point members of the same type.
+  if (not IsScalar and ABI.MaximumHFAFieldCount() != 0
+      and not HFA.has_value()) {
+    namespace FPS = abi::FloatingPointStrategy;
+    if (Strategy == FPS::NextRegisterFromTheDedicatedSet)
+      Strategy = FPS::NextRegisterFromTheGeneralPurposeRegisterSet;
   }
 
   uint64_t RegisterLimit = 0;
@@ -248,22 +437,24 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
     RegisterList = ABI.FloatArgumentRegisters();
     RegisterCounter = &UsedFloatRegisterCount;
 
-    if (RegisterList.size() > *RegisterCounter) {
-      // The conventional non-position based approach is not applicable for
-      // float registers since it's rare for multiple registers to be used
-      // to pass a single argument.
-      //
-      // For now, provide at most a single float register for such a value,
-      // if there's a free one.
-      //
-      // TODO: find reproducers and handle the cases where multiple float
-      //       registers are used together.
+    if (HFA.has_value()) {
+      // Every field takes a register of its own, so the aggregate needs as
+      // many registers as it has fields.
+      RegisterLimit = HFA->FieldCount;
+
+    } else if (RegisterList.size() > *RegisterCounter) {
       DistributedValue Result;
       Result.Size = Size;
-      Result.Registers.emplace_back(RegisterList[(*RegisterCounter)++]);
 
+      const auto Register = RegisterList[*RegisterCounter];
+      const uint64_t RegisterSize = model::Register::getSize(Register);
+      revng_assert(Size <= RegisterSize);
+      Result.Registers.emplace_back(Register, Size);
+
+      ++(*RegisterCounter);
       ++ArgumentIndex;
       return { Result };
+
     } else {
       // If there are no free registers left, explicitly set the limit to 0,
       // so that the default argument distribution routine puts it on
@@ -285,6 +476,7 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
       // either.
       RegisterLimit = 0;
       ForbidSplitting = true;
+
     } else {
       RegisterLimit = IsScalar ? ABI.MaximumGPRsPerScalarArgument() :
                                  ABI.MaximumGPRsPerAggregateArgument();
@@ -308,10 +500,15 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
     HasNaturalAlignment = false;
   }
 
+  RegisterPortions Portions = fullPortions(RegisterList);
+  if (HFA.has_value())
+    for (model::Register::Portion &Portion : Portions)
+      Portion.Size = HFA->FieldSize;
+
   auto &&[Result, NextRegisterIndex] = distribute(Size,
                                                   Alignment,
                                                   HasNaturalAlignment,
-                                                  RegisterList,
+                                                  Portions,
                                                   *RegisterCounter,
                                                   RegisterLimit,
                                                   ForbidSplitting);
@@ -417,7 +614,9 @@ DistributedValues ArgumentDistributor::positionBased(FloatingPointKind FPKind,
 
   uint64_t CurrentArgumentIndex = nextPositionBasedIndex();
   if (CurrentArgumentIndex < UsedRegisters.size()) {
-    Result.Registers.emplace_back(UsedRegisters[CurrentArgumentIndex]);
+    const auto Register = UsedRegisters[CurrentArgumentIndex];
+    revng_assert(Result.Size <= model::Register::getSize(Register));
+    Result.Registers.emplace_back(Register, Result.Size);
 
     revng_assert(UsedRegisterCount <= CurrentArgumentIndex);
     UsedRegisterCount = CurrentArgumentIndex + 1;
@@ -443,9 +642,8 @@ DistributedValues ArgumentDistributor::positionBased(FloatingPointKind FPKind,
   return { Result };
 }
 
-DistributedValue ReturnValueDistributor::returnValue(const model::Type &T) {
-  revng_assert(!T.isVoidPrimitive());
-
+DistributedValue
+ReturnValueDistributor::typicalReturnValue(const model::Type &T) {
   // Position-based ABIs do not use floating point registers for aggregates:
   // such values are returned in the general purpose registers instead.
   auto FPKind = floatingPointKind(T);
@@ -455,6 +653,22 @@ DistributedValue ReturnValueDistributor::returnValue(const model::Type &T) {
       and ABI.ArgumentsArePositionBased()) {
     namespace FPS = abi::FloatingPointStrategy;
     Strategy = FPS::NextRegisterFromTheGeneralPurposeRegisterSet;
+  }
+
+  // Adjust the strategy for ABIs that only allow the dedicated floating point
+  // register set to be used for the aggregates that consist solely of floating
+  // point members of the same type.
+  std::optional<HomogeneousFloatAggregate> HFA;
+  if (ABI.MaximumHFAFieldCount() != 0 and not T.isScalar()) {
+    namespace FPS = abi::FloatingPointStrategy;
+    if (Strategy == FPS::NextRegisterFromTheDedicatedSet) {
+      HFA = asHomogeneousFloatAggregate(T, ABI.MaximumHFAFieldCount());
+      if (not HFA.has_value()) {
+        // If it's not a homogeneous aggregate, it should be treated as
+        // a non-float-containing aggregate.
+        Strategy = FPS::NextRegisterFromTheGeneralPurposeRegisterSet;
+      }
+    }
   }
 
   if (Strategy == abi::FloatingPointStrategy::Ignored) {
@@ -481,10 +695,16 @@ DistributedValue ReturnValueDistributor::returnValue(const model::Type &T) {
     if (RegisterList.empty())
       return DistributedValue::voidReturnValue();
 
-    // TODO: replace this the explicit single register limit with an abi-defined
-    // value. For more information see the relevant comment in
-    // `distributeRegisterArguments`.
-    Limit = 1;
+    if (HFA.has_value()) {
+      // Every field is returned in a register of its own.
+      Limit = HFA->FieldCount;
+
+    } else {
+      // TODO: replace this the explicit single register limit with
+      //       an abi-defined value. For more information see the relevant
+      //       comment in `distributeRegisterArguments`.
+      Limit = 1;
+    }
 
   } else if (Strategy == FPS::NextRegisterFromTheGeneralPurposeRegisterSet) {
     RegisterList = ABI.GeneralPurposeReturnValueRegisters();
@@ -495,7 +715,12 @@ DistributedValue ReturnValueDistributor::returnValue(const model::Type &T) {
     revng_abort("Unknown floating point strategy.");
   }
 
-  auto &&[Result, _] = distribute(T, RegisterList, 0, Limit, true);
+  RegisterPortions Portions = fullPortions(RegisterList);
+  if (HFA.has_value())
+    for (model::Register::Portion &Portion : Portions)
+      Portion.Size = HFA->FieldSize;
+
+  auto &&[Result, _] = distribute(T, Portions, 0, Limit, true);
   revng_assert(Result.size() == 1, "Return values should never be padded.");
   return Result[0];
 }

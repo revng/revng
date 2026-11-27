@@ -58,6 +58,12 @@ definitions:
         type: bool
         default: false
 
+      - name: UseSystemVx86_64RegisterSelectionLogic
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
+        type: bool
+        default: false
+
       - name: PackStackArguments
         doc: |
           See `revng/share/doc/revng/references/abi-definition.md` for details.
@@ -177,6 +183,65 @@ definitions:
           Every ABI must set this explicitly. It must not be `Invalid`.
         type: FloatingPointStrategy
         default: Invalid
+
+      - name: MaximumHFAFieldCount
+        doc: |
+          HFA stands for "Homogeneous Floating-point Aggregate" as described
+          by the "Procedure Call Standard" documents for both 32-bit and 64-bit
+          ARM calling conventions.
+
+          When this option is set to 0, the homogeneous-struct-only logic does
+          *not* apply and *all* the structs are allowed to use floating point
+          registers.
+
+          When this is set to any other value, *only* aggregates that are
+          considered homogeneous (see below) *and* have total number of *fields*
+          less or equal to the value of this option can use dedicated floating
+          point registers.
+
+          Here are some examples of impact this function would have on sample
+          arguments. For the example's sake, let's assume that the ABI in
+          question has `MaximumHFAFieldCount` set to 4 (ARM-64 value).
+
+          ```cpp
+          struct one_float { float f; };
+          // HFA with one field, which is <=4: uses float registers.
+
+          struct two_floats { float f1, f2; };
+          // HFA with two fields, which is <=4: uses float registers.
+
+          struct three_floats { float f1, f2, f3; };
+          // HFA with three fields, which is <=4: uses float registers.
+
+          struct four_floats { float f1, f2, f3, f4; };
+          // HFA with four fields, which is <=4: uses float registers.
+
+          struct five_floats { float f1, f2, f3, f4, f5; };
+          // HFA with five fields, which is >4: is not treated as an HFA.
+
+          struct float_array { float a[2]; };
+          // HFA (arrays are treated the same as fields): uses float registers.
+
+          struct float_array_plus_struct { float a[2]; struct two_floats s; };
+          // HFA (2+2=4 total fields): uses float registers.
+
+          struct float_array_plus_bigger_struct { float a[2]; struct three_floats s; };
+          // HFA (2+3=5 total fields): is not treated as an HFA.
+
+          struct mixed_sizes { float f; double d; };
+          // Not a HFA.
+
+          struct mixed_kinds { float f; uint32_t i; };
+          // Not a HFA.
+
+          union union_with_hfa_fields { struct four_floats s0; struct three_floats s1; };
+          // Union is a HFA if *all* its fields are HFAs: uses float registers.
+
+          union union_with_hfa_fields { struct four_floats s0; struct mixed_kinds s1; };
+          // The second field is not a HFA: the union is not treated as an HFA.
+          ```
+        type: uint64_t
+        default: 0
 
       - name: ScalarTypes
         doc: |

@@ -9,6 +9,7 @@ revng_add_analyses_library_internal(
   DefaultFunctionPrototype.cpp
   FunctionType/Conversion.cpp
   FunctionType/Layout.cpp
+  FunctionType/SystemVx86_64.cpp
   FunctionType/ValueDistributor.cpp
   ModelHelpers.cpp
   RegisterStateDeductions.cpp)
