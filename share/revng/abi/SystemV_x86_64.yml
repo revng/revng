@@ -71,6 +71,12 @@ ScalarTypes:
     Size: 8
   - Kind: Integer
     Size: 16
+
+  - Kind: FloatingPoint
+    Size: 4 # IEEE Binary32
+  - Kind: FloatingPoint
+    Size: 8 # IEEE Binary64
+
   - Kind: Integer
     Size: 32 # `ymm` register-sized generic
 
@@ -91,10 +97,7 @@ ScalarTypes:
     #       candidate that wouldn't cause unexpected problems elsewhere (like
     #       stack argument structs).
     AlignedAt: 8
-  - Kind: FloatingPoint
-    Size: 4 # IEEE Binary32
-  - Kind: FloatingPoint
-    Size: 8 # IEEE Binary64
+
 PrimitiveAliases:
   - Name: size_t
     Kind: Unsigned

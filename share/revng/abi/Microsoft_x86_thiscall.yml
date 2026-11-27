@@ -49,10 +49,32 @@ ScalarTypes:
   - Kind: Integer
     Size: 8
     AlignedAt: 4 # TODO: The correct value is 8, but stack arguments align to 4.
+
   - Kind: FloatingPoint
     Size: 4 # IEEE Binary32
   - Kind: FloatingPoint
     Size: 8 # IEEE Binary64
+
+  - Kind: Integer
+    Size: 32 # `ymm` register-sized generic
+
+    # NOTE: this alignment is likely to be wrong. Such a "primitive" is likely
+    #       a vector, so its alignment depends on what's inside it. We currently
+    #       do not have a way to "look" inside such a vector, but we need to set
+    #       *an* alignment value. Pointer-sized alignment is the most likely
+    #       candidate that wouldn't cause unexpected problems elsewhere (like
+    #       stack argument structs).
+    AlignedAt: 8
+  - Kind: Integer
+    Size: 64 # `zmm` register-sized generic
+
+    # NOTE: this alignment is likely to be wrong. Such a "primitive" is likely
+    #       a vector, so its alignment depends on what's inside it. We currently
+    #       do not have a way to "look" inside such a vector, but we need to set
+    #       *an* alignment value. Pointer-sized alignment is the most likely
+    #       candidate that wouldn't cause unexpected problems elsewhere (like
+    #       stack argument structs).
+    AlignedAt: 8
 
 PrimitiveAliases:
   - Name: size_t
