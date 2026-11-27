@@ -722,32 +722,48 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
   auto Ordered = ABI.sortReturnValues(std::move(Deduced));
 
   if (Ordered.size() == 1) {
+    // Only one register is used.
     model::Register::Values Register = *Ordered.begin();
     if (auto Iter = Registers.find(Register); Iter != Registers.end()) {
+      model::UpcastableType Result = model::copyType(*Iter->Type());
+
       // Before triggering the strategy logic, attempt to refine the type
       // (a 64-bit generic in zmm0 is to be treated as `double`).
       if (llvm::is_contained(ABI.FloatReturnValueRegisters(), Register)) {
         namespace PK = model::PrimitiveKind;
-        if (auto R = refineGenericType(PK::Float, *Iter->Type())) {
-          if (not canRepresentReturnValue(ABI, **R)) {
-            revng_log(Log,
-                      "FAIL: the return value in `"
-                        << model::Register::getRegisterName(Register)
-                        << "` cannot be represented under `"
-                        << model::ABI::getName(ABI.ABI())
-                        << "`, whose floating point strategy is `Ignored`.");
-            return std::nullopt;
-          }
-
-          return R;
-        }
+        if (auto Refined = refineGenericType(PK::Float, *Result))
+          Result = std::move(*Refined);
       }
 
-      // Only one register is used, just return its type.
-      return model::copyType(*Iter->Type());
+      if (not canRepresentReturnValue(ABI, *Result)) {
+        revng_log(Log,
+                  "FAIL: the return value in `"
+                    << model::Register::getRegisterName(Register)
+                    << "` cannot be represented under `"
+                    << model::ABI::getName(ABI.ABI())
+                    << "`, whose floating point strategy is `Ignored`.");
+        return std::nullopt;
+      }
+
+      return Result;
+
     } else {
-      // One register is used but its type cannot be obtained.
-      // Create a register sized return type instead.
+      // One register without a set type - make the type up.
+
+      // But first, make sure ignored strategy does not interfere.
+      const auto Kind = model::Register::getPrimitiveKind(Register);
+      const auto Strategy = ABI.FloatingPointReturnValueStrategy();
+      if (Kind == model::PrimitiveKind::Values::Float
+          and Strategy == FloatingPointStrategy::Ignored) {
+        revng_log(Log,
+                  "FAIL: the return value in `"
+                    << model::Register::getRegisterName(Register)
+                    << "` cannot be represented under `"
+                    << model::ABI::getName(ABI.ABI())
+                    << "`, whose floating point strategy is `Ignored`.");
+        return std::nullopt;
+      }
+
       return model::PrimitiveType::make(*Ordered.begin());
     }
   } else {
