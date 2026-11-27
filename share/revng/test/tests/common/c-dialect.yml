@@ -1,0 +1,8 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+implicit-incompatible-pointer-conversions: false
+implicit-pointer-sign-conversions: false
+implicit-qualifier-discarding-conversions: false
+implicit-void-pointer-conversions: false

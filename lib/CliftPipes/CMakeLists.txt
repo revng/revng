@@ -5,6 +5,7 @@
 revng_add_analyses_library_internal(
   revngCliftPipes
   Clifter.cpp
+  ConfigureCDialect.cpp
   EmitC.cpp
   EmitCAsDirectory.cpp
   EmitCAsSingleFile.cpp

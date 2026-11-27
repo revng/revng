@@ -113,6 +113,8 @@ mlir::OwningOpRef<mlir::ModuleOp> makeModule(mlir::MLIRContext *Context);
 /// Returns true if the module has a Clift module attribute.
 bool isCliftModule(mlir::ModuleOp Module);
 
+//===---------------------------- C data model ----------------------------===//
+
 /// Returns the data model for the specified module.
 /// \note The module must have an associated data model.
 const CDataModel &getDataModel(mlir::ModuleOp Module);
@@ -137,6 +139,22 @@ const CDataModel &getDataModel(mlir::Value Value);
 
 /// Assigns the module data model.
 void setDataModel(mlir::ModuleOp Module, const CDataModel &DataModel);
+
+//===------------------------------ C dialect -----------------------------===//
+
+/// Returns the C dialect for the specified module, or the default dialect if no
+/// dialect is specified.
+[[nodiscard]] const CDialect &getCDialect(mlir::ModuleOp Module);
+
+/// Returns the C dialect for the specified operation, or the default dialect if
+/// no dialect is specified.
+/// \note The operation must be contained within a module.
+[[nodiscard]] const CDialect &getCDialect(mlir::Operation *Op);
+
+/// Assigns the module C dialect.
+void setCDialect(mlir::ModuleOp Module, const CDialect &Dialect);
+
+//===------------------------------ Utilities -----------------------------===//
 
 /// Returns the terminating YieldOp of the expression represented by the region,
 /// or a operation if the region is not a valid expression region.
