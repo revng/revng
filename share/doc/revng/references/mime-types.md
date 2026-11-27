@@ -46,8 +46,6 @@ The most common *base* MIME types we use are:
 * `application/x.mlir.bc`: MLIR IR in its bytecode representation.
 * `text/x.yaml`: a YAML dictionary, with one key for each function.
 
-MIME types that are not `text/*` or `image/svg` will be transmitted over GraphQL via Base64 encoding
-
 Some of these MIME types can be further wrapped in another format.
 To make this explicit, we add suffixes, specifically:
 
