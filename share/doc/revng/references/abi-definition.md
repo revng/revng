@@ -225,6 +225,16 @@ Specifies whether functions whose return value is saved in a memory area pointed
 
 This is only relevant if either [`ReturnValueLocationRegister`](#returnvaluelocationregister-register) or [`ReturnValueLocationOnStack`](#returnvaluelocationonstack-bool) is enabled.
 
+## `MaximumHFAFieldCount` (`uint64_t`)
+
+HFA stands for "Homogeneous Floating-point Aggregate" as described by the "Procedure Call Standard" documents for both 32-bit and 64-bit ARM calling conventions.
+
+When this option is set to 0, the homogeneous-struct-only logic does *not* apply and *all* the structs are allowed to use floating point registers.
+
+When this is set to any other value, *only* aggregates that are considered homogeneous (see below) *and* have total number of *fields* less or equal to the value of this option can use dedicated floating point registers.
+
+See doxygen comments for more detail on what is considered a HFA or not.
+
 # Type information
 
 ## `ScalarTypes` (`list of scalar types`)

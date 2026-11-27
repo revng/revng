@@ -355,10 +355,9 @@ static std::vector<SetVector<PHINode *>> getPHIEquivalenceClasses(Function &F) {
 
   if (Log.isEnabled()) {
     revng_log(Log, "Result (size " << Result.size() << ") = {");
-    size_t I = 0;
-    for (const auto &Class : Result) {
+    for (const auto &[I, Class] : llvm::enumerate(Result)) {
       LoggerIndent IndentResult{ Log };
-      revng_log(Log, "Class (size " << Class.size() << "): {" << I++);
+      revng_log(Log, "Class (size " << Class.size() << "): {" << I);
       for (const PHINode *PHI : Class) {
         LoggerIndent IndentClass{ Log };
         revng_log(Log, dumpToString(PHI, MST));

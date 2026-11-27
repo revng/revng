@@ -18,10 +18,7 @@
 # to manually exclude such cases.
 
 - ABIs:
-    - AAPCS64
     - AAPCS_hardfloat
-    - Apple_AAPCS64
-    - Microsoft_AAPCS64
     - Microsoft_x86_64_vectorcall
     - Microsoft_x86_cdecl
     - Microsoft_x86_fastcall
@@ -38,6 +35,18 @@
     - deeply_nested_float_struct_argument_on_stack
     - five_double_arguments
     - five_float_arguments
+    - float_then_double_struct_arguments
+    - float_then_five_double_struct_arguments
+    - float_then_five_float_struct_arguments
+    - float_then_float_struct_arguments
+    - float_then_four_double_struct_arguments
+    - float_then_four_float_struct_arguments
+    - float_then_three_double_struct_arguments
+    - float_then_three_float_struct_arguments
+    - float_then_two_double_struct_arguments
+    - float_then_two_float_struct_arguments
+    - float_then_two_four_double_struct_arguments
+    - float_then_two_four_float_struct_arguments
     - lots_of_eight_byte_float_arguments
     - lots_of_four_byte_float_arguments
     - mixed_double_double_struct_arguments

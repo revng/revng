@@ -93,6 +93,26 @@ public:
   static std::span<const uint64_t> validSizes();
 
 public:
+  static bool isGenericSizeValid(uint64_t Size) {
+    return isSizeValid(model::PrimitiveKind::Generic, Size);
+  }
+  static bool isPointerOrNumberSizeValid(uint64_t Size) {
+    return isSizeValid(model::PrimitiveKind::PointerOrNumber, Size);
+  }
+  static bool isNumberSizeValid(uint64_t Size) {
+    return isSizeValid(model::PrimitiveKind::Number, Size);
+  }
+  static bool isUnsignedSizeValid(uint64_t Size) {
+    return isSizeValid(model::PrimitiveKind::Unsigned, Size);
+  }
+  static bool isSignedSizeValid(uint64_t Size) {
+    return isSizeValid(model::PrimitiveKind::Signed, Size);
+  }
+  static bool isFloatSizeValid(uint64_t Size) {
+    return isSizeValid(model::PrimitiveKind::Float, Size);
+  }
+
+public:
   bool isValid() const { return isSizeValid(PrimitiveKind(), Size()); }
 
   /// @}

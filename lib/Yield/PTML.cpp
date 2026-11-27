@@ -393,7 +393,7 @@ static std::string basicBlock(const ptml::MarkupBuilder &B,
   auto ToIterator = std::prev(BasicBlock.Instructions().end());
 
   std::string Result;
-  for (auto Iterator = FromIterator; Iterator != ToIterator; ++Iterator)
+  for (auto Iterator = FromIterator; Iterator != ToIterator; ++Iterator) {
     Result += instruction(B,
                           *Iterator,
                           BasicBlock,
@@ -402,15 +402,17 @@ static std::string basicBlock(const ptml::MarkupBuilder &B,
                           Binary,
                           CM,
                           std::move(Prefixes));
+  }
+
   Result += instruction(B,
-                        *(ToIterator++),
+                        *ToIterator,
                         BasicBlock,
                         Function,
                         ModelFunction,
                         Binary,
                         CM,
                         std::move(Prefixes),
-                        true);
+                        /* AddTargets = */ true);
 
   std::string LabelString;
   if (!Label.empty()) {
