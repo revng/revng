@@ -90,12 +90,13 @@ struct DistributedValue {
 
   /// Mark this value as one that should be dropped entirely.
   ///
-  /// Currently the only way this flag can be set is when a floating-point-
-  /// containing argument/return-value is distributed under an ABI that
-  /// explicitly sets floating point handling strategy to `Ignored`.
+  /// This flag is set when the ABI has no means of describing where the value
+  /// is passed: either because the ABI explicitly sets its floating point
+  /// handling strategy to `Ignored`, or because the SystemV x86-64 eightbyte
+  /// classification of the value needs a class we cannot express yet.
   ///
-  /// IMPORTANT: any layout/RFT that was produced with the `Ignored` strategy
-  /// trigger is likely to *not* correspond to the real function in the binary.
+  /// IMPORTANT: any layout/RFT that was produced from this is likely to *not*
+  /// correspond to the real function in the binary.
   ///
   /// While this is relatively harmless on the return value (as there's only
   /// one), it is likely to cause any following arguments to be misplaced.
@@ -232,6 +233,10 @@ public:
   DistributedValues nextArgument(const AnyType &Type) {
     if (ABI.ArgumentsArePositionBased()) {
       return positionBased(floatingPointKind(Type), *Type.size());
+
+    } else if (ABI.UseSystemVx86_64RegisterSelectionLogic()) {
+      return systemV(Type);
+
     } else {
       abi::Definition::AlignmentCache Cache;
       uint64_t Alignment = *ABI.alignment(Type, Cache);
@@ -263,6 +268,9 @@ private:
                    bool HasNaturalAlignment,
                    const std::optional<HomogeneousFloatAggregate> &HFA);
 
+  DistributedValues systemV(const model::Type &Type);
+  DistributedValues systemV(const model::TypeDefinition &Type);
+
 private:
   size_t nextPositionBasedIndex() const {
     size_t MaxRegister = std::max(UsedGeneralPurposeRegisterCount,
@@ -276,7 +284,18 @@ public:
   explicit ReturnValueDistributor(const abi::Definition &ABI) :
     ValueDistributor(ABI){};
 
-  DistributedValue returnValue(const model::Type &ReturnValueType);
+  DistributedValue returnValue(const model::Type &Type) {
+    revng_assert(!Type.isVoidPrimitive());
+
+    if (ABI.UseSystemVx86_64RegisterSelectionLogic())
+      return systemVx86_64ReturnValue(Type);
+    else
+      return typicalReturnValue(Type);
+  }
+
+private:
+  DistributedValue typicalReturnValue(const model::Type &Type);
+  DistributedValue systemVx86_64ReturnValue(const model::Type &Type);
 };
 
 } // namespace abi::FunctionType

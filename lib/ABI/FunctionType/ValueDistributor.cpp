@@ -642,9 +642,8 @@ DistributedValues ArgumentDistributor::positionBased(FloatingPointKind FPKind,
   return { Result };
 }
 
-DistributedValue ReturnValueDistributor::returnValue(const model::Type &T) {
-  revng_assert(!T.isVoidPrimitive());
-
+DistributedValue
+ReturnValueDistributor::typicalReturnValue(const model::Type &T) {
   // Position-based ABIs do not use floating point registers for aggregates:
   // such values are returned in the general purpose registers instead.
   auto FPKind = floatingPointKind(T);
