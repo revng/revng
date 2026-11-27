@@ -21,7 +21,7 @@
 
 #include "ClangParse.h"
 
-namespace revng::editcbody {
+namespace revng::annotatecbody {
 
 /// The address sets that identify more than one local variable, or more than
 /// one goto label, of a function.
@@ -69,4 +69,4 @@ llvm::Expected<TemporaryFile>
 writeHeader(const revng::pypeline::PTMLCContainer &TypeAndGlobalHeader,
             const revng::pypeline::PTMLCContainer &HelperHeader);
 
-} // namespace revng::editcbody
+} // namespace revng::annotatecbody

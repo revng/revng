@@ -4,6 +4,8 @@
 
 #include "revng/ABI/Analyses/ConvertFunctionsToCABI.h"
 #include "revng/ABI/Analyses/ConvertFunctionsToRaw.h"
+#include "revng/AnnotateCBody/AnnotateCBodyAnalysis.h"
+#include "revng/AnnotateCBody/EditByNameAnalysis.h"
 #include "revng/Canonicalize/FixPointerSize.h"
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
@@ -21,8 +23,6 @@
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
-#include "revng/EditCBody/EditByNameAnalysis.h"
-#include "revng/EditCBody/EditCBodyAnalysis.h"
 #include "revng/EditCType/EditCTypeAnalysis.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/InlineAlwaysInlineFunctions.h"
@@ -168,7 +168,7 @@ REGISTER(Analysis, DetectABI);
 REGISTER(Analysis, revng::pypeline::analyses::DetectCStrings);
 REGISTER(Analysis, DetectStackSize);
 REGISTER(Analysis, EditByName);
-REGISTER(Analysis, EditCBody);
+REGISTER(Analysis, AnnotateCBody);
 REGISTER(Analysis, EditCType);
 REGISTER(Analysis, ImportPrototypesFromDatabase);
 REGISTER(Analysis, LLMRename);

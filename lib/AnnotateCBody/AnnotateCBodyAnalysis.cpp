@@ -15,11 +15,11 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/AnnotateCBody/AnnotateCBodyAnalysis.h"
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftOpHelpers.h"
 #include "revng/Clift/Helpers.h"
 #include "revng/Clift/LocationAddresses.h"
-#include "revng/EditCBody/EditCBodyAnalysis.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/GotoLabel.h"
 #include "revng/Model/LocalVariable.h"
@@ -38,9 +38,9 @@
 #include "Statements.h"
 
 using namespace llvm;
-using namespace revng::editcbody;
+using namespace revng::annotatecbody;
 
-static Logger Log("edit-c-body");
+static Logger Log("annotate-c-body");
 
 namespace rr = revng::ranks;
 
@@ -300,12 +300,12 @@ struct llvm::yaml::MappingTraits<ImportConfiguration> {
 
 namespace revng::pypeline::analyses {
 
-llvm::Error EditCBody::run(Model &Model,
-                           const Request &Incoming,
-                           llvm::StringRef Configuration,
-                           const CliftFunctionContainer &Clift,
-                           const PTMLCContainer &TypeAndGlobalHeader,
-                           const PTMLCContainer &HelperHeader) {
+llvm::Error AnnotateCBody::run(Model &Model,
+                               const Request &Incoming,
+                               llvm::StringRef Configuration,
+                               const CliftFunctionContainer &Clift,
+                               const PTMLCContainer &TypeAndGlobalHeader,
+                               const PTMLCContainer &HelperHeader) {
   auto MaybeConfiguration = fromString<ImportConfiguration>(Configuration);
   if (not MaybeConfiguration)
     return MaybeConfiguration.takeError();

@@ -2,14 +2,14 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-# EditCBody
+# AnnotateCBody
 
 revng_add_analyses_library_internal(
-  revngEditCBodyAnalysis ClangParse.cpp CliftFlatten.cpp EditCBodyAnalysis.cpp
-  EditByNameAnalysis.cpp ModelEdits.cpp)
+  revngAnnotateCBodyAnalysis ClangParse.cpp CliftFlatten.cpp
+  AnnotateCBodyAnalysis.cpp EditByNameAnalysis.cpp ModelEdits.cpp)
 
 target_link_libraries(
-  revngEditCBodyAnalysis
+  revngAnnotateCBodyAnalysis
   revngClangToModel
   revngClift
   revngCliftEmitC

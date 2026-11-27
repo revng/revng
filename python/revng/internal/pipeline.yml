@@ -717,7 +717,7 @@ branches:
             category: metadata
             filename: types-and-globals.h
         analyses:
-          - analysis: edit-c-body
+          - analysis: annotate-c-body
             containers:
               - clift-functions
               - tagless-type-and-global-header
@@ -726,7 +726,7 @@ branches:
             description: |-
               Rename and retype the local variables and goto labels of a
               function, naming each one as it appears in the decompiled code.
-              Unlike `edit-c-body`, the body of the function is not submitted
+              Unlike `annotate-c-body`, the body of the function is not submitted
               back.
             containers:
               - clift-functions

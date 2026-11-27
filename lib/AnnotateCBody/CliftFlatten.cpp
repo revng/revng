@@ -15,7 +15,7 @@
 #include "CliftFlatten.h"
 #include "Statements.h"
 
-using namespace revng::editcbody;
+using namespace revng::annotatecbody;
 
 namespace {
 
@@ -63,8 +63,9 @@ bool hasFallthrough(mlir::Region &Region) {
 /// emitted C, iteratively (without recursion) via an explicit work list. Each
 /// item is either a region to expand into its statements, an operation to turn
 /// into a node plus its nested regions, or a synthesized marker.
-void revng::editcbody::flattenCliftRegion(mlir::Region &Root,
-                                          std::vector<CliftStatement> &Output) {
+void revng::annotatecbody::flattenCliftRegion(mlir::Region &Root,
+                                              std::vector<CliftStatement>
+                                                &Output) {
   using namespace clift;
 
   // A region item has a non-null Region; an operation item has a non-null

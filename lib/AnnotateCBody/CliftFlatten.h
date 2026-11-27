@@ -12,7 +12,7 @@ namespace mlir {
 class Region;
 } // namespace mlir
 
-namespace revng::editcbody {
+namespace revng::annotatecbody {
 
 /// Flatten a Clift region into an ordered list of statements matching the
 /// emitted C, appending them to `Output`.
@@ -23,4 +23,4 @@ namespace revng::editcbody {
 void flattenCliftRegion(mlir::Region &Root,
                         std::vector<CliftStatement> &Output);
 
-} // namespace revng::editcbody
+} // namespace revng::annotatecbody

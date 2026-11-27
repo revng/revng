@@ -11,7 +11,7 @@ The situation for local variables is similar. This is unless they are on the sta
 
 Therefore, we need a more robust way to address them. Specifically, rev.ng addresses a statement by the addresses of the instructions it involves and local variables by the address of the instructions that read/write them.
 
-Those addresses can be collected by looking at the PTML of the decopmiled code but, you rarely have to look for them by hand: the `edit-c-body` analysis reads them for you, so you can annotate a function just by editing its C.
+Those addresses can be collected by looking at the PTML of the decopmiled code but, you rarely have to look for them by hand: the `annotate-c-body` analysis reads them for you, so you can annotate a function just by editing its C.
 
 Let's see how it works on a small program:
 
@@ -59,7 +59,7 @@ rev.ng recovered the local variable but, lacking any better information, called 
 ### Editing the body in C
 
 The quickest way to attach these annotations is to edit the decompiled code and let rev.ng import your changes.
-The [`edit-c-body` analysis](../../references/analyses.md#edit-c-body-analysis) takes the address of a function and a copy of its C, compares it statement by statement against the code rev.ng emitted, and records the annotations it finds.
+The [`annotate-c-body` analysis](../../references/analyses.md#annotate-c-body-analysis) takes the address of a function and a copy of its C, compares it statement by statement against the code rev.ng emitted, and records the annotations it finds.
 
 It reacts to exactly three kinds of edit, all written as comments:
 
@@ -70,7 +70,7 @@ It reacts to exactly three kinds of edit, all written as comments:
 Each of these must be on its own line, before the statement it refers to.
 A comment placed at the end of a line, after the code, is ignored.
 
-Everything else has to stay as it was: `edit-c-body` does not change the structure of the code, rename functions or edit type definitions (as explained in [Editing types in C](editing-types-in-c.md), that is what [`edit-c-type`](editing-types-in-c.md) is for).
+Everything else has to stay as it was: `annotate-c-body` does not change the structure of the code, rename functions or edit type definitions (as explained in [Editing types in C](editing-types-in-c.md), that is what [`edit-c-type`](editing-types-in-c.md) is for).
 
 !!! warning "Not every statement can be annotated"
 
@@ -86,11 +86,11 @@ Everything else has to stay as it was: `edit-c-body` does not change the structu
     Be aware, though, that two statements lifted from one machine instruction share its address, and a comment on either is then emitted on whichever rev.ng picks.
     A `goto` and the label it jumps to, for instance, can come out this way.
 
-    None of this fails the analysis: every other annotation is applied and `edit-c-body` exits successfully, so a dropped annotation is otherwise silent.
-    To see which annotations were dropped and why, enable the `edit-c-body` logger by passing it through to the analysis:
+    None of this fails the analysis: every other annotation is applied and `annotate-c-body` exits successfully, so a dropped annotation is otherwise silent.
+    To see which annotations were dropped and why, enable the `annotate-c-body` logger by passing it through to the analysis:
 
     ```
-    revng project analyze edit-c-body -o /dev/null -c edit.yml -- --debug-log="edit-c-body"
+    revng project analyze annotate-c-body -o /dev/null -c edit.yml -- --debug-log="annotate-c-body"
     ```
 
 Let's take the C we just emitted and annotate it, commenting the `if` and giving the local variable a name and a type:
@@ -108,7 +108,7 @@ generic64_t resolve(generic64_t argument_0, generic64_t argument_1) {
 }
 ```
 
-We hand this back to `edit-c-body`, together with the address of `resolve`, which we read from the model (functions are keyed by their entry address).
+We hand this back to `annotate-c-body`, together with the address of `resolve`, which we read from the model (functions are keyed by their entry address).
 The configuration is a small YAML file with the function address and the edited C, which we assemble (indenting the code two spaces under the `CCode:` block) and pass to `-c`.
 We copy the model aside first, so a `diff` afterwards shows exactly what the analysis wrote:
 
@@ -129,7 +129,7 @@ CCode: |
   }
 EOF
 $ cp revng.yml before-edit.yml
-$ revng project analyze edit-c-body -o /dev/null -c edit.yml
+$ revng project analyze annotate-c-body -o /dev/null -c edit.yml
 $ diff -u before-edit.yml revng.yml || true
 --- before-edit.yml
 +++ revng.yml
@@ -166,7 +166,7 @@ $ revng project artifact emit-c resolve | revng ptml | grep -E 'value =|mix the 
 
 ### Editing without the C
 
-A comment on a *statement* has to say where it goes, which is why `edit-c-body` wants the whole body: it finds the statement by matching your C against the code rev.ng emitted, statement by statement.
+A comment on a *statement* has to say where it goes, which is why `annotate-c-body` wants the whole body: it finds the statement by matching your C against the code rev.ng emitted, statement by statement.
 Renaming, retyping or commenting a local variable or a goto label needs no position, only the thing it applies to, and in the decompiled code that thing already has a name.
 
 The [`edit-by-name` analysis](../../references/analyses.md#edit-by-name-analysis) takes just that: a function address and a list of edits, each naming its target.
@@ -191,18 +191,18 @@ The comment belongs to the variable rather than to a point in the code, so it is
 
 Every edit stands on its own.
 One that cannot be applied -- naming something the function does not have, retyping a goto label, or naming a type the model does not know -- is dropped, and the others still land.
-As with `edit-c-body`, the `edit-by-name` logger says which ones were dropped and why:
+As with `annotate-c-body`, the `edit-by-name` logger says which ones were dropped and why:
 
 ```
 revng project analyze edit-by-name -o /dev/null -c rename.yml -- --debug-log="edit-by-name"
 ```
 
 `edit-by-name` acts on local variables and goto labels, the two things inside a body that rev.ng identifies by address rather than by a stable key.
-Comments on statements still go through `edit-c-body`, which is what knows where to put them.
+Comments on statements still go through `annotate-c-body`, which is what knows where to put them.
 
 ### Under the hood
 
-`edit-c-body` is a convenience: it figures out where each annotation belongs and writes it into the model.
+`annotate-c-body` is a convenience: it figures out where each annotation belongs and writes it into the model.
 Knowing what it produces is useful when you script rev.ng and want to write these entries yourself.
 
 Both kinds of annotation are located the same way, through the *addresses of the machine instructions they refer to*:
@@ -247,6 +247,6 @@ LocalVariables:
       - "0x400840:Code_x86_64"
 ```
 
-Writing these entries into `revng.yml` directly, instead of going through `edit-c-body`, has exactly the same effect; it is what you would do when scripting rev.ng without the C round-trip.
+Writing these entries into `revng.yml` directly, instead of going through `annotate-c-body`, has exactly the same effect; it is what you would do when scripting rev.ng without the C round-trip.
 
 Goto labels work the same way as local-variable names: a `// RENAME:` before a goto label, or a comment, writes a [`GotoLabel`](../../references/model.md#gotolabel) entry into the function's [`GotoLabels`](../../references/model.md#Function.GotoLabels), located by the address set of the statements it labels (a `GotoLabel` has no `Type`, so `// RETYPE:` does not apply).

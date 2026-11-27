@@ -16,7 +16,7 @@ namespace mlir {
 class Operation;
 } // namespace mlir
 
-namespace revng::editcbody {
+namespace revng::annotatecbody {
 
 /// The kind of a statement, coarse enough to be shared between the Clang AST
 /// and the Clift representation.
@@ -92,4 +92,4 @@ struct CliftStatement {
   mlir::Operation *Op = nullptr;
 };
 
-} // namespace revng::editcbody
+} // namespace revng::annotatecbody

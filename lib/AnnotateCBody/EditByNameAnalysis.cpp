@@ -14,9 +14,9 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Error.h"
 
+#include "revng/AnnotateCBody/EditByNameAnalysis.h"
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/Helpers.h"
-#include "revng/EditCBody/EditByNameAnalysis.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/GotoLabel.h"
 #include "revng/Model/LocalVariable.h"
@@ -30,7 +30,7 @@
 #include "ModelEdits.h"
 
 using namespace llvm;
-using namespace revng::editcbody;
+using namespace revng::annotatecbody;
 
 static Logger Log("edit-by-name");
 

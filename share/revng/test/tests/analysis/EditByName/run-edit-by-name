@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-# Exercise the edit-by-name analysis end to end. Unlike edit-c-body, nothing of
+# Exercise the edit-by-name analysis end to end. Unlike annotate-c-body, nothing of
 # the decompiled code is submitted back: each edit names the entity it acts on,
 # so the test only needs the names the decompiler is guaranteed to produce.
 #

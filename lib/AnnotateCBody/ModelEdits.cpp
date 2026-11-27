@@ -47,7 +47,7 @@ static std::string currentComment(mlir::Operation *Op) {
   return {};
 }
 
-namespace revng::editcbody {
+namespace revng::annotatecbody {
 
 AmbiguousLocations collectAmbiguousLocations(clift::FunctionOp Function) {
   std::vector<SortedVector<MetaAddress>> Variables;
@@ -180,4 +180,4 @@ writeHeader(const revng::pypeline::PTMLCContainer &TypeAndGlobalHeader,
   return std::move(*MaybeFile);
 }
 
-} // namespace revng::editcbody
+} // namespace revng::annotatecbody

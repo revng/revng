@@ -16,7 +16,7 @@
 
 #include "Statements.h"
 
-namespace revng::editcbody {
+namespace revng::annotatecbody {
 
 /// The model type named by each `RETYPE:` directive, keyed by its text as
 /// written.
@@ -51,4 +51,4 @@ llvm::Expected<ParsedFunction> parseUserFunction(llvm::StringRef HeaderPath,
                                                  llvm::StringRef CCode,
                                                  const model::Binary &Binary);
 
-} // namespace revng::editcbody
+} // namespace revng::annotatecbody

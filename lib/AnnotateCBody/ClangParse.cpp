@@ -38,9 +38,9 @@
 #include "Statements.h"
 
 using namespace llvm;
-using namespace revng::editcbody;
+using namespace revng::annotatecbody;
 
-static Logger Log("edit-c-body-clang");
+static Logger Log("annotate-c-body-clang");
 
 namespace {
 
@@ -160,7 +160,7 @@ resolveTypeProbe(const clang::FunctionDecl &Probe,
                                                           Binary,
                                                           Context,
                                                           Errors,
-                                                          "edit-c-body:");
+                                                          "annotate-c-body:");
 
   // A named type the model does not know is reported here and still wrapped in
   // whatever it was written under, so `struct nope *` comes back as a pointer
@@ -482,9 +482,9 @@ std::vector<std::string> getCompileFlags() {
 } // namespace
 
 llvm::Expected<ResolvedTypeMap>
-revng::editcbody::resolveTypeNames(StringRef HeaderPath,
-                                   llvm::ArrayRef<std::string> TypeNames,
-                                   const model::Binary &Binary) {
+revng::annotatecbody::resolveTypeNames(StringRef HeaderPath,
+                                       llvm::ArrayRef<std::string> TypeNames,
+                                       const model::Binary &Binary) {
   ResolvedTypeMap Result;
   if (TypeNames.empty())
     return Result;
@@ -516,9 +516,9 @@ revng::editcbody::resolveTypeNames(StringRef HeaderPath,
 }
 
 llvm::Expected<ParsedFunction>
-revng::editcbody::parseUserFunction(StringRef HeaderPath,
-                                    StringRef CCode,
-                                    const model::Binary &Binary) {
+revng::annotatecbody::parseUserFunction(StringRef HeaderPath,
+                                        StringRef CCode,
+                                        const model::Binary &Binary) {
   // Prepend a synthetic probe declaration per `RETYPE:` directive, so Clang
   // resolves the types named in the comments in the same parse as the function
   // body.

@@ -34,10 +34,10 @@ namespace revng::pypeline::analyses {
 /// above the label, and applies to both; `Retype` applies to a variable only.
 ///
 /// This covers the same edits `RENAME:`/`RETYPE:` comments express in
-/// \ref EditCBody, without submitting the body: they need no position in the
-/// code, only the entity they name. `Comment` is the comment belonging to the
-/// entity, which needs no position either; a comment on a statement does need
-/// one, so those remain the business of \ref EditCBody.
+/// \ref AnnotateCBody, without submitting the body: they need no position in
+/// the code, only the entity they name. `Comment` is the comment belonging to
+/// the entity, which needs no position either; a comment on a statement does
+/// need one, so those remain the business of \ref AnnotateCBody.
 ///
 /// A directive an edit leaves out keeps what the entity already has, so
 /// renaming a variable does not drop the comment it carries.

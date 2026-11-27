@@ -2,14 +2,14 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-# Round-trip test for the edit-c-body analysis. For each binary tagged
+# Round-trip test for the annotate-c-body analysis. For each binary tagged
 # `for-goto-edits`, it decompiles the function, applies one annotation of each
 # supported kind (a comment on a statement, on a label, on a jump and on a
 # declaration, plus a local variable rename, a local variable retype and a goto
-# label rename) through edit-c-body and checks each one reaches the model and,
+# label rename) through annotate-c-body and checks each one reaches the model and,
 # where applicable, the re-emitted code.
 # It also covers the annotations that cannot be applied: each is dropped on its
-# own, reported on the `edit-c-body` logger and leaves the rest of the edit
+# own, reported on the `annotate-c-body` logger and leaves the rest of the edit
 # alone. The decompiled code is derived live and never pinned in the test, so a
 # change in the decompiler output does not break it.
 #
@@ -18,17 +18,17 @@
 # is dropped rather than applied to either.
 
 commands:
-  - type: revng.edit-c-body
+  - type: revng.annotate-c-body
     from:
       - type: revng-qa.compiled-with-debug-info
         filter: for-goto-edits
     suffix: /
     command: |-
-      "${SOURCES_ROOT}/share/revng/test/tests/analysis/EditCBody/run-edit-c-body" "${INPUT}" "${OUTPUT}"
-  - type: revng.edit-c-body-ambiguous-locals
+      "${SOURCES_ROOT}/share/revng/test/tests/analysis/AnnotateCBody/run-annotate-c-body" "${INPUT}" "${OUTPUT}"
+  - type: revng.annotate-c-body-ambiguous-locals
     from:
       - type: revng-qa.compiled-with-debug-info
         filter: for-ambiguous-locals
     suffix: /
     command: |-
-      "${SOURCES_ROOT}/share/revng/test/tests/analysis/EditCBody/run-ambiguous-locals" "${INPUT}" "${OUTPUT}"
+      "${SOURCES_ROOT}/share/revng/test/tests/analysis/AnnotateCBody/run-ambiguous-locals" "${INPUT}" "${OUTPUT}"
