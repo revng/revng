@@ -782,8 +782,8 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
 
       std::optional MaybeLayout = Helper.getAdjustedLayout(Function);
       if (not MaybeLayout) {
-        // A `false` return means the layout is broken, the failure is already
-        // recorded, so just skip this test.
+        // A `std::nullopt` here means the layout is broken, but the failure is
+        // already recorded, so just skip this test.
         continue;
       }
 
@@ -812,8 +812,8 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
 
       std::optional MaybeLayout = Helper.getAdjustedLayout(Function);
       if (not MaybeLayout) {
-        // A `false` return means the layout is broken, the failure is already
-        // recorded, so just skip this test.
+        // A `std::nullopt` here means the layout is broken, but the failure is
+        // already recorded, so just skip this test.
         continue;
       }
 
