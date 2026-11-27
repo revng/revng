@@ -63,6 +63,8 @@
     - apple_two_byte_aligned_aggregate_on_stack
     - apple_two_byte_aligned_primitive_on_stack
     - deeply_nested_float_struct_argument_on_stack
+    - double_int_struct_with_occupied_fprs
+    - double_int_struct_with_occupied_gprs
     - five_float_arguments
     - float_then_double_struct_arguments
     - float_then_five_double_struct_arguments
@@ -189,6 +191,7 @@
     - single_unnaturally_sized_six_byte_struct_argument
     - single_unnaturally_sized_three_byte_struct_argument
     - single_unnaturally_sized_three_byte_union_with_a_smaller_scalar_argument
+    - two_gpr_struct_with_one_gpr_left
     - two_primitives_on_the_stack
   errors:
     - RawFunctionDefinition is found instead of the expected CABIFunctionDefinition
@@ -196,6 +199,7 @@
     - Argument 1 uses neither the expected stack part nor the expected registers.
     - Argument 4 uses neither the expected stack part nor the expected registers.
     - Argument 5 uses neither the expected stack part nor the expected registers.
+    - Argument 6 uses neither the expected stack part nor the expected registers.
     - Argument 8 uses neither the expected stack part nor the expected registers.
     - Argument 9 uses neither the expected stack part nor the expected registers.
 

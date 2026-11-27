@@ -33,6 +33,8 @@
     - SystemV_x86_regparm_3
   tests:
     - deeply_nested_float_struct_argument_on_stack
+    - double_int_struct_with_occupied_fprs
+    - double_int_struct_with_occupied_gprs
     - five_double_arguments
     - five_float_arguments
     - float_then_double_struct_arguments
