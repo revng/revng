@@ -745,7 +745,7 @@ branches:
           - name: emit-recompilable-archive
             container: recompilable-archive
             category: metadata
-            filename: recompilable_archive.tar
+            filename: recompilable_archive.tar.gz
 
   hexdump:
     from: isolate

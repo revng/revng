@@ -75,6 +75,18 @@ LLVM modules can be parsed and explored via the `llvmcpy` python module:
 ...             instruction.dump()
 ```
 
+There's also a `emit-recompilable-archive` artifact, which can be inspected with `pycparser`:
+
+```{python ignoreoutput=7}
+>>> archive = project.model.get_artifact("emit-recompilable-archive")["/binary"]
+>>> ast = archive.parse()
+>>> from pycparser import c_ast
+>>> class FuncDefVisitor(c_ast.NodeVisitor):
+...     def visit_FuncDef(self, node):
+...         print(node.decl.name)
+>>> FuncDefVisitor().visit(ast)
+```
+
 ## Interacting with the model
 
 In order to access [the model](key-concepts/model.md), use `project.model`:

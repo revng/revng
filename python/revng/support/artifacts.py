@@ -14,6 +14,7 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import IO, Dict, Type, TypeVar, Union
 
 import pycparser
+from pycparserext.ext_c_parser import GnuCParser
 
 from revng.ptml.parser import PTMLDocument
 from revng.ptml.parser import parse as ptml_parse
@@ -93,7 +94,10 @@ class ImageArtifact(Artifact):
 
 
 class RecompilableArchiveArtifact(Artifact):
-    MIMES = ("application/x.recompilable-archive",)
+    MIMES = (
+        "application/x.recompilable-archive",
+        "application/x.recompilable-archive+gz",
+    )
 
     def parse(self) -> pycparser.c_ast.FileAST:
         with TemporaryDirectory() as temp_dir:
@@ -101,11 +105,11 @@ class RecompilableArchiveArtifact(Artifact):
                 tar.extractall(path=temp_dir)
 
             c_file = Path(temp_dir) / "decompiled/functions.c"
-            args = ["-E", "-DDISABLE_ATTRIBUTES", "-DDISABLE_FLOAT16"]
+            args = ["-E", "-DDISABLE_ATTRIBUTES", "-DDISABLE_FLOAT16", "-DIS_PYCPARSER"]
             for executable in ("cpp", "clang-cpp", "gcc", "clang"):
                 if shutil.which(executable) is not None:
                     processed_text = pycparser.preprocess_file(c_file, executable, args)
                     break
             else:
                 raise ValueError("No suitable C preprocessor found")
-            return pycparser.CParser().parse(processed_text, str(c_file))
+            return GnuCParser().parse(processed_text, str(c_file))

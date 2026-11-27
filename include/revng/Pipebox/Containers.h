@@ -32,7 +32,8 @@ public:
 class RecompilableArchiveContainer : public BytesContainer {
 public:
   static constexpr llvm::StringRef Name = "RecompilableArchiveContainer";
-  static constexpr llvm::StringRef MimeType = "application/x-object";
+  static constexpr llvm::StringRef MimeType = "application/"
+                                              "x.recompilable-archive+gz";
   static constexpr llvm::StringRef Compression = "none";
 };
 
